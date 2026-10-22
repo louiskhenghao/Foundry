@@ -11,10 +11,10 @@ import { HelpLink } from '../HelpPage.tsx';
 
 const startedByText = (by: PreviewAppStatus['startedBy']) => (by === 'human' ? 'by you' : by === 'milestone' ? 'for the milestone' : by === 'integration' ? 'after a task landed' : null);
 
-/** ready (answering) / starting / failed / stopped */
+/** ready (answering) / starting / failed / stopped, as a small square: solid ink once it answers, hatched while it starts, red when the last run failed, hollow when stopped */
 function StatusDot({ app }: { app: Pick<PreviewAppStatus, 'running' | 'ready' | 'error'> }) {
-  const [color, label] = app.running ? (app.ready ? ['bg-emerald-400', 'answering'] : ['bg-amber-400 animate-pulse', 'starting…']) : app.error ? ['bg-rose-400', 'the last run failed'] : ['bg-zinc-600', 'stopped'];
-  return <span className={cn('inline-block h-2 w-2 shrink-0 rounded-full', color)} title={label} />;
+  const [look, label] = app.running ? (app.ready ? ['bg-ink', 'answering'] : ['hatch text-ink ring-1 ring-inset ring-ink', 'starting…']) : app.error ? ['bg-bad', 'the last run failed'] : ['ring-[1.5px] ring-inset ring-line-strong', 'stopped'];
+  return <span className={cn('inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]', look)} title={label} />;
 }
 
 /** the other servers an app's command started (a demo script's admin, API…), each with its own link */
@@ -22,11 +22,11 @@ function AlsoServing({ app, onVisit }: { app: PreviewAppStatus; onVisit: () => v
   if (!app.running || !app.discovered.length) return null;
   return (
     <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap text-[11px]">
-      <span className="text-zinc-500">Also serving</span>
+      <span className="text-ink-faint">Also serving</span>
       {app.discovered.map((d) => (
-        <a key={d.port} href={d.url} target="_blank" rel="noreferrer" onClick={onVisit} title={`${d.url}${d.dir ? ` · started in ${d.dir}` : ''}`} className="inline-flex items-center gap-1 rounded border border-zinc-700 px-1.5 py-0.5 text-emerald-300 hover:border-emerald-500/50">
+        <a key={d.port} href={d.url} target="_blank" rel="noreferrer" onClick={onVisit} title={`${d.url}${d.dir ? ` · started in ${d.dir}` : ''}`} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-semibold text-work-ink ring-1 ring-inset ring-line-strong hover:ring-work">
           {d.name}
-          <span className="mono text-zinc-500">:{d.port}</span>
+          <span className="mono font-normal text-ink-faint">:{d.port}</span>
           <ExternalLink size={10} />
         </a>
       ))}
@@ -57,11 +57,11 @@ export const viewerAddress = (url: string) => {
  */
 function HereOnly({ app, onVisit }: { app: PreviewAppStatus; onVisit: () => void }) {
   return (
-    <span className="inline-flex max-w-full items-baseline gap-1.5 rounded border border-zinc-700 px-1.5 text-[11px] leading-[14px] text-zinc-400">
+    <span className="inline-flex max-w-full items-baseline gap-1.5 rounded-md px-1.5 text-[11px] leading-[14px] text-ink-soft ring-1 ring-inset ring-line-strong">
       <Lock size={11} aria-hidden="true" className="self-center" />
       <span>only on Foundry's computer</span>
       {app.running && app.url && (
-        <a href={app.url} target="_blank" rel="noreferrer" onClick={onVisit} title="Opens in a browser on Foundry's computer; on another device this address is that device" className="mono min-w-0 truncate text-emerald-300 hover:underline">
+        <a href={app.url} target="_blank" rel="noreferrer" onClick={onVisit} title="Opens in a browser on Foundry's computer; on another device this address is that device" className="mono min-w-0 truncate text-work-ink hover:underline">
           {viewerAddress(app.url)}
         </a>
       )}
@@ -75,26 +75,26 @@ function Problems({ app }: { app: PreviewAppStatus }) {
   if (app.running)
     return (
       <>
-        {app.warning && <div className="text-amber-300">{app.warning}</div>}
-        {app.nativePort != null && app.port != null && app.nativePort !== app.port && <div className="text-[11px] text-zinc-500">Usually on port {app.nativePort}, which was taken; runs on {app.port}.</div>}
+        {app.warning && <div className="font-semibold text-ink">{app.warning}</div>}
+        {app.nativePort != null && app.port != null && app.nativePort !== app.port && <div className="text-[11px] text-ink-faint">Usually on port {app.nativePort}, which was taken; runs on {app.port}.</div>}
         {app.rewrites.length > 0 && (
-          <div className="text-[11px] text-zinc-500">
+          <div className="text-[11px] text-ink-faint">
             Pointed at the ports the apps got:{' '}
             {app.rewrites.map((r, i) => (
               <span key={`${r.key}:${r.from}`}>
                 {i > 0 && ', '}
-                <span className="mono text-zinc-400">{r.key}</span> {r.from} → {r.to}
+                <span className="mono text-ink-soft">{r.key}</span> {r.from} → {r.to}
               </span>
             ))}
           </div>
         )}
       </>
     );
-  if (!app.error) return app.stopped ? <div className="text-[11px] text-zinc-500">Foundry stopped it: {app.stopped}.</div> : null;
+  if (!app.error) return app.stopped ? <div className="text-[11px] text-ink-faint">Foundry stopped it: {app.stopped}.</div> : null;
   return (
-    <div className="rounded border border-rose-500/30 bg-rose-500/5 px-2 py-1.5 space-y-1">
-      <div className="text-rose-300">The last run failed: {app.error}</div>
-      {app.errorDetail.length > 0 && <pre className="mono text-[11px] leading-snug text-zinc-300 whitespace-pre-wrap break-all max-h-40 overflow-auto">{app.errorDetail.join('\n')}</pre>}
+    <div className="rounded-md border border-bad/40 bg-bad/5 px-2.5 py-2 space-y-1">
+      <div className="font-semibold text-bad-ink">The last run failed: {app.error}</div>
+      {app.errorDetail.length > 0 && <pre className="mono text-[11px] leading-snug text-ink-soft whitespace-pre-wrap break-all max-h-40 overflow-auto">{app.errorDetail.join('\n')}</pre>}
       {busyPort(app) != null && <PortHolder port={busyPort(app)!} />}
     </div>
   );
@@ -114,14 +114,14 @@ function PortHolder({ port }: { port: number }) {
   const { ask, dialog } = usePortRelease(() => void refresh());
   const rows = view?.rows.filter((r) => r.port === port) ?? [];
   return (
-    <div className="rounded-lg border border-zinc-800 px-3 surface-card">
-      <div className="pt-2 flex items-center gap-2 text-[11px] text-zinc-400">
+    <div className="rounded-lg border border-line bg-panel px-3">
+      <div className="pt-2 flex items-center gap-2 text-[11px] text-ink-soft">
         <span>Port {port} is in use{view && !rows.length ? ' by nothing Foundry can see now: start the preview again, or check with sudo lsof' : ''}</span>
-        <Link to={`/ports?port=${port}`} className="ml-auto shrink-0 text-zinc-500 hover:text-emerald-300">
+        <Link to={`/ports?port=${port}`} className="ml-auto shrink-0 font-semibold text-ink-faint hover:text-ink">
           Ports →
         </Link>
       </div>
-      <ul className="divide-y divide-zinc-800/70">
+      <ul className="divide-y divide-line">
         {rows.map((r) => (
           <PortLine key={r.id} row={r} onRelease={ask} standalone />
         ))}
@@ -210,14 +210,14 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
         {st!.running && a ? (
           <>
             <StatusDot app={a} />
-            <span className="text-zinc-200">
-              {viewerOnly ? 'CAD Viewer running' : 'Running'} on port {a.port}
-              {startedByText(a.startedBy) && <span className="text-zinc-500"> · started {startedByText(a.startedBy)}</span>}
-              {a.mock && <span className="text-amber-300" title="Running its mock command against fake data for the milestone walkthrough; the next start runs the real app"> · mock data</span>}
+            <span className="text-[13px] font-semibold text-ink">
+              {viewerOnly ? 'CAD Viewer running' : 'Running'} on port <span className="mono">{a.port}</span>
+              {startedByText(a.startedBy) && <span className="font-normal text-ink-faint"> · started {startedByText(a.startedBy)}</span>}
+              {a.mock && <span className="text-ink" title="Running its mock command against fake data for the milestone walkthrough; the next start runs the real app"> · mock data</span>}
             </span>
             {hereOnly(a) && <HereOnly app={a} onVisit={visit} />}
             {a.url && !hereOnly(a) && (
-              <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} className="inline-flex items-center gap-1 text-emerald-300 hover:underline">
+              <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} className="inline-flex items-center gap-1 text-[13px] font-semibold text-work-ink hover:underline">
                 {viewerOnly ? 'Open the model' : 'Open preview'} <ExternalLink size={12} />
               </a>
             )}
@@ -227,7 +227,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
           </>
         ) : (
           <>
-            <span className="text-zinc-300">{st!.run?.command ? (viewerOnly ? 'CAD Viewer not running' : 'Not running') : 'Nothing to run yet'}</span>
+            <span className="text-[13px] font-semibold text-ink">{st!.run?.command ? (viewerOnly ? 'CAD Viewer not running' : 'Not running') : 'Nothing to run yet'}</span>
             {viewerOnly && hereOnly(apps[0]!) && <HereOnly app={apps[0]!} onVisit={visit} />}
             <Button size="sm" variant="primary" className="ml-auto" disabled={!!busy || !st!.run?.command} onClick={() => run('start:*', () => api.previewStart(goalId))} title={st!.run?.command ? `runs: ${st!.run.command}` : 'no dev/start script in package.json — the Brief\'s "How to run it" can set a command'}>
               <Play size={12} /> {busy === 'start:*' ? 'Starting…' : viewerOnly ? 'Start the viewer' : 'Start preview'}
@@ -236,11 +236,11 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
         )}
       </div>
       {st!.run?.command ? (
-        <div className="text-[11px] text-zinc-500">
-          <span className="mono text-zinc-400 break-all">{st!.running ? st!.command : st!.run.command}</span> <span>· from {fromText}{st!.run.platform === 'expo' ? ' · Expo web' : ''}</span>
+        <div className="text-[11px] text-ink-faint">
+          <span className="mono text-ink-soft break-all">{st!.running ? st!.command : st!.run.command}</span> <span>· from {fromText}{st!.run.platform === 'expo' ? ' · Expo web' : ''}</span>
         </div>
       ) : (
-        <div className="text-[11px] text-zinc-500">No dev or start script in package.json. Once a task adds one, or the Brief's "How to run it" names a command, the preview can start.</div>
+        <div className="text-[11px] text-ink-faint">No dev or start script in package.json. Once a task adds one, or the Brief's "How to run it" names a command, the preview can start.</div>
       )}
       {a && <AlsoServing app={a} onVisit={visit} />}
       {a && !err && <Problems app={a} />}
@@ -258,22 +258,22 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
           </span>
           <div className="min-w-0 flex-1 space-y-0.5">
             <div className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap">
-              <span className="text-zinc-200 font-medium">{a.name}</span>
-              {a.dir && <span className="mono text-[11px] text-zinc-500 truncate max-w-[14rem]" title={a.dir}>{a.dir}</span>}
-              {a.running && a.port != null && <span className="text-[11px] text-zinc-500">:{a.port}</span>}
+              <span className="text-[13px] font-bold text-ink">{a.name}</span>
+              {a.dir && <span className="mono text-[11px] text-ink-faint truncate max-w-[14rem]" title={a.dir}>{a.dir}</span>}
+              {a.running && a.port != null && <span className="mono text-[11px] text-ink-faint">:{a.port}</span>}
               {hereOnly(a) && <HereOnly app={a} onVisit={visit} />}
               {a.running && a.url && !hereOnly(a) && (
-                <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} title={openUrl(a)!} className="inline-flex items-center gap-1 self-center text-emerald-300 hover:underline">
+                <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} title={openUrl(a)!} className="inline-flex items-center gap-1 self-center font-semibold text-work-ink hover:underline">
                   Open <ExternalLink size={12} />
                 </a>
               )}
             </div>
-            <div className="flex items-baseline gap-x-2 flex-wrap text-[11px] text-zinc-500">
-              {command && <span className="mono text-zinc-400 break-all">{command}</span>}
+            <div className="flex items-baseline gap-x-2 flex-wrap text-[11px] text-ink-faint">
+              {command && <span className="mono text-ink-soft break-all">{command}</span>}
               {a.running && startedByText(a.startedBy) && <span>· started {startedByText(a.startedBy)}</span>}
-              {a.running && a.mock && <span className="text-amber-300">· mock data</span>}
+              {a.running && a.mock && <span className="font-semibold text-ink">· mock data</span>}
               {(a.running || a.log.length > 0) && (
-                <button type="button" className="text-zinc-500 hover:text-zinc-300" onClick={() => toggleLog(a.key)}>
+                <button type="button" className="font-semibold text-ink-faint hover:text-ink" onClick={() => toggleLog(a.key)}>
                   {showLog ? '▾ hide output' : '▸ output'}
                 </button>
               )}
@@ -299,33 +299,33 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
   const where = st?.workspace && <Where goalId={goalId} st={st} busy={!!busy} onChange={load} />;
 
   const body = (
-    <div className="text-xs text-zinc-400 space-y-2">
+    <div className="text-xs text-ink-soft space-y-2.5">
       {goal && <WorkspaceDetails goal={goal} />}
       {where}
       {!st ? (
-        <div className="text-zinc-500">…</div>
+        <div className="text-ink-faint">…</div>
       ) : multi ? (
         <>
           {embedded && (
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-zinc-300">
+              <span className="font-semibold text-ink">
                 {apps.length} apps · {apps.filter((a) => a.running).length} running
               </span>
               <span className="ml-auto flex items-center gap-2">{allButtons}</span>
             </div>
           )}
-          <ul className="divide-y divide-zinc-800">{apps.map(appRow)}</ul>
-          <div className="text-[11px] text-zinc-500">
+          <ul className="divide-y divide-line">{apps.map(appRow)}</ul>
+          <div className="text-[11px] text-ink-faint">
             From {fromText}. Each app gets the others' addresses as <span className="mono">FOUNDRY_APP_&lt;KEY&gt;_URL</span>.
           </div>
         </>
       ) : (
         single(apps[0])
       )}
-      {err && <div className="text-rose-300">{err}</div>}
+      {err && <div className="text-bad-ink">{err}</div>}
       {st && !multi && st.running && apps[0] && (
         <div>
-          <button type="button" className="text-[11px] text-zinc-500 hover:text-zinc-300" onClick={() => toggleLog(apps[0]!.key)}>
+          <button type="button" className="text-[11px] font-semibold text-ink-faint hover:text-ink" onClick={() => toggleLog(apps[0]!.key)}>
             {logs.has(apps[0].key) ? '▾ hide output' : '▸ server output'}
           </button>
           {logs.has(apps[0].key) && <LiveLog attemptId={apps[0].channel} className="mt-1 max-h-48" />}
@@ -370,7 +370,7 @@ function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStat
   const current = options.find((o) => o.ref === w.branch);
   return (
     <div className="space-y-1">
-      <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0 text-[11px] text-zinc-500" title={w.path}>
+      <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap min-w-0 text-[11px] text-ink-faint" title={w.path}>
         <GitBranch size={12} className="shrink-0" />
         <span>Runs</span>
         {src?.selectable && w.place !== 'checkout' ? (
@@ -386,7 +386,7 @@ function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStat
             </Select>
           </span>
         ) : (
-          <span className="mono text-zinc-400 break-all">{w.branch}</span>
+          <span className="mono text-ink-soft break-all">{w.branch}</span>
         )}
         {w.kind === 'goal' ? <span>in the goal's folder · not your checkout</span> : !src?.selectable ? <span>{w.kind === 'checkout' ? 'in your checkout' : "in Foundry's preview folder · not your checkout"}</span> : (
           <span className="flex items-center gap-1.5">
@@ -404,22 +404,25 @@ function Where({ goalId, st, busy, onChange }: { goalId: string; st: PreviewStat
         )}
         <CopyButton text={w.path} />
       </div>
-      {w.kind === 'checkout' && <div className="text-[11px] text-zinc-500 pl-[1.125rem]">Runs your own folder as it is{w.checkoutBranch ? ` on ${w.checkoutBranch}` : ''}, with its dependencies and env files; Foundry never switches, resets or pulls it.</div>}
-      {w.kind === 'branch' && w.place === 'auto' && w.checkoutBranch && w.checkoutBranch !== w.branch && <div className="text-[11px] text-zinc-500 pl-[1.125rem]">Your checkout is on {w.checkoutBranch}, so {w.branch} runs in Foundry's preview folder.</div>}
-      {src?.selectable && current?.note && <div className="text-[11px] text-zinc-500 pl-[1.125rem]">{current.note[0]!.toUpperCase() + current.note.slice(1)}</div>}
-      {w.preparing && <div className="text-[11px] text-zinc-400">Checking out {w.branch} in the preview folder…</div>}
-      {w.fallback && <div className="text-[11px] text-amber-300/90">{w.fallback[0]!.toUpperCase() + w.fallback.slice(1)}.</div>}
-      {err && <div className="text-[11px] text-rose-300">{err}</div>}
+      {w.kind === 'checkout' && <div className="text-[11px] text-ink-faint pl-[1.125rem]">Runs your own folder as it is{w.checkoutBranch ? ` on ${w.checkoutBranch}` : ''}, with its dependencies and env files; Foundry never switches, resets or pulls it.</div>}
+      {w.kind === 'branch' && w.place === 'auto' && w.checkoutBranch && w.checkoutBranch !== w.branch && <div className="text-[11px] text-ink-faint pl-[1.125rem]">Your checkout is on {w.checkoutBranch}, so {w.branch} runs in Foundry's preview folder.</div>}
+      {src?.selectable && current?.note && <div className="text-[11px] text-ink-faint pl-[1.125rem]">{current.note[0]!.toUpperCase() + current.note.slice(1)}</div>}
+      {w.preparing && <div className="text-[11px] text-ink-soft">Checking out {w.branch} in the preview folder…</div>}
+      {w.fallback && <div className="text-[11px] font-semibold text-ink">{w.fallback[0]!.toUpperCase() + w.fallback.slice(1)}.</div>}
+      {err && <div className="text-[11px] text-bad-ink">{err}</div>}
     </div>
   );
 }
 
+/** a service's state as a small plate: green when it runs, blue when another one on this computer serves its port, quiet otherwise */
 const STATE_CHIP: Record<ServicesStatus['services'][number]['state'], string> = {
-  running: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  stopped: 'bg-zinc-800 text-zinc-400 border-zinc-700',
-  external: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
-  unknown: 'bg-zinc-800 text-zinc-500 border-zinc-700',
+  running: 'bg-ok/10 text-ok-ink ring-ok/30',
+  stopped: 'text-ink-soft ring-line-strong',
+  external: 'bg-work/10 text-work-ink ring-work/30',
+  unknown: 'text-ink-faint ring-line-strong',
 };
+/** the label inside a card above a section of it (Services, Environment), in small capitals */
+const SECTION = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink';
 
 /** The Docker services from the repository's compose file: shared by every goal of the repository, kept running when previews stop. */
 function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: ServicesStatus; onChange: (s: ServicesStatus | null) => void; reload: () => Promise<void> }) {
@@ -442,10 +445,10 @@ function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: Serv
   const anyStopped = svc.services.some((s) => s.state === 'stopped' || s.state === 'unknown');
   const anyRunning = svc.services.some((s) => s.state === 'running');
   return (
-    <div className="border-t border-zinc-800 pt-2 space-y-1.5">
+    <div className="border-t border-line pt-3 space-y-1.5">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-zinc-300 font-medium">Services</span>
-        <span className="mono text-[11px] text-zinc-500" title={`Docker Compose project ${svc.project}`}>
+        <span className={SECTION}>Services</span>
+        <span className="mono text-[11px] text-ink-faint" title={`Docker Compose project ${svc.project}`}>
           {svc.file}
         </span>
         {docker && (
@@ -466,13 +469,13 @@ function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: Serv
           return (
             <li key={s.name} className="flex items-center gap-2 min-h-7">
               <div className="min-w-0 flex-1 flex items-center gap-x-2 gap-y-1 flex-wrap">
-                <span className="text-zinc-200">{s.name}</span>
-                <span className="hidden sm:inline mono text-[11px] text-zinc-500 truncate max-w-[12rem]" title={s.image}>
+                <span className="font-semibold text-ink">{s.name}</span>
+                <span className="hidden sm:inline mono text-[11px] text-ink-faint truncate max-w-[12rem]" title={s.image}>
                   {s.image}
                 </span>
-                {s.ports.length > 0 && <span className="mono text-[11px] text-zinc-500">{s.ports.map((p) => `:${p}`).join(' ')}</span>}
+                {s.ports.length > 0 && <span className="mono text-[11px] text-ink-faint">{s.ports.map((p) => `:${p}`).join(' ')}</span>}
                 <span
-                  className={cn('rounded border px-1.5 py-px text-[10px] font-medium uppercase tracking-wide whitespace-nowrap', unhealthy ? 'bg-amber-500/15 text-amber-300 border-amber-500/30' : STATE_CHIP[s.state])}
+                  className={cn('rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.07em] whitespace-nowrap ring-1 ring-inset', unhealthy ? (s.health === 'unhealthy' ? 'bg-bad/10 text-bad-ink ring-bad/40' : 'text-ink-soft ring-line-strong') : STATE_CHIP[s.state])}
                   title={s.state === 'external' ? `Port ${s.ports.join(', ')} is already taken by something else on this computer (your own ${s.name}?). The apps use that one; Foundry does not start this service.` : undefined}
                 >
                   {label}
@@ -495,15 +498,15 @@ function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: Serv
       </ul>
       {!docker && (
         <div className="space-y-1">
-          <div className="text-zinc-300">{svc.docker === 'in-container' ? "Foundry runs inside Docker without this computer's Docker shared with it. Run the installer again and allow sharing (foundry update), or start these yourself:" : 'Docker is not installed — install it, or start these yourself:'}</div>
-          <div className="flex items-start gap-2 rounded bg-zinc-950/60 border border-zinc-800 px-2 py-1">
-            <span className="mono text-[11px] text-zinc-300 break-all grow">{svc.command}</span>
+          <div className="text-ink">{svc.docker === 'in-container' ? "Foundry runs inside Docker without this computer's Docker shared with it. Run the installer again and allow sharing (foundry update), or start these yourself:" : 'Docker is not installed — install it, or start these yourself:'}</div>
+          <div className="flex items-start gap-2 rounded-md bg-inset border border-line px-2.5 py-1.5">
+            <span className="mono text-[11px] text-ink break-all grow">{svc.command}</span>
             <CopyButton text={svc.command} />
           </div>
         </div>
       )}
-      {(err || svc.error) && <div className="text-rose-300">{err ?? svc.error}</div>}
-      <div className="text-[11px] text-zinc-500">Services keep running when previews stop, and are shared by every goal of this repository.</div>
+      {(err || svc.error) && <div className="text-bad-ink">{err ?? svc.error}</div>}
+      <div className="text-[11px] text-ink-faint">Services keep running when previews stop, and are shared by every goal of this repository.</div>
     </div>
   );
 }
@@ -535,19 +538,19 @@ function EnvPanel({ goalId, anyRunning }: { goalId: string; anyRunning: boolean 
   }, [goalId]);
   if (!env) return null;
   return (
-    <div className="border-t border-zinc-800 pt-2 space-y-1">
+    <div className="border-t border-line pt-3 space-y-1">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-zinc-300 font-medium">Environment</span>
-        <span className="text-[11px] text-zinc-500">
-          {env.keys.length} set
-          {env.missing.length > 0 && <span className="text-amber-300/90"> · {env.missing.length} in example files not set</span>}
-          {env.checkout.keys.length > 0 && <> · {env.checkout.keys.length} in your checkout</>}
+        <span className={SECTION}>Environment</span>
+        <span className="text-[11px] text-ink-faint">
+          <span className="mono">{env.keys.length}</span> set
+          {env.missing.length > 0 && <span className="font-semibold text-ink-soft"> · <span className="mono">{env.missing.length}</span> in example files not set</span>}
+          {env.checkout.keys.length > 0 && <> · <span className="mono">{env.checkout.keys.length}</span> in your checkout</>}
         </span>
         <Button size="sm" className="ml-auto" onClick={() => setOpen(true)}>
           Edit…
         </Button>
       </div>
-      {saved && <div className="text-[11px] text-emerald-300">{saved}</div>}
+      {saved && <div className="text-[11px] text-ok-ink">{saved}</div>}
       <EnvDialog
         open={open}
         env={env}
@@ -631,7 +634,7 @@ function EnvDialog({ open, env, goalId, anyRunning, onClose, onSaved, onReload }
             spellCheck={false}
             {...noManager}
             onChange={(e) => set(r.id, { key: e.target.value })}
-            className={cn('col-span-3 sm:col-span-1 mono text-[11px] py-1', !r.custom && 'text-zinc-200 bg-transparent border-transparent px-0', bad.includes(r.key.trim()) && 'border-rose-500/60')}
+            className={cn('col-span-3 sm:col-span-1 mono text-[11px] py-1', !r.custom && 'font-semibold text-ink bg-transparent border-transparent px-0', bad.includes(r.key.trim()) && 'border-bad/60')}
           />
           <div className="flex gap-1 min-w-0">
             <Input aria-label={`Value of ${r.key || 'variable'}`} type={r.shown ? 'text' : 'password'} spellCheck={false} {...noManager} value={r.value} placeholder={r.saved ? 'saved · type to replace' : n?.example || 'not set'} onChange={(e) => set(r.id, { value: e.target.value })} className="mono text-[11px] py-1" />
@@ -655,12 +658,12 @@ function EnvDialog({ open, env, goalId, anyRunning, onClose, onSaved, onReload }
         {(lines.length > 0 || (n && (n.file || n.usedIn.length > 0))) && (
           <div className="mt-1 sm:ml-[13.375rem] space-y-0.5 text-[11px]">
             {lines.map((l, i) => (
-              <div key={i} className="text-zinc-400">
+              <div key={i} className="text-ink-soft">
                 {l}
               </div>
             ))}
             {n && (n.file || n.usedIn.length > 0) && (
-              <div className="text-zinc-600">
+              <div className="text-ink-faint">
                 {n.file && (
                   <>
                     in <span className="mono">{n.file}</span>
@@ -689,16 +692,16 @@ function EnvDialog({ open, env, goalId, anyRunning, onClose, onSaved, onReload }
   return (
     <Modal open={open} wide title={`Environment · ${env.repo.split('/').filter(Boolean).pop()}`} onClose={onClose}>
       <div className="space-y-4 text-xs">
-        <p className="text-zinc-400">
+        <p className="text-ink-soft">
           Values the previews of this repository need, shared by its goals and stored on this computer only. They go to the preview's processes as environment, never into the goal's folder where the coding agents work, and are hidden in the preview's output.{' '}
-          <span className="text-zinc-500">
+          <span className="text-ink-faint">
             They take precedence over the project's own <span className="mono">.env</span> files; Foundry sets <span className="mono">PORT</span> and <span className="mono">FOUNDRY_APP_&lt;KEY&gt;_URL</span> itself.
           </span>
         </p>
         {env.checkout.files.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap rounded-md border border-zinc-800 px-2.5 py-2 text-[11px] text-zinc-400">
+          <div className="flex items-center gap-2 flex-wrap rounded-lg border border-line bg-inset px-3 py-2 text-[11px] text-ink-soft">
             <span className="min-w-0 flex-1">
-              Your checkout has <span className="mono text-zinc-300">{env.checkout.files.join(', ')}</span> ({env.checkout.keys.length} variables), which git keeps out of the goal's folder.
+              Your checkout has <span className="mono text-ink">{env.checkout.files.join(', ')}</span> ({env.checkout.keys.length} variables), which git keeps out of the goal's folder.
             </span>
             <Button size="sm" disabled={!!busy || dirty} onClick={importCheckout} title={dirty ? 'Save or revert your changes first' : 'Copy the variables not set here yet; names already set keep their values'}>
               {busy === 'import' ? 'Importing…' : 'Import from your checkout'}
@@ -707,30 +710,30 @@ function EnvDialog({ open, env, goalId, anyRunning, onClose, onSaved, onReload }
         )}
         {setRows_.length > 0 && (
           <section className="space-y-2">
-            <h4 className="text-[11px] uppercase tracking-wide text-zinc-500">Set for this repository · {setRows_.length}</h4>
-            <ul className="divide-y divide-zinc-800/70">{setRows_.map(row)}</ul>
+            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">Set for this repository · <span className="mono">{setRows_.length}</span></h4>
+            <ul className="divide-y divide-line">{setRows_.map(row)}</ul>
           </section>
         )}
         {unset.length > 0 && (
           <section className="space-y-2">
-            <h4 className="text-[11px] uppercase tracking-wide text-zinc-500">Listed in example files, not set · {unset.length}</h4>
-            <p className="text-[11px] text-zinc-500">Those without an example value come first. Not every one is needed: example files list optional settings too, and some start scripts write their own. Only the ones you fill in are saved.</p>
-            <ul className="divide-y divide-zinc-800/70">{unset.map(row)}</ul>
+            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">Listed in example files, not set · <span className="mono">{unset.length}</span></h4>
+            <p className="text-[11px] text-ink-faint">Those without an example value come first. Not every one is needed: example files list optional settings too, and some start scripts write their own. Only the ones you fill in are saved.</p>
+            <ul className="divide-y divide-line">{unset.map(row)}</ul>
           </section>
         )}
         {custom.length > 0 && (
           <section className="space-y-2">
-            <h4 className="text-[11px] uppercase tracking-wide text-zinc-500">Added</h4>
-            <ul className="divide-y divide-zinc-800/70">{custom.map(row)}</ul>
+            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">Added</h4>
+            <ul className="divide-y divide-line">{custom.map(row)}</ul>
           </section>
         )}
-        {bad.length > 0 && <div className="text-rose-300 text-[11px]">Names use letters, digits and _ (not starting with a digit), each once: {bad.join(', ')}</div>}
-        {unnamed && <div className="text-rose-300 text-[11px]">A value has no name yet.</div>}
-        <div className="flex items-center gap-2 flex-wrap border-t border-zinc-800 pt-3">
+        {bad.length > 0 && <div className="text-bad-ink text-[11px]">Names use letters, digits and _ (not starting with a digit), each once: {bad.join(', ')}</div>}
+        {unnamed && <div className="text-bad-ink text-[11px]">A value has no name yet.</div>}
+        <div className="flex items-center gap-2 flex-wrap border-t border-line pt-3">
           <Button size="sm" variant="ghost" onClick={() => setRows((rs) => [...rs, { id: ++rowIds, key: '', value: '', saved: false, shown: true, custom: true }])}>
             <Plus size={12} /> Add variable
           </Button>
-          <span role="status" className={cn('text-[11px] min-w-0 flex-1', msg?.ok ? 'text-emerald-300' : 'text-rose-300')}>
+          <span role="status" className={cn('text-[11px] min-w-0 flex-1', msg?.ok ? 'text-ok-ink' : 'text-bad-ink')}>
             {msg?.text}
           </span>
           <Button size="sm" variant="ghost" onClick={onClose}>

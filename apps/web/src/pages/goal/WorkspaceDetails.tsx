@@ -43,30 +43,30 @@ export function WorkspaceDetails({ goal: g }: { goal: Goal }) {
     }
   };
   return (
-    <div className="space-y-1.5 border-b border-zinc-800 pb-2.5">
+    <div className="space-y-1.5 border-b border-line pb-3">
       <div className="flex items-start gap-2">
-        <p className="min-w-0 flex-1 text-[11px] text-zinc-500">
-          Workers commit to <span className="mono text-zinc-300">{g.branch}</span> in the goal's folder, a worktree of your repository; your own checkout on <span className="mono">{g.baseBranch}</span> is never touched.
+        <p className="min-w-0 flex-1 text-xs text-ink-soft">
+          Workers commit to <span className="mono font-semibold text-ink">{g.branch}</span> in the goal's folder, a worktree of your repository; your own checkout on <span className="mono text-ink">{g.baseBranch}</span> is never touched.
           {ws.head && (
             <>
               {' '}
-              Latest commit <span className="mono text-zinc-400">{ws.head}</span>.
+              Latest commit <span className="mono text-ink-faint">{ws.head}</span>.
             </>
           )}
         </p>
         <OpenMenu goalId={g.id} places={[{ which: 'workspace', label: 'Goal workspace', path: ws.path, hint: `branch ${g.branch}` }, { which: 'repo', label: 'Repository', path: g.repoPath, hint: `your checkout · ${g.baseBranch}` }]} working={['running', 'goal_review'].includes(g.state)} />
       </div>
       {sync && (
-        <div className="text-[11px] text-zinc-500">
+        <div className="text-[11px] text-ink-faint">
           {sync.startedFrom === 'remote' ? (
             <>
-              Started from <span className="mono text-zinc-300">{sync.remote}/{sync.base}</span>; your local <span className="mono">{sync.base}</span> was {sync.behind} commit{sync.behind === 1 ? '' : 's'} behind when the goal began.
+              Started from <span className="mono text-ink-soft">{sync.remote}/{sync.base}</span>; your local <span className="mono">{sync.base}</span> was {sync.behind} commit{sync.behind === 1 ? '' : 's'} behind when the goal began.
             </>
           ) : sync.startedFrom === 'previous' ? (
             <>Started from the previous goal's branch ({sync.detail}).</>
           ) : (
             <>
-              Started from local <span className="mono text-zinc-300">{sync.base}</span> ({sync.detail}).
+              Started from local <span className="mono text-ink-soft">{sync.base}</span> ({sync.detail}).
             </>
           )}
           {up && up.remoteRef && up.behind > 0 && (
@@ -80,14 +80,14 @@ export function WorkspaceDetails({ goal: g }: { goal: Goal }) {
               )}
             </>
           )}
-          {pullMsg && <span className="block text-zinc-400 mt-0.5">{pullMsg}</span>}
+          {pullMsg && <span className="block text-ink-soft mt-0.5">{pullMsg}</span>}
         </div>
       )}
-      {ws.tasks.length > 0 && <div className="text-[11px] text-zinc-500">Tasks running in parallel have their own worktrees ({ws.tasks.length}); they are merged into the goal branch when their checks pass. Open one from its task drawer.</div>}
+      {ws.tasks.length > 0 && <div className="text-[11px] text-ink-faint">Tasks running in parallel have their own worktrees ({ws.tasks.length}); they are merged into the goal branch when their checks pass. Open one from its task drawer.</div>}
       <details className="text-[11px]">
-        <summary className="cursor-pointer text-zinc-500 hover:text-zinc-300">Run it yourself</summary>
+        <summary className="cursor-pointer font-semibold text-ink-faint hover:text-ink">Run it yourself</summary>
         <div className="mt-1.5 space-y-1.5">
-          <div className="rounded-md border border-zinc-800 bg-zinc-950 p-2 mono text-zinc-300 space-y-1">
+          <div className="rounded-md border border-line bg-inset p-2.5 mono text-ink space-y-1">
             <div className="flex items-center gap-2">
               <span className="truncate">{cd}</span> <CopyButton text={cd} />
             </div>
@@ -98,12 +98,12 @@ export function WorkspaceDetails({ goal: g }: { goal: Goal }) {
             )}
             {ws.scripts.map((s) => (
               <div key={s.name} className="flex items-center gap-2">
-                <span>{s.command}</span> <span className="text-zinc-600">({s.name})</span> <CopyButton text={s.command} />
+                <span>{s.command}</span> <span className="text-ink-faint">({s.name})</span> <CopyButton text={s.command} />
               </div>
             ))}
-            {!ws.scripts.length && !ws.install && <div className="text-zinc-600">no package.json scripts detected; open the folder and run the project as you normally would</div>}
+            {!ws.scripts.length && !ws.install && <div className="text-ink-faint">no package.json scripts detected; open the folder and run the project as you normally would</div>}
           </div>
-          <p className="text-zinc-500">
+          <p className="text-ink-faint">
             This folder <em>is</em> the branch <span className="mono">{g.branch}</span>, checked out here, so it cannot also be switched to in your own checkout. {DELIVERY_NOTE[g.delivery.policy.mode]}
           </p>
         </div>

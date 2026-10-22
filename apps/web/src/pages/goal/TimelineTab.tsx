@@ -4,24 +4,29 @@ import { type Dispatch, type MouseEvent, type PointerEvent, type ReactNode, type
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Button, Card, cn, fmtUsd } from '../../ui.tsx';
+import { Button, Card, chipClass, cn, fmtUsd } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
-/** what each kind of bar means, and its colour */
+/**
+ * what each kind of bar means, and its colour in the theme's names: blue for reading and asking, yellow for waiting on
+ * you, graphite for the agents' work, violet for reviews, green for landing it and delivering it
+ */
 const KIND: Record<SpanKind, { label: string; color: string }> = {
-  clarify: { label: 'Clarify', color: 'bg-violet-500' },
-  waiting: { label: 'Waiting for you', color: 'bg-amber-400' },
-  work: { label: 'Work', color: 'bg-emerald-500' },
-  review: { label: 'Reviews', color: 'bg-sky-500' },
-  merge: { label: 'Landing', color: 'bg-fuchsia-500' },
-  delivery: { label: 'Delivery', color: 'bg-teal-400' },
-  other: { label: 'Other sessions', color: 'bg-zinc-400' },
-  run: { label: 'Running', color: 'bg-zinc-600' },
+  clarify: { label: 'Clarify', color: 'bg-work' },
+  waiting: { label: 'Waiting for you', color: 'bg-you' },
+  work: { label: 'Work', color: 'bg-ink' },
+  review: { label: 'Reviews', color: 'bg-extra' },
+  merge: { label: 'Landing', color: 'bg-ok' },
+  delivery: { label: 'Delivery', color: 'bg-ok/45' },
+  other: { label: 'Other sessions', color: 'bg-ink-faint' },
+  run: { label: 'Running', color: 'bg-line-strong' },
 };
 /** waits are striped: time nothing moved on */
-const STRIPES = { backgroundImage: 'repeating-linear-gradient(135deg, rgba(0,0,0,0.18) 0 4px, transparent 4px 8px)' };
+const STRIPES = { backgroundImage: 'repeating-linear-gradient(135deg, color-mix(in srgb, var(--color-on-you) 24%, transparent) 0 4px, transparent 4px 8px)' };
 /** a folded stretch is hatched faintly across every row */
-const FOLDED = { backgroundImage: 'repeating-linear-gradient(90deg, rgba(113,113,122,0.18) 0 2px, transparent 2px 6px)' };
+const FOLDED = { backgroundImage: 'repeating-linear-gradient(90deg, color-mix(in srgb, var(--color-ink-faint) 22%, transparent) 0 2px, transparent 2px 6px)' };
+/** a label inside a card, in small capitals */
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em]';
 /** below this many pixels a minute a goal's steps are too thin to read or tap: the chart slides instead of fitting */
 const READABLE_PPM = 4;
 /** the zoom steps, in pixels a minute */
@@ -142,7 +147,7 @@ export function TimelineTab({ goalId, onOpenTask }: { goalId: string; onOpenTask
     const h = setTimeout(() => void api.timeline(goalId).then(setT, (e) => setErr(e.message)), 300);
     return () => clearTimeout(h);
   }, [goalId, version]);
-  if (!t) return <Card title="Timeline">{err ? <div className="text-sm text-rose-300">{err}</div> : <div className="text-sm text-zinc-500">Loading…</div>}</Card>;
+  if (!t) return <Card title="Timeline">{err ? <div className="text-sm text-bad-ink">{err}</div> : <div className="text-sm text-ink-faint">Loading…</div>}</Card>;
   return <TimelineView t={t} onOpenTask={onOpenTask} />;
 }
 
@@ -224,38 +229,39 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
   return (
     <div className="space-y-4">
       <Card title={<>Where the time went<HelpLink to="while-it-runs#timeline" className="ml-1.5" /></>}>
-        <div className="text-sm text-zinc-200">
+        <div className="text-[15px] font-semibold text-ink">
           {fmtDur(t.totals.wall)} from start to {t.live ? 'now' : 'the end'}
-          {t.totals.waiting > 0 && <span className="text-amber-300"> · {fmtDur(t.totals.waiting)} waiting for you</span>}
-          {t.totals.delivery > 0 && <span className="text-zinc-400"> · {fmtDur(t.totals.delivery)} delivering</span>}
+          {t.totals.waiting > 0 && <span className="text-you-ink"> · {fmtDur(t.totals.waiting)} waiting for you</span>}
+          {t.totals.delivery > 0 && <span className="text-ink-soft"> · {fmtDur(t.totals.delivery)} delivering</span>}
         </div>
-        <div className="text-[11px] text-zinc-500 mt-0.5">Started {clock(t.start)}{t.live ? ' · still working' : ` · ended ${clock(t.end)}`}</div>
+        <div className="text-xs text-ink-faint mt-1">Started {clock(t.start)}{t.live ? ' · still working' : ` · ended ${clock(t.end)}`}</div>
         {sessions.length > 0 && (
-          <div className="mt-3">
+          <div className="mt-4">
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+              {/* tabular-nums text-zinc-400 (the theme's ink-soft): the Timeline test reads this markup */}
               {sessions.map((k) => (
-                <span key={k} className="inline-flex items-center gap-1.5 text-zinc-300">
-                  <span className={cn('h-2.5 w-2.5 rounded-sm', KIND[k].color)} />
+                <span key={k} className="inline-flex items-center gap-1.5 font-semibold text-ink">
+                  <span className={cn('h-2.5 w-2.5 rounded-[3px]', KIND[k].color)} />
                   {KIND[k].label} <span className="tabular-nums text-zinc-400">{fmtDur(t.totals[k])}</span>
                 </span>
               ))}
             </div>
-            <div className="text-[11px] text-zinc-500 mt-1">Time in sessions. They run side by side, so together they can take longer than the goal did.</div>
+            <div className="text-[11px] text-ink-faint mt-1.5">Time in sessions. They run side by side, so together they can take longer than the goal did.</div>
           </div>
         )}
         {t.longest.length > 0 && (
-          <div className="mt-3">
-            <div className="text-xs font-medium text-zinc-300 mb-1">The longest steps</div>
-            <ol className="space-y-0.5 text-xs">
+          <div className="mt-4">
+            <div className={cn(LABEL, 'text-ink-faint mb-1.5')}>The longest steps</div>
+            <ol className="space-y-1 text-xs">
               {t.longest.map((l, i) => (
                 <li key={i} className="flex items-center gap-2 min-w-0">
-                  <span className={cn('h-2.5 w-2.5 rounded-sm shrink-0', KIND[l.span.kind].color)} />
-                  <span className="tabular-nums text-zinc-400 w-14 shrink-0">{fmtDur(l.ms)}</span>
-                  <span className="truncate text-zinc-200" title={`${l.span.label} · ${l.row}`}>
+                  <span className={cn('h-2.5 w-2.5 rounded-[3px] shrink-0', KIND[l.span.kind].color)} />
+                  <span className="mono text-ink-soft w-14 shrink-0">{fmtDur(l.ms)}</span>
+                  <span className="truncate text-ink" title={`${l.span.label} · ${l.row}`}>
                     {l.span.label}
                     {l.row !== l.span.label && !l.span.label.endsWith(l.row) && <span className="text-zinc-500"> · {l.row}</span>}
                   </span>
-                  {l.span.open && <span className="text-[10px] text-emerald-300 shrink-0">still going</span>}
+                  {l.span.open && <span className="text-[11px] font-semibold text-ink-soft shrink-0">still going</span>}
                 </li>
               ))}
             </ol>
@@ -265,25 +271,26 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
       <Card title="Timeline">
         {/* the chart's toolbar: what the colours mean, and the zoom */}
         <div className="mb-3 flex items-start gap-3">
-          <div className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-1 text-[11px] text-zinc-400">
+          <div className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-ink-soft">
             {(Object.keys(KIND) as SpanKind[]).filter((k) => used.has(k)).map((k) => (
-              <span key={k} className="inline-flex items-center gap-1">
-                <span className={cn('h-2 w-3 rounded-sm', KIND[k].color)} style={k === 'waiting' ? STRIPES : undefined} />
+              <span key={k} className="inline-flex items-center gap-1.5">
+                <span className={cn('h-2 w-3 rounded-[2px]', KIND[k].color)} style={k === 'waiting' ? STRIPES : undefined} />
                 {KIND[k].label}
               </span>
             ))}
             {segs.some((s) => s.folded) && (
-              <span className="inline-flex items-center gap-1">
-                <span className="h-2 w-3 rounded-sm" style={FOLDED} />
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-3 rounded-[2px] ring-1 ring-inset ring-line" style={FOLDED} />
                 nothing ran (folded)
               </span>
             )}
           </div>
-          <span className="flex shrink-0 items-center gap-1 text-[11px] text-zinc-400">
+          <span className="flex shrink-0 items-center gap-1 text-[11px] text-ink-soft">
             <Button size="sm" variant="ghost" className="px-1.5" disabled={!chart || chart.fit} onClick={() => chart && zoom(zoomOut(chart.ppm, port.room / minutes))} aria-label="zoom out" title="Zoom out">
               <Minus size={12} />
             </Button>
-            <button type="button" className={cn('mono w-10 text-center hover:text-zinc-100', chart?.fit && 'text-emerald-300')} onClick={() => zoom('fit')} title="Fit the whole goal in the width">
+            {/* chosen (the whole goal in the width), it is filled with the accent */}
+            <button type="button" className={cn(chipClass(!!chart?.fit), 'mono')} onClick={() => zoom('fit')} title="Fit the whole goal in the width">
               fit
             </button>
             <Button size="sm" variant="ghost" className="px-1.5" disabled={!!chart && zoomedIn == null} onClick={() => zoomedIn != null && zoom(zoomedIn)} aria-label="zoom in" title="Zoom in (the chart slides sideways)">
@@ -294,11 +301,11 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
         <div className="flex">
           {/* the rows' names stay while the chart slides; a phone gives every button 32px, so every row is 32px there */}
           <div className="w-28 sm:w-56 shrink-0 pr-2 sm:pr-3">
-            <div className="h-5 border-b border-zinc-800" />
+            <div className="h-5 border-b border-line" />
             {t.rows.map((r) => {
               const head = r.kind === 'goal' || r.kind === 'delegated';
               return (
-                <button key={r.id} type="button" onClick={(e) => open(e, r, null)} className={cn('block h-8 sm:h-7 w-full truncate border-b border-zinc-800/50 text-left text-[11px] sm:text-xs hover:text-zinc-50', INDENT[Math.min(r.level, 3)], head ? 'font-medium text-zinc-100' : r.kind === 'sessions' ? 'italic text-zinc-400' : 'text-zinc-300')} title={r.label}>
+                <button key={r.id} type="button" onClick={(e) => open(e, r, null)} className={cn('block h-8 sm:h-7 w-full truncate border-b border-line/70 text-left text-[11px] sm:text-xs hover:text-ink hover:underline underline-offset-2', INDENT[Math.min(r.level, 3)], head ? 'font-bold text-ink' : r.kind === 'sessions' ? 'italic text-ink-faint' : 'text-ink-soft')} title={r.label}>
                   {r.kind === 'delegated' ? '↳ ' : ''}
                   {r.label}
                 </button>
@@ -308,9 +315,10 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
           {/* the track: it slides under a finger or a trackpad, and with the rail below; its own scrollbar is the rail */}
           <div ref={track} onScroll={onTrackScroll(setPort)} className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div style={{ width: chart ? `${chart.px}px` : '100%' }}>
-              <div className="relative h-5 border-b border-zinc-800">
+              <div className="relative h-5 border-b border-line">
                 {marks.map((m) => {
-                  // centred on its time, but the first and last mark stay inside the chart, which clips what sticks out
+                  // centred on its time, but the first and last mark stay inside the chart, which clips what sticks out;
+                  // text-zinc-500 is the theme's ink-faint (the Timeline test reads this markup)
                   const at = x(t0 + m);
                   return (
                     <span key={m} className={cn('absolute top-0 whitespace-nowrap text-[10px] tabular-nums text-zinc-500', at < 3 ? '' : at > 97 ? '-translate-x-full' : '-translate-x-1/2')} style={{ left: `${at}%` }}>
@@ -319,7 +327,7 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
                   );
                 })}
                 {segs.filter((s) => s.folded).map((s) => (
-                  <span key={s.start} className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-[10px] text-zinc-500" style={{ left: `${(x(s.start) + x(s.end)) / 2}%` }} title={`nothing ran for ${fmtDur(s.end - s.start)}`}>
+                  <span key={s.start} className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-[10px] tabular-nums text-ink-faint" style={{ left: `${(x(s.start) + x(s.end)) / 2}%` }} title={`nothing ran for ${fmtDur(s.end - s.start)}`}>
                     ⋯ {fmtDur(s.end - s.start)}
                   </span>
                 ))}
@@ -327,12 +335,12 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
               <div className="relative">
                 {/* the grid: a line down from every mark */}
                 {marks.map((m) => (
-                  <span key={m} className="pointer-events-none absolute inset-y-0 w-px bg-zinc-800/60" style={{ left: `${x(t0 + m)}%` }} />
+                  <span key={m} className="pointer-events-none absolute inset-y-0 w-px bg-line" style={{ left: `${x(t0 + m)}%` }} />
                 ))}
                 {t.rows.map((r) => {
                   const head = r.kind === 'goal' || r.kind === 'delegated';
                   return (
-                    <div key={r.id} className={cn('relative h-8 sm:h-7 border-b border-zinc-800/50', head && 'bg-zinc-800/20')}>
+                    <div key={r.id} className={cn('relative h-8 sm:h-7 border-b border-line/70', head && 'bg-inset')}>
                       {segs.filter((s) => s.folded).map((s) => (
                         <span key={s.start} className="absolute inset-y-0" style={{ left: `${x(s.start)}%`, width: `${x(s.end) - x(s.start)}%`, ...FOLDED }} />
                       ))}
@@ -345,7 +353,8 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
                             key={i}
                             type="button"
                             onClick={(e) => open(e, r, s)}
-                            className={cn('absolute rounded-sm hover:brightness-125', KIND[s.kind].color, thin ? 'top-3.5 sm:top-3 h-1 opacity-60' : 'top-2 sm:top-1.5 h-4', s.open && 'ring-1 ring-emerald-300/70')}
+                            // a step still going flows with the hatch, as work under way does everywhere (a wait keeps its stripes)
+                            className={cn('absolute rounded-sm hover:brightness-125', KIND[s.kind].color, thin ? 'top-3.5 sm:top-3 h-1 opacity-60' : 'top-2 sm:top-1.5 h-4', s.open && s.kind !== 'waiting' && 'hatch text-panel/45')}
                             // minHeight: a phone's 32px button height would make every bar as tall as its row
                             style={{ left: `${left}%`, width: `${width}%`, minHeight: 0, ...(s.kind === 'waiting' ? STRIPES : {}) }}
                             title={`${s.label} · ${fmtDur(spanMs(s))}${s.costUsd ? ` · ${fmtUsd(s.costUsd)}` : ''}${s.open ? ' · still going' : ''}`}
@@ -361,7 +370,7 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
         </div>
         {chart && !chart.fit && (
           <div className="flex items-center mt-2">
-            <div className="w-28 sm:w-56 shrink-0 pr-2 sm:pr-3 text-[10px] text-zinc-500">the whole goal</div>
+            <div className="w-28 sm:w-56 shrink-0 pr-2 sm:pr-3 text-[11px] text-ink-faint">the whole goal</div>
             <Rail share={port.room / chart.px} at={port.left / chart.px} onMove={slide}>
               {segs.filter((s) => s.folded).map((s) => (
                 <span key={s.start} className="absolute inset-y-0" style={{ left: `${x(s.start)}%`, width: `${x(s.end) - x(s.start)}%`, ...FOLDED }} />
@@ -406,7 +415,7 @@ function Rail({ share, at, onMove, children }: { share: number; at: number; onMo
       aria-valuemin={0}
       aria-valuemax={100}
       aria-valuenow={Math.round((at / Math.max(1e-6, 1 - share)) * 100)}
-      className="relative h-7 min-w-0 flex-1 cursor-pointer touch-none select-none overflow-hidden rounded-md border border-zinc-800 bg-zinc-950/40"
+      className="relative h-7 min-w-0 flex-1 cursor-pointer touch-none select-none overflow-hidden rounded-md border border-line bg-inset"
       onPointerDown={(e) => {
         const p = pos(e);
         held.current = p >= at && p <= at + share ? p - at : share / 2;
@@ -418,7 +427,7 @@ function Rail({ share, at, onMove, children }: { share: number; at: number; onMo
       onPointerCancel={end}
     >
       {children}
-      <div className="pointer-events-none absolute inset-y-0 rounded-md border-2 border-emerald-400/70 bg-emerald-400/10" style={{ left: `${at * 100}%`, width: `${share * 100}%` }} />
+      <div className="pointer-events-none absolute inset-y-0 rounded-md border-2 border-accent bg-accent/10" style={{ left: `${at * 100}%`, width: `${share * 100}%` }} />
     </div>
   );
 }
@@ -444,19 +453,19 @@ function SpanDetails({ ctx, goalId, onOpenTask, onClose }: { ctx: Ctx; goalId: s
   const go = (to: string) => (onClose(), nav(to));
   const below = ctx.y < window.innerHeight * 0.6;
   return (
-    <div ref={ref} className="fixed z-[65] w-72 max-w-[calc(100vw-1rem)] rounded-lg border border-zinc-800 bg-zinc-950 p-3 text-xs shadow-xl space-y-2" style={{ left: Math.max(8, Math.min(ctx.x - 24, window.innerWidth - 296)), ...(below ? { top: ctx.y + 12 } : { bottom: window.innerHeight - ctx.y + 12 }) }} role="dialog" aria-label="step details">
+    <div ref={ref} className="fixed z-[65] w-72 max-w-[calc(100vw-1rem)] rounded-lg border border-line bg-panel p-3 text-xs shadow-xl space-y-2" style={{ left: Math.max(8, Math.min(ctx.x - 24, window.innerWidth - 296)), ...(below ? { top: ctx.y + 12 } : { bottom: window.innerHeight - ctx.y + 12 }) }} role="dialog" aria-label="step details">
       <div>
-        <div className="flex items-center gap-1.5 font-medium text-zinc-100">
-          {span && <span className={cn('h-2.5 w-2.5 shrink-0 rounded-sm', KIND[span.kind].color)} />}
+        <div className="flex items-center gap-1.5 text-[13px] font-bold text-ink">
+          {span && <span className={cn('h-2.5 w-2.5 shrink-0 rounded-[3px]', KIND[span.kind].color)} />}
           <span className="min-w-0 truncate">{span?.label ?? row.label}</span>
         </div>
-        {span && span.label !== row.label && <div className="text-zinc-500 truncate">{row.label}</div>}
+        {span && span.label !== row.label && <div className="text-ink-faint truncate">{row.label}</div>}
       </div>
       {span && (
-        <div className="text-zinc-400">
-          {clock(span.start)} → {span.open ? 'now' : clock(span.end)} · <span className="text-zinc-200">{fmtDur(spanMs(span))}</span>
-          {span.costUsd ? <> · {fmtUsd(span.costUsd)}</> : null}
-          {span.open && <span className="text-emerald-300"> · still going</span>}
+        <div className="text-ink-soft">
+          {clock(span.start)} → {span.open ? 'now' : clock(span.end)} · <span className="mono font-semibold text-ink">{fmtDur(spanMs(span))}</span>
+          {span.costUsd ? <> · <span className="mono">{fmtUsd(span.costUsd)}</span></> : null}
+          {span.open && <span className="font-semibold text-ink"> · still going</span>}
         </div>
       )}
       <div className="flex flex-wrap gap-2 pt-0.5">

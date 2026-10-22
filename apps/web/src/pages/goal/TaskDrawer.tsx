@@ -1,6 +1,6 @@
-import type { Attempt, CheckResult, Task } from '@foundry/core/browser';
+import type { Attempt, CheckResult, Task, TaskState } from '@foundry/core/browser';
 import { reportsDollars } from '@foundry/core/browser';
-import { CornerDownRight, GitMerge, Play, RotateCcw, Square } from 'lucide-react';
+import { Ban, Check, Clock, CornerDownRight, Eye, GitMerge, Hand, Play, RotateCcw, Square, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { type ReactNode, useEffect, useState } from 'react';
 import { api, fileKey, fileUrl, type FileRef, type GoalDetail, type TaskFile, type WaitingKind } from '../../api.ts';
@@ -8,11 +8,35 @@ import { openFile } from '../../components/FilePreview.tsx';
 import { type FullText, FullTextDialog, OpenFullButton } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
+import { taskMark } from '../../components/progress.tsx';
 import { TaskTags } from '../../components/TaskTags.tsx';
-import { Badge, Button, Card, ConfirmDialog, ago, cn, fmtUsd } from '../../ui.tsx';
+import { Badge, Button, ConfirmDialog, ago, chipClass, choiceClass, cn, fmtUsd, stateLabel } from '../../ui.tsx';
+import { CHECK_RESULT, CheckSquare } from './CompletionCard.tsx';
 import { delegatedProgress } from './DagCanvas.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
+
+/** a section's label in the drawer, in small capitals */
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+/** a fact about the task, as a small plate under its title (the goal's head has the same) */
+const FACT = 'inline-flex items-center gap-1.5 min-w-0 max-w-full rounded-md bg-panel px-2.5 py-1 text-[13px] font-semibold text-ink-soft ring-1 ring-inset ring-line';
+/** the checkerboard behind a picture, so a transparent one shows its edges */
+const CHECKER = 'bg-[image:repeating-conic-gradient(color-mix(in_srgb,var(--color-ink-faint)_16%,transparent)_0_25%,transparent_0_50%)] bg-[length:12px_12px]';
+
+/**
+ * A task's state as a plate, the way the goal page heads its goal: graphite while it works and once it is done, yellow
+ * while it waits for you, red when it failed, hollow before it starts.
+ */
+function TaskPlate({ state }: { state: TaskState }) {
+  const m = taskMark(state);
+  const Icon = m === 'done' ? Check : m === 'you' ? Hand : m === 'bad' ? X : m === 'off' ? Ban : m === 'next' ? Clock : state === 'observing' ? Eye : state === 'merging' ? GitMerge : Play;
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] font-extrabold uppercase leading-none tracking-[0.12em]', m === 'you' ? 'bg-you text-on-you' : m === 'bad' ? 'bg-bad text-on-bad' : m === 'next' || m === 'off' ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-soft' : 'bg-ink text-on-ink')}>
+      <Icon size={12} strokeWidth={2.5} aria-hidden="true" />
+      {stateLabel(state)}
+    </span>
+  );
+}
 
 export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; task: Task; onClose: () => void; onRestart?: () => void }) {
   const cost = (value: number) => !reportsDollars(d.goal.provider) ? 'unavailable' : fmtUsd(value);
@@ -48,166 +72,186 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   const openFull = (title: string, text: string) => <OpenFullButton onClick={() => setFullText({ title, text })} />;
 
   return (
-    <Card
-      // fills the full-height panel: on wide screens each column scrolls on its own, so a long file list never scrolls the attempt away
-      className="h-full flex flex-col"
-      bodyClassName="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden lg:flex lg:flex-col"
-      title={
-        <span className="flex items-center gap-2 flex-wrap">
-          <span className="min-w-0 break-words">{task.title}</span> <Badge state={task.state} />
-          <TaskTags kind={task.kind} scenario={task.scenario} area={task.area} difficulty={task.difficulty} />
-          {task.origin !== 'brief' && <span className="text-[10px] text-zinc-500">{task.origin}</span>}
-          {task.commitRef && (
-            // one line here; the whole commit message opens in the full-text dialog
-            <button
-              type="button"
-              className="text-[11px] font-normal text-zinc-500 basis-full min-w-0 truncate text-left hover:text-zinc-300 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 rounded-sm cursor-pointer disabled:cursor-default disabled:hover:text-zinc-500"
-              title={task.commitMessage ? 'Show the full commit message' : undefined}
-              disabled={!task.commitMessage}
-              onClick={() => task.commitMessage && setFullText({ title: `Commit ${task.commitRef!.slice(0, 7)}`, text: task.commitMessage, raw: true })}
-            >
-              <span className="mono text-zinc-400">{task.commitRef.slice(0, 7)}</span> {task.commitMessage?.split('\n')[0]}
-            </button>
-          )}
-        </span>
-      }
-      actions={
-        <>
-          {task.state === 'blocked' && d.escalations.some((e) => e.state === 'open' && e.taskId === task.id && (e.payload as { kind?: string }).kind === 'merge') && (
-            <Link to={`/goals/${d.goal.id}/resolve/${task.id}`}>
-              <Button size="sm" variant="primary" title="The automatic merge attempts gave up: resolve the conflict yourself">
-                <GitMerge size={13} /> Resolve manually
+    // fills the full-height panel: on wide screens each column scrolls on its own, so a long file list never scrolls the attempt
+    // away; narrower, the whole panel scrolls, its head with it, so the head never takes most of a phone's screen
+    <section className="relative h-full flex flex-col overflow-y-auto lg:overflow-hidden rounded-lg border border-line bg-panel shadow-[0_1px_2px_rgb(0_0_0/0.05)]">
+      {/* the × stays in the corner while the panel scrolls under it */}
+      <div className="sticky top-0 z-10 h-0 shrink-0 flex justify-end">
+        <button type="button" className="mt-3 mr-3 h-fit rounded-md bg-panel/90 p-1.5 text-ink-faint hover:text-ink hover:bg-inset" onClick={onClose} aria-label="close">
+          <X size={16} />
+        </button>
+      </div>
+      {/* the head, as a small goal head: the state, the title in large type, its traits, then its totals as plates */}
+      <header className="shrink-0 border-b border-line px-4 sm:px-6 pt-4 pb-4 pr-12 sm:pr-14">
+        <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+          <div className="min-w-0 grow basis-[20rem]">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+              <TaskPlate state={task.state} />
+              <TaskTags kind={task.kind} scenario={task.scenario} area={task.area} difficulty={task.difficulty} />
+              {task.origin !== 'brief' && <span className="text-[11px] font-semibold text-ink-faint">{task.origin}</span>}
+            </div>
+            <h2 className="mt-2.5 text-xl sm:text-2xl lg:text-[1.75rem] font-extrabold leading-tight tracking-[-0.025em] text-ink break-words">{task.title}</h2>
+            {task.commitRef && (
+              // one line here; the whole commit message opens in the full-text dialog
+              <button
+                type="button"
+                className="mt-1.5 block max-w-full min-w-0 truncate text-left text-[13px] text-ink-faint hover:text-ink focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent rounded-sm cursor-pointer disabled:cursor-default disabled:hover:text-ink-faint"
+                title={task.commitMessage ? 'Show the full commit message' : undefined}
+                disabled={!task.commitMessage}
+                onClick={() => task.commitMessage && setFullText({ title: `Commit ${task.commitRef!.slice(0, 7)}`, text: task.commitMessage, raw: true })}
+              >
+                <span className="mono font-semibold text-ink-soft">{task.commitRef.slice(0, 7)}</span> {task.commitMessage?.split('\n')[0]}
+              </button>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 max-w-full">
+            {task.state === 'blocked' && d.escalations.some((e) => e.state === 'open' && e.taskId === task.id && (e.payload as { kind?: string }).kind === 'merge') && (
+              <Link to={`/goals/${d.goal.id}/resolve/${task.id}`}>
+                <Button size="sm" variant="primary" title="The automatic merge attempts gave up: resolve the conflict yourself">
+                  <GitMerge size={13} /> Resolve manually
+                </Button>
+              </Link>
+            )}
+            {/* on a phone it sits in the delegated goal's box below, beside what it says, not alone at the end of the header */}
+            {delegated?.exists && (
+              <Link to={`/goals/${delegated.goalId}`} className="hidden sm:inline-flex">
+                <Button size="sm" variant="primary" title="The goal doing this task">
+                  <CornerDownRight size={13} /> Open delegated goal
+                </Button>
+              </Link>
+            )}
+            {!goalTask && <UnstickButton d={d} task={task} live={row?.live} waiting={row?.waiting} waitingKind={row?.waitingKind} />}
+            {onRestart && !['running', 'observing', 'merging'].includes(task.state) && (
+              <Button size="sm" onClick={onRestart} title="Reset this task and everything downstream of it, then run again">
+                <RotateCcw size={13} /> Restart from here
               </Button>
-            </Link>
-          )}
-          {/* on a phone it sits in the delegated goal's box below, beside what it says, not alone at the end of the header */}
-          {delegated?.exists && (
-            <Link to={`/goals/${delegated.goalId}`} className="hidden sm:inline-flex">
-              <Button size="sm" variant="primary" title="The goal doing this task">
-                <CornerDownRight size={13} /> Open delegated goal
-              </Button>
-            </Link>
-          )}
-          {!goalTask && <UnstickButton d={d} task={task} live={row?.live} waiting={row?.waiting} waitingKind={row?.waitingKind} />}
-          {onRestart && !['running', 'observing', 'merging'].includes(task.state) && (
-            <Button size="sm" onClick={onRestart} title="Reset this task and everything downstream of it, then run again">
-              <RotateCcw size={13} /> Restart from here
-            </Button>
-          )}
-          {task.worktreePath && task.state !== 'done' && <OpenMenu goalId={d.goal.id} places={[{ which: `task:${task.id}`, label: 'Task worktree', path: task.worktreePath, hint: task.branch ?? undefined }]} label="Open worktree" working={['running', 'observing', 'merging'].includes(task.state)} />}
-        </>
-      }
-      onClose={onClose}
-    >
-      {usage && usage.attempts > 0 && (
-        <div className="mb-3 shrink-0 flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-400 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2" title="everything this task has cost so far — all attempts, all their sessions">
-          <span className="text-zinc-500">Task total</span>
-          <span><b className="text-zinc-200">{usage.attempts}</b> attempt{usage.attempts === 1 ? '' : 's'}</span>
-          <span><b className="text-zinc-200">{cost(usage.costUsd)}</b> <span className="text-zinc-500">(worker {cost(usage.byRole.worker.costUsd)} · reviewer {cost(usage.byRole.reviewer.costUsd)}{usage.byRole.merger.sessions ? ` · merger ${cost(usage.byRole.merger.costUsd)}` : ''})</span></span>
-          {usage.unmeasured > 0 && (
-            <span className="text-amber-300/90" title={`${usage.unmeasured} session${usage.unmeasured === 1 ? '' : 's'} ended before the coding agent reported a cost: not in this total${cutEstimate ? `; about ${fmtUsd(cutEstimate)} estimated from their tokens at the model's measured rate` : ''}`}>
-              {cutEstimate ? `+ ≈${fmtUsd(cutEstimate)} est.` : `+${usage.unmeasured} unmeasured`}
-            </span>
-          )}
-          <span><b className="text-zinc-200">{d.goal.provider === 'codex' ? '—' : usage.turns}</b> turns</span>
-          <span><b className="text-zinc-200">{usage.wallMin.toFixed(0)}</b> min wall</span>
-          {usage.models.length > 0 && <span className="mono">{usage.models.join(' · ')}</span>}
+            )}
+            {task.worktreePath && task.state !== 'done' && <OpenMenu goalId={d.goal.id} places={[{ which: `task:${task.id}`, label: 'Task worktree', path: task.worktreePath, hint: task.branch ?? undefined }]} label="Open worktree" working={['running', 'observing', 'merging'].includes(task.state)} />}
+          </div>
         </div>
-      )}
-      <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-1 lg:flex-1 lg:min-h-0 gap-4">
-        <div className="lg:col-span-1 lg:overflow-y-auto lg:pr-1 space-y-3">
+        {usage && usage.attempts > 0 && (
+          <div className="mt-4 flex flex-wrap items-center gap-2" title="everything this task has cost so far — all attempts, all their sessions">
+            <span className={cn(LABEL, 'mr-0.5')}>Task total</span>
+            <span className={FACT}>
+              <b className="mono font-bold text-ink">{usage.attempts}</b> attempt{usage.attempts === 1 ? '' : 's'}
+            </span>
+            <span className={FACT}>
+              <b className="mono font-bold text-ink">{cost(usage.costUsd)}</b>
+              <span className="min-w-0 truncate font-medium text-ink-faint">(worker {cost(usage.byRole.worker.costUsd)} · reviewer {cost(usage.byRole.reviewer.costUsd)}{usage.byRole.merger.sessions ? ` · merger ${cost(usage.byRole.merger.costUsd)}` : ''})</span>
+            </span>
+            {usage.unmeasured > 0 && (
+              <span className={cn(FACT, 'text-ink')} title={`${usage.unmeasured} session${usage.unmeasured === 1 ? '' : 's'} ended before the coding agent reported a cost: not in this total${cutEstimate ? `; about ${fmtUsd(cutEstimate)} estimated from their tokens at the model's measured rate` : ''}`}>
+                {cutEstimate ? `+ ≈${fmtUsd(cutEstimate)} est.` : `+${usage.unmeasured} unmeasured`}
+              </span>
+            )}
+            <span className={FACT}>
+              <b className="mono font-bold text-ink">{d.goal.provider === 'codex' ? '—' : usage.turns}</b> turns
+            </span>
+            <span className={FACT}>
+              <b className="mono font-bold text-ink">{usage.wallMin.toFixed(0)}</b> min wall
+            </span>
+            {usage.models.length > 0 && <span className={cn(FACT, 'mono font-medium')}>{usage.models.join(' · ')}</span>}
+          </div>
+        )}
+      </header>
+      <div className="lg:flex-1 lg:min-h-0 lg:overflow-hidden lg:flex lg:flex-col p-4 sm:p-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 lg:grid-rows-1 lg:flex-1 lg:min-h-0 gap-5 lg:gap-6">
+        <div className="lg:col-span-1 lg:overflow-y-auto lg:pr-1 space-y-5">
           <MarkdownPanel title="spec" source={task.spec} maxHeight={260} actions={openFull(`Spec · ${task.title}`, task.spec)} />
-          {revised && <div className="text-[11px] text-sky-300/90" title="A delegated goal landed before this task started; the planner read what it delivered and touched the spec up">Touched up after a step landed: {revised.reason}</div>}
+          {revised && <div className="text-xs text-work-ink" title="A delegated goal landed before this task started; the planner read what it delivered and touched the spec up">Touched up after a step landed: {revised.reason}</div>}
           {task.summary && <MarkdownPanel title="what it delivered" source={task.summary} maxHeight={260} actions={openFull(`What it delivered · ${task.title}`, task.summary)} />}
           {task.hint && <MarkdownPanel title="human hint" source={task.hint} local maxHeight={160} actions={openFull(`Human hint · ${task.title}`, task.hint)} />}
-          <div>
-            <div className="text-xs text-zinc-500 mb-1">Checks</div>
-            {checks.length === 0 && <div className="text-xs text-zinc-600">none (goal-level only)</div>}
+          <section>
+            <h3 className={cn(LABEL, 'mb-2')}>Checks</h3>
+            {checks.length === 0 && <div className="text-xs text-ink-faint">none (goal-level only)</div>}
             {checks.map((c) => {
               const r = results.find((x) => x.checkId === c.id);
+              const res = CHECK_RESULT[r?.status ?? 'none'];
               return (
-                <div key={c.id} className="text-xs flex items-center gap-2 py-0.5">
-                  <Badge state={c.tier} />
-                  {r ? <Badge state={r.status} /> : <span className="text-zinc-600">—</span>}
-                  <span className="truncate" title={c.spec.type === 'command' ? c.spec.cmd : c.name}>
+                <div key={c.id} className="text-xs flex items-center gap-2 py-1">
+                  <CheckSquare mark={res.mark} />
+                  <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={c.spec.type === 'command' ? c.spec.cmd : c.name}>
                     {c.name}
                   </span>
+                  <span className="shrink-0 text-[10.5px] font-extrabold uppercase tracking-[0.07em] text-ink-faint" title={c.tier}>{c.tier}</span>
+                  <span className={cn('mono text-[11px] shrink-0 w-[3.25rem] text-right', res.mark === 'bad' ? 'font-bold text-bad-ink' : 'text-ink-faint')}>{r ? res.word : '—'}</span>
                 </div>
               );
             })}
-          </div>
+          </section>
           {task.relevantFiles.length > 0 && (
-            <div>
-              <div className="text-xs text-zinc-500 mb-1">Relevant files</div>
-              <div className="mono text-[11px] text-zinc-400 space-y-0.5">
+            <section>
+              <h3 className={cn(LABEL, 'mb-2')}>Relevant files</h3>
+              <div className="mono text-[11.5px] text-ink-soft space-y-1">
                 {task.relevantFiles.map((f, _, all) => {
                   // openable when the task's commit or one of the goal's folders has it; a file the plan only meant to create does not exist
                   const open = made?.relevant.find((r) => r.rel === f)?.open;
                   // the preview steps through the openable ones in this order
                   const openable = all.flatMap((x) => made?.relevant.find((r) => r.rel === x)?.open ?? []);
                   return open ? (
-                    <button key={f} type="button" onClick={() => openFile(open, openable)} className="block w-full truncate text-left text-sky-300 hover:underline" title={`Open ${f}`}>
+                    <button key={f} type="button" onClick={() => openFile(open, openable)} className="block w-full truncate text-left font-semibold text-work-ink hover:underline" title={`Open ${f}`}>
                       {f}
                     </button>
                   ) : (
-                    <div key={f} className="truncate" title={made ? "Not in this task's commit or in any folder of the goal" : undefined}>
+                    <div key={f} className="truncate text-ink-faint" title={made ? "Not in this task's commit or in any folder of the goal" : undefined}>
                       {f}
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </section>
           )}
           {(task.delivers ?? []).length > 0 && (
-            <div>
-              <div className="text-xs text-zinc-500 mb-1" title="The files this task promised to the tasks after it; each is a must check when it lands">Deliverables</div>
-              <div className="mono text-[11px] text-zinc-400 space-y-0.5">
+            <section>
+              <h3 className={cn(LABEL, 'mb-2')} title="The files this task promised to the tasks after it; each is a must check when it lands">Deliverables</h3>
+              <div className="mono text-[11.5px] text-ink-soft space-y-1">
                 {(task.delivers ?? []).map((f, _, all) => {
                   const open = made?.delivers?.find((r) => r.rel === f)?.open;
                   const openable = all.flatMap((x) => made?.delivers?.find((r) => r.rel === x)?.open ?? []);
                   return open ? (
-                    <button key={f} type="button" onClick={() => openFile(open, openable)} className="block w-full truncate text-left text-sky-300 hover:underline" title={`Open ${f}`}>
+                    <button key={f} type="button" onClick={() => openFile(open, openable)} className="block w-full truncate text-left font-semibold text-work-ink hover:underline" title={`Open ${f}`}>
                       {f}
                     </button>
                   ) : (
-                    <div key={f} className="truncate" title={made ? 'Not there yet' : undefined}>
+                    <div key={f} className="truncate text-ink-faint" title={made ? 'Not there yet' : undefined}>
                       {f}
                     </div>
                   );
                 })}
               </div>
-            </div>
+            </section>
           )}
           {made && <TaskFiles task={task} files={made.files} />}
         </div>
         <div className="lg:col-span-2 min-w-0 lg:overflow-y-auto lg:pr-1">
           {openEsc.length > 0 && (
-            <div className="mb-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-orange-400 shrink-0" />
-                <span className="text-[10px] uppercase tracking-wide text-orange-300">This task is waiting for you</span>
-                <span className="flex-1 h-px bg-zinc-800/70" />
-              </div>
+            // a heading in capitals, as the Goals page's boards have: each card under it carries its own yellow head
+            <section aria-labelledby="task-needs-you" className="mb-5 space-y-3">
+              <h3 id="task-needs-you" className="flex items-center gap-2 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+                <Hand size={14} aria-hidden="true" />
+                This task is waiting for you
+                <b className="mono grid h-5 min-w-5 place-items-center rounded-[5px] bg-you px-1.5 text-xs tracking-normal text-on-you">{openEsc.length}</b>
+              </h3>
               {openEsc.map((e) => (
                 <EscalationCard key={e.id} e={e} embedded />
               ))}
-            </div>
+            </section>
           )}
-          {openEsc.length === 0 && task.state === 'blocked' && lastState?.reason && <div className="mb-3 text-xs text-orange-300">blocked: {lastState.reason}</div>}
-          {!openEsc.length && task.state !== 'done' && lastState?.reason && task.state !== 'blocked' && <div className="mb-2 text-[11px] text-zinc-500">last transition: {lastState.to} — {lastState.reason}</div>}
-          {task.state === 'ready' && row?.waiting && <div className="mb-2 text-[11px] text-zinc-500">not started yet: {row.waiting}</div>}
+          {openEsc.length === 0 && task.state === 'blocked' && lastState?.reason && <div className="mb-3 text-xs font-semibold text-you-ink">blocked: {lastState.reason}</div>}
+          {!openEsc.length && task.state !== 'done' && lastState?.reason && task.state !== 'blocked' && <div className="mb-2 text-xs text-ink-faint">last transition: {lastState.to} — {lastState.reason}</div>}
+          {task.state === 'ready' && row?.waiting && <div className="mb-2 text-xs text-ink-faint">not started yet: {row.waiting}</div>}
           {goalTask && (
-            <div className="mb-3 rounded-md border border-fuchsia-500/30 bg-fuchsia-500/5 px-3 py-2 text-xs text-zinc-300 space-y-1">
+            <div className="mb-4 rounded-lg border border-extra/30 bg-extra/5 px-3.5 py-2.5 text-[13px] text-ink-soft space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-fuchsia-200">Done by a delegated goal</span>
+                <span className="font-bold text-extra-ink">Done by a delegated goal</span>
                 {delegated?.exists && <Badge state={delegated.state ?? 'pending'} />}
-                {delegated?.exists && <span className="text-zinc-400">{delegatedProgress(delegated.taskCounts)}</span>}
+                {delegated?.exists && <span className="text-ink-soft">{delegatedProgress(delegated.taskCounts)}</span>}
               </div>
               {delegated ? (
                 delegated.exists ? (
-                  <div className="text-zinc-400">
-                    {delegated.needsYou ? <span className="text-orange-300">It {delegated.needsYou}. </span> : task.state === 'done' ? "Its result landed on this goal's branch as this task's commit. " : 'This task finishes when that goal does: its branch then lands here as one commit, its files under artifacts/ with it. '}
-                    <Link to={`/goals/${delegated.goalId}`} className="hidden sm:inline text-sky-300 hover:underline">Open it</Link>
+                  <div className="text-ink-soft">
+                    {delegated.needsYou ? <span className="font-bold text-you-ink">It {delegated.needsYou}. </span> : task.state === 'done' ? "Its result landed on this goal's branch as this task's commit. " : 'This task finishes when that goal does: its branch then lands here as one commit, its files under artifacts/ with it. '}
+                    <Link to={`/goals/${delegated.goalId}`} className="hidden sm:inline font-semibold text-work-ink hover:underline">Open it</Link>
                     <span className="hidden sm:inline">.</span>
                     <Link to={`/goals/${delegated.goalId}`} className="sm:hidden mt-2 flex">
                       <Button size="sm" variant="primary" className="w-full justify-center">
@@ -216,55 +260,57 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                     </Link>
                   </div>
                 ) : (
-                  <div className="text-zinc-500">That goal was deleted. Retry starts a new one; skip moves on without this step.</div>
+                  <div className="text-ink-faint">That goal was deleted. Retry starts a new one; skip moves on without this step.</div>
                 )
               ) : (
-                <div className="text-zinc-500">Its goal starts when this task does; delegated goals run side by side, as many as the goal's parallel limit allows.</div>
+                <div className="text-ink-faint">Its goal starts when this task does; delegated goals run side by side, as many as the goal's parallel limit allows.</div>
               )}
             </div>
           )}
-          <div className="flex items-center gap-1 mb-2 flex-wrap">
+          <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+            {/* the attempts as small cards: the one shown outlined in the accent */}
             {attempts.map((x, i) => (
-              <button key={x.id} onClick={() => setAi(i)} className={cn('text-xs rounded px-2 py-1 border flex items-center gap-1', i === Math.min(Math.max(ai, 0), attempts.length - 1) ? 'border-emerald-500 text-emerald-300' : 'border-zinc-700 text-zinc-400')}>
-                #{x.index} {x.kind === 'merge' ? 'merge' : ''} <Badge state={x.state} />
-                {x.continuations > 0 && <span className="text-[10px] text-emerald-300/80" title={`${x.continuations} continuation(s): the same session was resumed instead of a fresh attempt`}>↻{x.continuations}</span>}
-                <span className="text-zinc-500 mono">{cost(x.costUsd)}</span>
+              <button key={x.id} onClick={() => setAi(i)} className={cn('text-xs rounded-md border px-2 py-1 flex items-center gap-1.5 font-semibold text-ink', choiceClass(i === Math.min(Math.max(ai, 0), attempts.length - 1)))}>
+                <span className="mono">#{x.index}</span> {x.kind === 'merge' ? 'merge' : ''} <Badge state={x.state} />
+                {x.continuations > 0 && <span className="mono text-[11px] text-ink-faint" title={`${x.continuations} continuation(s): the same session was resumed instead of a fresh attempt`}>↻{x.continuations}</span>}
+                <span className="text-ink-faint mono font-normal">{cost(x.costUsd)}</span>
               </button>
             ))}
-            {attempts.length === 0 && <span className="text-xs text-zinc-500">{goalTask ? 'no attempts here: the delegated goal has its own' : 'no attempts yet'}</span>}
+            {attempts.length === 0 && <span className="text-xs text-ink-faint">{goalTask ? 'no attempts here: the delegated goal has its own' : 'no attempts yet'}</span>}
           </div>
           {a && (
             <>
               <AttemptStats a={a} d={d} concluded={concluded(a.id)} />
-              <div className="flex gap-1 mb-2 text-xs">
+              <div className="flex gap-1.5 mb-2.5">
                 {(['log', 'report', 'prompt'] as const).map((v) => (
-                  <button key={v} onClick={() => setView(v)} className={cn('rounded px-2 py-0.5 border', view === v ? 'border-emerald-500 text-emerald-300' : 'border-zinc-700 text-zinc-400')}>
+                  <button key={v} onClick={() => setView(v)} className={chipClass(view === v)}>
                     {v === 'log' ? 'Live log' : v === 'report' ? 'Observation' : 'Prompt'}
                   </button>
                 ))}
               </div>
               {view === 'log' &&
                 (d.goal.transfer && !d.goal.transfer.transcripts && a.startedAt <= d.goal.transfer.from.exportedAt ? (
-                  <div className="text-xs text-zinc-500">This log stayed on the computer the goal came from.</div>
+                  <div className="text-xs text-ink-faint">This log stayed on the computer the goal came from.</div>
                 ) : (
                   <LiveLog attemptId={a.id} />
                 ))}
-              {view === 'report' && (obs ? <MarkdownPanel title="observation report" source={obs.summary} maxHeight={420} /> : <div className="text-xs text-zinc-500">no observation yet</div>)}
-              {view === 'prompt' && (prompt === null ? <div className="text-xs text-zinc-500">loading…</div> : <MarkdownPanel title="prompt sent to the worker" source={prompt || '_not recorded for this attempt_'} maxHeight={420} />)}
+              {view === 'report' && (obs ? <MarkdownPanel title="observation report" source={obs.summary} maxHeight={420} /> : <div className="text-xs text-ink-faint">no observation yet</div>)}
+              {view === 'prompt' && (prompt === null ? <div className="text-xs text-ink-faint">loading…</div> : <MarkdownPanel title="prompt sent to the worker" source={prompt || '_not recorded for this attempt_'} maxHeight={420} />)}
               {results
                 .filter((r) => r.status !== 'pass')
                 .map((r) => (
                   <details key={r.id} className="mt-2">
-                    <summary className="text-xs text-rose-300 cursor-pointer">✗ {d.checks.find((c) => c.id === r.checkId)?.name}</summary>
-                    <pre className="text-xs whitespace-pre-wrap text-zinc-300 bg-zinc-950 rounded p-2 mt-1 max-h-64 overflow-auto">{r.summary}</pre>
+                    <summary className="text-xs font-semibold text-bad-ink cursor-pointer">✗ {d.checks.find((c) => c.id === r.checkId)?.name}</summary>
+                    <pre className="mono text-xs whitespace-pre-wrap text-ink-soft bg-inset border border-line rounded-md p-2.5 mt-1.5 max-h-64 overflow-auto">{r.summary}</pre>
                   </details>
                 ))}
             </>
           )}
         </div>
       </div>
+      </div>
       <FullTextDialog value={fullText} onClose={() => setFullText(null)} />
-    </Card>
+    </section>
   );
 }
 
@@ -284,48 +330,48 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
   const running = !a.endedAt;
   const cell = (label: string, value: ReactNode, title?: string) => (
     <div className="min-w-0" title={title}>
-      <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className="text-xs text-zinc-200 truncate">{value}</div>
+      <div className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">{label}</div>
+      <div className="mt-1 text-[13px] font-semibold text-ink truncate">{value}</div>
     </div>
   );
   return (
-    <div className="mb-3 space-y-2">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 rounded-md border border-zinc-800 bg-zinc-950/50 p-2.5">
-        {cell('Result', <span className="flex items-center gap-1.5"><Badge state={running ? 'running' : a.state} />{a.resultSubtype && !running ? <span className="mono text-zinc-500">{a.resultSubtype}</span> : null}</span>)}
+    <div className="mb-4 space-y-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3 rounded-lg border border-line bg-inset p-3">
+        {cell('Result', <span className="flex items-center gap-1.5"><Badge state={running ? 'running' : a.state} />{a.resultSubtype && !running ? <span className="mono font-normal text-ink-faint">{a.resultSubtype}</span> : null}</span>)}
         {cell('Worker model', <span className="mono">{(workerModels.length ? workerModels : [a.model ?? '?']).join(' → ')}</span>, fallbacks.length ? `model fallback(s) on this goal: ${fallbacks.map((f) => `${f.from} → ${f.to}`).join(', ')}` : undefined)}
-        {cell('Turns', d.goal.provider === 'codex' ? 'unavailable' : `${a.numTurns}${a.continuations > 0 ? ` over ${a.continuations + 1} segments` : ''}`)}
-        {cell('Cost', <>{cost(a.costUsd)} <span className="text-zinc-500">worker</span>{reviewerCost > 0 ? <> + {cost(reviewerCost)} <span className="text-zinc-500">reviewer</span></> : null}{unmeasured > 0 ? <> + <span className="text-amber-300/90">{cutEstimate ? `≈${fmtUsd(cutEstimate)} est.` : 'unknown'}</span></> : null}</>, unmeasured > 0 ? unmeasuredNote : undefined)}
-        {cell('Started', ago(a.startedAt))}
-        {cell('Duration', a.endedAt ? fmtDur(Date.parse(a.endedAt) - Date.parse(a.startedAt)) : 'running…')}
+        {cell('Turns', d.goal.provider === 'codex' ? 'unavailable' : <><span className="mono">{a.numTurns}</span>{a.continuations > 0 ? ` over ${a.continuations + 1} segments` : ''}</>)}
+        {cell('Cost', <><span className="mono">{cost(a.costUsd)}</span> <span className="font-normal text-ink-faint">worker</span>{reviewerCost > 0 ? <> + <span className="mono">{cost(reviewerCost)}</span> <span className="font-normal text-ink-faint">reviewer</span></> : null}{unmeasured > 0 ? <> + <span className="font-bold">{cutEstimate ? `≈${fmtUsd(cutEstimate)} est.` : 'unknown'}</span></> : null}</>, unmeasured > 0 ? unmeasuredNote : undefined)}
+        {cell('Started', <span className="mono">{ago(a.startedAt)}</span>)}
+        {cell('Duration', a.endedAt ? <span className="mono">{fmtDur(Date.parse(a.endedAt) - Date.parse(a.startedAt))}</span> : 'running…')}
         {cell('Session', a.sessionId ? <span className="mono">{a.sessionId.slice(0, 8)}</span> : '—', a.sessionId ?? undefined)}
         {cell('Skills', d.goal.provider !== 'claude' && d.goal.provider != null ? 'not observable' : a.skillsUsed.length ? a.skillsUsed.join(', ') : '—', 'skills invoked with the Skill tool')}
       </div>
-      {!running && concluded?.reason && <div className={cn('text-xs', concluded.state === 'passed' ? 'text-emerald-300/80' : 'text-orange-300/90')}>→ {concluded.reason}</div>}
+      {!running && concluded?.reason && <div className={cn('text-xs font-semibold', concluded.state === 'passed' ? 'text-ok-ink' : concluded.state === 'failed' ? 'text-bad-ink' : 'text-ink-soft')}>→ {concluded.reason}</div>}
       {a.sessions.length > 0 && (
         <div className="overflow-x-auto">
-          <table className="text-[11px] w-full">
-            <thead className="text-zinc-500">
+          <table className="text-[11.5px] w-full">
+            <thead className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">
               <tr className="text-left">
-                <th className="pr-3 font-normal">session</th>
-                <th className="pr-3 font-normal">model</th>
-                <th className="pr-3 font-normal text-right">turns</th>
-                <th className="pr-3 font-normal text-right">cost</th>
-                <th className="pr-3 font-normal text-right">time</th>
-                <th className="font-normal">ended</th>
+                <th className="pr-3 pb-1 font-extrabold">session</th>
+                <th className="pr-3 pb-1 font-extrabold">model</th>
+                <th className="pr-3 pb-1 font-extrabold text-right">turns</th>
+                <th className="pr-3 pb-1 font-extrabold text-right">cost</th>
+                <th className="pr-3 pb-1 font-extrabold text-right">time</th>
+                <th className="pb-1 font-extrabold">ended</th>
               </tr>
             </thead>
-            <tbody className="text-zinc-300">
+            <tbody className="text-ink-soft">
               {a.sessions.map((s, i) => (
-                <tr key={i} className="border-t border-zinc-800/70">
-                  <td className="pr-3 py-0.5">
-                    <span className={cn(s.role === 'worker' ? 'text-sky-300' : s.role === 'reviewer' ? 'text-violet-300' : 'text-fuchsia-300')}>{s.role}</span>
-                    {s.role === 'worker' && s.segment > 0 && <span className="text-zinc-500"> · continuation {s.segment}</span>}
+                <tr key={i} className="border-t border-line">
+                  <td className="pr-3 py-1">
+                    <span className={cn('font-semibold', s.role === 'worker' ? 'text-work-ink' : 'text-extra-ink')}>{s.role}</span>
+                    {s.role === 'worker' && s.segment > 0 && <span className="text-ink-faint"> · continuation {s.segment}</span>}
                   </td>
                   <td className="pr-3 mono">{s.model ?? '—'}</td>
-                  <td className="pr-3 text-right">{d.goal.provider === 'codex' ? '—' : s.numTurns}</td>
-                  <td className="pr-3 text-right mono">{s.costAvailable === false ? (estimateOf(s.sessionId) != null ? <span className="text-amber-300/90" title="ended before the coding agent reported a cost: estimated from its tokens at the rate the same model cost in sessions that reported it">≈{fmtUsd(estimateOf(s.sessionId)!)}</span> : <span className="text-amber-300/90 font-sans" title="ended before the coding agent reported a cost: unknown, not $0 (its model has no session with a reported cost yet)">unknown</span>) : cost(s.costUsd)}</td>
-                  <td className="pr-3 text-right">{fmtDur(s.durationMs)}</td>
-                  <td className="mono text-zinc-500">{s.subtype === 'success' ? 'ok' : (s.subtype ?? '—')}{s.subtype === 'error_max_turns' || s.subtype === 'error_max_budget_usd' ? ' → continued' : ''}</td>
+                  <td className="pr-3 text-right mono">{d.goal.provider === 'codex' ? '—' : s.numTurns}</td>
+                  <td className="pr-3 text-right mono">{s.costAvailable === false ? (estimateOf(s.sessionId) != null ? <span className="font-bold text-ink" title="ended before the coding agent reported a cost: estimated from its tokens at the rate the same model cost in sessions that reported it">≈{fmtUsd(estimateOf(s.sessionId)!)}</span> : <span className="font-sans font-bold text-ink" title="ended before the coding agent reported a cost: unknown, not $0 (its model has no session with a reported cost yet)">unknown</span>) : cost(s.costUsd)}</td>
+                  <td className="pr-3 text-right mono">{fmtDur(s.durationMs)}</td>
+                  <td className="mono text-ink-faint">{s.subtype === 'success' ? 'ok' : (s.subtype ?? '—')}{s.subtype === 'error_max_turns' || s.subtype === 'error_max_budget_usd' ? ' → continued' : ''}</td>
                 </tr>
               ))}
             </tbody>
@@ -364,27 +410,27 @@ function TaskFiles({ task, files }: { task: Task; files: TaskFile[] }) {
   // the preview steps through the files in the order shown: the pictures, then the rest
   const order = [...images, ...others].map((f) => f.open);
   return (
-    <div>
-      <div className="text-xs text-zinc-500 mb-1">
+    <section>
+      <h3 className={cn(LABEL, 'mb-2')}>
         Files{task.commitRef ? '' : ' so far'} ({files.length})
-      </div>
+      </h3>
       {images.length > 0 && (
-        <div className="grid grid-cols-3 gap-1.5 mb-1.5">
+        <div className="grid grid-cols-3 gap-1.5 mb-2">
           {images.map((f) => (
-            <button key={fileKey(f.open)} type="button" onClick={() => openFile(f.open, order)} title={f.rel} className="aspect-square overflow-hidden rounded border border-zinc-800 bg-[repeating-conic-gradient(#8881_0_25%,transparent_0_50%)] bg-[length:12px_12px] hover:border-zinc-500">
+            <button key={fileKey(f.open)} type="button" onClick={() => openFile(f.open, order)} title={f.rel} className={cn('aspect-square overflow-hidden rounded-md border border-line hover:border-line-strong', CHECKER)}>
               <img src={fileUrl(f.open)} alt={f.rel} loading="lazy" className="h-full w-full object-contain" />
             </button>
           ))}
         </div>
       )}
-      <div className="mono text-[11px] space-y-0.5">
+      <div className="mono text-[11.5px] space-y-1">
         {others.map((f) => (
-          <button key={fileKey(f.open)} type="button" onClick={() => openFile(f.open, order)} title={`Open ${f.rel}`} className="block w-full truncate text-left text-sky-300 hover:underline">
+          <button key={fileKey(f.open)} type="button" onClick={() => openFile(f.open, order)} title={`Open ${f.rel}`} className="block w-full truncate text-left font-semibold text-work-ink hover:underline">
             {f.rel}
           </button>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -437,18 +483,18 @@ function UnstickButton({ d, task, live, waiting, waitingKind }: { d: GoalDetail;
         <ConfirmDialog open={asking} busy={busy} title={`Start "${task.title}" now?`} confirmLabel="Start now" onConfirm={go} onClose={() => setAsking(false)}>
           <p>It has not started because {waiting}.</p>
           <p>{FORCE_NOTE[waitingKind as Exclude<WaitingKind, 'hard'>]}</p>
-          {err && <p className="text-rose-400">{err}</p>}
+          {err && <p className="text-bad-ink">{err}</p>}
         </ConfirmDialog>
       ) : (
         <ConfirmDialog open={asking} danger busy={busy} title={`Stop and retry "${task.title}"?`} confirmLabel="Stop and retry" onConfirm={go} onClose={() => setAsking(false)}>
           <p>It has had no live session for a while. What it is doing stops and it goes back to ready; a session that had started resumes where it left off.</p>
-          {err && <p className="text-rose-400">{err}</p>}
+          {err && <p className="text-bad-ink">{err}</p>}
         </ConfirmDialog>
       )}
       <Button size="sm" variant={startable ? 'primary' : undefined} disabled={busy} onClick={() => (stoppable || forcing ? setAsking(true) : void go())} title={forcing ? 'Its dependencies are done; only the scheduler holds it back: start it anyway' : startable ? 'Ready and nothing holds it back, but it has not started: start it now' : 'No live session for a while: stop the stuck work and put the task back to ready'}>
         {startable ? <Play size={13} /> : <Square size={13} />} {startable ? 'Start now' : 'Stop and retry'}
       </Button>
-      {err && <span className="text-[11px] text-red-400 max-w-64 truncate" title={err}>{err}</span>}
+      {err && <span className="text-[11px] text-bad-ink max-w-64 truncate" title={err}>{err}</span>}
     </>
   );
 }

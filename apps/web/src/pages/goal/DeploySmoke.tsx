@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { Button, ago, cn } from '../../ui.tsx';
 import { EvidenceView } from './MilestoneEvidence.tsx';
 
+/** a smoke's state as a small plate: ink while it runs, green once passed, red when it failed, quiet when there was none */
 const STATUS: Record<DeploySmoke['status'], { label: string; className: string }> = {
-  running: { label: 'smoke running…', className: 'text-sky-300 border-sky-800' },
-  pass: { label: 'smoke passed', className: 'text-emerald-300 border-emerald-800' },
-  fail: { label: 'smoke failed', className: 'text-rose-300 border-rose-800' },
-  skipped: { label: 'no smoke', className: 'text-zinc-400 border-zinc-700' },
+  running: { label: 'smoke running…', className: 'text-ink ring-ink' },
+  pass: { label: 'smoke passed', className: 'bg-ok/10 text-ok-ink ring-ok/30' },
+  fail: { label: 'smoke failed', className: 'bg-bad/10 text-bad-ink ring-bad/40' },
+  skipped: { label: 'no smoke', className: 'text-ink-soft ring-line-strong' },
 };
 
 /** the button a live address offers: a first smoke, or one more */
@@ -31,20 +32,20 @@ export function SmokeView({ goalId, deployment, scripts, busy, onAgain }: { goal
   const again = deployment.status === 'live' && !!deployment.url && scripts > 0 && !running;
   if (!s && !again) return null;
   return (
-    <div className="ml-1 mt-1 space-y-1 border-l border-zinc-800 pl-2 text-[11px]">
+    <div className="ml-1 mt-1.5 space-y-1.5 border-l-2 border-line pl-2.5 text-[11px]">
       <div className="flex flex-wrap items-center gap-2">
         {s && (
-          <span className={cn('inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-px text-[10px]', STATUS[s.status].className)}>
+          <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.07em] ring-1 ring-inset', STATUS[s.status].className)}>
             {running && <Loader2 size={9} className="animate-spin" />}
             {STATUS[s.status].label}
           </span>
         )}
         {s && s.detail && (
-          <span className={cn('min-w-0 truncate', s.status === 'fail' ? 'text-rose-300/90' : 'text-zinc-400')} title={s.detail}>
+          <span className={cn('min-w-0 truncate', s.status === 'fail' ? 'text-bad-ink' : 'text-ink-soft')} title={s.detail}>
             {s.detail}
           </span>
         )}
-        {s?.endedAt && <span className="shrink-0 text-zinc-500">{ago(s.endedAt)}</span>}
+        {s?.endedAt && <span className="mono shrink-0 text-ink-faint">{ago(s.endedAt)}</span>}
         {again && (
           <Button size="sm" variant="info" className="shrink-0" disabled={busy} onClick={onAgain} title={`Run the goal's ${scripts} milestone script${scripts === 1 ? '' : 's'} against ${deployment.url} (a script writes what it tries)`}>
             <RotateCcw size={11} /> {againLabel(s)}
@@ -58,14 +59,14 @@ export function SmokeView({ goalId, deployment, scripts, busy, onAgain }: { goal
             const firstLine = r.error?.split('\n')[0] ?? '';
             return (
               <li key={r.script}>
-                <button type="button" onClick={() => toggle(r.script)} aria-expanded={expanded} className="flex max-w-full items-center gap-1.5 text-left hover:text-zinc-50">
-                  <ChevronRight size={11} className={cn('shrink-0 text-zinc-500 transition-transform', expanded && 'rotate-90')} />
-                  <span className={r.status === 'pass' ? 'text-emerald-400' : 'text-rose-400'}>{r.status === 'pass' ? '✓' : '✗'}</span>
-                  <span className="mono text-zinc-300">{r.script}</span>
+                <button type="button" onClick={() => toggle(r.script)} aria-expanded={expanded} className="flex max-w-full items-center gap-1.5 text-left hover:underline underline-offset-2">
+                  <ChevronRight size={11} className={cn('shrink-0 text-ink-faint transition-transform', expanded && 'rotate-90')} />
+                  <span className={cn('font-bold', r.status === 'pass' ? 'text-ok-ink' : 'text-bad-ink')}>{r.status === 'pass' ? '✓' : '✗'}</span>
+                  <span className="mono font-semibold text-ink">{r.script}</span>
                   {r.status === 'fail' && firstLine ? (
-                    <span className="truncate text-rose-300/90" title={r.error ?? undefined}>{firstLine}</span>
+                    <span className="truncate text-bad-ink" title={r.error ?? undefined}>{firstLine}</span>
                   ) : r.summary ? (
-                    <span className="truncate text-zinc-500">{r.summary}</span>
+                    <span className="truncate text-ink-faint">{r.summary}</span>
                   ) : null}
                 </button>
                 {expanded && (

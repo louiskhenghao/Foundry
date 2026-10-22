@@ -3,6 +3,7 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { DelegatedView } from '../../api.ts';
 import { TaskTags } from '../../components/TaskTags.tsx';
+import { markFill, taskMark } from '../../components/progress.tsx';
 import { useElementWidth } from '../../hooks/useElementWidth.ts';
 import { Badge, cn, fmtUsd } from '../../ui.tsx';
 
@@ -15,7 +16,12 @@ const GY = 18;
 /** below this container width the graph is rendered as a vertical list */
 const LIST_BREAKPOINT = 640;
 
-const STROKE: Record<string, string> = { done: '#34d399', running: '#60a5fa', observing: '#a78bfa', merging: '#e879f9', blocked: '#fb923c', failed: '#f87171', skipped: '#71717a', ready: '#38bdf8', pending: '#52525b' };
+/**
+ * an edge takes the colour of the task it leaves, in the theme's names (as its state badge has them): green once that
+ * task is done, blue while it runs or is ready, violet while it is reviewed or merged, yellow when it waits for you, red
+ * when it failed, grey before it can start
+ */
+const STROKE: Record<string, string> = { done: 'var(--color-ok)', running: 'var(--color-work)', observing: 'var(--color-extra)', merging: 'var(--color-extra)', blocked: 'var(--color-you)', failed: 'var(--color-bad)', skipped: 'var(--color-line-strong)', ready: 'var(--color-work)', pending: 'var(--color-line-strong)' };
 
 export interface DagTask extends Task {
   depth: number;
@@ -96,7 +102,7 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
     return () => ro.disconnect();
   }, [tasks, nodeW, listMode]);
 
-  if (!tasks.length) return <div className="text-sm text-zinc-500 py-8 text-center">No tasks yet.</div>;
+  if (!tasks.length) return <div className="text-sm text-ink-faint py-8 text-center">No tasks yet.</div>;
 
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const sorted = [...cols.entries()].sort(([a], [b]) => a - b);
@@ -118,7 +124,7 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
         <div className="space-y-4">
           {sorted.map(([depth, ts]) => (
             <div key={depth}>
-              <div className="text-[10px] uppercase tracking-wide text-zinc-500 mb-1.5">Step {depth + 1}</div>
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint mb-2">Step {depth + 1}</div>
               <div className="space-y-2">
                 {ts.map((t) => (
                   <TaskNode key={t.id} t={t} selected={selected === t.id} onSelect={onSelect} className="w-full" style={{ minHeight: MIN_H }} after={t.dependsOn.map((d) => byId.get(d)?.title ?? d)} />
@@ -142,7 +148,8 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
                         key={`${e.from}-${e.to}`}
                         d={`M ${e.x1} ${e.y1} C ${e.x1 + c} ${e.y1}, ${e.x2 - c} ${e.y2}, ${e.x2} ${e.y2}`}
                         fill="none"
-                        stroke={STROKE[e.state] ?? '#52525b'}
+                        // a style, not the stroke attribute: the theme's colours are CSS variables
+                        style={{ stroke: STROKE[e.state] ?? 'var(--color-line-strong)' }}
                         strokeWidth={active(e) ? 2.5 : 1.5}
                         strokeOpacity={active(e) ? 1 : focus ? 0.15 : 0.55}
                       />
@@ -184,65 +191,72 @@ function TaskNode({ t, selected, linked, dim, onSelect, className, style, after 
     e.stopPropagation();
     if (t.delegated?.exists) nav(`/goals/${t.delegated.goalId}`);
   };
+  const mark = t.plain ? null : taskMark(t.state);
+  const waiting = t.state === 'pending' || t.state === 'ready';
   return (
     <button
       onClick={() => onSelect(selected ? null : t.id)}
       style={style}
-      className={cn('dag-node text-left rounded-lg border p-2.5 bg-zinc-950 hover:border-zinc-500 transition', selected ? 'border-emerald-500 ring-1 ring-emerald-500/40' : linked ? 'border-zinc-400 ring-1 ring-zinc-400/30' : 'border-zinc-800', t.state === 'running' && 'ring-1 ring-blue-500/40', t.kind === 'goal' && 'border-dashed', dim && 'opacity-40', className)}
+      // a panel card: the chosen one ringed in the accent, its neighbours outlined; one under way carries a flowing hatch
+      className={cn('relative overflow-hidden text-left rounded-lg border bg-panel p-3 shadow-[0_1px_2px_rgb(0_0_0/0.06)] transition-[border-color,box-shadow,opacity]', selected ? 'border-accent ring-2 ring-accent' : linked ? 'border-line-strong ring-1 ring-line-strong' : 'border-line hover:border-line-strong', t.kind === 'goal' && 'border-dashed', dim && 'opacity-40', className)}
     >
+      {mark === 'run' && <i aria-hidden="true" className="absolute inset-x-0 top-0 h-1.5 hatch text-ink" />}
       <div className="flex items-center justify-between gap-2">
         {t.plain ? (
-          <span className="text-[10px] text-zinc-400 flex items-center gap-1.5 min-w-0">
+          <span className="text-[11px] font-semibold text-ink-soft flex items-center gap-1.5 min-w-0">
             <span className="w-2 h-2 rounded-full shrink-0" style={{ background: t.plain.color }} />
             <span className="truncate">{t.plain.label ?? 'unassigned'}</span>
           </span>
         ) : (
-          <Badge state={t.state} />
+          <span className="flex items-center gap-2 min-w-0">
+            <i aria-hidden="true" className={cn('block h-3 w-3 shrink-0 rounded-[3px]', markFill[mark!])} />
+            <Badge state={t.state} />
+          </span>
         )}
-        <span className="text-[10px] text-zinc-500 mono whitespace-nowrap">
+        <span className="text-[11px] text-ink-faint mono whitespace-nowrap">
           {t.plain ? t.id : `${t.attempts}/${t.maxAttempts}`}
           {!t.plain && t.totalCost != null && (
-            <span className="ml-1" title={t.unmeasured ? `cost of this task so far, all attempts — ${t.unmeasured} session${t.unmeasured === 1 ? '' : 's'} ended before a cost was reported: unknown, not $0, and missing here` : 'cost of this task so far, all attempts'}>
+            <span className="ml-1.5 font-semibold text-ink-soft" title={t.unmeasured ? `cost of this task so far, all attempts — ${t.unmeasured} session${t.unmeasured === 1 ? '' : 's'} ended before a cost was reported: unknown, not $0, and missing here` : 'cost of this task so far, all attempts'}>
               {fmtUsd(t.totalCost)}
-              {t.unmeasured ? <span className="text-amber-300/90">+?</span> : null}
+              {t.unmeasured ? <span className="font-bold text-ink">+?</span> : null}
             </span>
           )}
-          {t.origin !== 'brief' && <span className="ml-1 text-zinc-600">{t.origin}</span>}
+          {t.origin !== 'brief' && <span className="ml-1.5 text-ink-faint">{t.origin}</span>}
         </span>
       </div>
-      <div className="text-[13px] mt-1.5 text-zinc-100 leading-snug">{t.title}</div>
-      <div className="mt-1 flex items-center gap-x-1.5 gap-y-1 flex-wrap">
+      <div className={cn('mt-2 text-[14px] leading-snug', waiting && !t.plain ? 'font-semibold text-ink-soft' : 'font-bold text-ink')}>{t.title}</div>
+      <div className="mt-1.5 flex items-center gap-x-1.5 gap-y-1 flex-wrap">
         <TaskTags kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} difficulty={t.difficulty} />
-        {t.model && <span className="mono text-[10px] text-zinc-500 whitespace-nowrap" title="The model the latest attempt ran on (the difficulty picks it from the preset)">{t.model}</span>}
-        {t.worktreePath && t.state !== 'done' && <span className="text-[10px] text-zinc-500 whitespace-nowrap">own worktree</span>}
+        {t.model && <span className="mono text-[11px] text-ink-faint whitespace-nowrap" title="The model the latest attempt ran on (the difficulty picks it from the preset)">{t.model}</span>}
+        {t.worktreePath && t.state !== 'done' && <span className="text-[11px] text-ink-faint whitespace-nowrap">own worktree</span>}
         {!t.parallelizable && !t.plain && !['done', 'skipped', 'failed'].includes(t.state) && (
-          <span className="text-[10px] text-amber-300/80 whitespace-nowrap" title="Marked not parallelizable in the Brief: it starts only when no other task of the goal is running. A wait, not a dependency, so no line leads to it.">
+          <span className="rounded-sm px-1.5 py-px text-[10.5px] font-semibold leading-tight text-ink-soft ring-1 ring-inset ring-line-strong whitespace-nowrap" title="Marked not parallelizable in the Brief: it starts only when no other task of the goal is running. A wait, not a dependency, so no line leads to it.">
             runs alone
           </span>
         )}
       </div>
       {goalTask && (
         // the card of a step done by a Delegated goal: where that goal stands, and the way to it
-        <div className="mt-1.5 text-[11px] flex items-center gap-x-2 gap-y-0.5 flex-wrap">
+        <div className="mt-2 text-[11px] flex items-center gap-x-2 gap-y-1 flex-wrap">
           {t.delegated ? (
             t.delegated.exists ? (
               <>
                 <Badge state={t.delegated.state ?? 'pending'} />
-                <span className="text-zinc-400">{delegatedProgress(t.delegated.taskCounts)}</span>
-                {t.delegated.needsYou && <span className="text-orange-300" title={t.delegated.needsYou}>needs you</span>}
-                <span role="link" tabIndex={0} className="text-sky-300 hover:underline cursor-pointer" onClick={open} onKeyDown={(e) => e.key === 'Enter' && open(e)}>
+                <span className="text-ink-soft">{delegatedProgress(t.delegated.taskCounts)}</span>
+                {t.delegated.needsYou && <span className="rounded-[4px] bg-you px-1.5 py-px font-bold text-on-you" title={t.delegated.needsYou}>needs you</span>}
+                <span role="link" tabIndex={0} className="font-semibold text-work-ink hover:underline cursor-pointer" onClick={open} onKeyDown={(e) => e.key === 'Enter' && open(e)}>
                   Open goal →
                 </span>
               </>
             ) : (
-              <span className="text-zinc-500">its goal was deleted</span>
+              <span className="text-ink-faint">its goal was deleted</span>
             )
           ) : (
-            <span className="text-zinc-500">{t.state === 'pending' || t.state === 'ready' ? 'starts as a goal of its own' : 'its goal is being created'}</span>
+            <span className="text-ink-faint">{t.state === 'pending' || t.state === 'ready' ? 'starts as a goal of its own' : 'its goal is being created'}</span>
           )}
         </div>
       )}
-      {after && after.length > 0 && <div className="text-[10px] text-zinc-500 mt-1 truncate">after: {after.join(', ')}</div>}
+      {after && after.length > 0 && <div className="text-[11px] text-ink-faint mt-1.5 truncate">after: {after.join(', ')}</div>}
     </button>
   );
 }

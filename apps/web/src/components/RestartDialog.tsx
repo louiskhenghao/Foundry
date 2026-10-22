@@ -42,20 +42,21 @@ export function RestartDialog({ goalId, tasks, initial, open, onClose, onDone }:
       }}
     >
       <p>Restarted tasks go back to pending with a fresh attempt budget. Tasks above the chosen one keep their results; if one of them had failed, it is treated as skipped so the chain can continue. The goal branch keeps the work done so far, so restarted tasks build on it.</p>
-      <div className="rounded-md border border-zinc-800 divide-y divide-zinc-800/70 max-h-64 overflow-auto">
-        <label className={cn('flex items-center gap-2 px-2 py-1.5 cursor-pointer', from === 'all' && 'bg-emerald-500/5')}>
-          <input type="radio" name="from" checked={from === 'all'} onChange={() => setFrom('all')} /> <span>All tasks from the beginning</span>
+      {/* the tasks that restart are tinted with the accent, the chosen one marked by its bar; the rest keep their results */}
+      <div className="rounded-lg border border-line divide-y divide-line max-h-64 overflow-auto">
+        <label className={cn('flex items-center gap-2 px-2.5 py-2 cursor-pointer', from === 'all' && 'bg-accent/[0.06] shadow-[inset_3px_0_0_var(--color-accent)]')}>
+          <input type="radio" name="from" checked={from === 'all'} onChange={() => setFrom('all')} /> <span className="font-semibold text-ink">All tasks from the beginning</span>
         </label>
         {ordered.map((t) => (
-          <label key={t.id} className={cn('flex items-center gap-2 px-2 py-1.5 cursor-pointer', affected.has(t.id) ? 'bg-emerald-500/5' : '')} style={{ paddingLeft: `${8 + (t.depth ?? 0) * 14}px` }}>
+          <label key={t.id} className={cn('flex items-center gap-2 px-2.5 py-2 cursor-pointer', affected.has(t.id) && 'bg-accent/[0.06]', from === t.id && 'shadow-[inset_3px_0_0_var(--color-accent)]')} style={{ paddingLeft: `${10 + (t.depth ?? 0) * 14}px` }}>
             <input type="radio" name="from" checked={from === t.id} onChange={() => setFrom(t.id)} />
             <Badge state={t.state} />
-            <span className={cn('truncate', affected.has(t.id) ? 'text-zinc-100' : 'text-zinc-500')}>{t.title}</span>
-            {from === t.id && <span className="ml-auto text-[10px] text-emerald-300 shrink-0">from here ↓</span>}
+            <span className={cn('truncate', affected.has(t.id) ? 'font-semibold text-ink' : 'text-ink-faint')}>{t.title}</span>
+            {from === t.id && <span className="ml-auto text-[11px] font-bold text-accent-ink shrink-0">from here ↓</span>}
           </label>
         ))}
       </div>
-      {err && <div className="text-rose-300">{err}</div>}
+      {err && <div className="text-bad-ink">{err}</div>}
     </ConfirmDialog>,
     document.body,
   );

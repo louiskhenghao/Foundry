@@ -22,28 +22,29 @@ export function RevertRows({ reverts }: { reverts: DeliveryRevert[] }) {
       {reverts.map((r) => {
         const s = REVERT_STATUS[r.status];
         return (
-          <li key={r.id} className="rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5 space-y-1">
+          <li key={r.id} className="rounded-lg border border-line bg-inset p-3 space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <Undo2 size={13} className="text-zinc-500" />
+              <Undo2 size={13} className="text-ink-faint" />
               <Badge state={s.state}>{s.label}</Badge>
               {r.pr && (
-                <a className="underline text-sky-300 flex items-center gap-1" href={r.pr.url} target="_blank" rel="noreferrer">
+                <a className="font-semibold text-work-ink hover:underline flex items-center gap-1" href={r.pr.url} target="_blank" rel="noreferrer">
                   <ExternalLink size={12} /> PR #{r.pr.number}
                 </a>
               )}
-              {r.mergedRef && <span className="mono text-zinc-500">merged {r.mergedRef.slice(0, 7)}</span>}
-              <span className="text-zinc-500 ml-auto" title={r.finishedAt ?? r.at}>{ago(r.finishedAt ?? r.at)}</span>
+              {r.mergedRef && <span className="mono text-ink-faint">merged {r.mergedRef.slice(0, 7)}</span>}
+              <span className="mono text-ink-faint ml-auto" title={r.finishedAt ?? r.at}>{ago(r.finishedAt ?? r.at)}</span>
             </div>
-            <div className="text-zinc-400">
+            <div className="text-ink-soft">
               Undoes the merge{r.reverts.length === 1 ? '' : 's'} of {r.reverts.map((m) => (m.prNumber != null ? `#${m.prNumber}` : m.ref.slice(0, 7))).join(', ')}
               {r.reason && (
                 <>
                   {' — '}
-                  <span className="text-zinc-300">{r.reason}</span>
+                  <span className="text-ink">{r.reason}</span>
                 </>
               )}
             </div>
-            {r.detail && <div className={cn('break-words', r.status === 'failed' ? 'text-rose-300' : 'text-zinc-500')}>{r.detail}</div>}
+            {/* rose-300 is the theme's bad-ink (the theme remaps the ramp): kept for the test that reads the failed line's colour */}
+            {r.detail && <div className={cn('break-words', r.status === 'failed' ? 'text-rose-300' : 'text-ink-faint')}>{r.detail}</div>}
           </li>
         );
       })}
@@ -90,30 +91,30 @@ export function RevertSection({ goal, busy }: { goal: Goal; busy?: boolean }) {
         <Button size="sm" variant="ghost" disabled={busy || working || !info?.ok} onClick={() => setOpen(true)} title={info?.ok ? "Open a pull request that undoes this goal's merge" : (info?.why ?? 'checking what a revert would undo…')}>
           <Undo2 size={13} /> Revert…
         </Button>
-        {info && !info.ok && info.why && <span className="text-zinc-500">{info.why}</span>}
-        {err && <span className="text-rose-300">{err}</span>}
+        {info && !info.ok && info.why && <span className="text-ink-faint">{info.why}</span>}
+        {err && <span className="text-bad-ink">{err}</span>}
       </div>
       {info && (
         <ConfirmDialog open={open} title="Revert this goal?" confirmLabel={merge ? 'Open the revert PR and merge it' : 'Open the revert PR'} danger busy={working} onConfirm={() => void go()} onClose={() => setOpen(false)}>
-          <p className="text-sm text-zinc-300">
-            Foundry starts a branch from <span className="mono">{info.remote}/{info.base}</span>, undoes {n === 1 ? 'the merge of its pull request' : `the merges of its ${n} pull requests, newest first`} with one commit each, pushes it and opens a pull request:
+          <p className="text-sm text-ink-soft">
+            Foundry starts a branch from <span className="mono text-ink">{info.remote}/{info.base}</span>, undoes {n === 1 ? 'the merge of its pull request' : `the merges of its ${n} pull requests, newest first`} with one commit each, pushes it and opens a pull request:
           </p>
-          <ul className="text-xs text-zinc-400 space-y-0.5">
+          <ul className="text-xs text-ink-soft space-y-0.5">
             {info.reverts.map((r) => (
               <li key={r.ref}>
-                <span className="text-zinc-200">{r.prNumber != null ? `#${r.prNumber}` : 'merge'}</span> {r.title} <span className="mono text-zinc-500">{r.ref.slice(0, 7)}</span>
+                <span className="mono font-semibold text-ink">{r.prNumber != null ? `#${r.prNumber}` : 'merge'}</span> {r.title} <span className="mono text-ink-faint">{r.ref.slice(0, 7)}</span>
               </li>
             ))}
           </ul>
-          <label className="block text-xs text-zinc-400">
-            Why? <span className="text-zinc-500">(it goes into the pull request)</span>
+          <label className="block text-xs font-semibold text-ink-soft">
+            Why? <span className="font-normal text-ink-faint">(it goes into the pull request)</span>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={2} placeholder="What went wrong" className="mt-1" />
           </label>
-          <label className="flex items-center gap-2 text-xs text-zinc-300">
-            <input type="checkbox" className="accent-emerald-500" checked={merge} onChange={(e) => setMerge(e.target.checked)} />
-            Merge it right away ({info.method}) <span className="text-zinc-500">(otherwise you merge the pull request yourself)</span>
+          <label className="flex items-center gap-2 text-xs text-ink">
+            <input type="checkbox" checked={merge} onChange={(e) => setMerge(e.target.checked)} />
+            Merge it right away ({info.method}) <span className="text-ink-faint">(otherwise you merge the pull request yourself)</span>
           </label>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-ink-faint">
             Your own folder is not touched; once the revert merges, your local {info.base} is fast-forwarded the way a merge is. The goal, its branch and its page stay; reverting the revert on GitHub, or a follow-up goal, brings the work back.
           </p>
         </ConfirmDialog>
