@@ -157,8 +157,8 @@ export function GoalPage() {
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
             <StatePlate state={g.state} label={stateLabel(g.state)} />
             {statusLine && <span className="text-sm font-semibold text-ink-faint">{statusLine}</span>}
-            {g.transfer && <span className="text-[11px] font-semibold rounded-sm ring-1 ring-inset ring-sky-800 text-sky-300 px-1.5 py-0.5" title={`came from ${g.transfer.from.hostname}`}>imported</span>}
-            {g.delivery.reverts[g.delivery.reverts.length - 1]?.status === 'merged' && <span className="text-[11px] font-semibold rounded-sm ring-1 ring-inset ring-rose-800 text-rose-300 px-1.5 py-0.5" title="Its merge was undone by a revert pull request (Delivery tab)">reverted</span>}
+            {g.transfer && <span className="text-[11px] font-semibold rounded-sm bg-code-1/12 ring-1 ring-inset ring-code-1/45 text-code-1-ink px-1.5 py-0.5" title={`came from ${g.transfer.from.hostname}`}>imported</span>}
+            {g.delivery.reverts[g.delivery.reverts.length - 1]?.status === 'merged' && <span className="text-[11px] font-semibold rounded-sm ring-1 ring-inset ring-bad/45 text-bad-ink px-1.5 py-0.5" title="Its merge was undone by a revert pull request (Delivery tab)">reverted</span>}
           </div>
           <h1 className={cn(PAGE_TITLE, 'line-clamp-3')} title={g.title}>
             {g.title}
@@ -325,7 +325,7 @@ export function GoalPage() {
         onChange={setTab}
         tabs={[
           { id: 'overview', label: 'Overview', badge: open > 0 ? <span className="mono rounded-[5px] bg-you text-on-you text-[10.5px] px-1.5 font-bold">{open}</span> : null },
-          { id: 'tasks', label: `Tasks`, badge: <span className="text-[10px] text-zinc-500">{d.tasks.filter((t) => t.state === 'done').length}/{d.tasks.length}{running ? ` · ${running} running` : ''}</span> },
+          { id: 'tasks', label: `Tasks`, badge: <span className="text-[10px] text-ink-faint">{d.tasks.filter((t) => t.state === 'done').length}/{d.tasks.length}{running ? ` · ${running} running` : ''}</span> },
           { id: 'timeline', label: 'Timeline' },
           { id: 'activity', label: 'Activity' },
           { id: 'diff', label: 'Diff' },

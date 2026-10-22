@@ -238,11 +238,10 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
         {sessions.length > 0 && (
           <div className="mt-4">
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-              {/* tabular-nums text-zinc-400 (the theme's ink-soft): the Timeline test reads this markup */}
               {sessions.map((k) => (
                 <span key={k} className="inline-flex items-center gap-1.5 font-semibold text-ink">
                   <span className={cn('h-2.5 w-2.5 rounded-[3px]', KIND[k].color)} />
-                  {KIND[k].label} <span className="tabular-nums text-zinc-400">{fmtDur(t.totals[k])}</span>
+                  {KIND[k].label} <span className="tabular-nums text-ink-soft">{fmtDur(t.totals[k])}</span>
                 </span>
               ))}
             </div>
@@ -259,7 +258,7 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
                   <span className="mono text-ink-soft w-14 shrink-0">{fmtDur(l.ms)}</span>
                   <span className="truncate text-ink" title={`${l.span.label} · ${l.row}`}>
                     {l.span.label}
-                    {l.row !== l.span.label && !l.span.label.endsWith(l.row) && <span className="text-zinc-500"> · {l.row}</span>}
+                    {l.row !== l.span.label && !l.span.label.endsWith(l.row) && <span className="text-ink-faint"> · {l.row}</span>}
                   </span>
                   {l.span.open && <span className="text-[11px] font-semibold text-work-ink shrink-0">still going</span>}
                 </li>
@@ -317,11 +316,10 @@ export function TimelineView({ t, onOpenTask }: { t: GoalTimeline; onOpenTask?: 
             <div style={{ width: chart ? `${chart.px}px` : '100%' }}>
               <div className="relative h-5 border-b border-line">
                 {marks.map((m) => {
-                  // centred on its time, but the first and last mark stay inside the chart, which clips what sticks out;
-                  // text-zinc-500 is the theme's ink-faint (the Timeline test reads this markup)
+                  // centred on its time, but the first and last mark stay inside the chart, which clips what sticks out
                   const at = x(t0 + m);
                   return (
-                    <span key={m} className={cn('absolute top-0 whitespace-nowrap text-[10px] tabular-nums text-zinc-500', at < 3 ? '' : at > 97 ? '-translate-x-full' : '-translate-x-1/2')} style={{ left: `${at}%` }}>
+                    <span key={m} className={cn('absolute top-0 whitespace-nowrap text-[10px] tabular-nums text-ink-faint', at < 3 ? '' : at > 97 ? '-translate-x-full' : '-translate-x-1/2')} style={{ left: `${at}%` }}>
                       {m === 0 ? '0' : fmtDur(m)}
                     </span>
                   );

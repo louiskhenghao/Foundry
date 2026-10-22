@@ -240,7 +240,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
       trigger={({ open, toggle }) => (
         <button onClick={toggle} className={cn('relative h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-md text-band-ink-soft hover:text-band-ink hover:bg-band-hover', (open || here) && 'bg-band-hover text-band-ink')} title="Settings, setup, help and theme" aria-label="Settings, setup, help and theme">
           <Settings2 size={16} />
-          {(setupBad || !connected || update?.updateAvailable) && <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-band" />}
+          {(setupBad || !connected || update?.updateAvailable) && <span className={cn('absolute top-0.5 right-0.5 h-2 w-2 rounded-full ring-2 ring-band', setupBad || !connected ? 'bg-bad' : 'bg-work')} />}
         </button>
       )}
     >
@@ -251,7 +251,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
           </MenuItem>
           <MenuItem icon={<Wrench size={13} />} onClick={() => go(close, '/setup')}>
             <span className="flex items-center gap-2">
-              Setup {setupBad && <span className="text-[10px] text-rose-400">incomplete</span>}
+              Setup {setupBad && <span className="text-[10px] text-bad-ink">incomplete</span>}
             </span>
           </MenuItem>
           <MenuItem icon={<ArrowLeftRight size={13} />} hint="Move to another computer" onClick={() => go(close, '/transfer')}>
@@ -293,8 +293,8 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
             <span className="flex items-center gap-2">
               Foundry <span className="mono">{update?.current ?? '…'}</span>
               {update?.updateAvailable && (
-                <span className="flex items-center gap-1 text-[10px] text-rose-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> {update.latest} available
+                <span className="flex items-center gap-1 text-[10px] text-work-ink">
+                  <span className="h-1.5 w-1.5 rounded-full bg-work" /> {update.latest} available
                 </span>
               )}
             </span>

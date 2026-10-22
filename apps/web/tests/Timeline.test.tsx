@@ -30,11 +30,11 @@ test('where the time went, the longest steps, and every step on one axis', () =>
   const html = renderToStaticMarkup(<TimelineView t={t} />);
   expect(html).toContain('1h 40m from start to the end');
   expect(html).toContain('10m waiting for you');
-  expect(html).toContain('Work <span class="tabular-nums text-zinc-400">25m</span>');
+  expect(html).toContain('Work <span class="tabular-nums text-ink-soft">25m</span>');
   expect(html).not.toContain('Reviews <span');
   // the Delegated goal names its own row: said once
   expect(html).toContain('title="Delegated goal: research the subject · research the subject">Delegated goal: research the subject</span>');
-  expect(html).toContain('Attempt 1<span class="text-zinc-500"> · build the model</span>');
+  expect(html).toContain('Attempt 1<span class="text-ink-faint"> · build the model</span>');
   // the attempt starts at 60% of the axis and lasts a quarter of it, with its cost in the tooltip
   expect(html).toContain('left:60%;width:25%');
   expect(html).toContain('title="Attempt 1 · 25m · $1.25"');
@@ -75,8 +75,8 @@ test('the chart zooms, and every bar and row name is a button that opens what it
 
 test("the axis's first mark starts at the chart's left edge, not half outside it", () => {
   const html = renderToStaticMarkup(<TimelineView t={t} />);
-  expect(html).toContain('<span class="absolute top-0 whitespace-nowrap text-[10px] tabular-nums text-zinc-500" style="left:0%">0</span>');
-  expect(html).toContain('text-zinc-500 -translate-x-1/2" style="left:15%">15m</span>');
+  expect(html).toContain('<span class="absolute top-0 whitespace-nowrap text-[10px] tabular-nums text-ink-faint" style="left:0%">0</span>');
+  expect(html).toContain('text-ink-faint -translate-x-1/2" style="left:15%">15m</span>');
 });
 
 test('like a Gantt chart: the whole goal fits when it reads well, else it slides at a readable scale', () => {

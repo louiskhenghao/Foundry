@@ -46,8 +46,7 @@ export function RevertRows({ reverts }: { reverts: DeliveryRevert[] }) {
                 </>
               )}
             </div>
-            {/* rose-300 is the theme's bad-ink (the theme remaps the ramp): kept for the test that reads the failed line's colour */}
-            {r.detail && <div className={cn('break-words', r.status === 'failed' ? 'text-rose-300' : 'text-ink-faint')}>{r.detail}</div>}
+            {r.detail && <div className={cn('break-words', r.status === 'failed' ? 'text-bad-ink' : 'text-ink-faint')}>{r.detail}</div>}
           </li>
         );
       })}

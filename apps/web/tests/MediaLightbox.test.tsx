@@ -35,7 +35,7 @@ test('pictures of any shape sit on a stage of one height, and the line under the
   const clip = renderToStaticMarkup(<MediaLightbox items={items} index={1} onIndex={() => {}} onClose={() => {}} />);
   for (const html of [picture, clip]) expect(html).toMatch(/class="[^"]*h-\[55vh\] sm:h-\[62vh\][^"]*"/);
   // a tall picture or a wide one is fitted inside the stage, not the stage to it
-  expect(picture).toContain('class="max-h-full max-w-full object-contain rounded border border-zinc-800 bg-zinc-950"');
+  expect(picture).toContain('class="max-h-full max-w-full object-contain rounded border border-line bg-page"');
   // the clip has no link, but another item has: its line is kept, empty
   expect(clip).toContain('<div class="text-[11px]" aria-hidden="true"> </div>');
   expect(picture).not.toContain('aria-hidden="true"> </div>');

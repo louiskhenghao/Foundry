@@ -356,7 +356,7 @@ main {
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-zinc-700 rounded;
+  @apply bg-line-strong rounded;
 }
 
 /* minimal prose for model-authored markdown */

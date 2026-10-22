@@ -11,7 +11,7 @@ export function CutSessionsDot({ n, est }: { n: number; est: GoalDetail['costEst
       </p>
       {est?.estimated ? (
         <p>
-          Estimated from {n === 1 ? 'its' : 'their'} tokens at the rate the same model cost in sessions that reported it: about <span className="mono text-zinc-100">≈{fmtUsd(est.usd)}</span>
+          Estimated from {n === 1 ? 'its' : 'their'} tokens at the rate the same model cost in sessions that reported it: about <span className="mono text-ink">≈{fmtUsd(est.usd)}</span>
           {est.estimated < n ? ` for ${est.estimated} of them (the rest ran a model with no reported cost yet)` : ''}. Estimates never count against the budget.
         </p>
       ) : (

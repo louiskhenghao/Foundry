@@ -16,7 +16,7 @@ test('each revert shows how it went, its pull request, what it undoes and why; a
   expect(h).toContain('reverted');
   expect(h).toContain('merged fed9876');
   expect(h).toContain('revert failed');
-  expect(h).toContain('text-rose-300');
+  expect(h).toContain('text-bad-ink');
   expect(h).toContain('conflicts with what main got since, in src/export.ts');
   // a stack names every merge it undoes
   const stack = renderToStaticMarkup(<RevertRows reverts={[revert({ reverts: [{ prNumber: 44, ref: 'd', title: 'd' }, { prNumber: 43, ref: 'c', title: 'c' }] })]} />);

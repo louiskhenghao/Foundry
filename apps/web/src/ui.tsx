@@ -133,10 +133,10 @@ export function buttonClass(variant: ButtonVariant = 'default', size: 'sm' | 'md
     'inline-flex items-center transition disabled:opacity-40 disabled:cursor-not-allowed',
     size === 'sm' ? 'gap-1.5 rounded-md font-semibold px-2.5 py-1 text-xs' : size === 'lg' ? 'h-[42px] gap-2 rounded-lg font-bold px-4 text-[14.5px]' : 'gap-1.5 rounded-md font-semibold px-3.5 py-1.5 text-sm',
     variant === 'primary' && 'bg-accent text-on-accent hover:bg-accent/85',
-    variant === 'default' && 'bg-panel text-ink hover:bg-zinc-800 border border-line-strong',
+    variant === 'default' && 'bg-panel text-ink hover:bg-line border border-line-strong',
     variant === 'danger' && 'bg-bad/10 text-bad-ink border border-bad/40 hover:bg-bad/20',
     variant === 'info' && 'bg-work/10 text-work-ink border border-work/40 hover:bg-work/20',
-    variant === 'ghost' && 'text-ink-soft hover:text-ink hover:bg-zinc-800',
+    variant === 'ghost' && 'text-ink-soft hover:text-ink hover:bg-line',
     className,
   );
 }
@@ -175,7 +175,7 @@ export function ButtonGroup<T extends string>({ value, onChange, options, label,
           aria-disabled={o.disabled || undefined}
           title={o.title}
           onClick={() => !o.disabled && onChange(o.id)}
-          className={cn('grow whitespace-nowrap', size === 'lg' ? 'h-9 rounded-md px-3.5 font-bold' : 'rounded-sm px-2.5 py-1 font-semibold', o.disabled && 'opacity-40 cursor-not-allowed', value === o.id ? 'bg-accent text-on-accent' : 'text-ink-soft hover:text-ink hover:bg-zinc-800')}
+          className={cn('grow whitespace-nowrap', size === 'lg' ? 'h-9 rounded-md px-3.5 font-bold' : 'rounded-sm px-2.5 py-1 font-semibold', o.disabled && 'opacity-40 cursor-not-allowed', value === o.id ? 'bg-accent text-on-accent' : 'text-ink-soft hover:text-ink hover:bg-line')}
         >
           {o.label}
         </button>
@@ -381,7 +381,7 @@ export const code = (i: number) => CODES[((i % CODES.length) + CODES.length) % C
 
 export function CopyButton({ text }: { text: string }) {
   return (
-    <button className="text-[11px] text-zinc-400 hover:text-zinc-100 underline decoration-dotted" onClick={() => navigator.clipboard?.writeText(text)} title="copy">
+    <button className="text-[11px] text-ink-soft hover:text-ink underline decoration-dotted" onClick={() => navigator.clipboard?.writeText(text)} title="copy">
       copy
     </button>
   );
@@ -406,7 +406,7 @@ export function Meter({ value, max, label, warn, note }: { value: number; max: n
   const pct = unlimited ? 0 : Math.min(100, max > 0 ? (value / max) * 100 : 0);
   return (
     <div className="text-xs">
-      <div className="flex items-center justify-between gap-2 text-zinc-400 mb-1">
+      <div className="flex items-center justify-between gap-2 text-ink-soft mb-1">
         <span className="flex items-center gap-1 min-w-0">
           <span className="truncate">{label}</span>
           {note}
@@ -414,7 +414,7 @@ export function Meter({ value, max, label, warn, note }: { value: number; max: n
         <span className="mono shrink-0 whitespace-nowrap">{unlimited ? 'no limit' : `${pct.toFixed(0)}%`}</span>
       </div>
       <div className="h-1.5 rounded-xs bg-line overflow-hidden">
-        <div className={cn('h-full', unlimited ? 'bg-zinc-600' : warn || pct > 90 ? 'bg-bad' : pct > 70 ? 'bg-you' : 'bg-accent')} style={{ width: `${unlimited ? 100 : pct}%`, opacity: unlimited ? 0.35 : 1 }} />
+        <div className={cn('h-full', unlimited ? 'bg-ink-faint' : warn || pct > 90 ? 'bg-bad' : pct > 70 ? 'bg-you' : 'bg-accent')} style={{ width: `${unlimited ? 100 : pct}%`, opacity: unlimited ? 0.35 : 1 }} />
       </div>
     </div>
   );
@@ -431,12 +431,12 @@ export function InfoDot({ label, children, tone = 'amber' }: { label: string; ch
       align="left"
       trigger={({ open, toggle }) => (
         // 16px in the line (a phone's 32px button height would push the meter's line apart); the ::before is the thumb's target
-        <button type="button" onClick={toggle} aria-expanded={open} aria-label={label} title={label} className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-zinc-800 before:absolute before:-inset-2 before:content-['']" style={{ minHeight: 0 }}>
+        <button type="button" onClick={toggle} aria-expanded={open} aria-label={label} title={label} className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-line before:absolute before:-inset-2 before:content-['']" style={{ minHeight: 0 }}>
           <span className={cn('h-2 w-2 rounded-full', tone === 'rose' ? 'bg-bad' : 'bg-you')} />
         </button>
       )}
     >
-      <div className="p-2 text-[11px] leading-relaxed text-zinc-300 space-y-1.5">{children}</div>
+      <div className="p-2 text-[11px] leading-relaxed text-ink-soft space-y-1.5">{children}</div>
     </Menu>
   );
 }
@@ -449,7 +449,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel = 'Confirm',
     <div className="fixed inset-0 z-50 m-0 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="w-full sm:max-w-md rounded-xl border border-line bg-panel shadow-2xl p-4 space-y-3">
         <h3 className="text-sm font-bold text-ink">{title}</h3>
-        {children && <div className="text-xs text-zinc-300 space-y-2">{children}</div>}
+        {children && <div className="text-xs text-ink-soft space-y-2">{children}</div>}
         <div className="flex justify-end gap-2 pt-1">
           <Button size="sm" variant="ghost" disabled={busy} onClick={onClose}>
             Cancel
@@ -471,7 +471,7 @@ export function Modal({ open, title, onClose, children, wide }: { open: boolean;
       <div className={cn('w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[85vh] rounded-xl border border-line bg-panel shadow-2xl flex flex-col', wide ? 'sm:max-w-4xl' : 'sm:max-w-2xl')}>
         <header className="flex items-center gap-2 px-4 py-3 border-b border-line">
           <h3 className="text-sm font-bold text-ink min-w-0 truncate">{title}</h3>
-          <button className="ml-auto text-zinc-400 hover:text-zinc-100 text-lg leading-none px-1" onClick={onClose} aria-label="close">
+          <button className="ml-auto text-ink-soft hover:text-ink text-lg leading-none px-1" onClick={onClose} aria-label="close">
             ×
           </button>
         </header>
@@ -520,7 +520,7 @@ export function useAffix<T extends HTMLElement>(): { ref: (el: T | null) => void
 }
 
 export function Empty({ children }: { children: ReactNode }) {
-  return <div className="text-sm text-zinc-500 py-8 text-center">{children}</div>;
+  return <div className="text-sm text-ink-faint py-8 text-center">{children}</div>;
 }
 
 /** how long ago, in the fewest words: 40 s, 7 min, 3 h, 2 d */
