@@ -452,41 +452,42 @@ main {
 }
 
 /*
- * Syntax colours for the file preview (highlight.js classes), taken from the app's own ramps so light mode's
- * remapped accents keep them readable on white.
+ * Syntax colours for the file preview and the diff (highlight.js classes), in the theme's category colours: they tell
+ * kinds of words apart and never say how something stands, so a number is never signal yellow; added and removed
+ * lines keep the signals.
  */
 .hl .hljs-keyword,
 .hl .hljs-selector-tag,
 .hl .hljs-meta .hljs-keyword,
-.hl .hljs-doctag { color: var(--color-violet-400); }
+.hl .hljs-doctag { color: var(--color-code-3-ink); }
 .hl .hljs-string,
 .hl .hljs-regexp,
-.hl .hljs-addition,
-.hl .hljs-template-tag { color: var(--color-emerald-400); }
+.hl .hljs-template-tag { color: var(--color-code-2-ink); }
+.hl .hljs-addition { color: var(--color-ok-ink); }
 .hl .hljs-number,
 .hl .hljs-literal,
 .hl .hljs-symbol,
-.hl .hljs-bullet { color: var(--color-amber-400); }
+.hl .hljs-bullet { color: var(--color-code-4-ink); }
 .hl .hljs-title,
 .hl .hljs-title.function_,
-.hl .hljs-section { color: var(--color-sky-400); }
+.hl .hljs-section { color: var(--color-code-1-ink); }
 .hl .hljs-type,
 .hl .hljs-built_in,
 .hl .hljs-title.class_,
-.hl .hljs-selector-class { color: var(--color-orange-400); }
+.hl .hljs-selector-class { color: var(--color-code-6-ink); }
 .hl .hljs-attr,
 .hl .hljs-attribute,
 .hl .hljs-property,
 .hl .hljs-variable,
 .hl .hljs-template-variable,
 .hl .hljs-selector-attr,
-.hl .hljs-selector-id { color: var(--color-blue-400); }
+.hl .hljs-selector-id { color: var(--color-code-7-ink); }
 .hl .hljs-tag,
-.hl .hljs-name { color: var(--color-rose-400); }
+.hl .hljs-name { color: var(--color-code-5-ink); }
 .hl .hljs-comment,
 .hl .hljs-quote,
-.hl .hljs-meta { color: var(--color-zinc-500); font-style: italic; }
-.hl .hljs-deletion { color: var(--color-rose-400); }
+.hl .hljs-meta { color: var(--color-ink-faint); font-style: italic; }
+.hl .hljs-deletion { color: var(--color-bad-ink); }
 .hl .hljs-emphasis { font-style: italic; }
 .hl .hljs-strong { font-weight: 600; }
 

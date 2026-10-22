@@ -356,7 +356,7 @@ export function GoalPage() {
               />
             }
           >
-            {taskView === 'graph' ? <DagCanvas tasks={dagTasks} selected={sel} onSelect={setSel} /> : <TaskList tasks={dagTasks} selected={sel} onSelect={setSel} />}
+            {taskView === 'graph' ? <DagCanvas tasks={dagTasks} selected={sel} onSelect={setSel} areas={d.brief?.brief.areas} /> : <TaskList tasks={dagTasks} selected={sel} onSelect={setSel} areas={d.brief?.brief.areas} />}
           </Card>
         </div>
       )}

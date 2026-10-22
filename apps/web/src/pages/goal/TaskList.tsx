@@ -1,6 +1,7 @@
-import type { TaskState } from '@foundry/core/browser';
+import type { BriefArea, TaskState } from '@foundry/core/browser';
 import { markFill, taskMark, type Mark } from '../../components/progress.tsx';
 import { cn, fmtUsd, stateLabel } from '../../ui.tsx';
+import { UNASSIGNED_STYLE, areaStyle } from '../brief/shared.ts';
 import { delegatedProgress, type DagTask } from './DagCanvas.tsx';
 
 /** the three steps every task goes through, and how far it is along them */
@@ -39,9 +40,9 @@ const STEP: Record<Mark, { plate: string; text: string }> = {
  * The Tasks tab as a list, the other way to see what the graph shows: one row per task in the order they were planned,
  * its square (green done, a blue hatch under way, yellow waiting for you, red failed, hollow not started), what it is and what it
  * waits for, how far it is through work, review and merge, and its time and cost. A row opens the task, as a card in the
- * graph does.
+ * graph does. `areas`: the Brief's, so a task's Area shows as its chip in the Area's colour.
  */
-export function TaskList({ tasks, selected, onSelect }: { tasks: DagTask[]; selected: string | null; onSelect: (id: string | null) => void }) {
+export function TaskList({ tasks, selected, onSelect, areas }: { tasks: DagTask[]; selected: string | null; onSelect: (id: string | null) => void; areas?: BriefArea[] }) {
   if (!tasks.length) return <div className="text-sm text-ink-faint py-8 text-center">No tasks yet.</div>;
   const order = [...tasks].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const num = new Map(order.map((t, i) => [t.id, i + 1]));
@@ -58,7 +59,6 @@ export function TaskList({ tasks, selected, onSelect }: { tasks: DagTask[]; sele
           t.model,
           waiting && after.length > 0 && `after ${after.join(', ')}`,
           t.kind === 'goal' && (t.delegated?.exists ? `its own goal · ${delegatedProgress(t.delegated.taskCounts)}` : 'done by a goal of its own'),
-          t.area,
           t.origin !== 'brief' && t.origin,
         ].filter(Boolean);
         return (
@@ -73,7 +73,10 @@ export function TaskList({ tasks, selected, onSelect }: { tasks: DagTask[]; sele
               <span className="mono text-[13px] font-bold text-ink-faint">T{num.get(t.id)}</span>
               <span className="min-w-0 flex flex-col gap-0.5">
                 <b className={cn('text-[15px] leading-snug', waiting ? 'font-semibold text-ink-soft' : 'font-bold text-ink')}>{t.title}</b>
-                <span className="text-[13px] text-ink-faint first-letter:uppercase">{facts.join(' · ')}</span>
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-ink-faint">
+                  <span className="first-letter:uppercase">{facts.join(' · ')}</span>
+                  {t.area && <span className={areas ? areaStyle({ areas }, areas.find((a) => a.name === t.area)?.key ?? null).chip : UNASSIGNED_STYLE.chip}>{t.area}</span>}
+                </span>
               </span>
               <span className="col-start-3 md:col-start-auto inline-flex gap-1.5 px-1" aria-label={`work ${steps[0]}, review ${steps[1]}, merge ${steps[2]}`}>
                 {labels.map((l, i) => (

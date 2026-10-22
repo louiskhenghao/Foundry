@@ -51,7 +51,7 @@ export function withPlan(local: Brief, planned: Brief): Brief {
 export const TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'chore', 'goal'] as const;
 
 /** an Area's tag shape: a small chip, tinted in the Area's colour */
-const AREA_CHIP = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[10.5px] font-semibold leading-tight';
+const AREA_CHIP = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[11px] font-semibold leading-tight';
 /** each Area's category colour, by its place in the Brief: green, blue, violet, then on round the eight, as before themes */
 const AREA_CODES = [1, 0, 2, 3, 4, 5, 6, 7];
 export const UNASSIGNED_STYLE = { chip: `${AREA_CHIP} ring-1 ring-inset ring-line text-ink-faint`, dot: 'var(--color-line-strong)' };
