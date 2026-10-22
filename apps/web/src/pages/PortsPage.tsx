@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronRight, ExternalLink, Lock, RefreshCw, Search, Square } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleHelp, Container, Cpu, ExternalLink, Hammer, Lock, RefreshCw, Search, Square, Waypoints, type LucideIcon } from 'lucide-react';
 import { api, type PortRow, type PortsView } from '../api.ts';
-import { Badge, Button, Card, ConfirmDialog, Empty, Input, Tabs, ago, buttonClass, cn, useAffix } from '../ui.tsx';
+import { BOARD_ROW, Board, Button, Card, ConfirmDialog, Empty, Input, PageHeader, Tabs, ago, buttonClass, chipClass, cn, useAffix } from '../ui.tsx';
+import { EmptyPanel, FIGURE_LABEL, PLATE } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 type Category = PortRow['category'];
-const CATEGORIES: { id: Category; label: string; heading: string; badge: string; dot: string }[] = [
-  { id: 'foundry', label: 'foundry', heading: 'Foundry', badge: 'foundry', dot: 'bg-emerald-400' },
-  { id: 'tailscale', label: 'tailscale', heading: 'Tailscale serve', badge: 'tailscale', dot: 'bg-sky-400' },
-  { id: 'docker', label: 'docker', heading: 'Docker', badge: 'docker', dot: 'bg-cyan-400' },
-  { id: 'process', label: 'processes', heading: 'Other processes', badge: 'process', dot: 'bg-zinc-400' },
-  { id: 'unknown', label: 'unknown', heading: 'Unknown holders', badge: 'holder-unknown', dot: 'bg-amber-400' },
+/** each group of holders: its filter chip, its board's heading and icon (no colour: what holds a port is no signal) */
+const CATEGORIES: { id: Category; label: string; heading: string; icon: LucideIcon }[] = [
+  { id: 'foundry', label: 'foundry', heading: 'Foundry', icon: Hammer },
+  { id: 'tailscale', label: 'tailscale', heading: 'Tailscale serve', icon: Waypoints },
+  { id: 'docker', label: 'docker', heading: 'Docker', icon: Container },
+  { id: 'process', label: 'processes', heading: 'Other processes', icon: Cpu },
+  { id: 'unknown', label: 'unknown', heading: 'Unknown holders', icon: CircleHelp },
 ];
 const BADGE_LABEL: Record<Category, string> = { foundry: 'Foundry', tailscale: 'Tailscale', docker: 'Docker', process: 'Process', unknown: 'Unknown' };
 
@@ -65,31 +67,33 @@ export function usePortRelease(onDone: () => void): { ask: (row: PortRow) => voi
   const dialog = (
     <ConfirmDialog open={!!row} danger busy={busy} title={`Stop and release port ${row?.port ?? ''}?`} confirmLabel="Stop & release" onConfirm={go} onClose={close}>
       <p>
-        <b>{row?.label}</b>
-        {row?.detail ? <span className="text-zinc-400"> · {row.detail}</span> : null}
+        <b className="text-ink">{row?.label}</b>
+        {row?.detail ? <span className="text-ink-soft"> · {row.detail}</span> : null}
       </p>
       {row?.release.confirm && <p>{row.release.confirm}</p>}
-      {err && <p className="text-rose-400">{err}</p>}
+      {err && <p className="text-bad-ink">{err}</p>}
     </ConfirmDialog>
   );
   return { ask: (r) => setRow(r), dialog };
 }
 
-/** One port: number · what holds it · where it listens · actions. Indented under its group, zebra striped. */
-export function PortLine({ row, onRelease, odd, highlight, standalone, plain }: { row: PortRow; onRelease: (row: PortRow) => void; odd?: boolean; highlight?: boolean; standalone?: boolean; plain?: boolean }) {
+/**
+ * One port, as a row of its holder's board (or `standalone`, in a list of its own): its number large, what holds it,
+ * where it listens, and what can be done. `highlight` marks the port asked for (`?port=`) with the row's ink bar.
+ * `odd` is no longer drawn: rows are divided by lines, as on every board.
+ */
+export function PortLine({ row, onRelease, highlight, standalone, plain }: { row: PortRow; onRelease: (row: PortRow) => void; odd?: boolean; highlight?: boolean; standalone?: boolean; plain?: boolean }) {
   const where = [plain ? null : row.addresses.length ? row.addresses.join(', ') : null, row.pid ? `pid ${row.pid}` : null].filter(Boolean).join(' · ');
   return (
-    <div className={cn('pr-3 sm:pr-4 py-2 grid grid-cols-[4rem_minmax(0,1fr)] md:grid-cols-[4rem_minmax(0,1fr)_10rem_13rem] gap-x-3 gap-y-1 items-center text-xs', standalone ? 'pl-3' : 'pl-3 sm:pl-6 ml-2 sm:ml-4 border-l-2 border-zinc-800/60', odd && 'bg-zinc-900/50', highlight && 'bg-amber-500/10')}>
-      <span className="mono text-sm text-zinc-100 tabular-nums text-right">{row.port}</span>
+    <li className={cn('py-2.5 grid grid-cols-[3.5rem_minmax(0,1fr)] md:grid-cols-[3.5rem_minmax(0,1fr)_10rem_13rem] gap-x-3 gap-y-1 items-center text-xs', standalone ? 'pl-1 pr-1 sm:pr-2' : cn(BOARD_ROW, 'pl-6 sm:pl-10 pr-4 md:pr-5'), highlight && 'bg-inset shadow-[inset_4px_0_0_var(--color-ink)]')}>
+      <span className="mono text-[15px] font-bold text-ink tabular-nums text-right">{row.port}</span>
       <div className="min-w-0">
         {/* plain: the card already names the program and its folder, so the row says where it listens */}
-        <div className="text-zinc-100 truncate" title={row.process ?? undefined}>{plain ? `listening on ${row.addresses.join(', ') || '—'}` : row.label}</div>
-        <div className="text-[10px] text-zinc-500 mt-0.5 flex flex-wrap gap-x-2">
-          {row.detail && !plain && <span className="min-w-0 break-words">{row.detail}</span>}
-        </div>
+        <div className="text-[13px] font-semibold text-ink truncate" title={row.process ?? undefined}>{plain ? `listening on ${row.addresses.join(', ') || '—'}` : row.label}</div>
+        {row.detail && !plain && <div className="mt-0.5 min-w-0 break-words text-xs text-ink-faint">{row.detail}</div>}
       </div>
-      <div className="col-start-2 md:col-start-3 mono text-[11px] text-zinc-500 truncate" title={where}>
-        {where || <span className="text-zinc-700">—</span>}
+      <div className="col-start-2 md:col-start-3 mono text-[11px] text-ink-faint truncate" title={where}>
+        {where || <span className="text-line-strong">—</span>}
       </div>
       <div className="col-start-2 md:col-start-4 flex items-center gap-1.5 justify-start md:justify-end flex-wrap md:flex-nowrap whitespace-nowrap">
         {row.url && (
@@ -103,13 +107,13 @@ export function PortLine({ row, onRelease, odd, highlight, standalone, plain }: 
           </Button>
         ) : (
           // where the button would be: why this one cannot be stopped here, kept to one short line
-          <span className="inline-flex items-center gap-1 max-w-full rounded-md border border-zinc-800 px-2 py-1 text-[11px] text-zinc-500" title={`Cannot be stopped here: ${row.release.reason ?? 'not allowed'}`}>
+          <span className="inline-flex items-center gap-1 max-w-full rounded-md border border-line px-2 py-1 text-[11px] font-semibold text-ink-faint" title={`Cannot be stopped here: ${row.release.reason ?? 'not allowed'}`}>
             <Lock size={11} className="shrink-0" aria-hidden="true" />
             <span className="truncate">{row.release.reason ?? 'protected'}</span>
           </span>
         )}
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -155,39 +159,39 @@ function groupsOf(rows: PortRow[]): Group[] {
   return [...groups.values()];
 }
 
+/** one holder as a row of its board: fold, plate, name and its ports' count; open, its ports are listed under it, indented */
 function GroupCard({ g, onRelease, wanted, open, onToggle }: { g: Group; onRelease: (r: PortRow) => void; wanted: number | null; open: boolean; onToggle: () => void }) {
   const releasable = g.rows.filter((r) => r.release.allowed).length;
   return (
-    <section className="rounded-lg border border-zinc-800 bg-zinc-900/60">
-      <header className="px-3 sm:px-4 py-2.5 space-y-1">
-        <div className="flex items-center gap-2 min-w-0">
-          <button type="button" className="flex items-center gap-2 min-w-0 flex-1 text-left" onClick={onToggle} aria-expanded={open} title={open ? 'collapse' : 'expand'}>
-            {open ? <ChevronDown size={14} className="text-zinc-500 shrink-0" /> : <ChevronRight size={14} className="text-zinc-500 shrink-0" />}
-            <Badge state={CATEGORIES.find((c) => c.id === g.category)!.badge} className="shrink-0">
-              {BADGE_LABEL[g.category]}
-            </Badge>
-            <span className="text-sm font-semibold text-zinc-100 truncate">{g.title}</span>
+    <li>
+      <div className={cn(BOARD_ROW, 'px-4 md:px-5 py-3.5')}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* the fold button covers the row, as a goal's title link covers its row */}
+          <button type="button" className="flex items-center gap-2.5 min-w-0 flex-1 text-left rounded after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-accent" onClick={onToggle} aria-expanded={open} title={open ? 'collapse' : 'expand'}>
+            {open ? <ChevronDown size={14} className="text-ink-faint shrink-0" /> : <ChevronRight size={14} className="text-ink-faint shrink-0" />}
+            <span className={cn(PLATE, 'shrink-0')}>{BADGE_LABEL[g.category]}</span>
+            <span className="min-w-0 text-[15px] font-bold leading-snug text-ink break-words line-clamp-2 sm:line-clamp-1 group-hover:underline decoration-2 underline-offset-[3px]">{g.title}</span>
           </button>
           {g.goalId && (
-            <Link to={`/goals/${g.goalId}`} className="shrink-0 text-[11px] text-zinc-500 hover:text-emerald-300">
+            <Link to={`/goals/${g.goalId}`} className="relative z-10 shrink-0 text-xs font-semibold text-ink-soft hover:text-ink hover:underline underline-offset-2">
               Open goal →
             </Link>
           )}
-          <span className="ml-auto shrink-0 text-[11px] text-zinc-500 whitespace-nowrap">
-            {g.rows.length} port{g.rows.length === 1 ? '' : 's'}
-            {releasable > 0 && releasable < g.rows.length ? ` · ${releasable} can be released` : ''}
+          <span className="ml-auto shrink-0 text-xs text-ink-faint whitespace-nowrap">
+            <span className="mono">{g.rows.length}</span> port{g.rows.length === 1 ? '' : 's'}
+            {releasable > 0 && releasable < g.rows.length ? <> · <span className="mono">{releasable}</span> can be released</> : ''}
           </span>
         </div>
-        {g.meta.length > 0 && <div className="text-[11px] text-zinc-500 truncate pl-6" title={g.meta.join(' · ')}>{g.meta.join(' · ')}</div>}
-      </header>
+        {g.meta.length > 0 && <div className={cn('mt-1 text-xs text-ink-faint truncate pl-6', g.key.startsWith('pid:') && 'mono')} title={g.meta.join(' · ')}>{g.meta.join(' · ')}</div>}
+      </div>
       {open && (
-        <div className="border-t border-zinc-800 pb-1">
-          {g.rows.map((r, i) => (
-            <PortLine key={r.id} row={r} onRelease={onRelease} odd={i % 2 === 1} highlight={r.port === wanted} plain={g.key.startsWith('pid:')} />
+        <ul className="border-t border-line divide-y divide-line bg-inset/60">
+          {g.rows.map((r) => (
+            <PortLine key={r.id} row={r} onRelease={onRelease} highlight={r.port === wanted} plain={g.key.startsWith('pid:')} />
           ))}
-        </div>
+        </ul>
       )}
-    </section>
+    </li>
   );
 }
 
@@ -200,56 +204,58 @@ function SidePanel({ view, scoped }: { view: PortsView; scoped: PortRow[] }) {
   return (
     <Card>
       <Tabs tabs={[{ id: 'overview' as const, label: 'Overview' }, { id: 'help' as const, label: 'Why a port is busy' }]} value={tab} onChange={setTab} />
-      <div className="pt-3 text-xs">
+      <div className="pt-4 text-xs">
         {tab === 'overview' && (
-          <div className="space-y-3">
-            <ul className="space-y-1.5">
+          <div className="space-y-4">
+            {/* each group's ports as a figure: its name in tiny capitals over the count, and the total when a filter hides some */}
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
               {CATEGORIES.map((c) => {
                 const n = scoped.filter((r) => r.category === c.id).length;
                 const total = view.rows.filter((r) => r.category === c.id).length;
                 return (
-                  <li key={c.id} className="flex items-center gap-2">
-                    <span className={cn('h-2 w-2 rounded-full shrink-0', c.dot)} />
-                    <span className="text-zinc-300">{c.heading}</span>
-                    <span className="ml-auto mono text-zinc-400 tabular-nums">{n}</span>
-                    {total !== n && <span className="mono text-[10px] text-zinc-600 tabular-nums w-10 text-right">of {total}</span>}
-                  </li>
+                  <div key={c.id} className="min-w-0">
+                    <dt className={cn(FIGURE_LABEL, 'leading-tight')}>{c.heading}</dt>
+                    <dd className="mt-1 flex items-baseline gap-1.5 leading-none">
+                      <span className="text-2xl font-bold mono text-ink tabular-nums">{n}</span>
+                      {total !== n && <span className="mono text-xs text-ink-faint tabular-nums">of {total}</span>}
+                    </dd>
+                  </div>
                 );
               })}
-            </ul>
-            <dl className="border-t border-zinc-800 pt-3 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-[11px]">
-              <dt className="text-zinc-500">Foundry</dt>
-              <dd className="mono text-zinc-300 text-right">{view.foundryPort}</dd>
-              <dt className="text-zinc-500">Preview ports</dt>
-              <dd className="mono text-zinc-300 text-right">
-                {range.from}–{range.to} <span className="text-zinc-600">({inRange} in use)</span>
+            </dl>
+            <dl className="border-t border-line pt-3 grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2">
+              <dt className={FIGURE_LABEL}>Foundry</dt>
+              <dd className="mono text-sm font-bold text-ink text-right">{view.foundryPort}</dd>
+              <dt className={FIGURE_LABEL}>Preview ports</dt>
+              <dd className="mono text-sm font-bold text-ink text-right">
+                {range.from}–{range.to} <span className="text-xs font-normal text-ink-faint">({inRange} in use)</span>
               </dd>
-              <dt className="text-zinc-500">Tailscale serves</dt>
-              <dd className="mono text-zinc-300 text-right">
-                {serves.length} <span className="text-zinc-600">({serves.filter((r) => r.kind === 'serve-foundry').length} by Foundry)</span>
+              <dt className={FIGURE_LABEL}>Tailscale serves</dt>
+              <dd className="mono text-sm font-bold text-ink text-right">
+                {serves.length} <span className="text-xs font-normal text-ink-faint">({serves.filter((r) => r.kind === 'serve-foundry').length} by Foundry)</span>
               </dd>
             </dl>
-            <p className="text-[11px] text-zinc-500 border-t border-zinc-800 pt-3">
-              In a terminal: <span className="mono text-zinc-400">foundry ports</span> (<span className="mono">--all</span>, <span className="mono">--json</span>).
+            <p className="text-xs text-ink-faint border-t border-line pt-3">
+              In a terminal: <span className="mono text-ink-soft">foundry ports</span> (<span className="mono">--all</span>, <span className="mono">--json</span>).
             </p>
           </div>
         )}
         {tab === 'help' && (
-          <ul className="space-y-2.5 text-[11px] text-zinc-400 list-none">
+          <ul className="space-y-3 text-[13px] leading-relaxed text-ink-soft list-none">
             <li>
-              <b className="text-zinc-200">tailscale serve</b> holds its port on the tailnet address: <span className="mono">lsof -i</span> without sudo shows nothing, yet a dev server cannot listen there. Foundry adds one for each preview's tailnet link.
+              <b className="text-ink">tailscale serve</b> holds its port on the tailnet address: <span className="mono">lsof -i</span> without sudo shows nothing, yet a dev server cannot listen there. Foundry adds one for each preview's tailnet link.
             </li>
             <li>
-              <b className="text-zinc-200">A dev server left running</b> — a terminal you forgot, or one a task started — keeps its port until it stops.
+              <b className="text-ink">A dev server left running</b> — a terminal you forgot, or one a task started — keeps its port until it stops.
             </li>
             <li>
-              <b className="text-zinc-200">Docker</b> holds every port a running container publishes, through Docker's own process.
+              <b className="text-ink">Docker</b> holds every port a running container publishes, through Docker's own process.
             </li>
             <li>
-              <b className="text-zinc-200">macOS AirPlay Receiver</b> takes ports 5000 and 7000 (System Settings → General → AirDrop & Handoff).
+              <b className="text-ink">macOS AirPlay Receiver</b> takes ports 5000 and 7000 (System Settings → General → AirDrop & Handoff).
             </li>
             <li>
-              <b className="text-zinc-200">Unknown holder</b>: a system process or another user's; <span className="mono">sudo lsof -nP -iTCP:&lt;port&gt; -sTCP:LISTEN</span> names it.
+              <b className="text-ink">Unknown holder</b>: a system process or another user's; <span className="mono">sudo lsof -nP -iTCP:&lt;port&gt; -sTCP:LISTEN</span> names it.
             </li>
           </ul>
         )}
@@ -301,74 +307,75 @@ export function PortsPage() {
   const count = (c: Category | 'all') => scoped.filter((r) => c === 'all' || r.category === c).length;
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-lg font-semibold flex items-center gap-2">
-          Ports <HelpLink to="ports" label="Ports (new tab)" />
-        </h1>
-        {view && (
-          <span className="text-xs text-zinc-500">
-            {all.length} in use · {all.filter((r) => r.relevant).length} for development · <span className={cn(releasable ? 'text-zinc-300' : 'text-zinc-500')}>{releasable} can be released</span>
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-2">
-          {view && <span className="text-[11px] text-zinc-500">scanned {ago(view.scannedAt)} · every 5 s</span>}
-          <Button size="sm" disabled={loading} onClick={() => void refresh()}>
-            <RefreshCw size={13} className={cn(loading && 'animate-spin')} /> Refresh
-          </Button>
-        </div>
-      </div>
-      <p className="text-xs text-zinc-500 -mt-2">Ports in use on the computer Foundry runs on, grouped by what holds them. Stop and release what Foundry, tailscale serve, Docker or your own programs hold; every stop asks first and says what it does.</p>
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16 space-y-4">
+      <PageHeader
+        title="Ports"
+        help={<HelpLink to="ports" label="Ports (new tab)" />}
+        summary={
+          <>
+            {view && (
+              <span className="block">
+                <span className="mono">{all.length}</span> in use · <span className="mono">{all.filter((r) => r.relevant).length}</span> for development · <span className={cn(releasable > 0 && 'font-semibold text-ink-soft')}><span className="mono">{releasable}</span> can be released</span>
+              </span>
+            )}
+            <span className="block mt-1">Ports in use on the computer Foundry runs on, grouped by what holds them. Stop and release what Foundry, tailscale serve, Docker or your own programs hold; every stop asks first and says what it does.</span>
+          </>
+        }
+        actions={
+          <>
+            {view && <span className="text-xs text-ink-faint">scanned <span className="mono">{ago(view.scannedAt)}</span> · every 5 s</span>}
+            <Button size="sm" disabled={loading} onClick={() => void refresh()}>
+              <RefreshCw size={13} className={cn(loading && 'animate-spin')} /> Refresh
+            </Button>
+          </>
+        }
+      />
 
       <div className="flex items-center gap-2 flex-wrap">
         {(['all', ...CATEGORIES.map((c) => c.id)] as const).map((c) => (
-          <button key={c} onClick={() => setScope(c)} className={cn('rounded-md border px-2 py-1 text-xs', scope === c ? 'border-emerald-500 text-emerald-300' : 'border-zinc-800 text-zinc-400')}>
-            {c === 'all' ? 'all' : CATEGORIES.find((x) => x.id === c)!.label} <span className="text-zinc-600">{count(c)}</span>
+          <button key={c} onClick={() => setScope(c)} className={chipClass(scope === c)}>
+            {c === 'all' ? 'all' : CATEGORIES.find((x) => x.id === c)!.label} <span className="mono opacity-60">{count(c)}</span>
           </button>
         ))}
-        <label className="flex items-center gap-1 text-xs text-zinc-400" title="Foundry's, Tailscale's and Docker's ports, the usual dev ports, the preview range and programs in your projects">
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft" title="Foundry's, Tailscale's and Docker's ports, the usual dev ports, the preview range and programs in your projects">
           <input type="checkbox" checked={devOnly} onChange={(e) => setDevOnly(e.target.checked)} /> development only
         </label>
         <div className="relative flex-1 min-w-[160px] max-w-xs">
-          <Search size={13} className="absolute left-2 top-2 text-zinc-500" />
+          <Search size={13} className="absolute left-2 top-2 text-ink-faint" />
           <Input className="pl-7 py-1 text-xs" placeholder="search port, program, folder" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
         {groups.length > 1 && (
-          <span className="flex items-center gap-2 text-xs text-zinc-500">
-            <button type="button" className="hover:text-zinc-200" onClick={() => setAll(false)}>
+          <span className="flex items-center gap-2 text-xs text-ink-faint">
+            <button type="button" className="hover:text-ink" onClick={() => setAll(false)}>
               expand all
             </button>
-            <span className="text-zinc-700">·</span>
-            <button type="button" className="hover:text-zinc-200" onClick={() => setAll(true)}>
+            <span className="text-line-strong">·</span>
+            <button type="button" className="hover:text-ink" onClick={() => setAll(true)}>
               collapse all
             </button>
           </span>
         )}
-        <button className="lg:hidden text-xs underline text-zinc-400" onClick={() => setShowSide(!showSide)}>
+        <button className="lg:hidden text-xs font-semibold underline underline-offset-2 text-ink-soft hover:text-ink" onClick={() => setShowSide(!showSide)}>
           {showSide ? 'hide overview' : 'overview & help'}
         </button>
       </div>
 
-      {view?.inContainer && <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">Foundry runs in its Docker image: only ports inside its container show here, not the host's.</div>}
-      {error && view && <div className="rounded-md border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-xs text-rose-200">The last scan failed: {error}</div>}
+      {/* in its Docker image Foundry sees only its own container: information, not a warning */}
+      {view?.inContainer && <div className="rounded-md border border-work/30 bg-work/5 px-3 py-2 text-xs text-work-ink">Foundry runs in its Docker image: only ports inside its container show here, not the host's.</div>}
+      {error && view && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-xs text-bad-ink">The last scan failed: {error}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-3">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 min-w-0">
           {!view && <Empty>{error ? 'Ports unavailable; retrying…' : 'Scanning…'}</Empty>}
-          {view && !matching.length && <Empty>{all.length ? 'Nothing matches. Clear the search, pick all, or untick development only.' : 'No port is in use.'}</Empty>}
+          {view && !matching.length && (all.length ? <EmptyPanel title="Nothing matches.">Clear the search, pick all, or untick development only.</EmptyPanel> : <EmptyPanel title="No port is in use." />)}
           {CATEGORIES.filter((c) => groups.some((g) => g.category === c.id)).map((c) => {
             const list = groups.filter((g) => g.category === c.id);
             return (
-              <div key={c.id} className="space-y-2">
-                <div className="flex items-center gap-2 pt-1">
-                  <span className="text-[10px] uppercase tracking-wide text-zinc-500">{c.heading}</span>
-                  <span className="text-[10px] text-zinc-600">{list.reduce((n, g) => n + g.rows.length, 0)}</span>
-                  <span className="flex-1 h-px bg-zinc-800/70" />
-                </div>
+              <Board key={c.id} id={`ports-${c.id}`} icon={<c.icon size={14} aria-hidden="true" />} title={c.heading} count={list.reduce((n, g) => n + g.rows.length, 0)}>
                 {list.map((g) => (
                   <GroupCard key={g.key} g={g} onRelease={ask} wanted={wanted} open={isOpen(g)} onToggle={() => toggle(g)} />
                 ))}
-              </div>
+              </Board>
             );
           })}
         </div>

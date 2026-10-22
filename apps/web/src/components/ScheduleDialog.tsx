@@ -1,6 +1,7 @@
 import type { ScheduleCadence } from '@foundry/core/browser';
 import { cadenceLabel } from '@foundry/core/browser';
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { WEEKDAY_OPTIONS, defaultCadence } from '../pages/new-goal-schedule.ts';
 import { Button, Field, Input, Modal, Select, focusFirst } from '../ui.tsx';
 
@@ -16,7 +17,11 @@ export interface ScheduleMeta {
  */
 export function ScheduleDialog({ open, ...props }: { open: boolean; initial: ScheduleMeta; editing: boolean; busy: boolean; error: string | null; onClose: () => void; onSave: (meta: ScheduleMeta) => void }) {
   // the form mounts fresh each time the dialog opens, so it starts from what the page knows then (a schedule loaded after the page did, a title typed since)
-  return open ? <ScheduleForm {...props} /> : null;
+  if (!open) return null;
+  const form = <ScheduleForm {...props} />;
+  // portalled to <body>: the New goal form's bar it opens from blurs what is behind it, and a blurred box holds a fixed
+  // window inside itself, so the dialog sat cut off on that bar; a server render (the tests) has no <body> to portal to
+  return typeof document === 'undefined' ? form : createPortal(form, document.body);
 }
 
 function ScheduleForm({ initial, editing, busy, error, onClose, onSave }: { initial: ScheduleMeta; editing: boolean; busy: boolean; error: string | null; onClose: () => void; onSave: (meta: ScheduleMeta) => void }) {
@@ -67,19 +72,20 @@ function ScheduleForm({ initial, editing, busy, error, onClose, onSave }: { init
                 </Select>
               </span>
             )}
-            <span className="flex items-center gap-1.5 text-xs text-zinc-400">
-              at <Input type="time" className="w-28" value={cadence.at} onChange={(e) => e.target.value && setCadence({ ...cadence, at: e.target.value })} aria-label="Time" />
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft">
+              at <Input type="time" className="mono w-28" value={cadence.at} onChange={(e) => e.target.value && setCadence({ ...cadence, at: e.target.value })} aria-label="Time" />
             </span>
           </div>
         </Field>
-        <label className="flex items-start gap-2 text-xs text-zinc-300 cursor-pointer">
-          <input type="checkbox" className="mt-0.5 accent-emerald-500" checked={autoApprove} onChange={(e) => setAutoApprove(e.target.checked)} />
+        {/* the switch in the accent every checkbox has; its explanation under it */}
+        <label className="flex items-start gap-2.5 rounded-md bg-inset px-3 py-2.5 text-sm font-semibold text-ink cursor-pointer">
+          <input type="checkbox" className="mt-0.5" checked={autoApprove} onChange={(e) => setAutoApprove(e.target.checked)} />
           <span>
             Approve each run's Brief for me
-            <span className="block text-[11px] text-zinc-500">The interview is skipped and the engine approves the Brief itself, with the budget the Brief proposes when the budget is Auto; milestones do not pause. Off: the Brief waits for you like any goal's. A Brief with a question only you can answer waits either way.</span>
+            <span className="block mt-0.5 text-xs font-normal leading-snug text-ink-faint">The interview is skipped and the engine approves the Brief itself, with the budget the Brief proposes when the budget is Auto; milestones do not pause. Off: the Brief waits for you like any goal's. A Brief with a question only you can answer waits either way.</span>
           </span>
         </label>
-        {error && <p className="text-xs text-rose-300">{error}</p>}
+        {error && <p className="text-xs text-bad-ink">{error}</p>}
         <div className="flex justify-end gap-2 pt-1">
           <Button type="button" variant="ghost" onClick={onClose}>
             Cancel
