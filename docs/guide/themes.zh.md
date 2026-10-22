@@ -23,7 +23,7 @@
 ## 做自己的主题
 
 1. 在 **Settings → Appearance** 里，在最接近你想要的那个主题下按 **Make a copy**。Foundry 把它写成主题文件夹里的一个文件，起一个自己的名字（比如 `wayfinding-copy.json`），并直接用上它。
-2. 用编辑器打开这个文件。**Open the folder** 会用这台电脑上的编辑器或文件管理器打开主题文件夹，卡片上也显示文件夹路径并带 **copy**。改颜色、字体、圆角或版式都可以。能读 JSON Schema 的编辑器（比如 VS Code）会在你输入时检查每个值，并解释每一项设置：文件里写明了 `theme.schema.json`，Foundry 把它放在同一个文件夹里。
+2. 用编辑器打开这个文件。你自己的主题卡片上，以及 **Make a copy** 之后出现的提示里，都有 **Open in VS Code**（按钮用这台电脑上找到的编辑器命名；有好几个时是 **Open in an editor**，可以选）。**Open the folder** 会用编辑器或文件管理器打开整个主题文件夹，卡片上也显示文件夹路径并带 **copy**。改颜色、字体、圆角或版式都可以。能读 JSON Schema 的编辑器（比如 VS Code）会在你输入时检查每个值，并解释每一项设置：文件里写明了 `theme.schema.json`，Foundry 把它放在同一个文件夹里。
 3. 保存文件，回到 Foundry 的窗口。每当 Foundry 的窗口回到前台，它都会重新读取主题文件，所以改动马上就能看到。**Read the files again** 可以手动做同样的事。
 
 有错误的文件会列在 **Make your own theme** 下面，并说明要改什么，比如 `my-theme.json — light.page: a colour is written #rgb or #rrggbb`。文件有错期间，主题保持最后一次正常的样子。

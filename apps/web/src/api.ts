@@ -377,6 +377,8 @@ export type GoalRow = Goal & { budget: BudgetStatus; taskCounts: Record<string, 
 export interface OpenTarget {
   id: 'vscode' | 'cursor' | 'zed' | 'windsurf' | 'finder' | 'terminal' | 'iterm' | 'warp';
   label: string;
+  /** what it opens: an editor folders and files, a file manager or a terminal folders */
+  kind: 'editor' | 'files' | 'terminal';
   available: boolean;
   via: string | null;
 }
@@ -618,7 +620,8 @@ export function apiForProvider(provider?: AgentProvider) {
   // themes (ADR-0066): the built-in ones and the files in the data folder's themes/
   themes: () => req<{ dir: string; themes: ThemeEntry[]; problems: ThemeProblem[] }>('/api/themes'),
   copyTheme: (from: string, name?: string) => req<ThemeEntry>('/api/themes', { method: 'POST', body: JSON.stringify({ from, name }) }),
-  openThemes: (target: OpenTarget['id']) => req<{ ok: true; path: string; command: string[] }>('/api/themes/open', { method: 'POST', body: JSON.stringify({ target }) }),
+  /** the themes folder, or with `theme` that theme's own file (in an editor) */
+  openThemes: (target: OpenTarget['id'], theme?: string) => req<{ ok: true; path: string; command: string[] }>('/api/themes/open', { method: 'POST', body: JSON.stringify({ target, theme }) }),
   openGoal: (goalId: string, target: OpenTarget['id'], which: 'repo' | 'workspace' | `task:${string}` | `resolve:${string}`) => req<{ ok: true; path: string; command: string[] }>(`/api/goals/${goalId}/open`, { method: 'POST', body: JSON.stringify({ target, which }) }),
   stagedAttachment: (attId: string) => req<Attachment>(`/api/uploads/${attId}`),
   reconvertAttachment: (goalId: string, attId: string) => req<{ markdown: Attachment['markdown'] }>(`/api/goals/${goalId}/attachments/${attId}/convert`, { method: 'POST' }),

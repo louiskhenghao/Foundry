@@ -1,17 +1,19 @@
 import { describe, expect, test } from 'bun:test';
-import { OpenError, detectOpenTargets, openPath } from './open.ts';
+import { OpenError, detectOpenTargets, openFile, openPath } from './open.ts';
 
 const mac = {
   platform: 'darwin',
   home: '/Users/me',
   which: (b: string) => (b === 'code' ? '/usr/local/bin/code' : null),
-  exists: (p: string) => ['/Applications/Visual Studio Code.app', '/Applications/Cursor.app', '/Applications/iTerm.app', '/System/Applications/Utilities/Terminal.app', '/repo'].includes(p),
+  exists: (p: string) => ['/Applications/Visual Studio Code.app', '/Applications/Cursor.app', '/Applications/iTerm.app', '/System/Applications/Utilities/Terminal.app', '/repo', '/themes/mine.json'].includes(p),
 };
 
 describe('open targets', () => {
   test('macOS: CLI preferred for editors, app bundles otherwise, Finder always', () => {
     const t = Object.fromEntries(detectOpenTargets(mac).map((x) => [x.id, x]));
-    expect(t.vscode).toMatchObject({ available: true, via: '/usr/local/bin/code' });
+    expect(t.vscode).toMatchObject({ available: true, via: '/usr/local/bin/code', kind: 'editor' });
+    expect(t.finder!.kind).toBe('files');
+    expect(t.iterm!.kind).toBe('terminal');
     expect(t.cursor).toMatchObject({ available: true, via: 'open -a /Applications/Cursor.app' });
     expect(t.zed!.available).toBe(false);
     expect(t.finder!.available).toBe(true);
@@ -35,5 +37,18 @@ describe('open targets', () => {
     await expect(openPath('vscode', '/nope', deps)).rejects.toThrow(/not a directory/);
     const failing = { ...deps, exec: async () => ({ code: 1, stdout: '', stderr: 'LSOpenURLsWithRole() failed' }) };
     await expect(openPath('iterm', '/repo', failing)).rejects.toThrow(/failed/);
+  });
+  test('openFile opens one file in an editor, in its folder, and in nothing else', async () => {
+    const calls: { argv: string[]; cwd: string }[] = [];
+    const exec = async (argv: string[], cwd: string) => (calls.push({ argv, cwd }), { code: 0, stdout: '', stderr: '' });
+    const deps = { ...mac, exec };
+    expect((await openFile('vscode', '/themes/mine.json', deps)).command).toEqual(['/usr/local/bin/code', '/themes/mine.json']);
+    expect((await openFile('cursor', '/themes/mine.json', deps)).command).toEqual(['open', '-a', '/Applications/Cursor.app', '/themes/mine.json']);
+    expect(calls[0]!.cwd).toBe('/themes');
+    // a file manager or a terminal opens folders, not one file
+    await expect(openFile('finder', '/themes/mine.json', deps)).rejects.toMatchObject({ code: 'not-an-editor' });
+    await expect(openFile('iterm', '/themes/mine.json', deps)).rejects.toMatchObject({ code: 'not-an-editor' });
+    await expect(openFile('vscode', '/themes/gone.json', deps)).rejects.toMatchObject({ code: 'not-a-file' });
+    await expect(openFile('zed', '/themes/mine.json', deps)).rejects.toMatchObject({ code: 'unavailable' });
   });
 });

@@ -1,6 +1,6 @@
 import { fillPalette, layoutOf, type Layout, type ThemeEntry } from '@foundry/core/browser';
-import { Check, ChevronDown, Copy, FolderOpen, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { Check, ChevronDown, Copy, FilePenLine, FolderOpen, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { api, type OpenTarget } from '../../api.ts';
 import { loadThemes, selectTheme, setMode, useTheme, type Mode } from '../../theme.ts';
 import { Button, ButtonGroup, Card, CopyButton, Menu, MenuItem, cn } from '../../ui.tsx';
@@ -13,12 +13,19 @@ import { SettingsTitle } from './sections.tsx';
  * here again as soon as it is saved; a file with a mistake is listed with what to fix.
  */
 export function AppearanceCard() {
-  return <Appearance {...useTheme()} />;
+  const [editors, setEditors] = useState<OpenTarget[]>([]);
+  useEffect(() => {
+    api
+      .openTargets()
+      .then((all) => setEditors(all.filter((t) => t.kind === 'editor' && t.available)))
+      .catch(() => {});
+  }, []);
+  return <Appearance {...useTheme()} editors={editors} />;
 }
 
 /** the card's content for a given state of this browser's look (the store's, or a test's) */
-export function Appearance({ themes, problems, dir, id, mode, light }: Pick<ReturnType<typeof useTheme.getState>, 'themes' | 'problems' | 'dir' | 'id' | 'mode' | 'light'>) {
-  const [note, setNote] = useState<{ text: string; file?: string } | null>(null);
+export function Appearance({ themes, problems, dir, id, mode, light, editors = [] }: Pick<ReturnType<typeof useTheme.getState>, 'themes' | 'problems' | 'dir' | 'id' | 'mode' | 'light'> & { /** the editors found on this computer, to open a theme's file in */ editors?: OpenTarget[] }) {
+  const [note, setNote] = useState<{ text: string; file?: string; id?: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
   const copy = async (from: ThemeEntry) => {
@@ -28,7 +35,7 @@ export function Appearance({ themes, problems, dir, id, mode, light }: Pick<Retu
       await loadThemes();
       // the copy looks exactly like what it was made from, so it can be worn at once and every edit shows
       selectTheme(made.id);
-      setNote({ text: `“${made.theme.name}” is in use now. Open its file in an editor and change it: this page shows each change once the file is saved.`, file: made.file });
+      setNote({ text: `“${made.theme.name}” is in use now. Open its file in an editor and change it: this page shows each change once the file is saved.`, file: made.file, id: made.id });
     } catch (e) {
       setErr((e as Error).message);
     }
@@ -41,7 +48,7 @@ export function Appearance({ themes, problems, dir, id, mode, light }: Pick<Retu
 
         <div role="radiogroup" aria-label="Theme" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {themes.map((t) => (
-            <ThemeOption key={t.id} entry={t} chosen={t.id === id} light={light} onChoose={() => selectTheme(t.id)} onCopy={() => copy(t)} />
+            <ThemeOption key={t.id} entry={t} chosen={t.id === id} light={light} onChoose={() => selectTheme(t.id)} onCopy={() => copy(t)} editors={editors} onError={setErr} />
           ))}
         </div>
 
@@ -60,7 +67,7 @@ export function Appearance({ themes, problems, dir, id, mode, light }: Pick<Retu
         </div>
 
         {note && (
-          <div className="rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink-soft space-y-1">
+          <div className="rounded-md border border-line bg-sunken px-3 py-2.5 text-xs text-ink-soft space-y-2">
             <p>{note.text}</p>
             {note.file && (
               <p className="flex flex-wrap items-center gap-2">
@@ -68,6 +75,7 @@ export function Appearance({ themes, problems, dir, id, mode, light }: Pick<Retu
                 <CopyButton text={note.file} />
               </p>
             )}
+            {note.id && <OpenInEditor theme={note.id} editors={editors} onError={setErr} />}
           </div>
         )}
         {err && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-xs text-bad-ink">{err}</div>}
@@ -136,7 +144,7 @@ export const layoutWords = (l: Layout): string[] => (Object.keys(LAYOUT_WORDS) a
  * side column, a card with text and the signal colours, its category colours, a Needs you sign as a strip or a card),
  * its name in its own title font, what it is, and its layout in a few words.
  */
-function ThemeOption({ entry, chosen, light, onChoose, onCopy }: { entry: ThemeEntry; chosen: boolean; light: boolean; onChoose: () => void; onCopy: () => void }) {
+function ThemeOption({ entry, chosen, light, onChoose, onCopy, editors, onError }: { entry: ThemeEntry; chosen: boolean; light: boolean; onChoose: () => void; onCopy: () => void; editors: OpenTarget[]; onError: (e: string | null) => void }) {
   const t = entry.theme;
   const p = fillPalette(light ? t.light : t.dark, light ? 'light' : 'dark');
   const r = t.shape?.radius ?? 8;
@@ -183,15 +191,16 @@ function ThemeOption({ entry, chosen, light, onChoose, onCopy }: { entry: ThemeE
           </span>
         </span>
         <span className="flex flex-col gap-1 px-3 pt-3">
-          <span className="flex items-center gap-2">
-            <b className="text-[15px] text-ink" style={{ fontFamily: t.fonts?.display ?? t.fonts?.sans }}>{t.name}</b>
+          {/* the name and "in use" wrap as wholes, never inside themselves; where it comes from on a line of its own */}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <b className="min-w-0 text-[15px] leading-snug text-ink" style={{ fontFamily: t.fonts?.display ?? t.fonts?.sans }}>{t.name}</b>
             {chosen && (
-              <span className="inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-accent">
+              <span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-accent">
                 <Check size={11} aria-hidden="true" /> in use
               </span>
             )}
-            <span className="ml-auto text-[11px] text-ink-faint">{entry.builtIn ? 'built in' : `${entry.id}.json`}</span>
           </span>
+          <span className={cn('truncate text-[11px] text-ink-faint', !entry.builtIn && 'mono')}>{entry.builtIn ? 'built in' : `${entry.id}.json`}</span>
           {t.description && <span className="text-xs text-ink-faint">{t.description}</span>}
           <span className="flex flex-wrap gap-1 pt-1" aria-label="Layout">
             {layoutWords(layout).map((w) => (
@@ -202,12 +211,55 @@ function ThemeOption({ entry, chosen, light, onChoose, onCopy }: { entry: ThemeE
           </span>
         </span>
       </button>
-      <div className="mt-auto flex items-center gap-2 px-3 pb-3 pt-2.5">
+      <div className="mt-auto flex flex-wrap items-center gap-2 px-3 pb-3 pt-2.5">
+        {!entry.builtIn && <OpenInEditor theme={entry.id} editors={editors} onError={onError} />}
         <Button size="sm" variant="ghost" onClick={onCopy} title="Writes this theme as a new file in the themes folder, to edit by hand">
           <Copy size={13} /> Make a copy
         </Button>
       </div>
     </div>
+  );
+}
+
+/**
+ * Opens a theme of the person's own as its file in an editor found on this computer: one button where there is one
+ * editor, a choice where there are several, nothing where there is none (its path can be copied instead).
+ */
+function OpenInEditor({ theme, editors, onError }: { theme: string; editors: OpenTarget[]; onError: (e: string | null) => void }) {
+  const open = (t: OpenTarget) => {
+    onError(null);
+    api.openThemes(t.id, theme).catch((e) => onError((e as Error).message));
+  };
+  if (!editors.length) return null;
+  if (editors.length === 1)
+    return (
+      <Button size="sm" onClick={() => open(editors[0]!)} title="Opens the theme's file; save it there and this page shows the change">
+        <FilePenLine size={13} /> Open in {editors[0]!.label}
+      </Button>
+    );
+  return (
+    <Menu
+      align="left"
+      trigger={({ open: shown, toggle }) => (
+        <Button size="sm" onClick={toggle} aria-expanded={shown}>
+          <FilePenLine size={13} /> Open in an editor <ChevronDown size={12} />
+        </Button>
+      )}
+    >
+      {(close) =>
+        editors.map((t) => (
+          <MenuItem
+            key={t.id}
+            onClick={() => {
+              close();
+              open(t);
+            }}
+          >
+            {t.label}
+          </MenuItem>
+        ))
+      }
+    </Menu>
   );
 }
 

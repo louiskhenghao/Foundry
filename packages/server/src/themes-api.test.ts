@@ -58,9 +58,17 @@ test('opening the themes folder makes it first, and names an app that is not the
   const app = createApp(engine);
   try {
     mkdirSync(join(home, 'claude'), { recursive: true });
-    const r = await app.request('/api/themes/open', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ target: 'no-such-app' }) });
+    const open = (body: unknown) => app.request('/api/themes/open', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    const r = await open({ target: 'no-such-app' });
     expect(r.status).toBe(404);
     expect(existsSync(join(home, 'themes', 'theme.schema.json'))).toBe(true);
+    // one theme of your own opens as its file, in an editor only; a built-in theme has no file, an unknown one is not there
+    await app.request('/api/themes', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ from: 'classic' }) });
+    const inFinder = await open({ target: 'finder', theme: 'classic-copy' });
+    expect(inFinder.status).toBe(400);
+    expect(await inFinder.json()).toMatchObject({ code: 'not-an-editor', path: join(home, 'themes', 'classic-copy.json') });
+    expect((await open({ target: 'vscode', theme: 'classic' })).status).toBe(404);
+    expect((await open({ target: 'vscode', theme: 'nope' })).status).toBe(404);
   } finally {
     await engine.stop();
     rmSync(home, { recursive: true, force: true });

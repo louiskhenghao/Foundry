@@ -23,7 +23,7 @@ Both are kept in this browser, so each person and each device picks their own. A
 ## Make your own theme
 
 1. In **Settings → Appearance**, press **Make a copy** under the theme closest to what you want. Foundry writes it as a file in the themes folder, under a name of its own (for example `wayfinding-copy.json`), and puts it in use.
-2. Open the file in an editor. **Open the folder** opens the themes folder in an editor or file manager on this computer, and the card shows the folder's path with **copy**. Change the colours, the fonts, the corners or the layout. An editor that reads JSON Schema, such as VS Code, checks each value and explains every setting as you type: the file names `theme.schema.json`, which Foundry keeps next to it.
+2. Open the file in an editor. **Open in VS Code** (named after the editor found on this computer; with several, **Open in an editor** lets you choose) is on your theme's card and in the note **Make a copy** leaves. **Open the folder** opens the whole themes folder in an editor or file manager, and the card shows the folder's path with **copy**. Change the colours, the fonts, the corners or the layout. An editor that reads JSON Schema, such as VS Code, checks each value and explains every setting as you type: the file names `theme.schema.json`, which Foundry keeps next to it.
 3. Save the file and come back to the Foundry window. Foundry reads the theme files again whenever its window comes to the front, so the change shows at once. **Read the files again** does the same by hand.
 
 A file with a mistake is listed under **Make your own theme** with what to fix, for example `my-theme.json — light.page: a colour is written #rgb or #rrggbb`. While the file is wrong, the theme keeps the last look that worked.

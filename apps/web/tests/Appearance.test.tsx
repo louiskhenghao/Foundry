@@ -19,4 +19,18 @@ test('Appearance offers every theme, says which is in use, and how to make your 
   expect(html).toContain('/data/themes');
   expect(html).toContain('broken.json');
   expect(html).toContain('href="/help/themes"');
+  // no editor found: nothing offers to open the file
+  expect(html).not.toContain('Open in');
+});
+
+test('a theme of your own opens in the editor found, or offers a choice of several', () => {
+  const mine = { id: 'night-shift', builtIn: false, file: '/data/themes/night-shift.json', theme: { ...BUILTIN_THEMES[0]!.theme, name: 'Night shift' } };
+  const editor = (id: 'vscode' | 'cursor', label: string) => ({ id, label, kind: 'editor' as const, available: true, via: id });
+  const props = { themes: [...BUILTIN_THEMES, mine], problems: [], dir: '/data/themes', id: 'night-shift', mode: 'system' as const, light: true };
+  const one = renderToStaticMarkup(<Appearance {...props} editors={[editor('vscode', 'VS Code')]} />);
+  // only the custom theme has a file to open: one button, on its card alone
+  expect(one.match(/Open in VS Code/g)).toHaveLength(1);
+  const two = renderToStaticMarkup(<Appearance {...props} editors={[editor('vscode', 'VS Code'), editor('cursor', 'Cursor')]} />);
+  expect(two).toContain('Open in an editor');
+  expect(two).not.toContain('Open in VS Code');
 });

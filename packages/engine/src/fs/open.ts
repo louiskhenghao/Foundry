@@ -1,11 +1,11 @@
 /**
  * "Open in …" for the Goal page: detect editors/terminals on this machine and open a directory in one of them.
  * The server only ever opens directories it owns or the goal's own repository (callers resolve the path; this
- * module verifies it exists and is a directory).
+ * module verifies it exists and is a directory), and one file of its own in an editor (a theme of the person's).
  */
 import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { exec as defaultExec } from '../git/git.ts';
 
 export type OpenTargetId = 'vscode' | 'cursor' | 'zed' | 'windsurf' | 'finder' | 'terminal' | 'iterm' | 'warp';
@@ -13,6 +13,8 @@ export type OpenTargetId = 'vscode' | 'cursor' | 'zed' | 'windsurf' | 'finder' |
 export interface OpenTarget {
   id: OpenTargetId;
   label: string;
+  /** what it opens: an editor folders and files, a file manager or a terminal folders */
+  kind: 'editor' | 'files' | 'terminal';
   available: boolean;
   /** how it will be launched (for the tooltip) */
   via: string | null;
@@ -69,23 +71,23 @@ function resolveAll(deps: OpenDeps): Resolved[] {
   const home = deps.home ?? homedir();
   return SPECS.map((s) => {
     const cli = s.cli?.map(which).find((p): p is string => !!p) ?? null;
-    if (cli && s.kind === 'editor') return { target: { id: s.id, label: s.label, available: true, via: cli }, argv: (p) => [cli, p] };
+    if (cli && s.kind === 'editor') return { target: { id: s.id, label: s.label, kind: s.kind, available: true, via: cli }, argv: (p) => [cli, p] };
     if (platform === 'darwin') {
-      if (s.id === 'finder') return { target: { id: s.id, label: s.label, available: true, via: 'open' }, argv: (p) => ['open', p] };
+      if (s.id === 'finder') return { target: { id: s.id, label: s.label, kind: s.kind, available: true, via: 'open' }, argv: (p) => ['open', p] };
       const bundle = s.app?.map((a) => appBundle(a, home, exists)).find((p): p is string => !!p) ?? null;
-      if (bundle) return { target: { id: s.id, label: s.label, available: true, via: `open -a ${bundle}` }, argv: (p) => ['open', '-a', bundle, p] };
-      return { target: { id: s.id, label: s.label, available: false, via: null }, argv: null };
+      if (bundle) return { target: { id: s.id, label: s.label, kind: s.kind, available: true, via: `open -a ${bundle}` }, argv: (p) => ['open', '-a', bundle, p] };
+      return { target: { id: s.id, label: s.label, kind: s.kind, available: false, via: null }, argv: null };
     }
     if (platform === 'linux') {
       if (s.id === 'finder') {
         const xdg = which('xdg-open');
-        return { target: { id: s.id, label: 'File manager', available: !!xdg, via: xdg }, argv: xdg ? (p) => [xdg, p] : null };
+        return { target: { id: s.id, label: 'File manager', kind: s.kind, available: !!xdg, via: xdg }, argv: xdg ? (p) => [xdg, p] : null };
       }
       const term = s.linux?.map(which).find((p): p is string => !!p) ?? null;
-      if (term && s.kind === 'terminal') return { target: { id: s.id, label: s.label, available: true, via: term }, argv: (p) => [term, `--working-directory=${p}`] };
-      return { target: { id: s.id, label: s.label, available: false, via: null }, argv: null };
+      if (term && s.kind === 'terminal') return { target: { id: s.id, label: s.label, kind: s.kind, available: true, via: term }, argv: (p) => [term, `--working-directory=${p}`] };
+      return { target: { id: s.id, label: s.label, kind: s.kind, available: false, via: null }, argv: null };
     }
-    return { target: { id: s.id, label: s.label, available: false, via: null }, argv: null };
+    return { target: { id: s.id, label: s.label, kind: s.kind, available: false, via: null }, argv: null };
   });
 }
 
@@ -103,7 +105,7 @@ export function detectOpenTargets(deps: OpenDeps = {}, now = Date.now()): OpenTa
 export class OpenError extends Error {
   constructor(
     message: string,
-    public readonly code: 'unknown-target' | 'unavailable' | 'not-a-directory' | 'launch-failed',
+    public readonly code: 'unknown-target' | 'unavailable' | 'not-a-directory' | 'not-a-file' | 'not-an-editor' | 'launch-failed',
   ) {
     super(message);
   }
@@ -120,13 +122,35 @@ export async function openPath(target: OpenTargetId, path: string, deps: OpenDep
     }
   };
   if (!exists(path) || (!deps.exists && !isDir(path))) throw new OpenError(`${path} is not a directory`, 'not-a-directory');
+  return launch(target, path, path, deps);
+}
+
+/** Open one file (it must exist) in an editor, from its folder: a file manager or a terminal opens folders only. */
+export async function openFile(target: OpenTargetId, file: string, deps: OpenDeps = {}): Promise<{ ok: true; command: string[] }> {
+  const exists = deps.exists ?? existsSync;
+  const isFile = (p: string) => {
+    try {
+      return statSync(p).isFile();
+    } catch {
+      return false;
+    }
+  };
+  if (!exists(file) || (!deps.exists && !isFile(file))) throw new OpenError(`${file} is not a file`, 'not-a-file');
+  const spec = SPECS.find((s) => s.id === target);
+  if (!spec) throw new OpenError(`unknown target ${target}`, 'unknown-target');
+  if (spec.kind !== 'editor') throw new OpenError(`${spec.label} opens folders, not a file: choose an editor`, 'not-an-editor');
+  return launch(target, file, dirname(file), deps);
+}
+
+/** runs the target on `path` from `cwd` */
+async function launch(target: OpenTargetId, path: string, cwd: string, deps: OpenDeps): Promise<{ ok: true; command: string[] }> {
   const all = Object.keys(deps).length === 0 && cache ? cache.all : resolveAll(deps);
   const r = all.find((x) => x.target.id === target);
   if (!r) throw new OpenError(`unknown target ${target}`, 'unknown-target');
   if (!r.argv || !r.target.available) throw new OpenError(`${r.target.label} is not available on this machine`, 'unavailable');
   const argv = r.argv(path);
   const run = deps.exec ?? defaultExec;
-  const res = await run(argv, path, { timeoutMs: 20_000 });
+  const res = await run(argv, cwd, { timeoutMs: 20_000 });
   if (res.code !== 0) throw new OpenError(`${argv.join(' ')} failed: ${(res.stderr || res.stdout).trim().slice(0, 200)}`, 'launch-failed');
   return { ok: true, command: argv };
 }
