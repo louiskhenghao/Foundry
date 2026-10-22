@@ -144,6 +144,9 @@ select:not([multiple]):is(:not([size]), [size='1']) {
   --color-teal-300: var(--color-teal-700);
   --color-teal-400: var(--color-teal-600);
   --color-inset: #f4f4f5;
+  /* Classic's top bar is white in light mode */
+  --color-band: #ffffff;
+  --color-band-hover: #f4f4f5;
   --color-agent-claude: #c2410c;
   --color-agent-codex: #1d4ed8;
   --color-agent-agy: #0f766e;

@@ -69,7 +69,7 @@ export const CLASSIC: Theme = {
     ink: '#18181b',
     inkSoft: '#52525b',
     inkFaint: '#71717a',
-    band: '#ebebed',
+    band: '#ffffff',
     bandInk: '#18181b',
     accent: '#10b981',
     you: '#d97706',
