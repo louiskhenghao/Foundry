@@ -1,7 +1,7 @@
 import { Check, ChevronDown, Code2, Copy, ExternalLink, Folder, Globe, TerminalSquare } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type OpenTarget } from '../api.ts';
-import { Button, Menu, buttonClass, cn } from '../ui.tsx';
+import { Button, Menu, buttonClass, cn, code } from '../ui.tsx';
 
 let cached: OpenTarget[] | null = null;
 
@@ -13,6 +13,9 @@ export interface OpenPlace {
 }
 
 const ICON: Record<OpenTarget['id'], typeof Code2> = { vscode: Code2, cursor: Code2, zed: Code2, windsurf: Code2, finder: Folder, terminal: TerminalSquare, iterm: TerminalSquare, warp: TerminalSquare };
+/** each kind of app in a category colour of its own (ADR-0067), the hues they had before themes: editors (VS Code on the web too) blue, the file manager amber, terminals green */
+const EDITOR_INK = code(0).ink;
+const KIND_INK: Record<OpenTarget['id'], string> = { vscode: EDITOR_INK, cursor: EDITOR_INK, zed: EDITOR_INK, windsurf: EDITOR_INK, finder: code(3).ink, terminal: code(1).ink, iterm: code(1).ink, warp: code(1).ink };
 
 /** this page was opened from another device (over the tailnet), where localhost is that device */
 const remote = () => typeof location !== 'undefined' && !['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
@@ -122,12 +125,13 @@ export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working 
               </div>
               <div className="flex flex-wrap gap-1.5 mt-2">
                 <button onClick={() => openWeb(pl.which)} title="VS Code in the browser (code-server), on this computer or your phone" className={buttonClass('default', 'sm')}>
-                  <Globe size={12} className="text-ink-soft" /> VS Code (web)
+                  <Globe size={12} className={EDITOR_INK} /> VS Code (web)
                 </button>
               </div>
-              {working && pl.which !== 'repo' && <div className="text-[11px] font-semibold text-ink mt-1.5">The goal is running: edits made here can clash with the coding agents' and go into their next commit.</div>}
+              {/* the goal at work, and looking for the apps, in the blue of work under way */}
+              {working && pl.which !== 'repo' && <div className="text-[11px] font-semibold text-work-ink mt-1.5">The goal is running: edits made here can clash with the coding agents' and go into their next commit.</div>}
               {targets === null ? (
-                <div className="text-ink-faint mt-2">detecting apps…</div>
+                <div className="text-work-ink mt-2">detecting apps…</div>
               ) : available.length === 0 ? (
                 <div className="text-ink-faint mt-2">no editor / terminal detected — copy the path instead</div>
               ) : (
@@ -136,7 +140,7 @@ export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working 
                     const I = ICON[t.id];
                     return (
                       <button key={t.id} onClick={() => launch(pl.which, t, close)} title={t.via ?? t.label} className={buttonClass('default', 'sm')}>
-                        <I size={12} className="text-ink-soft" /> {t.label}
+                        <I size={12} className={KIND_INK[t.id]} /> {t.label}
                       </button>
                     );
                   })}

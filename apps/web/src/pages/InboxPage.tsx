@@ -10,7 +10,7 @@ import { MarkdownPanel } from '../components/Markdown.tsx';
 import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { suggestEscalation, useEscalationDraft, useEscalationDrafts, useLive } from '../store.ts';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
-import { Badge, Button, Empty, Input, NEEDS_YOU_CARD, PageHeader, Textarea, YouStrip, ago, buttonClass, cn, stateLabel } from '../ui.tsx';
+import { Button, Empty, Input, NEEDS_YOU_CARD, PageHeader, Textarea, YouStrip, ago, buttonClass, cn, stateLabel } from '../ui.tsx';
 import { ProviderBadge } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
@@ -69,7 +69,13 @@ export function InboxPage() {
           list && list.length > 0 ? (
             <>
               {waiting > 0 ? <span className="rounded-[5px] bg-you px-1.5 py-0.5 font-bold text-on-you">{waiting} wait{waiting === 1 ? 's' : ''} for you</span> : 'Nothing waits for you'}
-              {answered > 0 && ` · ${answered} answered`}
+              {/* what was answered is settled: green, as the answered items' tags */}
+              {answered > 0 && (
+                <>
+                  {' · '}
+                  <span className="font-semibold text-ok-ink">{answered} answered</span>
+                </>
+              )}
             </>
           ) : null
         }
@@ -83,6 +89,8 @@ export function InboxPage() {
         <Empty>Loading…</Empty>
       ) : list.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line-strong px-6 py-14 text-center">
+          {/* all clear: the tick in green, as everything settled */}
+          <CheckCircle2 size={28} strokeWidth={2.25} className="mx-auto mb-3 text-ok-ink" aria-hidden="true" />
           <p className="text-lg font-bold">Nothing needs you.</p>
           <p className="mt-1 text-sm text-ink-faint">The engine only asks for: blocking brief questions, exhausted retries, leaving the workspace, exceeded budgets, or denied tools.</p>
         </div>
@@ -178,7 +186,9 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   const provider = e.provider ? PROVIDER_STYLE[e.provider] : null;
   /** the card's side padding: tighter inside the task view */
   const pad = embedded ? 'px-3 sm:px-4' : 'px-4 sm:px-5';
-  const link = open ? 'text-on-you hover:underline' : 'text-ink-soft hover:text-ink hover:underline';
+  // in the strip's own ink on the yellow; a theme whose signs are cards draws the strip as a panel, where ink reads. A
+  // thumb's height (32px) on a phone
+  const link = cn('inline-flex min-h-8 items-center sm:min-h-0', open ? 'text-on-you hover:underline signs-card:text-ink-soft signs-card:hover:text-ink' : 'text-ink-soft hover:text-ink hover:underline');
   return (
     <section className={NEEDS_YOU_CARD}>
       {/* the head: what stopped in its largest words, one plain sentence, where it belongs when shown outside its task — yellow while it waits */}
@@ -188,8 +198,10 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         title={kind === 'desktop' ? 'Wants to open a desktop app' : (TRIGGER_LABEL[e.trigger] ?? e.trigger)}
         tags={
           <>
-            {open ? <span className={stripTag()}>{stateLabel(e.state)}</span> : <Badge state={e.state} />}
-            {kind === 'merge' && <span className={stripTag(!open)}>merge conflict</span>}
+            <span className={stripTag(open ? 'open' : e.state === 'answered' ? 'ok' : 'quiet')} title={e.state.replace(/_/g, ' ')}>
+              {stateLabel(e.state)}
+            </span>
+            {kind === 'merge' && <span className={stripTag(open ? 'bad' : 'quiet')}>merge conflict</span>}
           </>
         }
         since={open ? e.createdAt : null}
@@ -211,7 +223,8 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         {plain && <p className={cn('mt-1 max-w-[72ch] text-[15px] leading-snug', !open && 'text-ink-soft')}>{plain}</p>}
         <p className={cn('mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]', open ? 'font-semibold' : 'text-ink-faint')}>
           {!embedded && (
-            <span className="min-w-0 max-w-full truncate">
+            // a long goal title wraps: cut short, it hid the task's name after it
+            <span className="min-w-0 max-w-full break-words">
               {/* an id where the title did not come along (the goal page's own list) */}
               {e.goalTitle ?? <span className="mono">{e.goalId}</span>}
               {e.taskId && (
@@ -224,11 +237,17 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           )}
           {provider &&
             (open ? (
-              // on the yellow the coding agent is written in the strip's own ink, as on a Goals page sign
-              <span className="inline-flex items-center gap-1.5" title={`Coding agent: ${provider.label}`}>
-                <provider.Icon size={13} aria-hidden="true" />
-                {provider.label}
-              </span>
+              <>
+                {/* on the yellow the coding agent is written in the strip's own ink, as on a Goals page sign; where signs
+                    are cards the strip is a panel, and the agent keeps its own colour there */}
+                <span className="inline-flex items-center gap-1.5 signs-card:hidden" title={`Coding agent: ${provider.label}`}>
+                  <provider.Icon size={13} aria-hidden="true" />
+                  {provider.label}
+                </span>
+                <span className="hidden signs-card:inline-flex">
+                  <ProviderBadge provider={e.provider ?? undefined} />
+                </span>
+              </>
             ) : (
               <ProviderBadge provider={e.provider ?? undefined} />
             ))}
@@ -244,8 +263,8 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         <MarkdownPanel title="details" source={e.message} maxHeight={260} actions={long && <OpenFullButton onClick={() => setFull(true)} />} />
         <FullTextDialog value={full ? { title: TRIGGER_LABEL[e.trigger] ?? e.trigger, text: e.message } : null} onClose={() => setFull(false)} />
         {suggestion && (
-          // the AI's reading is information: the work colour, not a signal
-          <div className="overflow-hidden rounded-lg border border-work/35 bg-work/[0.05] text-xs">
+          // the AI's reading is information: its edge, icon and label in the work colour (a panel is never filled with one)
+          <div className="overflow-hidden rounded-lg border border-work/45 text-xs">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-work/20 px-3 py-2">
               <Sparkles size={13} className="text-work-ink" aria-hidden="true" />
               <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-work-ink">AI diagnosis</span>
@@ -303,15 +322,16 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           </div>
         )}
         {open && actions.includes('raise_budget') && (
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          // on a phone the label above and each field the width of the card; side by side from sm
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-3">
             <span className={LABEL}>New limits</span>
             {/* the kit's fields fill their box: the boxes give them their width */}
             {reportsDollars(e.provider) && (
-              <span className="w-52 max-w-full">
+              <span className="w-full sm:w-52">
                 <Input type="number" min={0.5} step={0.5} placeholder="new max $ (blank = ×2)" value={cost} onChange={(x) => setCost(x.target.value)} />
               </span>
             )}
-            <span className="w-52 max-w-full">
+            <span className="w-full sm:w-52">
               <Input type="number" min={5} step={5} placeholder="new max min (blank = ×2)" value={minutes} onChange={(x) => setMinutes(x.target.value)} />
             </span>
           </div>
@@ -334,13 +354,14 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
             )}
             <span className="ml-auto flex flex-wrap items-center justify-end gap-2">
               {err && <span className="text-xs text-bad-ink">{err}</span>}
+              {/* links drawn as buttons: a button's 32px on a phone too */}
               {e.taskId && kind === 'merge' && (
-                <Link to={`/goals/${e.goalId}/resolve/${e.taskId}`} className={buttonClass('primary', 'sm')} title="See the conflicted files with both sides and resolve them yourself (in the browser or your editor)">
+                <Link to={`/goals/${e.goalId}/resolve/${e.taskId}`} className={buttonClass('primary', 'sm', 'min-h-8 sm:min-h-0')} title="See the conflicted files with both sides and resolve them yourself (in the browser or your editor)">
                   Resolve manually →
                 </Link>
               )}
               {e.trigger === 'milestone' && (
-                <Link to={`/goals/${e.goalId}`} className={buttonClass('primary', 'sm')} title="The goal page shows the preview, screenshots and artifacts, and takes your feedback">
+                <Link to={`/goals/${e.goalId}`} className={buttonClass('primary', 'sm', 'min-h-8 sm:min-h-0')} title="The goal page shows the preview, screenshots and artifacts, and takes your feedback">
                   Look &amp; give feedback →
                 </Link>
               )}
@@ -353,11 +374,14 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
             </span>
           </>
         ) : (
-          <span className="flex items-center gap-1.5 text-xs text-ink-soft min-w-0">
-            <CheckCircle2 size={13} className="text-ok-ink shrink-0" aria-hidden="true" />
-            Answered: <b className="shrink-0 whitespace-nowrap text-ink">{ACTION_LABEL[e.answer?.action as EscalationAction] ?? e.answer?.action}</b>
-            {e.answer?.hint ? <span className="truncate"> — “{e.answer.hint}”</span> : null}
-            {e.answeredBy ? <span className="text-ink-faint shrink-0"> · by {e.answeredBy}</span> : null}
+          // the answer in one flowing line that wraps on a phone; a long hint stops after three lines (all of it on hover)
+          <span className="flex min-w-0 items-start gap-1.5 text-xs text-ink-soft">
+            <CheckCircle2 size={13} className="mt-px shrink-0 text-ok-ink" aria-hidden="true" />
+            <span className="min-w-0 break-words line-clamp-3" title={e.answer?.hint || undefined}>
+              Answered: <b className="whitespace-nowrap text-ink">{ACTION_LABEL[e.answer?.action as EscalationAction] ?? e.answer?.action}</b>
+              {e.answer?.hint ? <span> — “{e.answer.hint}”</span> : null}
+              {e.answeredBy ? <span className="whitespace-nowrap text-ink-faint"> · by {e.answeredBy}</span> : null}
+            </span>
           </span>
         )}
       </footer>
@@ -368,8 +392,18 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
 /** a label in small capitals above a field */
 const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 
-/** a small plate in a strip's title line (its state, a merge conflict): in the strip's own ink, or quiet */
-const stripTag = (quiet = false) => cn('inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.08em] leading-none ring-[1.5px] ring-inset', quiet ? 'ring-line-strong text-ink-soft' : 'ring-on-you/45 text-on-you');
+/**
+ * A small plate in a strip's title line, in the colour of how it stands: open in the strip's own ink on the yellow (where
+ * signs are cards the strip is a panel, and the plate takes the yellow itself), answered green, a merge conflict that
+ * still waits red; quiet once it no longer counts (dismissed, an answered conflict).
+ */
+const STRIP_TAG = {
+  open: 'ring-[1.5px] ring-on-you/45 text-on-you signs-card:ring-you/60 signs-card:text-you-ink',
+  ok: 'bg-ok/10 text-ok-ink ring-1 ring-ok/50',
+  bad: 'bg-bad text-on-bad',
+  quiet: 'ring-[1.5px] ring-line-strong text-ink-soft',
+};
+const stripTag = (tone: keyof typeof STRIP_TAG) => cn('inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.08em] leading-none ring-inset', STRIP_TAG[tone]);
 
 /** a trigger's icon in the card's header */
 const TRIGGER_ICON: Record<string, LucideIcon> = {

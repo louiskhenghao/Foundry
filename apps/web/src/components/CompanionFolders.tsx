@@ -18,7 +18,8 @@ function Standing({ path, main }: { path: string; main: string }) {
   }, [path]);
   if (!path.trim()) return null;
   if (path.trim() === main) return <span className="text-bad-ink">that is the goal's own folder</span>;
-  if (info === 'checking') return <span className="text-ink-faint">checking…</span>;
+  // being checked is at work: blue
+  if (info === 'checking') return <span className="text-work-ink">checking…</span>;
   if (!info) return <span className="text-bad-ink">could not be checked</span>;
   if (!info.ok) return <span className="text-bad-ink">{info.error ?? 'not a repository'}</span>;
   return (

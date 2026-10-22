@@ -81,17 +81,18 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design', provid
                 <button type="button" onClick={() => choose(o.id)} disabled={busy !== null} className="flex items-center gap-2 text-left min-w-0 flex-1">
                   {/* a radio's dot in the accent */}
                   <span className={cn('h-3.5 w-3.5 rounded-full border shrink-0', chosen ? 'border-accent bg-accent shadow-[inset_0_0_0_2.5px_var(--color-panel)]' : 'border-line-strong')} />
-                  <span className="text-sm font-bold text-ink truncate">{o.label}</span>
+                  {/* the name wraps on a phone rather than losing its end */}
+                  <span className="min-w-0 text-sm font-bold text-ink">{o.label}</span>
                 </button>
                 {o.id !== 'none' && (
                   // no catalog entry for this backend: nothing to install here, which is not "0 missing"; a quiet plate, green
-                  // only once installed (what is missing waits for no one: the Install button is the call)
-                  <span className={cn('whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset', installing === o.id ? 'text-work-ink ring-work/50' : ready ? 'text-ok-ink ring-ok/50' : !o.entries.length ? 'text-ink-faint ring-line' : 'text-ink-soft ring-line-strong')} title={!o.entries.length ? 'This option has nothing to install for the selected coding agent' : undefined}>
+                  // only once installed, blue while it installs (what is missing waits for no one: the Install button is the call)
+                  <span className={cn('whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset', installing === o.id ? 'text-work-ink ring-work/50' : ready ? 'bg-ok/10 text-ok-ink ring-ok/50' : !o.entries.length ? 'text-ink-faint ring-line' : 'text-ink-soft ring-line-strong')} title={!o.entries.length ? 'This option has nothing to install for the selected coding agent' : undefined}>
                     {installing === o.id ? 'installing…' : ready ? 'installed' : !o.entries.length ? 'not for this agent' : `${missing.length} missing`}
                   </span>
                 )}
                 {o.homepage && (
-                  <a href={o.homepage} target="_blank" rel="noreferrer" className="text-ink-faint hover:text-ink" title={o.homepage}>
+                  <a href={o.homepage} target="_blank" rel="noreferrer" className="grid h-8 w-8 sm:h-auto sm:w-auto shrink-0 place-items-center text-ink-faint hover:text-ink" title={o.homepage}>
                     <ExternalLink size={12} />
                   </a>
                 )}
@@ -101,8 +102,8 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design', provid
                 <div className="flex flex-wrap gap-1">
                   {o.entries.map((e) => (
                     <span key={e.id} className="inline-flex items-center gap-1 rounded-sm bg-sunken px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-line" title={e.detail}>
-                      {/* installed: solid green · a loose copy (installed, not by Foundry): hollow green · missing: grey */}
-                      <span className={cn('h-1.5 w-1.5 rounded-full', e.status === 'installed' || e.status === 'installed-via-plugin' ? 'bg-ok' : e.status === 'installed-unmanaged' ? 'ring-1 ring-inset ring-ok' : 'bg-line-strong')} />
+                      {/* installed: solid green · a loose copy (installed, not by Foundry): hollow green · missing: hollow grey */}
+                      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', e.status === 'installed' || e.status === 'installed-via-plugin' ? 'bg-ok' : e.status === 'installed-unmanaged' ? 'ring-1 ring-inset ring-ok' : 'ring-1 ring-inset ring-line-strong')} />
                       <span className="mono text-ink-soft">{e.invoke}</span>
                     </span>
                   ))}
@@ -122,9 +123,9 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design', provid
               )}
               {installing === o.id && (
                 <div className="space-y-1">
-                  <div className="text-[11px] text-ink-soft flex items-center gap-1.5">
-                    {/* work under way: the flowing hatch (an inset-ring: ring-inset would take the theme's colour named inset) */}
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-[2px] hatch text-ink inset-ring inset-ring-ink" /> installing — live log below; this card updates itself when the skills land
+                  <div className="text-[11px] text-work-ink flex items-center gap-1.5">
+                    {/* work under way: the flowing hatch, in the blue of work (an inset-ring: ring-inset would take the theme's colour named inset) */}
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-[2px] hatch text-work inset-ring inset-ring-work" /> installing — live log below; this card updates itself when the skills land
                   </div>
                   <LiveLog attemptId="tool-install" className="max-h-40" />
                 </div>

@@ -109,8 +109,9 @@ export function RepoCard({ path, info, onPath, onValidation }: { path: string; i
       </div>
 
       {info && (
-        // a usable repository on a quiet inset box, its heading in green (it passed); a folder that cannot be used in red
-        <div className={cn('rounded-lg border p-3 text-xs space-y-1.5', info.ok ? 'border-line bg-sunken' : 'border-bad/40 bg-bad/5')}>
+        // a usable repository on a quiet inset box, its heading in green (it passed); a folder that cannot be used on a red
+        // edge with its reason in red: the colour goes on the marks and words, never fills the box
+        <div className={cn('rounded-lg border bg-sunken p-3 text-xs space-y-1.5', info.ok ? 'border-line' : 'border-bad/50')}>
           {info.ok ? (
             <>
               <div className="flex items-center gap-2 font-bold text-ok-ink">
@@ -120,7 +121,7 @@ export function RepoCard({ path, info, onPath, onValidation }: { path: string; i
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-ink">
                 <Row icon={<GitBranch size={12} />} label="branch">
                   <span className="mono">{info.branch}</span>
-                  {info.dirty ? <span className="text-work-ink ml-2">· {info.dirtyCount} uncommitted change{info.dirtyCount === 1 ? '' : 's'} (the Brief will ask)</span> : <span className="text-ink-faint ml-2">· clean</span>}
+                  {info.dirty ? <span className="text-work-ink ml-2">· {info.dirtyCount} uncommitted change{info.dirtyCount === 1 ? '' : 's'} (the Brief will ask)</span> : <span className="text-ok-ink ml-2">· clean</span>}
                 </Row>
                 {info.lastCommit && (
                   <Row icon={<GitCommitHorizontal size={12} />} label="last commit">
@@ -142,12 +143,13 @@ export function RepoCard({ path, info, onPath, onValidation }: { path: string; i
                 <Row icon={<User size={12} />} label="identity">{info.identity ? `${info.identity.name} <${info.identity.email}>` : <span className="text-work-ink">not configured — commits will be authored as foundry</span>}</Row>
                 {info.remotes.length > 0 && (
                   <Row icon={<ArrowDownToLine size={12} />} label="upstream">
+                    {/* fetching is at work, a failed fetch red, up to date green; a branch not on the remote yet is quiet */}
                     {up === 'loading' ? (
-                      <span className="text-ink-faint">fetching {info.remotes[0]!.name}/{info.branch}…</span>
+                      <span className="text-work-ink">fetching {info.remotes[0]!.name}/{info.branch}…</span>
                     ) : up === null ? (
-                      <span className="text-ink-faint">could not fetch</span>
+                      <span className="text-bad-ink">could not fetch</span>
                     ) : !up.remote || !up.remoteRef ? (
-                      <span className="text-ink-faint">{up.error ?? `no ${info.branch} on the remote yet`}</span>
+                      <span className={up.error ? 'text-bad-ink' : 'text-ink-faint'}>{up.error ?? `no ${info.branch} on the remote yet`}</span>
                     ) : up.behind === 0 && up.ahead === 0 ? (
                       <span className="text-ok-ink">up to date with {up.remote}/{up.base}</span>
                     ) : (
@@ -184,7 +186,8 @@ export function RepoCard({ path, info, onPath, onValidation }: { path: string; i
               {info.insideRepoAt && <div className="text-ink-soft">Use the repository root instead: <button className="underline mono text-ink" onClick={() => choose(info.insideRepoAt!)}>{info.insideRepoAt}</button></div>}
             </>
           )}
-          {initMsg && <div className="text-ink pt-1">{initMsg}</div>}
+          {/* git init's own report ("Initialized main with…") is green; anything else it says is why it failed */}
+          {initMsg && <div className={cn('pt-1 font-semibold', initMsg.startsWith('Initialized') ? 'text-ok-ink' : 'text-bad-ink')}>{initMsg}</div>}
         </div>
       )}
       {picker && <FolderPicker initial={path || undefined} onPick={choose} onClose={() => setPicker(false)} />}

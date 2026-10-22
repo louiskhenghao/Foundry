@@ -3,7 +3,7 @@ import { attachmentKindLabel } from '@foundry/core/browser';
 import { ExternalLink, File as FileIcon, FileText, Image as ImageIcon, Link2, Paperclip, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';
-import { Button, Input, Modal, chipClass, cn, focusFirst } from '../ui.tsx';
+import { Button, Input, Modal, chipClass, cn, code, focusFirst } from '../ui.tsx';
 import { MarkdownPanel } from './Markdown.tsx';
 
 /**
@@ -33,9 +33,10 @@ export function AttachmentViewer({ a, goalId, onClose }: { a: Attachment; goalId
       <div className="flex items-center gap-1 mb-3 flex-wrap">
         {tabBtn('markdown', `Markdown${a.markdown?.bytes != null ? ` · ${fmtSize(a.markdown.bytes)}` : ''}`, hasMd)}
         {tabBtn('original', a.kind === 'link' ? 'Link' : 'Original', !!original)}
-        {!hasMd && a.markdown?.status && a.markdown.status !== 'skipped' && <span className="text-[11px] text-ink-faint ml-1">{a.markdown.status === 'pending' ? 'markdown is being converted…' : `markdown conversion failed${a.markdown.error ? `: ${a.markdown.error}` : ''}`}</span>}
+        {/* the conversion as it stands: under way blue, failed red */}
+        {!hasMd && a.markdown?.status && a.markdown.status !== 'skipped' && <span className={cn('text-[11px] font-semibold ml-1', a.markdown.status === 'pending' ? 'text-work-ink' : 'text-bad-ink')}>{a.markdown.status === 'pending' ? 'markdown is being converted…' : `markdown conversion failed${a.markdown.error ? `: ${a.markdown.error}` : ''}`}</span>}
         {original && (
-          <a href={original} target="_blank" rel="noreferrer" className="ml-auto text-xs underline text-ink-soft hover:text-ink flex items-center gap-1">
+          <a href={original} target="_blank" rel="noreferrer" className="ml-auto min-h-8 sm:min-h-0 text-xs underline text-ink-soft hover:text-ink flex items-center gap-1">
             <ExternalLink size={12} /> open {a.kind === 'link' ? 'link' : 'original'}
           </a>
         )}
@@ -67,28 +68,32 @@ const fmtSize = (n: number | null) => (n == null ? '' : n < 1024 ? `${n} B` : n 
 /** Local preview URL for staged images (before the goal exists) keyed by attachment id. */
 const previews = new Map<string, string>();
 
+/**
+ * Each kind of attachment in a category colour of its own (ADR-0067), the hues the kinds had before themes: images blue,
+ * links green, office documents violet, PDFs rose; plain text and any other file in ink.
+ */
+const KIND_INK: Record<ReturnType<typeof attachmentKindLabel>, string> = { image: code(0).ink, link: code(1).ink, document: code(2).ink, pdf: code(4).ink, text: 'text-ink-soft', file: 'text-ink-soft' };
+
 export function AttachmentIcon({ a, size = 14 }: { a: Attachment; size?: number }) {
   const k = attachmentKindLabel(a);
-  // the icon's shape tells the kind; a link is information (blue), every file kind is ink
-  const cls = k === 'link' ? 'text-work-ink' : 'text-ink-soft';
   const I = k === 'image' ? ImageIcon : k === 'link' ? Link2 : k === 'text' || k === 'pdf' || k === 'document' ? FileText : FileIcon;
-  return <I size={size} className={cls} />;
+  return <I size={size} className={KIND_INK[k]} />;
 }
 
-/** Conversion-state tag for the markdown rendition (markitdown). */
+/** Conversion-state tag for the markdown rendition (markitdown): converting blue, ready green, failed red. */
 function MarkdownTag({ a, goalId, onReconvert }: { a: Attachment; goalId?: string; onReconvert?: () => void }) {
   const md = a.markdown;
   if (!md || md.status === 'skipped') return null;
-  if (md.status === 'pending') return <span className="text-[10.5px] font-semibold text-work-ink animate-pulse">converting…</span>;
+  if (md.status === 'pending') return <span className="text-[11px] font-semibold text-work-ink animate-pulse">converting…</span>;
   if (md.status === 'ready')
     return (
-      <span className="text-[10.5px] font-semibold text-ok-ink" title={`${md.tool ?? 'markitdown'} · sessions read this markdown instead of the original${md.error ? ` · ${md.error}` : ''}`}>
+      <span className="text-[11px] font-semibold text-ok-ink" title={`${md.tool ?? 'markitdown'} · sessions read this markdown instead of the original${md.error ? ` · ${md.error}` : ''}`}>
         md {fmtSize(md.bytes)}
         {md.bytes != null && md.bytes < 200 ? ' (nearly empty)' : ''}
       </span>
     );
   return (
-    <span className="text-[10.5px] font-semibold text-bad-ink" title={md.error ?? 'conversion failed'}>
+    <span className="text-[11px] font-semibold text-bad-ink" title={md.error ?? 'conversion failed'}>
       md failed
       {goalId && onReconvert && (
         <button className="underline ml-1" onClick={(e) => { e.preventDefault(); onReconvert(); }}>
@@ -115,10 +120,10 @@ export function AttachmentList({ items, goalId, onRemove, onReconvert, compact }
           <>
             {thumb ? <img src={thumb} alt={a.name} className="h-14 w-14 object-cover rounded border border-line shrink-0" /> : <span className="h-14 w-14 rounded border border-line bg-panel flex items-center justify-center shrink-0">{<AttachmentIcon a={a} size={20} />}</span>}
             <span className="min-w-0 flex flex-col justify-center">
-              <span className="text-xs font-semibold text-ink truncate max-w-[11rem]" title={a.kind === 'link' ? a.url! : a.name}>
+              <span className="text-xs font-semibold text-ink truncate sm:max-w-[11rem]" title={a.kind === 'link' ? a.url! : a.name}>
                 {a.name}
               </span>
-              <span className="text-[11px] text-ink-faint truncate max-w-[11rem]">
+              <span className="text-[11px] text-ink-faint truncate sm:max-w-[11rem]">
                 {kind}
                 {a.size != null ? ` · ${fmtSize(a.size)}` : ''}
                 {a.note ? ` · ${a.note}` : ''}
@@ -127,19 +132,21 @@ export function AttachmentList({ items, goalId, onRemove, onReconvert, compact }
             </span>
           </>
         );
+        // a row the width of the list on a phone; open and remove sit in the row, a thumb's size there (remove used to
+        // show only under a hovering pointer, which a phone has not)
         return (
-          <div key={a.id} className="group relative flex items-center gap-2 rounded-md border border-line bg-sunken p-1.5 pr-2 hover:border-line-strong">
-            <button type="button" onClick={() => setView(a)} className="flex items-center gap-2 min-w-0 text-left" title={a.markdown?.status === 'ready' ? 'view the extracted markdown or the original' : 'view'}>
+          <div key={a.id} className="flex w-full sm:w-auto items-center gap-1 rounded-md border border-line bg-sunken p-1.5 hover:border-line-strong">
+            <button type="button" onClick={() => setView(a)} className="mr-1 flex min-w-0 flex-1 items-center gap-2 text-left" title={a.markdown?.status === 'ready' ? 'view the extracted markdown or the original' : 'view'}>
               {inner}
             </button>
             {href && (
-              <a href={href} target="_blank" rel="noreferrer" className="text-ink-faint hover:text-ink shrink-0" title={a.kind === 'link' ? 'open link' : 'open original in a new tab'}>
+              <a href={href} target="_blank" rel="noreferrer" className="grid h-8 w-8 sm:h-6 sm:w-6 shrink-0 place-items-center rounded-md text-ink-faint hover:bg-panel hover:text-ink" title={a.kind === 'link' ? 'open link' : 'open original in a new tab'}>
                 <ExternalLink size={12} />
               </a>
             )}
             {onRemove && (
-              <button className="absolute -top-1.5 -right-1.5 rounded-full bg-panel border border-line-strong p-0.5 text-ink-soft hover:text-bad-ink opacity-0 group-hover:opacity-100" title="remove" onClick={() => onRemove(a)}>
-                <X size={11} />
+              <button className="grid w-8 sm:h-6 sm:w-6 shrink-0 place-items-center rounded-md text-ink-faint hover:bg-panel hover:text-bad-ink" title="remove" aria-label="remove" onClick={() => onRemove(a)}>
+                <X size={12} />
               </button>
             )}
           </div>
@@ -284,9 +291,10 @@ export function AttachmentInput({ items, onChange, goalId, className }: { items:
             </Button>
           </form>
         )}
+        {/* an upload under way, in the blue of work at work */}
         {uploading.map(([k, pct]) => (
           <div key={k} className="basis-full h-1 rounded-xs bg-line overflow-hidden">
-            <div className="h-full bg-ink transition-all" style={{ width: `${pct}%` }} />
+            <div className="h-full bg-work transition-all" style={{ width: `${pct}%` }} />
           </div>
         ))}
       </div>

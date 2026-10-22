@@ -1,6 +1,7 @@
 import type { BudgetPreset, Budgets } from "@foundry/core/browser";
 import { BUDGET_PRESETS } from "@foundry/core/browser";
-import { Input, choiceClass, cn } from "../ui.tsx";
+import { Infinity as Unbounded, ShieldCheck, SlidersHorizontal, WandSparkles, Zap, type LucideIcon } from "lucide-react";
+import { Input, choiceClass, cn, code } from "../ui.tsx";
 
 export const PRESET_ORDER: BudgetPreset[] = [
   "auto",
@@ -9,6 +10,18 @@ export const PRESET_ORDER: BudgetPreset[] = [
   "unlimited",
   "custom"
 ];
+
+/**
+ * Each preset's icon, in a category colour of its own (ADR-0067) so the tiles tell apart at a glance; Auto, which leaves
+ * the limits to the Brief, stays in ink as Auto does among the kinds of goal.
+ */
+const PRESET_MARK: Record<BudgetPreset, { Icon: LucideIcon; ink: string }> = {
+  auto: { Icon: WandSparkles, ink: "text-ink-soft" },
+  quick: { Icon: Zap, ink: code(0).ink },
+  thorough: { Icon: ShieldCheck, ink: code(2).ink },
+  unlimited: { Icon: Unbounded, ink: code(6).ink },
+  custom: { Icon: SlidersHorizontal, ink: code(5).ink }
+};
 
 export interface BudgetDraft {
   preset: BudgetPreset;
@@ -48,6 +61,7 @@ export function BudgetPicker({
         {PRESET_ORDER.map((p) => {
           const def = BUDGET_PRESETS[p];
           const on = value.preset === p;
+          const { Icon, ink } = PRESET_MARK[p];
           return (
             <button
               key={p}
@@ -63,11 +77,12 @@ export function BudgetPicker({
                 choiceClass(on)
               )}
             >
-              <div className="text-sm font-bold text-ink flex items-center gap-1.5">
+              <div className="text-sm font-bold text-ink flex flex-wrap items-center gap-1.5">
+                <Icon size={15} strokeWidth={2.25} className={cn("shrink-0", ink)} aria-hidden="true" />
                 {def.label}
                 {p === "auto" && (
                   // a quiet plate: which preset a new goal starts on is a fact, not a signal
-                  <span className="rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line-strong">
+                  <span className="rounded-sm px-1.5 py-px text-[11px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line-strong">
                     default
                   </span>
                 )}

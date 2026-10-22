@@ -89,10 +89,13 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
     <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="w-full sm:max-w-3xl h-[calc(100dvh-1.5rem)] sm:h-[min(80vh,42rem)] overflow-hidden rounded-xl border border-line bg-panel shadow-2xl flex flex-col">
         <header className="flex items-center gap-2 px-4 py-3 border-b border-line">
-          <FolderOpen size={16} className="text-ink-soft" />
-          <h3 className="text-sm font-bold text-ink">Select a folder</h3>
-          <span className="text-xs text-ink-faint hidden sm:inline">git repositories are marked</span>
-          <button className="ml-auto text-ink-faint hover:text-ink" onClick={onClose} aria-label="close">
+          <FolderOpen size={16} className="shrink-0 text-ink-soft" />
+          {/* the note on a phone too, under the title where the two do not fit in a line */}
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <h3 className="text-sm font-bold text-ink">Select a folder</h3>
+            <span className="text-xs text-ink-faint">git repositories are marked</span>
+          </div>
+          <button className="ml-auto shrink-0 text-ink-faint hover:text-ink" onClick={onClose} aria-label="close">
             <X size={16} />
           </button>
         </header>
@@ -122,19 +125,22 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
             ))}
           </aside>
           <section className="flex flex-col min-h-0">
-            <div className="flex items-center gap-1 px-3 py-2 border-b border-line text-xs overflow-x-auto whitespace-nowrap">
-              <button className="mono text-ink-soft hover:text-ink" onClick={() => go('/')} title="/">
-                /
-              </button>
-              {crumbs.map((c, i) => (
-                <span key={i} className="flex items-center gap-1">
-                  <ChevronRight size={11} className="text-ink-faint" />
-                  <button className={cn('mono hover:text-ink', i === crumbs.length - 1 ? 'font-bold text-ink' : 'text-ink-soft')} onClick={() => go(crumbPath(i))}>
-                    {c}
-                  </button>
-                </span>
-              ))}
-              <span className="ml-auto flex items-center gap-3 pl-3">
+            {/* the path scrolls in its own strip; New folder and hidden stay in reach beside it, or under it on a phone */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 border-b border-line text-xs">
+              <div className="flex min-w-0 flex-1 basis-full sm:basis-0 items-center gap-1 overflow-x-auto whitespace-nowrap">
+                <button className="mono text-ink-soft hover:text-ink" onClick={() => go('/')} title="/">
+                  /
+                </button>
+                {crumbs.map((c, i) => (
+                  <span key={i} className="flex items-center gap-1">
+                    <ChevronRight size={11} className="text-ink-faint" />
+                    <button className={cn('mono hover:text-ink', i === crumbs.length - 1 ? 'font-bold text-ink' : 'text-ink-soft')} onClick={() => go(crumbPath(i))}>
+                      {c}
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <span className="ml-auto flex shrink-0 items-center gap-3">
                 <button type="button" className="flex items-center gap-1 font-semibold text-ink-soft hover:text-ink disabled:opacity-40" disabled={!listing || newName !== null} onClick={() => setNewName('')} title="Make a new folder here">
                   <FolderPlus size={13} /> New folder
                 </button>
@@ -172,11 +178,13 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
                 // the folder in the path field below is outlined in the accent, as a chosen option is
                 <div key={e.path} className={cn('group flex items-center gap-2 px-2 py-1.5 rounded-md text-sm', typed === e.path ? 'bg-accent/[0.06] shadow-[inset_0_0_0_1.5px_var(--color-accent)]' : 'hover:bg-sunken')}>
                   <button className="flex items-center gap-2 flex-1 min-w-0 text-left" onDoubleClick={() => go(e.path)} onClick={() => setTyped(e.path)} title="double-click to open">
-                    {e.isGitRepo ? <FolderGit2 size={14} className="text-ink shrink-0" /> : <Folder size={14} className="text-ink-faint shrink-0" />}
+                    {/* a git repository is a folder a goal can use: its icon and its tag in green, as the repository check that passes */}
+                    {e.isGitRepo ? <FolderGit2 size={14} className="text-ok-ink shrink-0" /> : <Folder size={14} className="text-ink-faint shrink-0" />}
                     <span className={cn('truncate text-ink', typed === e.path && 'font-bold')}>{e.name}</span>
-                    {e.isGitRepo && <span className="shrink-0 rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line-strong">git</span>}
+                    {e.isGitRepo && <span className="shrink-0 rounded-sm bg-ok/10 px-1.5 py-px text-[11px] font-bold uppercase tracking-[0.08em] text-ok-ink ring-1 ring-inset ring-ok/45">git</span>}
                   </button>
-                  <button className="text-[11px] font-semibold text-ink-faint hover:text-ink opacity-0 group-hover:opacity-100" onClick={() => go(e.path)}>
+                  {/* shown under a pointer that hovers; always where there is none (a phone, a tablet), which cannot double-click either */}
+                  <button className="text-[11px] font-semibold text-ink-faint hover:text-ink focus-visible:opacity-100 [@media(hover:hover)]:opacity-0 [@media(hover:hover)]:group-hover:opacity-100" onClick={() => go(e.path)}>
                     open
                   </button>
                   <Button size="sm" variant={e.isGitRepo ? 'primary' : 'default'} className="py-0.5" onClick={() => onPick(e.path)}>

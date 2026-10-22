@@ -1,16 +1,20 @@
 import type { DeliveryPolicy } from '@foundry/core/browser';
-import { Github, Lock } from 'lucide-react';
+import { ArrowUpFromLine, GitMerge, GitPullRequest, Github, HardDrive, Lock, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, type RepoInfo } from '../api.ts';
-import { Button, Input, Select, choiceClass, cn } from '../ui.tsx';
+import { Button, Input, Select, choiceClass, cn, code } from '../ui.tsx';
 import { GitHubSignInDialog } from './GitHubSignInDialog.tsx';
 
 export type PolicyDraft = Partial<DeliveryPolicy> & { mode: DeliveryPolicy['mode'] };
-const MODES: { id: DeliveryPolicy['mode']; label: string; desc: string }[] = [
-  { id: 'local', label: 'Local only', desc: 'Work stays on a local branch. You push when you want. (default)' },
-  { id: 'push', label: 'Push branch', desc: 'When done: sync with the base branch and push. No PR.' },
-  { id: 'pr', label: 'Open a PR', desc: 'Push, then open pull request(s) with the Brief and check results. You merge.' },
-  { id: 'pr-automerge', label: 'PR + auto-merge', desc: 'Open the PR(s), wait for CI, fix CI if needed, merge when green, delete the remote branch(es).' },
+/**
+ * The modes, each with an icon in a category colour of its own (ADR-0067) so they tell apart at a glance: Local only,
+ * where nothing leaves this computer, in ink; auto-merge in the violet the app gives merges.
+ */
+const MODES: { id: DeliveryPolicy['mode']; label: string; desc: string; Icon: LucideIcon; ink: string }[] = [
+  { id: 'local', label: 'Local only', desc: 'Work stays on a local branch. You push when you want. (default)', Icon: HardDrive, ink: 'text-ink-soft' },
+  { id: 'push', label: 'Push branch', desc: 'When done: sync with the base branch and push. No PR.', Icon: ArrowUpFromLine, ink: code(5).ink },
+  { id: 'pr', label: 'Open a PR', desc: 'Push, then open pull request(s) with the Brief and check results. You merge.', Icon: GitPullRequest, ink: code(0).ink },
+  { id: 'pr-automerge', label: 'PR + auto-merge', desc: 'Open the PR(s), wait for CI, fix CI if needed, merge when green, delete the remote branch(es).', Icon: GitMerge, ink: code(2).ink },
 ];
 
 function Section({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
@@ -25,7 +29,7 @@ function Section({ title, children, className }: { title: string; children: Reac
 function Option({ checked, onChange, label, hint }: { checked: boolean; onChange: (v: boolean) => void; label: string; hint: string }) {
   return (
     <label className="flex items-start gap-2 cursor-pointer">
-      <input type="checkbox" className="mt-0.5" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+      <input type="checkbox" className="mt-0.5 shrink-0" checked={checked} onChange={(e) => onChange(e.target.checked)} />
       <span className="min-w-0">
         <span className="block text-xs font-semibold text-ink">{label}</span>
         <span className="block text-[11px] text-ink-faint">{hint}</span>
@@ -89,7 +93,10 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null, lo
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {MODES.map((m) => (
           <button key={m.id} type="button" disabled={modeLocked(m.id)} onClick={() => set({ mode: m.id })} className={cn('text-left rounded-lg border p-2.5 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:border-line', choiceClass(value.mode === m.id))}>
-            <div className="text-sm font-bold text-ink">{m.label}</div>
+            <div className="flex items-center gap-1.5 text-sm font-bold text-ink">
+              <m.Icon size={15} strokeWidth={2.25} className={cn('shrink-0', m.ink)} aria-hidden="true" />
+              {m.label}
+            </div>
             <div className="text-xs text-ink-faint mt-1 leading-snug">{m.desc}</div>
           </button>
         ))}
@@ -215,17 +222,19 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null, lo
             </Section>
           )}
 
+          {/* the GitHub CLI as it stands: being checked blue, signed in green; when this delivery needs it, missing is red
+              and a sign-in only you can do yellow; not needed, quiet */}
           <div className="flex items-center gap-2 text-xs flex-wrap border-t border-line pt-3">
-            <Github size={13} className={gh?.authenticated ? 'text-ok-ink' : needsGh ? 'text-bad-ink' : 'text-ink-faint'} />
+            <Github size={13} className={gh === null ? 'text-work-ink' : gh.authenticated ? 'text-ok-ink' : !needsGh ? 'text-ink-faint' : gh.installed ? 'text-you-ink' : 'text-bad-ink'} />
             {gh === null ? (
-              <span className="text-ink-faint">checking GitHub CLI…</span>
+              <span className="text-work-ink">checking GitHub CLI…</span>
             ) : !gh.installed ? (
               <span className={needsGh ? 'text-bad-ink' : 'text-ink-faint'}>
                 GitHub CLI not installed{needsGh ? ' — required for PR modes' : ''}: <span className="mono">brew install gh</span>
               </span>
             ) : !gh.authenticated ? (
               <>
-                <span className={needsGh ? 'text-bad-ink' : 'text-ink-faint'}>gh installed, not logged in</span>
+                <span className={needsGh ? 'font-semibold text-you-ink' : 'text-ink-faint'}>gh installed, not logged in</span>
                 <Button size="sm" onClick={() => setLoginOpen(true)}>
                   Connect GitHub
                 </Button>

@@ -79,7 +79,7 @@ function ScheduleForm({ initial, editing, busy, error, onClose, onSave }: { init
         </Field>
         {/* the switch in the accent every checkbox has; its explanation under it */}
         <label className="flex items-start gap-2.5 rounded-md bg-sunken px-3 py-2.5 text-sm font-semibold text-ink cursor-pointer">
-          <input type="checkbox" className="mt-0.5" checked={autoApprove} onChange={(e) => setAutoApprove(e.target.checked)} />
+          <input type="checkbox" className="mt-0.5 shrink-0" checked={autoApprove} onChange={(e) => setAutoApprove(e.target.checked)} />
           <span>
             Approve each run's Brief for me
             <span className="block mt-0.5 text-xs font-normal leading-snug text-ink-faint">The interview is skipped and the engine approves the Brief itself, with the budget the Brief proposes when the budget is Auto; milestones do not pause. Off: the Brief waits for you like any goal's. A Brief with a question only you can answer waits either way.</span>
