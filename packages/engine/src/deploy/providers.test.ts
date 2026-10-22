@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { type DeployCredentials, type DeployPlanInput, configured, deploySteps, deployedUrl, failureHint, lastWords, projectName, redact } from './providers.ts';
+import { type DeployCredentials, type DeployPlanInput, configured, deploySteps, deployedUrl, failureHint, lastWords, projectName, redact, wentToProduction } from './providers.ts';
 
 const creds: DeployCredentials = { vercelToken: 'vcp_SECRET_TOKEN', vercelScope: null, netlifyToken: 'nfp_SECRET_TOKEN', netlifyTeam: 'studio', cloudflareToken: 'cf_SECRET_TOKEN', cloudflareAccountId: 'acc123' };
 const plan = (over: Partial<DeployPlanInput>): DeployPlanInput => ({
@@ -68,6 +68,17 @@ describe('what a deploy printed', () => {
     expect(deployedUrl('vercel', 'Vercel CLI 64.5.0\nInspect: https://vercel.com/studio/site/abc\nhttps://site-abc123-xyz.vercel.app\n', false)).toBe('https://site-abc123-xyz.vercel.app');
     expect(deployedUrl('cloudflare', '✨ Success! Uploaded 12 files\n✨ Deployment complete! Take a peek over at https://4f2a.site-abc123.pages.dev.\n', false)).toBe('https://4f2a.site-abc123.pages.dev');
     expect(deployedUrl('vercel', 'nothing here', false)).toBeNull();
+  });
+
+  test("Vercel's JSON: a preview's own address, and a new project's first deploy, which Vercel puts in production whatever was asked", () => {
+    const preview = '{\n  "status": "ok",\n  "deployment": { "url": "https://site-abc123-x1-team.vercel.app", "productionUrl": null, "target": null },\n  "next": [{ "command": "vercel deploy --prod" }]\n}\n';
+    expect(deployedUrl('vercel', preview, false)).toBe('https://site-abc123-x1-team.vercel.app');
+    expect(wentToProduction('vercel', preview, false)).toBe(false);
+    const first = '{\n  "status": "ok",\n  "deployment": { "url": "https://site-abc123-x2-team.vercel.app", "productionUrl": "https://site-abc123.vercel.app", "target": "production" },\n  "hint": "This is the project’s first deployment, so it was assigned to production."\n}\n\n<claude-code-hint v="1" />\n';
+    expect(wentToProduction('vercel', first, false)).toBe(true);
+    expect(deployedUrl('vercel', first, true)).toBe('https://site-abc123.vercel.app');
+    expect(wentToProduction('netlify', first, false)).toBe(false);
+    expect(wentToProduction('vercel', 'https://site-abc123-xyz.vercel.app', true)).toBe(true);
   });
 });
 

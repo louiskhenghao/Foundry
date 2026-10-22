@@ -109,18 +109,35 @@ export function deploySteps(i: DeployPlanInput): DeployStep[] {
   return steps;
 }
 
-/** the address a deploy's output names: Netlify's JSON, else the last https address printed */
+/** the JSON object a CLI printed among its other lines, if any */
+function printedJson<T>(stdout: string): T | null {
+  const start = stdout.indexOf('{');
+  const end = stdout.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(stdout.slice(start, end + 1)) as T;
+  } catch {
+    return null;
+  }
+}
+type VercelJson = { deployment?: { url?: string; productionUrl?: string | null; target?: string | null } };
+
+/** whether a deploy went to production: asked for, or put there by the host (Vercel does so with a new project's first deploy) */
+export function wentToProduction(p: DeployProvider, stdout: string, production: boolean): boolean {
+  return production || (p === 'vercel' && printedJson<VercelJson>(stdout)?.deployment?.target === 'production');
+}
+
+/** the address a deploy's output names: Netlify's or Vercel's JSON, else the last https address printed */
 export function deployedUrl(p: DeployProvider, stdout: string, production: boolean): string | null {
   if (p === 'netlify') {
-    const start = stdout.indexOf('{');
-    const end = stdout.lastIndexOf('}');
-    if (start >= 0 && end > start) {
-      try {
-        const j = JSON.parse(stdout.slice(start, end + 1)) as { deploy_url?: string; url?: string };
-        const url = production ? (j.url ?? j.deploy_url) : (j.deploy_url ?? j.url);
-        if (url) return url;
-      } catch {}
-    }
+    const j = printedJson<{ deploy_url?: string; url?: string }>(stdout);
+    const url = j && (production ? (j.url ?? j.deploy_url) : (j.deploy_url ?? j.url));
+    if (url) return url;
+  }
+  if (p === 'vercel') {
+    const d = printedJson<VercelJson>(stdout)?.deployment;
+    const url = d && (production ? (d.productionUrl ?? d.url) : d.url);
+    if (url) return url;
   }
   const urls = stdout.match(/https:\/\/[^\s"'<>)\]]+/g) ?? [];
   const hosted = urls.filter((u) => (p === 'vercel' ? /\.vercel\.app/.test(u) : p === 'netlify' ? /netlify\.app/.test(u) : /\.pages\.dev/.test(u)));

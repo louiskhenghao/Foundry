@@ -20,10 +20,15 @@ let repo: string;
 let bin: string;
 const engines: Engine[] = [];
 
-/** a stand-in for Vercel's CLI: prints the address the real one prints, fails when FAIL sits beside it */
+const FIRST = { url: 'https://site-abc-x2-team.vercel.app', productionUrl: 'https://site-abc.vercel.app' };
+/**
+ * a stand-in for Vercel's CLI: prints the address the real one prints, fails when FAIL sits beside it, and answers as
+ * for a new project's first deploy (which Vercel puts in production) when FIRST does
+ */
 function fakeCli(dir: string): string {
   const path = join(dir, 'fake-host');
-  writeFileSync(path, `#!/bin/sh\nif [ -f "${join(dir, 'FAIL')}" ]; then echo "Error: refused" >&2; exit 1; fi\necho "Vercel CLI 64.5.0"\necho "${URL}"\n`);
+  const first = JSON.stringify({ status: 'ok', deployment: { ...FIRST, target: 'production' } });
+  writeFileSync(path, `#!/bin/sh\nif [ -f "${join(dir, 'FAIL')}" ]; then echo "Error: refused" >&2; exit 1; fi\nif [ -f "${join(dir, 'FIRST')}" ]; then echo '${first}'; exit 0; fi\necho "Vercel CLI 64.5.0"\necho "${URL}"\n`);
   chmodSync(path, 0o755);
   return path;
 }
@@ -191,6 +196,21 @@ describe('the smoke after a deploy (ADR-0058)', () => {
     engine.smokeDeployment(goal.id, last(engine, goal.id)!.at);
     await waitFor(() => last(engine, goal.id)?.smoke?.status === 'pass');
     expect(seen).toHaveLength(1);
+  }, 60_000);
+
+  test('a new Vercel project’s first deploy, put in production whatever was asked, is recorded there and its preview smoke not run', async () => {
+    const { engine, goal } = await finishedGoal();
+    const seen: Seen[] = [];
+    scriptDeps.current = fakeRun(passing, seen);
+    writeFileSync(join(bin, '..', 'FIRST'), '');
+    engine.deploy(goal.id, { provider: 'vercel', production: false, smoke: true });
+    await waitFor(() => last(engine, goal.id)?.smoke?.status === 'skipped');
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', production: true, url: FIRST.productionUrl });
+    expect(last(engine, goal.id)!.smoke!.detail).toContain('Vercel put this deploy in production');
+    expect(seen).toHaveLength(0);
+    expect(probed).toEqual([]);
+    const notes = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'engine.note').map((e) => (e.payload as { message: string }).message);
+    expect(notes.some((m) => m.includes('a new project’s first deploy goes to production'))).toBe(true);
   }, 60_000);
 
   test('a goal without milestone scripts gets a skipped smoke with the reason, and no Smoke again', async () => {

@@ -16,7 +16,7 @@ import type { Engine } from '../engine.ts';
 import { exec, git } from '../git/git.ts';
 import { goalWorkspacePath } from '../workspace.ts';
 import { type Deployability, deployability } from './detect.ts';
-import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, configured, deploySteps, deployedUrl, failureHint, lastWords, plain, projectName, redact } from './providers.ts';
+import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, configured, deploySteps, deployedUrl, failureHint, lastWords, plain, projectName, redact, wentToProduction } from './providers.ts';
 import { runSmoke, smokeScripts, type SmokeTarget } from './smoke.ts';
 
 /** a goal is deployed once it is done: a failed or unfinished goal's branch is not a thing to publish */
@@ -178,11 +178,18 @@ async function run(engine: Engine, goal: Goal, dir: string, req: DeployRequest):
       }
       last = plain(r.stdout);
     }
-    const url = deployedUrl(provider, last, production);
+    // a host may put the deploy elsewhere than asked: Vercel sends a new project's first deploy to production
+    const live = wentToProduction(provider, last, production);
+    const url = deployedUrl(provider, last, live);
     if (!url) return fail(`${PROVIDER_LABEL[provider]} finished but named no address: its output is in the activity`);
-    store.append({ type: 'deploy.finished', goalId: goal.id, payload: { provider, production, url } });
+    store.append({ type: 'deploy.finished', goalId: goal.id, payload: { provider, production: live, url } });
+    const moved = live && !production;
+    if (moved) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${PROVIDER_LABEL[provider]} put this deploy in production although a preview was asked for: a new project’s first deploy goes to production there; the next ones are previews` } });
     // the smoke (ADR-0058): the milestone scripts against the address, in this checkout; it records its own end
-    if (req.smoke ?? smokeByDefault(production)) await runSmoke(engine, goal, dir, { provider, production, url, deployedAt: started.ts });
+    if (!(req.smoke ?? smokeByDefault(production))) return;
+    // a smoke asked for a preview never writes into production
+    if (moved && smokeScripts(engine, goal.id).length) store.append({ type: 'deploy.smoke_finished', goalId: goal.id, payload: { provider, production: live, url, deployedAt: started.ts, status: 'skipped', detail: `not tried: ${PROVIDER_LABEL[provider]} put this deploy in production, and the smoke was asked for a preview (a script writes what it tries)`, scripts: [] } });
+    else await runSmoke(engine, goal, dir, { provider, production, url, deployedAt: started.ts });
   } catch (err) {
     fail(String((err as Error)?.message ?? err));
   }

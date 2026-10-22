@@ -682,7 +682,8 @@ function project(db: Database, e: EngineEvent): void {
       if (!g) break;
       const list = [...(g.deployments ?? [])];
       const i = list.findLastIndex((d) => d.provider === e.payload.provider && d.status === 'running');
-      const ended = e.type === 'deploy.finished' ? { status: 'live' as const, url: e.payload.url, reason: null } : { status: 'failed' as const, url: null, reason: e.payload.reason };
+      // a finished deploy says where it went: a host may put it elsewhere than asked (Vercel, a new project's first deploy)
+      const ended = e.type === 'deploy.finished' ? { status: 'live' as const, url: e.payload.url, reason: null, production: e.payload.production } : { status: 'failed' as const, url: null, reason: e.payload.reason };
       // a deploy refused before it started (no web app, a host not set up) is a failed entry of its own
       if (i >= 0) list[i] = { ...list[i]!, ...ended, endedAt: e.ts };
       else list.push({ provider: e.payload.provider, production: e.payload.production, ref: null, framework: null, at: e.ts, ...ended, endedAt: e.ts });
