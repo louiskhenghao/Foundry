@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Theme, parseTheme } from '../schema/theme.ts';
-import { BUILTIN_THEMES, CLASSIC, WAYFINDING } from './builtins.ts';
+import { BUILTIN_THEMES, CLASSIC, LEDGER, WAYFINDING } from './builtins.ts';
 import { contrast, mix, readable } from './color.ts';
 import { DEFAULT_LAYOUT, layoutOf } from './layout.ts';
 import { CODE_COUNT, entryCss, fillPalette, paletteVars, themeCss } from './palette.ts';
@@ -81,13 +81,18 @@ describe('the generated stylesheet', () => {
     expect(light['--color-amber-500']).toBe('#ffc61a');
     expect(dark['--color-rose-600']).toBe('#ff6b5e');
   });
-  test('signal text reads on panels and pages, and text on a signal fill reads on it', () => {
-    for (const [block, mode] of [[light, 'light'], [dark, 'dark']] as const) {
-      const p = WAYFINDING[mode];
-      for (const s of ['you', 'work', 'ok', 'bad', 'extra']) {
-        expect(contrast(block[`--color-${s}-ink`]!, p.panel)).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(block[`--color-${s}-ink`]!, p.page)).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(block[`--color-on-${s}`]!, block[`--color-${s}`]!)).toBeGreaterThanOrEqual(3);
+  test('signal text reads on panels and pages, and text on a signal fill reads on it, in every built-in theme', () => {
+    for (const theme of [WAYFINDING, LEDGER]) {
+      const own = themeCss(theme);
+      for (const [block, mode] of [[blockOf(own, ':root:root.light'), 'light'], [blockOf(own, ':root:root'), 'dark']] as const) {
+        const p = theme[mode];
+        for (const s of ['you', 'work', 'ok', 'bad', 'extra']) {
+          expect(contrast(block[`--color-${s}-ink`]!, p.panel)).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(block[`--color-${s}-ink`]!, p.page)).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(block[`--color-on-${s}`]!, block[`--color-${s}`]!)).toBeGreaterThanOrEqual(3);
+        }
+        expect(contrast(p.ink, p.panel)).toBeGreaterThanOrEqual(7);
+        expect(contrast(block['--color-ink-faint']!, p.panel)).toBeGreaterThanOrEqual(4.5);
       }
     }
     // signal yellow is a fill; its text on white turns ochre, and the sign's own text is graphite
@@ -130,15 +135,22 @@ describe('the generated stylesheet', () => {
     expect(dark['--font-display']).toBeUndefined();
   });
   test('eight category colours, each readable as text on the panels and the page, in both modes', () => {
-    for (const [block, mode] of [[light, 'light'], [dark, 'dark']] as const) {
-      const p = WAYFINDING[mode];
-      for (let i = 1; i <= CODE_COUNT; i++) {
-        expect(block[`--color-code-${i}`]).toBe(p.codes![i - 1]!);
-        expect(contrast(block[`--color-code-${i}-ink`]!, p.panel)).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(block[`--color-code-${i}-ink`]!, p.page)).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(block[`--color-on-code-${i}`]!, block[`--color-code-${i}`]!)).toBeGreaterThanOrEqual(3);
+    for (const theme of [WAYFINDING, LEDGER]) {
+      const own = themeCss(theme);
+      for (const [block, mode] of [[blockOf(own, ':root:root.light'), 'light'], [blockOf(own, ':root:root'), 'dark']] as const) {
+        const p = theme[mode];
+        for (let i = 1; i <= CODE_COUNT; i++) {
+          expect(block[`--color-code-${i}`]).toBe(p.codes![i - 1]!);
+          expect(contrast(block[`--color-code-${i}-ink`]!, p.panel)).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(block[`--color-code-${i}-ink`]!, p.page)).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(block[`--color-on-code-${i}`]!, block[`--color-code-${i}`]!)).toBeGreaterThanOrEqual(3);
+        }
       }
     }
+  });
+  test("Ledger sets its titles in Fraunces and lays the pages out down a side column", () => {
+    expect(blockOf(themeCss(LEDGER), ':root:root')['--font-display']).toStartWith("'Fraunces Variable'");
+    expect(layoutOf(LEDGER)).toMatchObject({ nav: 'side', stages: 'steps', labels: 'small-caps', signs: 'card', surface: 'flat' });
   });
   test('a theme without category colours gets eight that read; a shorter list repeats', () => {
     expect(fillPalette(minimal.dark, 'dark').codes).toHaveLength(CODE_COUNT);

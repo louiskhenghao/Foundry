@@ -16,7 +16,7 @@ test('themes: the built-in ones, copies to edit by hand, and files that cannot b
   try {
     const first = await list();
     expect(first.dir).toBe(dir);
-    expect(first.themes.map((t: { id: string }) => t.id)).toEqual(['wayfinding', 'classic']);
+    expect(first.themes.map((t: { id: string }) => t.id)).toEqual(['wayfinding', 'ledger', 'classic']);
     expect(first.problems).toEqual([]);
 
     const made = await copy({ from: 'wayfinding' });
@@ -40,7 +40,7 @@ test('themes: the built-in ones, copies to edit by hand, and files that cannot b
     writeFileSync(join(dir, 'broken.json'), JSON.stringify({ ...written, dark: { ...written.dark, page: 'black' } }));
     writeFileSync(join(dir, 'notes.txt'), 'not a theme');
     const after = await list();
-    expect(after.themes.map((t: { id: string }) => t.id)).toEqual(['wayfinding', 'classic', 'classic-2', 'night-shift', 'wayfinding-copy', 'wayfinding-copy-2']);
+    expect(after.themes.map((t: { id: string }) => t.id)).toEqual(['wayfinding', 'ledger', 'classic', 'classic-2', 'night-shift', 'wayfinding-copy', 'wayfinding-copy-2']);
     expect(after.problems).toEqual([
       { file: 'Bad Name.json', error: expect.stringContaining('rename the file') },
       { file: 'broken.json', error: 'dark.page: a colour is written #rgb or #rrggbb, e.g. #1f2933' },

@@ -108,9 +108,65 @@ export const CLASSIC: Theme = {
   },
 };
 
+/**
+ * Ledger: the web UI as a book of record. Paper and ink, titles set in Fraunces, a blue-black ink for the main button and
+ * a highlighter's yellow-green where you are needed; the pages hang off a column down the left, the stages are a numbered
+ * line, titles in small capitals, cards flat on the paper with hairlines only.
+ */
+export const LEDGER: Theme = {
+  name: 'Ledger',
+  description: 'Paper and ink, serif titles and a side column, a highlighter where you are needed.',
+  fonts: {
+    sans: "'Atkinson Hyperlegible Next Variable', 'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, sans-serif",
+    display: "'Fraunces Variable', 'Fraunces', Georgia, 'Times New Roman', serif",
+    mono: "'Atkinson Hyperlegible Mono Variable', 'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+  },
+  shape: { radius: 4, slant: 0, texture: 'grain' },
+  layout: { nav: 'side', header: 'poster', stages: 'steps', labels: 'small-caps', signs: 'card', surface: 'flat' },
+  light: {
+    page: '#efe9dd',
+    panel: '#faf7f0',
+    inset: '#f2ece0',
+    line: '#ddd3c1',
+    lineStrong: '#a2967f',
+    ink: '#1f1b16',
+    inkSoft: '#3d362d',
+    inkFaint: '#675d4f',
+    band: '#e7e0d1',
+    bandInk: '#1f1b16',
+    accent: '#1d3557',
+    you: '#d4ee46',
+    work: '#2c5a8c',
+    ok: '#2f6b45',
+    bad: '#b3392a',
+    extra: '#7a4a7e',
+    codes: ['#2c5a8c', '#3b7a4e', '#7a4a7e', '#c0661f', '#b3392a', '#2a7c78', '#9b4a6e', '#7b7522'],
+  },
+  dark: {
+    page: '#15120e',
+    panel: '#1e1a15',
+    inset: '#25201a',
+    line: '#352e26',
+    lineStrong: '#71675a',
+    ink: '#f1eadc',
+    inkSoft: '#d6cdbc',
+    inkFaint: '#a89c88',
+    band: '#100d0a',
+    bandInk: '#f1eadc',
+    accent: '#b9cdea',
+    you: '#d4ee46',
+    work: '#86abda',
+    ok: '#80c495',
+    bad: '#f08a6e',
+    extra: '#c99bcb',
+    codes: ['#86abda', '#80c495', '#c99bcb', '#efa267', '#f08a6e', '#6cc5bf', '#e192b4', '#c8c36a'],
+  },
+};
+
 export const DEFAULT_THEME_ID = 'wayfinding';
 
 export const BUILTIN_THEMES: ThemeEntry[] = [
   { id: 'wayfinding', theme: WAYFINDING, builtIn: true },
+  { id: 'ledger', theme: LEDGER, builtIn: true },
   { id: 'classic', theme: CLASSIC, builtIn: true, stock: true },
 ];

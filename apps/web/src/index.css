@@ -121,8 +121,9 @@
  */
 :root[data-labels='small-caps'] {
   --label-case: none;
-  --label-variant: all-small-caps;
-  --label-tracking: 0.05em;
+  /* small-caps, not all-small-caps: the first letter keeps its full height, so a 12px heading still reads */
+  --label-variant: small-caps;
+  --label-tracking: 0.04em;
 }
 :root[data-labels='plain'] {
   --label-case: none;

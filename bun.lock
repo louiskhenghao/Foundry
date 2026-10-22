@@ -28,6 +28,7 @@
       "dependencies": {
         "@fontsource-variable/atkinson-hyperlegible-mono": "^5.3.0",
         "@fontsource-variable/atkinson-hyperlegible-next": "^5.3.0",
+        "@fontsource-variable/fraunces": "^5.3.0",
         "@foundry/core": "workspace:*",
         "@foundry/engine": "workspace:*",
         "highlight.js": "^11.12.0",
@@ -178,6 +179,8 @@
     "@fontsource-variable/atkinson-hyperlegible-mono": ["@fontsource-variable/atkinson-hyperlegible-mono@5.3.0", "", {}, "sha512-0IbthhO18EEpLe69h+cmrsxCkl4yk80gMk+fAN3+9M5zQvoR1JlkzoJRR6U9/UXLYpVBGEXu+Md2LO8TIp30dw=="],
 
     "@fontsource-variable/atkinson-hyperlegible-next": ["@fontsource-variable/atkinson-hyperlegible-next@5.3.0", "", {}, "sha512-UnLzNUy1RWoLDfydAatP4NaRm99X/WbQEph7q/PymJnCFIOOwKOx3pBmp5ys8trO0dM+CKGuJgeZP9fAR4mQpA=="],
+
+    "@fontsource-variable/fraunces": ["@fontsource-variable/fraunces@5.3.0", "", {}, "sha512-9BYGySn4AHEJdgp9Z28tQ3X+laJMEOITXkQarZXeloWQZDq5oOvXJ3kDA8c7MGIfpogIaZfjrQBqmda8POOCKA=="],
 
     "@foundry/cli": ["@foundry/cli@workspace:apps/cli"],
 
