@@ -1,4 +1,4 @@
-import { AgentProvider, PROVIDER_NAME, reportsDollars } from '@foundry/core';
+import { AGENT_PROVIDERS, AgentProvider, PROVIDER_NAME, reportsDollars } from '@foundry/core';
 import type { CodexQuota } from './usage/types.ts';
 import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
@@ -36,7 +36,7 @@ import {
   Brief as BriefSchema,
 } from '@foundry/core';
 import { ProviderRunner } from './provider-runner.ts';
-import { AgyCliRunner, CodexCliRunner, ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
+import { AgyCliRunner, CodexCliRunner, ClaudeCliRunner, LIMIT_TEXT, type ClaudeRunner, type RunHandle } from '@foundry/runner';
 import { McpManager } from './mcp/manager.ts';
 import { CodexMcpManager } from './mcp/codex-manager.ts';
 import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
@@ -233,6 +233,13 @@ export function codexResumeAt(q: CodexQuota, now: number): number | null {
     .filter((w): w is NonNullable<typeof w> => !!w && (w.usedPercent ?? 0) >= 100 && !!w.resetsAt && w.resetsAt * 1000 > now)
     .map((w) => w.resetsAt! * 1000);
   return resets.length ? Math.min(Math.max(...resets), now + MAX_PAUSE_MS) : null;
+}
+
+/** when a limit the error text names comes back ("… Individual quota reached. Resets in 2h39m52s.", Antigravity), capped like any pause */
+export function resetsInAt(text: string | null | undefined, now: number): number | null {
+  const m = /resets in\s+(?:(\d+)\s*h)?\s*(?:(\d+)\s*m(?!s))?\s*(?:(\d+)\s*s)?/i.exec(text ?? '');
+  const ms = m ? (Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0)) * 1000 : 0;
+  return ms > 0 ? Math.min(now + ms, now + MAX_PAUSE_MS) : null;
 }
 
 export function limitPauseUntil(rl: RunResult['rateLimit'], now: number): number | null {
@@ -1334,9 +1341,9 @@ export class Engine {
     const rl = result.rateLimit;
     const now = Date.now();
     const byStatus = limitPauseUntil(rl, now);
-    const limitedByError = result.isError && /rate.?limit|usage limit|overloaded|too many requests|\b429\b/i.test(result.errorMessage ?? '');
+    const limitedByError = result.isError && LIMIT_TEXT.test(result.errorMessage ?? '');
     if (byStatus === null && !limitedByError) return;
-    const until = byStatus ?? now + 5 * 60_000;
+    const until = byStatus ?? resetsInAt(result.errorMessage, now) ?? now + 5 * 60_000;
     this.pauseUntil(until, rl?.rateLimitType ?? null, byStatus !== null ? `rate_limit_event status=${rl!.status}` : `session error: ${(result.errorMessage ?? '').slice(0, 120)}`, provider);
     // Codex reports no reset with the error: the account's quota windows say when the exhausted one comes back
     if (provider === 'codex' && byStatus === null)
@@ -1374,7 +1381,7 @@ export class Engine {
     return true;
   }
   private restoreRateLimitPause(): void {
-    for (const provider of ['claude', 'codex'] as const) {
+    for (const provider of AGENT_PROVIDERS) {
       const paused = this.store.listByType('rate_limit.paused', 100).find((e) => (('provider' in e.payload ? e.payload.provider : undefined) ?? this.config.provider) === provider);
       const resumed = this.store.listByType('rate_limit.resumed', 100).find((e) => (('provider' in e.payload ? e.payload.provider : undefined) ?? this.config.provider) === provider);
       if (!paused || (resumed && resumed.seq > paused.seq)) continue;

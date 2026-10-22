@@ -110,13 +110,20 @@ export interface PermissionDenial {
 /** Why a session failed, as far as the CLI's error text tells: drives model fallback and doctor hints. */
 export type FailureClass = 'model_unavailable' | 'auth' | 'rate_limit' | 'other';
 
+/**
+ * The error text of a session a limit stopped: an account's usage limit (Claude Code's "You've hit your session limit",
+ * Codex's "You’ve hit your usage limit", "out of credits" and "spend cap", Antigravity's "RESOURCE_EXHAUSTED … Individual
+ * quota reached" and "credits balance is too low") or the provider's rate limiting (429, overloaded).
+ */
+export const LIMIT_TEXT = /rate[ _-]?limit|usage[ _-]?limit|hit your [\w ]{0,20}limit|overloaded|too many requests|\b429\b|resource[ _-]?exhausted|quota (?:reached|exceeded|exhausted)|out of credits|spend cap|credits balance is too low/i;
+
 const MODEL_UNAVAILABLE = /(model|alias)[^.\n]{0,80}?(not found|does not exist|not supported|unsupported|deprecated|retired|invalid|unknown|no longer (available|supported)|not available)|(not found|does not exist|unknown|invalid|deprecated|unsupported)[^.\n]{0,40}?\bmodel\b|not_found_error[^.\n]{0,80}model/i;
 
 export function classifyFailure(errorMessage: string | null | undefined, subtype?: string): FailureClass | null {
   const text = (errorMessage ?? '').trim();
   if (!text && (!subtype || subtype === 'success')) return null;
   if (MODEL_UNAVAILABLE.test(text)) return 'model_unavailable';
-  if (/rate[ _-]?limit|usage[ _-]?limit|overloaded|429/i.test(text)) return 'rate_limit';
+  if (LIMIT_TEXT.test(text)) return 'rate_limit';
   if (/authentication|unauthori[sz]ed|not logged in|invalid api key|401|403/i.test(text)) return 'auth';
   return text || (subtype && subtype !== 'success') ? 'other' : null;
 }

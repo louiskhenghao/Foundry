@@ -9,7 +9,7 @@ import { defaultConfig } from './config.ts';
 import { FakeGh } from './delivery/gh.fake.ts';
 import { runDocsGeneration } from './docs-generate.ts';
 import { raiseEscalation } from './escalation.ts';
-import { Engine, codexResumeAt, limitPauseUntil } from './engine.ts';
+import { Engine, codexResumeAt, limitPauseUntil, resetsInAt } from './engine.ts';
 import { goalWorkspacePath } from './workspace.ts';
 import { fakeCadPlugin } from './skills/fake-home.test-helper.ts';
 
@@ -496,6 +496,14 @@ describe('which rate-limit reports pause new sessions', () => {
   test('no pause outlasts the longest window', () => {
     expect(limitPauseUntil(rl('rejected', 'seven_day_opus', 588), now)).toBe(now + (7 * 24 + 1) * 3600_000);
   });
+  test('an error that says when its limit comes back (Antigravity) pauses until then', () => {
+    expect(resetsInAt('RESOURCE_EXHAUSTED (code 429): Individual quota reached. Resets in 2h39m52s.', now)).toBe(now + (2 * 3600 + 39 * 60 + 52) * 1000);
+    expect(resetsInAt('Resets in 45m', now)).toBe(now + 45 * 60_000);
+    expect(resetsInAt('Resets in 30s', now)).toBe(now + 30_000);
+    expect(resetsInAt('Resets in 900h', now)).toBe(now + (7 * 24 + 1) * 3600_000);
+    expect(resetsInAt('rate limit exceeded', now)).toBeNull();
+    expect(resetsInAt(null, now)).toBeNull();
+  });
 });
 
 describe('lifting a usage pause', () => {
@@ -516,6 +524,15 @@ describe('lifting a usage pause', () => {
       expect((b.store.listByType('rate_limit.resumed', 1)[0]!.payload as { reason: string }).reason).toBe('resumed by hand');
       expect(b.resumeNow('claude')).toBe(false);
       await b.stop();
+      // every coding agent's pause outlives a restart, Antigravity's too
+      const c = new Engine(cfgL(), new FakeRunner(() => {}));
+      c.store.append({ type: 'rate_limit.paused', goalId: null, payload: { provider: 'agy', rateLimitType: null, until: new Date(Date.now() + 3600_000).toISOString(), reason: 'session error: RESOURCE_EXHAUSTED (code 429)' } });
+      await c.stop();
+      const d = new Engine(cfgL(), new FakeRunner(() => {}));
+      await d.start();
+      expect(d.isRateLimited('agy')).toBe(true);
+      expect(d.isRateLimited('claude')).toBe(false);
+      await d.stop();
     } finally {
       rmSync(dataDir, { recursive: true, force: true });
     }

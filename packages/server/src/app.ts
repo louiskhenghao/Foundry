@@ -266,7 +266,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       busy,
       events: engine.store.count(),
       pausedUntil: engine.rateLimitedUntilIso(),
-      pausedUntilByProvider: { claude: engine.rateLimitedUntilIso('claude'), codex: engine.rateLimitedUntilIso('codex') },
+      pausedUntilByProvider: Object.fromEntries(AGENT_PROVIDERS.map((p) => [p, engine.rateLimitedUntilIso(p)])),
       restartNeeded: engine.settings.restartNeeded(),
       version: engine.updater.current(),
       webBuild: webBuild(),

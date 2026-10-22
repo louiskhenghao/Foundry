@@ -9,6 +9,16 @@ describe('failure classification', () => {
     expect(classifyFailure('Unknown model alias: fable2')).toBe('model_unavailable');
     expect(classifyFailure('Error: invalid model "claude-x"')).toBe('model_unavailable');
     expect(classifyFailure('rate_limit_error: too many requests')).toBe('rate_limit');
+    // what each coding agent says when an account's usage runs out
+    for (const said of [
+      "You've hit your session limit · resets 3:45pm",
+      'You’ve hit your usage limit. Visit https://chatgpt.com/settings/usage to purchase more credits or try again at 3:04 PM.',
+      'Your workspace is out of credits. Add credits to continue.',
+      'You hit your spend cap set in your workspace.',
+      'RESOURCE_EXHAUSTED (code 429): Individual quota reached. Resets in 2h39m52s.',
+      'Your AI credits balance is too low to continue.',
+    ]) expect(classifyFailure(said)).toBe('rate_limit');
+    expect(classifyFailure('wrote 14290 lines')).toBe('other');
     expect(classifyFailure('Not logged in · please run claude login')).toBe('auth');
     expect(classifyFailure('Tool execution failed: ENOENT')).toBe('other');
     expect(classifyFailure(null, 'success')).toBeNull();

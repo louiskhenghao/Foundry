@@ -130,8 +130,10 @@ describe('Antigravity CLI adapter', () => {
     expect((await collect(new AgyCliRunner({ agyBin: bin, env: { EVENTS: JSON.stringify(failed) } }), dir)).result).toMatchObject({ subtype: 'error_during_execution', isError: true, errorMessage: 'boom' });
     const empty = [stream[0], { event: 'result', result: { conversation_id: 'c1', status: 'SUCCESS', response: '', num_turns: 1, usage: { input_tokens: 0, output_tokens: 0, thinking_tokens: 0, cache_read_tokens: 0, total_tokens: 0 } } }];
     expect((await collect(new AgyCliRunner({ agyBin: bin, env: { EVENTS: JSON.stringify(empty) } }), dir)).result).toMatchObject({ subtype: 'error_during_execution', errorMessage: 'the Antigravity CLI returned an empty response' });
-    const cut = await collect(new AgyCliRunner({ agyBin: bin, env: { EVENTS: JSON.stringify([stream[0]]), EXIT_CODE: '3', AGY_ERROR: '{"status":"RESOURCE_EXHAUSTED","message":"rate limit exceeded","retryable":true}' } }), dir);
-    expect(cut.result).toMatchObject({ subtype: 'error_during_execution', exitCode: 3, errorMessage: 'rate limit exceeded', failureClass: 'rate_limit' });
+    // the line the real CLI writes when the account's quota is used up (agy 1.2.14, issue #1018)
+    const quota = 'RESOURCE_EXHAUSTED (code 429): Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 1h1m35s.';
+    const cut = await collect(new AgyCliRunner({ agyBin: bin, env: { EVENTS: JSON.stringify([stream[0]]), EXIT_CODE: '3', AGY_ERROR: JSON.stringify({ short_error: quota, status: 'RESOURCE_EXHAUSTED', error_code: 429, code_kind: 'http', retryable: true }) } }), dir);
+    expect(cut.result).toMatchObject({ subtype: 'error_during_execution', exitCode: 3, errorMessage: quota, failureClass: 'rate_limit' });
     const notJson = [...stream.slice(0, -1), { event: 'result', result: { conversation_id: 'c1', status: 'SUCCESS', response: 'not json', num_turns: 1, usage } }];
     expect((await collect(new AgyCliRunner({ agyBin: bin, env: { EVENTS: JSON.stringify(notJson) } }), dir, { jsonSchema: { type: 'object' } })).result).toMatchObject({ isError: true, errorMessage: 'the Antigravity CLI did not return valid structured JSON' });
   });
