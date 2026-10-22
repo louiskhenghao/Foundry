@@ -346,4 +346,6 @@ The update dialog:
 - **Not now** closes it.
 - If this install cannot update itself, the dialog shows the commands to run instead.
 
+**Open source credits**, at the bottom of the card, opens the projects Foundry is built on and the license notices of everything its Docker image ships. **Download .txt** saves the same notices as one file.
+
 Details for operators: [updates-and-backup.md](../operate/updates-and-backup.md).

@@ -6,7 +6,7 @@ import { PortsPage } from './pages/PortsPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { AgentsPage } from './pages/AgentsPage.tsx';
 import { useAgentsSummary } from './pages/agents/AgentsPill.tsx';
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, type AccessMe, type UpdateStatusView } from './api.ts';
 import { AccountMenu } from './components/AccountMenu.tsx';
@@ -28,6 +28,9 @@ import { ReportsPage } from './pages/ReportsPage.tsx';
 import { UsagePage, UsagePill } from './pages/UsagePage.tsx';
 import { useLive } from './store.ts';
 import { Button, Menu as DropMenu, MenuItem, cn } from './ui.tsx';
+
+// the credits carry ~270 KB of license texts: loaded when the page is opened, not with the app
+const CreditsPage = lazy(() => import('./pages/CreditsPage.tsx').then((m) => ({ default: m.CreditsPage })));
 
 export function App() {
   const connected = useLive((s) => s.connected);
@@ -135,6 +138,14 @@ export function App() {
           <Route path="/schedules" element={<SchedulesPage />} />
           <Route path="/help" element={<HelpPage />} />
           <Route path="/help/:slug" element={<HelpPage />} />
+          <Route
+            path="/credits"
+            element={
+              <Suspense fallback={null}>
+                <CreditsPage />
+              </Suspense>
+            }
+          />
         </Routes>
       </main>
       <FilePreviewHost />
@@ -171,7 +182,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
       localStorage.setItem('foundry.theme', next ? 'light' : 'dark');
     } catch {}
   };
-  const here = ['/settings', '/setup', '/transfer', '/ports', '/learnings', '/schedules', '/reports', '/help'].some((p) => loc.pathname.startsWith(p));
+  const here = ['/settings', '/setup', '/transfer', '/ports', '/learnings', '/schedules', '/reports', '/help', '/credits'].some((p) => loc.pathname.startsWith(p));
   const go = (close: () => void, to: string) => {
     close();
     nav(to);
