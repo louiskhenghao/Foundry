@@ -84,6 +84,8 @@ COPY roles ./roles
 COPY catalog ./catalog
 COPY scripts ./scripts
 COPY CONTEXT.md README.md ./
+# the license notices of everything the image ships (scripts/gen-credits.ts; the Open source credits page shows the same)
+COPY THIRD-PARTY-NOTICES.txt ./
 COPY docs ./docs
 # so a user who only pulled the image can get the compose file: docker run --rm <image> cat /app/docker-compose.yml
 COPY docker-compose.yml ./docker-compose.yml
