@@ -39,6 +39,10 @@ export interface RunSpec {
   addDirs?: string[];
   /** Claude Code plugin directories loaded for this session (`--plugin-dir`): a workflow suite's hook-less copy (ADR-0049) */
   pluginDirs?: string[];
+  /** MCP servers handed to Claude Code for this session (`--mcp-config`), beside the ones it configures itself */
+  mcpConfig?: { mcpServers: Record<string, unknown> };
+  /** the coding agent's config dir for this session (CLAUDE_CONFIG_DIR, CODEX_HOME): an added account's home (ADR-0065); omitted = the runner's own */
+  configHome?: string;
   resumeSessionId?: string;
   /** Claude Code effort level (`--effort`); omitted = the CLI default */
   effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
@@ -165,6 +169,8 @@ export interface RunResult {
   skillsUsed: string[];
   /** tool name → number of calls */
   toolsUsed: Record<string, number>;
+  /** which of the coding agent's accounts ran the session (ADR-0065); set by the engine, never by a runner */
+  accountId?: string;
 }
 
 export interface RunHandle {

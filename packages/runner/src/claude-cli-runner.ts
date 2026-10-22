@@ -71,6 +71,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
     if (spec.strictMcp) a.push('--strict-mcp-config');
     for (const d of spec.addDirs ?? []) a.push('--add-dir', d);
     for (const d of spec.pluginDirs ?? []) a.push('--plugin-dir', d);
+    if (spec.mcpConfig) a.push('--mcp-config', JSON.stringify(spec.mcpConfig));
     if (spec.resumeSessionId) a.push('--resume', spec.resumeSessionId);
     return a;
   }
@@ -127,6 +128,8 @@ export class ClaudeCliRunner implements ClaudeRunner {
     const env = { CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR: '1', ...process.env, ...(typeof this.opts.env === 'function' ? this.opts.env() : (this.opts.env ?? {})), ...(spec.env ?? {}) } as Record<string, string>;
     // Never inherit an API key by accident: the whole point is the host login.
     delete env.ANTHROPIC_API_KEY;
+    // an added account's home (ADR-0065): its own sign-in, the rest linked to the native home
+    if (spec.configHome) env.CLAUDE_CONFIG_DIR = spec.configHome;
 
     try {
       proc = Bun.spawn([this.bin, ...this.buildArgs(spec)], { cwd: spec.cwd, env, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });
@@ -227,7 +230,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
       const subtype = killReason ?? (exitCode === 0 ? 'no_result' : 'error_during_execution');
       // No result line, so the CLI never said what the session cost. Count what the stream and the session's own
       // record say (turns, tokens, models) and leave the dollars unknown: never book a cut session as free.
-      if (sessionId) tally.addAll(readSessionRecord(this.home, sessionId));
+      if (sessionId) tally.addAll(readSessionRecord(spec.configHome ?? this.home, sessionId));
       const measured = tally.messages > 0;
       return {
         ...base(subtype, stderrBuf.trim() || null),

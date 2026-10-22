@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ClaudeCliRunner } from './claude-cli-runner.ts';
@@ -10,6 +10,12 @@ describe('ClaudeCliRunner arguments', () => {
     const args = runner.buildArgs({ prompt: 'x', cwd: '/tmp', pluginDirs: ['/suites/pstack/plugin'] });
     expect(args.slice(args.indexOf('--plugin-dir'), args.indexOf('--plugin-dir') + 2)).toEqual(['--plugin-dir', '/suites/pstack/plugin']);
     expect(runner.buildArgs({ prompt: 'x', cwd: '/tmp' })).not.toContain('--plugin-dir');
+  });
+  test('MCP servers handed to a session come as --mcp-config, beside the CLI\'s own', () => {
+    const runner = new ClaudeCliRunner({ claudeBin: '/bin/true' });
+    const args = runner.buildArgs({ prompt: 'x', cwd: '/tmp', mcpConfig: { mcpServers: { docs: { type: 'http', url: 'https://example.com/mcp' } } } });
+    expect(JSON.parse(args[args.indexOf('--mcp-config') + 1]!)).toEqual({ mcpServers: { docs: { type: 'http', url: 'https://example.com/mcp' } } });
+    expect(runner.buildArgs({ prompt: 'x', cwd: '/tmp' })).not.toContain('--mcp-config');
   });
   test('strictMcp loads no MCP servers; without it the CLI keeps its own', () => {
     const runner = new ClaudeCliRunner({ claudeBin: '/bin/true' });
@@ -45,6 +51,23 @@ async function run(runner: ClaudeCliRunner, cwd: string) {
   for await (const _ of handle.events) void _;
   return handle.result;
 }
+
+describe('a session on an added account', () => {
+  test('runs with the account\'s home as its config dir, whatever the engine\'s own', async () => {
+    const dir = tmp();
+    const capture = join(dir, 'home.txt');
+    const out = join(dir, 'session.jsonl');
+    writeFileSync(out, JSON.stringify(init) + '\n');
+    const bin = join(dir, 'fake-cli');
+    writeFileSync(bin, `#!/bin/sh\nprintf '%s' "$CLAUDE_CONFIG_DIR" > '${capture}'\ncat '${out}'\n`);
+    chmodSync(bin, 0o755);
+    const runner = new ClaudeCliRunner({ claudeBin: bin, claudeHome: join(dir, 'native'), env: { CLAUDE_CONFIG_DIR: join(dir, 'native') } });
+    const handle = await runner.run({ prompt: 'x', cwd: dir, configHome: join(dir, 'acc_1') });
+    for await (const _ of handle.events) void _;
+    await handle.result;
+    expect(readFileSync(capture, 'utf8')).toBe(join(dir, 'acc_1'));
+  });
+});
 
 describe('a session that ends without a result line', () => {
   test('is unmeasured: turns and tokens counted from the stream, cost unknown rather than zero', async () => {
