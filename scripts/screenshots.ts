@@ -151,7 +151,8 @@ try {
   await page.setViewportSize({ width: 1280, height: 860 });
   for (const id of chain) await demo.engine.deleteGoal(id);
   await shot('new-goal', '/goals/new', async () => {
-    await page.getByRole('button', { name: 'Expert', exact: false }).click();
+    // the Expert card, not the section menu's "How much to see" entry that names the view chosen
+    await page.getByRole('button', { name: 'Expert Every control', exact: false }).click();
     await page.locator('textarea').first().fill('Add CSV export to the orders page, with the date range the user is looking at.');
     const source = getGoal(demo.engine.store.db, g.blocked!);
     if (!source) throw new Error('New goal capture needs a seeded repository');
