@@ -26,10 +26,36 @@ export function smokeScripts(engine: Engine, goalId: string): { task: Task; scri
     .map((t) => ({ task: t, script: t.milestoneScript! }));
 }
 
+/** how the smoke first looks at the address (a test stands in for the network) */
+export const addressProbe: { fetch: (url: string, init: RequestInit) => Promise<Response> } = { fetch: (url, init) => fetch(url, init) };
+
+/** each host's login in front of a deploy, and where it is turned off */
+const LOGIN: Record<DeployProvider, string> = {
+  vercel: 'the address asks for a Vercel login: the project’s Deployment Protection is on (Vercel protects previews by default; the project’s Settings → Deployment Protection)',
+  netlify: 'the address asks for a Netlify login: the site lets only its team in (Site configuration → Access & security → Visitor access; a new site takes the team’s default)',
+  cloudflare: 'the address asks for a login: Cloudflare Access protects it (Zero Trust → Access → Applications)',
+};
+
+/**
+ * Whether the address stands behind its host's login (a 401, or a redirect to a login page): the scripts would only see
+ * that page. An address that could not be reached is tried all the same; the scripts say what they find.
+ */
+export async function behindLogin(provider: DeployProvider, url: string): Promise<string | null> {
+  try {
+    const r = await addressProbe.fetch(url, { redirect: 'manual', signal: AbortSignal.timeout(15_000) });
+    void r.body?.cancel().catch(() => {});
+    const to = r.headers.get('location') ?? '';
+    return r.status === 401 || (r.status >= 300 && r.status < 400 && /sso-api|cloudflareaccess\.com|edge-access|\/login\b/.test(to)) ? LOGIN[provider] : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Run every milestone script against the address, in `dir` (a checkout of the deployed commit), and record the smoke on
  * the deployment: `deploy.smoke_started`, then `deploy.smoke_finished` with one result per script. Never throws: a
- * smoke that could not run is a failed one with the reason; a goal without scripts a skipped one.
+ * smoke that could not run is a failed one with the reason (an address behind a login among them); a goal without
+ * scripts a skipped one.
  */
 export async function runSmoke(engine: Engine, goal: Goal, dir: string, target: SmokeTarget, deps: ScriptDeps | undefined = scriptDeps.current): Promise<'pass' | 'fail' | 'skipped'> {
   const { store } = engine;
@@ -37,6 +63,11 @@ export async function runSmoke(engine: Engine, goal: Goal, dir: string, target: 
   if (!scripts.length) {
     store.append({ type: 'deploy.smoke_finished', goalId: goal.id, payload: { ...target, status: 'skipped', detail: 'the goal has no milestone scripts to try against it', scripts: [] } });
     return 'skipped';
+  }
+  const login = await behindLogin(target.provider, target.url);
+  if (login) {
+    store.append({ type: 'deploy.smoke_finished', goalId: goal.id, payload: { ...target, status: 'fail', detail: `not tried: ${login}, so the scripts would only see its login page; Smoke again once visitors can open it`, scripts: [] } });
+    return 'fail';
   }
   store.append({ type: 'deploy.smoke_started', goalId: goal.id, payload: { ...target, scripts: scripts.map((s) => s.script) } });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');

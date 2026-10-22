@@ -585,13 +585,13 @@ export function SettingsPage() {
                 <Field label="Vercel token" aside={aside('delivery.vercelToken')} help="vercel.com → Account Settings → Tokens. Scope it to the team you deploy to.">
                   {secret('delivery.vercelToken', 'vcp_…')}
                 </Field>
-                <Field label="Vercel team" aside={aside('delivery.vercelScope')} help="The team's slug. Empty = the token's own account.">
+                <Field label="Vercel team" aside={aside('delivery.vercelScope')} help="The team's slug: the part after vercel.com/. Empty = the token's own account.">
                   {text('delivery.vercelScope', 'my-team', true)}
                 </Field>
                 <Field label="Netlify token" aside={aside('delivery.netlifyToken')} help="app.netlify.com → User settings → Applications → Personal access tokens.">
                   {secret('delivery.netlifyToken', 'nfp_…')}
                 </Field>
-                <Field label="Netlify team" aside={aside('delivery.netlifyTeam')} help="The team's slug a new site is made in. Empty = your default team.">
+                <Field label="Netlify team" aside={aside('delivery.netlifyTeam')} help="The slug of the team a new site is made in: the part after app.netlify.com/teams/, not the team's name. Empty = your default team.">
                   {text('delivery.netlifyTeam', 'my-team', true)}
                 </Field>
                 <Field label="Cloudflare API token" aside={aside('delivery.cloudflareToken')} help="dash.cloudflare.com → My Profile → API Tokens, with the permission Cloudflare Pages: Edit. Static sites only.">

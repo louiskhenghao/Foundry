@@ -11,6 +11,13 @@ const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of 
 /** a deploy's state as a small plate: blue while it runs, green once live, red when it failed */
 const STATUS: Record<Deployment['status'], string> = { running: 'bg-work/10 text-work-ink ring-work/30', live: 'bg-ok/10 text-ok-ink ring-ok/30', failed: 'bg-bad/10 text-bad-ink ring-bad/40' };
 
+/** the host chosen at first: the one this goal last deployed to, while it is set up and takes the app; else the first that is */
+export function defaultHost(providers: DeployInfo['providers'], deployments: Deployment[]): DeployHost | null {
+  const usable = providers.filter((p) => p.configured && !p.refused);
+  const last = deployments.at(-1)?.provider;
+  return (usable.find((p) => p.id === last) ?? usable[0])?.id ?? null;
+}
+
 /**
  * Deploy (ADR-0041): a finished goal's web app to Vercel, Netlify or Cloudflare Pages on the person's click — what is
  * deployed (or why nothing is), the hosts set up, the exact commands before anything runs, and the deploys so far, each
@@ -37,10 +44,9 @@ export function DeployCard({ d }: { d: GoalDetail }) {
       .then((i) => {
         if (!alive) return;
         setInfo(i);
-        // the first host that is set up and takes this app
         if (!provider) {
-          const first = i.providers.find((p) => p.configured && !p.refused);
-          if (first) setProvider(first.id);
+          const pick = defaultHost(i.providers, deployments);
+          if (pick) setProvider(pick);
         }
       })
       .catch((e) => alive && setErr(e.message));
