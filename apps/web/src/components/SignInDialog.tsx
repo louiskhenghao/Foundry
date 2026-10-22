@@ -58,68 +58,68 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
   // portalled to <body>: the header's backdrop blur would otherwise pin this fixed overlay to the 48px header, cutting the dialog off
   return createPortal(
     <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="sign-in-title" className="w-full max-w-lg overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" aria-labelledby="sign-in-title" className="w-full max-w-lg overflow-hidden rounded-xl border border-line bg-panel shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <header className="flex items-center gap-3 px-5 pt-5 pb-4">
           {provider && <ProviderMark provider={provider} />}
           <div className="min-w-0 grow">
-            <h2 id="sign-in-title" className="text-base font-semibold text-zinc-100">{add ? `Add a ${name} account` : `Sign in to ${name}`}</h2>
-            <p className="text-xs text-zinc-500">{codex ? 'Sign in with ChatGPT' : 'Your Claude subscription (Pro or Max)'}</p>
+            <h2 id="sign-in-title" className="text-lg font-extrabold leading-tight tracking-tight text-ink">{add ? `Add a ${name} account` : `Sign in to ${name}`}</h2>
+            <p className="text-xs text-ink-faint">{codex ? 'Sign in with ChatGPT' : 'Your Claude subscription (Pro or Max)'}</p>
           </div>
           <Button size="sm" variant="ghost" onClick={onClose} aria-label="close">
             <X size={14} />
           </Button>
         </header>
 
-        <ol className="flex flex-wrap items-center gap-x-2 gap-y-1 px-5 pb-4 text-xs" aria-label="Sign-in steps">
+        {/* the steps as the Tasks list draws a task's: leaning chips, done ones filled, the current one outlined in ink */}
+        <ol className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-5 pb-4" aria-label="Sign-in steps">
           {steps.map((label, i) => {
             const done = i < step || (i === 2 && !!session?.ok);
             const now = i === step && !done;
+            const look = done ? { plate: 'bg-ink/12', text: 'text-ink' } : now ? (failed ? { plate: 'bg-bad/15 inset-ring inset-ring-bad', text: 'text-bad-ink' } : { plate: 'inset-ring-[1.5px] inset-ring-ink', text: 'text-ink' }) : { plate: 'inset-ring inset-ring-line-strong', text: 'text-ink-faint' };
             return (
-              <li key={label} className="flex items-center gap-2" aria-current={now ? 'step' : undefined}>
-                <span className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-full border text-[10px] font-semibold tabular-nums', done ? 'border-emerald-500/50 bg-emerald-500/15 text-emerald-300' : now ? (failed ? 'border-rose-500/50 bg-rose-500/10 text-rose-300' : 'border-zinc-400 text-zinc-100') : 'border-zinc-800 text-zinc-600')}>
-                  {done ? <Check size={11} aria-hidden="true" /> : i + 1}
-                </span>
-                <span className={now ? 'text-zinc-100' : done ? 'text-zinc-400' : 'text-zinc-600'}>{label}</span>
-                {i < steps.length - 1 && <span aria-hidden="true" className="h-px w-4 bg-zinc-800 sm:w-6" />}
+              <li key={label} className={cn('relative isolate inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1 text-xs font-bold', look.text)} aria-current={now ? 'step' : undefined}>
+                <i className={cn('absolute inset-0 -z-10 rounded-[3px] slant', look.plate)} aria-hidden="true" />
+                {done ? <Check size={12} strokeWidth={2.5} aria-hidden="true" /> : <span className="mono">{i + 1}</span>}
+                {label}
               </li>
             );
           })}
         </ol>
 
-        <div className="space-y-4 border-t border-zinc-800 px-5 py-4">
+        <div className="space-y-4 border-t border-line px-5 py-4">
           {!session ? (
             <>
-              {add && <p className="text-xs text-zinc-400">Sign in with another {codex ? 'ChatGPT' : 'Claude'} subscription of yours. Foundry gives it a folder of its own: only its sign-in is separate, and skills, plugins, settings and session history are shared with this computer's sign-in. Signing in as someone already added changes nothing.</p>}
+              {add && <p className="text-xs text-ink-soft">Sign in with another {codex ? 'ChatGPT' : 'Claude'} subscription of yours. Foundry gives it a folder of its own: only its sign-in is separate, and skills, plugins, settings and session history are shared with this computer's sign-in. Signing in as someone already added changes nothing.</p>}
               {codex
-                ? <p className="text-xs text-zinc-400">Sign in with ChatGPT: Foundry asks OpenAI for a one-time code, you enter it on OpenAI's device page and approve, and this window updates by itself. Nothing has to open on the computer running Foundry. Codex stores your credentials.</p>
+                ? <p className="text-xs text-ink-soft">Sign in with ChatGPT: Foundry asks OpenAI for a one-time code, you enter it on OpenAI's device page and approve, and this window updates by itself. Nothing has to open on the computer running Foundry. Codex stores your credentials.</p>
                 : <>
-                    <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential. Foundry does not use Anthropic Console API billing.</p>
+                    <p className="text-xs text-ink-soft">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential. Foundry does not use Anthropic Console API billing.</p>
                     <Input placeholder="email (optional, pre-fills the login page)" value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && provider && start()} />
                   </>}
             </>
           ) : session.done ? (
-            <div className={cn('flex items-start gap-3 rounded-lg border p-3 text-sm', session.ok ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-200' : 'border-rose-500/40 bg-rose-500/5 text-rose-200')}>
-              {session.ok ? <CheckCircle2 size={18} aria-hidden="true" className="mt-px shrink-0 text-emerald-400" /> : <AlertTriangle size={18} aria-hidden="true" className="mt-px shrink-0 text-rose-400" />}
+            <div className={cn('flex items-start gap-3 rounded-lg border p-3 text-sm', session.ok ? 'border-ok/40 bg-ok/5 text-ok-ink' : 'border-bad/40 bg-bad/5 text-bad-ink')}>
+              {session.ok ? <CheckCircle2 size={18} aria-hidden="true" className="mt-px shrink-0" /> : <AlertTriangle size={18} aria-hidden="true" className="mt-px shrink-0" />}
               <span>{session.ok ? (add ? 'Signed in. The account is added.' : 'Signed in.') : (session.error ?? 'Sign-in failed')}</span>
             </div>
           ) : codex ? (
             <div className="space-y-3">
               {session.deviceCode ? (
                 <>
-                  <p className="text-xs text-zinc-400">Enter this one-time code on the page below (it expires in 15 minutes):</p>
-                  <div className="flex items-center justify-between gap-3 rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-3">
-                    <span className="mono text-2xl tracking-[0.2em] text-zinc-50">{session.deviceCode}</span>
+                  <p className="text-xs text-ink-soft">Enter this one-time code on the page below (it expires in 15 minutes):</p>
+                  <div className="flex items-center justify-between gap-3 rounded-lg border border-line-strong bg-inset px-4 py-3">
+                    <span className="mono text-2xl font-bold tracking-[0.2em] text-ink">{session.deviceCode}</span>
                     <CopyButton text={session.deviceCode} />
                   </div>
-                  <p className="flex items-center gap-2 text-xs text-zinc-400"><Loader2 size={13} aria-hidden="true" className="animate-spin" />Waiting for you to enter the code and approve…</p>
+                  <p className="flex items-center gap-2 text-xs text-ink-soft"><Loader2 size={13} aria-hidden="true" className="animate-spin" />Waiting for you to enter the code and approve…</p>
                 </>
               ) : (
-                <p className="flex items-center gap-2 text-sm text-zinc-300"><Loader2 size={14} aria-hidden="true" className="animate-spin" />Asking OpenAI for a code…</p>
+                <p className="flex items-center gap-2 text-sm text-ink-soft"><Loader2 size={14} aria-hidden="true" className="animate-spin" />Asking OpenAI for a code…</p>
               )}
             </div>
           ) : session.needsCode ? (
             <div className="space-y-2">
-              <p className="text-sm text-zinc-200">Open the link below, sign in, then paste the code Claude shows you.</p>
+              <p className="text-sm text-ink">Open the link below, sign in, then paste the code Claude shows you.</p>
               <div className="flex gap-2">
                 <Input
                   autoFocus={focusFirst}
@@ -135,29 +135,29 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
               </div>
             </div>
           ) : (
-            <p className="flex items-center gap-2 text-sm text-zinc-300"><Loader2 size={14} aria-hidden="true" className="animate-spin" />Waiting for you to finish in the browser…</p>
+            <p className="flex items-center gap-2 text-sm text-ink-soft"><Loader2 size={14} aria-hidden="true" className="animate-spin" />Waiting for you to finish in the browser…</p>
           )}
 
           {session?.url && !session.done && (
-            <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs">
-              <span className="shrink-0 text-zinc-500">{codex ? 'Open this page, sign in to ChatGPT and enter the code:' : 'If the browser did not open, use this link:'}</span>
-              <a className="flex min-w-0 items-center gap-1 truncate text-sky-300 underline underline-offset-2" href={session.url} target="_blank" rel="noreferrer">
+            <div className="flex items-center gap-2 rounded-lg border border-line bg-inset px-3 py-2 text-xs">
+              <span className="shrink-0 text-ink-faint">{codex ? 'Open this page, sign in to ChatGPT and enter the code:' : 'If the browser did not open, use this link:'}</span>
+              <a className="flex min-w-0 items-center gap-1 truncate font-semibold text-work-ink underline underline-offset-2" href={session.url} target="_blank" rel="noreferrer">
                 <ExternalLink size={12} aria-hidden="true" className="shrink-0" />
                 <span className="truncate">{session.url}</span>
               </a>
               <CopyButton text={session.url} />
             </div>
           )}
-          {err && <p role="alert" className="text-xs text-rose-400">{err}</p>}
+          {err && <p role="alert" className="text-xs text-bad-ink">{err}</p>}
           {session && session.lines.length > 0 && (
             <details className="text-xs">
-              <summary className="cursor-pointer text-zinc-500 hover:text-zinc-300">What the sign-in printed</summary>
-              <pre className="mono mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded border border-zinc-800 bg-zinc-900 p-2 text-[11px] text-zinc-500">{session.lines.slice(-12).join('\n')}</pre>
+              <summary className="cursor-pointer text-ink-faint hover:text-ink">What the sign-in printed</summary>
+              <pre className="mono mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-line bg-inset p-2 text-[11px] text-ink-faint">{session.lines.slice(-12).join('\n')}</pre>
             </details>
           )}
         </div>
 
-        <footer className="flex justify-end gap-2 border-t border-zinc-800 bg-zinc-900/40 px-5 py-3">
+        <footer className="flex justify-end gap-2 border-t border-line bg-inset px-5 py-3">
           {!session && (
             <>
               <Button size="sm" variant="ghost" onClick={onClose}>Cancel</Button>

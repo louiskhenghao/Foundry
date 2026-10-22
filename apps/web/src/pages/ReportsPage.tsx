@@ -1,11 +1,11 @@
 import type { Report, ReportEstimate, ReportFactor } from '@foundry/engine/usage-types';
-import { BarChart3 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.ts';
 import { useLive } from '../store.ts';
-import { ButtonGroup, Card, Empty, Page, cn, fmtUsd } from '../ui.tsx';
+import { BOARD_HEAD, ButtonGroup, Card, Empty, PageHeader, cn, fmtUsd } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
+import { Kpi } from './UsagePage.tsx';
 
 type Window = '30' | '90' | '365' | 'all';
 const WINDOWS: { id: Window; label: string; title: string }[] = [
@@ -66,19 +66,20 @@ export function ReportsPage() {
     };
   }, [win, version]);
   return (
-    <Page>
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-lg font-semibold flex items-center gap-2">
-          <BarChart3 size={18} /> Reports <HelpLink to="costs-and-usage" />
-        </h1>
-        <ButtonGroup label="Window" value={win} onChange={setWin} options={WINDOWS} />
-        <Link to="/usage" className="text-xs underline text-zinc-400 sm:ml-auto">
-          The last 7 days and the account limits: Usage
-        </Link>
-      </div>
-      {err && <div className="text-sm text-rose-300">{err}</div>}
-      {report ? <ReportView report={report} /> : !err && <div className="text-sm text-zinc-500">Reading the records…</div>}
-    </Page>
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16 space-y-4">
+      <PageHeader
+        title="Reports"
+        help={<HelpLink to="costs-and-usage" />}
+        summary={
+          <Link to="/usage" className="underline underline-offset-2 hover:text-ink">
+            The last 7 days and the account limits: Usage
+          </Link>
+        }
+        actions={<ButtonGroup label="Window" value={win} onChange={setWin} options={WINDOWS} />}
+      />
+      {err && <div className="text-sm text-bad-ink">{err}</div>}
+      {report ? <ReportView report={report} /> : !err && <div className="text-sm text-ink-faint">Reading the records…</div>}
+    </div>
   );
 }
 
@@ -102,119 +103,117 @@ export function ReportView({ report: r }: { report: Report }) {
         <Kpi label="estimate error" value={factors(t.estimate)} hint={`actual ÷ the Brief's estimate, the median over ${t.estimate.samples} goal${t.estimate.samples === 1 ? '' : 's'} with one: cost / time`} />
       </div>
 
+      {/* spend in ink like everything the agents do; green only where a goal finished */}
       <Card title={`Spend over time · by ${r.step}`}>
         {r.series.length ? (
           <div>
-            <div className="flex items-end gap-px h-28" role="img" aria-label="spend per bucket">
+            <div className="flex items-end gap-px h-28 border-b border-line" role="img" aria-label="spend per bucket">
               {r.series.map((b) => {
                 const v = byCost ? b.costUsd / maxCost : maxSessions ? b.sessions / maxSessions : 0;
                 return (
-                  <div key={b.t} className="flex-1 min-w-0 flex flex-col justify-end h-full" title={`${b.label}: ${fmtUsd(b.costUsd)} · ${b.sessions} session${b.sessions === 1 ? '' : 's'} · ${b.finished} finished`}>
-                    <div className={cn('rounded-t', b.finished ? 'bg-emerald-500/70' : 'bg-sky-500/60')} style={{ height: `${Math.max(v * 100, b.sessions ? 3 : 0)}%` }} />
+                  <div key={b.t} className="group flex-1 min-w-0 flex flex-col justify-end h-full" title={`${b.label}: ${fmtUsd(b.costUsd)} · ${b.sessions} session${b.sessions === 1 ? '' : 's'} · ${b.finished} finished`}>
+                    <div className={cn('rounded-t-xs transition-opacity group-hover:opacity-70', b.finished ? 'bg-ok' : 'bg-ink')} style={{ height: `${Math.max(v * 100, b.sessions ? 3 : 0)}%` }} />
                   </div>
                 );
               })}
             </div>
-            <div className="flex gap-px text-[10px] text-zinc-500 mt-1">
+            <div className="flex gap-px text-[10px] text-ink-faint mt-1.5">
               {r.series.map((b, i) => (
                 <div key={b.t} className="flex-1 min-w-0 whitespace-nowrap overflow-visible">
                   {i % every === 0 ? b.label : ''}
                 </div>
               ))}
             </div>
-            <div className="text-[11px] text-zinc-500 mt-1">{byCost ? 'Bars are Claude Code dollars' : 'No dollars in the window, so bars are sessions'}; a green bar had a goal finish in it. Hover a bar for its numbers.</div>
+            <div className="text-xs text-ink-faint mt-2">{byCost ? 'Bars are Claude Code dollars' : 'No dollars in the window, so bars are sessions'}; a green bar had a goal finish in it. Hover a bar for its numbers.</div>
           </div>
         ) : (
           <Empty>No sessions in the window.</Empty>
         )}
       </Card>
 
-      <Card title="By project" bodyClassName="p-0">
-        <table className="w-full text-xs">
-          <thead className="text-[10px] uppercase text-zinc-500">
-            <tr>
-              <th className="text-left px-4 py-2">project</th>
-              <th className="text-right px-2 py-2" title="finished / started in the window">goals</th>
-              <th className="text-right px-2 py-2">spend</th>
-              <th className="text-right px-2 py-2" title="the average cost of a finished Claude Code goal">per goal</th>
-              <th className="text-right px-2 py-2" title="Foundry's working time, waits for you left out">hours</th>
-              <th className="text-right px-2 py-2" title="attempted tasks that needed more than one attempt">retries</th>
-              <th className="text-right px-4 py-2" title="actual ÷ the Brief's estimate: cost / time">estimate</th>
-            </tr>
-          </thead>
-          <tbody>
-            {r.repos.map((p) => (
-              <tr key={p.repoPath} className="border-t border-zinc-800">
-                <td className="px-4 py-1.5">
-                  <span className="mono text-zinc-200" title={p.repoPath}>{p.name}</span>
-                </td>
-                <td className="text-right px-2 py-1.5 mono text-zinc-300 whitespace-nowrap" title={`${p.goals.failed} failed · ${p.goals.cancelled} cancelled · ${p.goals.open} still open`}>
-                  {p.goals.finished} / {p.goals.total}
-                  {p.goals.failed ? <span className="text-rose-300"> · {p.goals.failed} failed</span> : null}
-                </td>
-                <td className="text-right px-2 py-1.5 mono text-zinc-200" title={partial(p) || undefined}>{fmtUsd(p.costUsd)}{partial(p) ? '*' : ''}</td>
-                <td className="text-right px-2 py-1.5 mono text-zinc-400">{p.costPerFinishedGoal == null ? '—' : fmtUsd(p.costPerFinishedGoal)}</td>
-                <td className="text-right px-2 py-1.5 mono text-zinc-400 whitespace-nowrap">{fmtMin(p.activeMin)}</td>
-                <td className="text-right px-2 py-1.5 mono text-zinc-400" title={`${p.retries.retried} of ${p.retries.tasks} attempted tasks · ${p.retries.fixTasks} fix task${p.retries.fixTasks === 1 ? '' : 's'}`}>{pct(p.retries.rate)}</td>
-                <td className="text-right px-4 py-1.5 mono text-zinc-400 whitespace-nowrap" title={`${p.estimate.samples} goal${p.estimate.samples === 1 ? '' : 's'} with an estimate`}>{factors(p.estimate)}</td>
-              </tr>
-            ))}
-            {t.noGoal.sessions > 0 && (
-              <tr className="border-t border-zinc-800 text-zinc-500">
-                <td className="px-4 py-1.5">no goal (probes, setup, goals since deleted)</td>
-                <td className="text-right px-2 py-1.5">—</td>
-                <td className="text-right px-2 py-1.5 mono">{fmtUsd(t.noGoal.costUsd)}</td>
-                <td colSpan={4} className="text-right px-4 py-1.5">{t.noGoal.sessions} session{t.noGoal.sessions === 1 ? '' : 's'}</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        {r.repos.some((p) => partial(p)) && <div className="px-4 py-2 text-[11px] text-zinc-500">* a spend that leaves sessions out: Codex or Antigravity sessions, or Claude Code sessions with unknown cost (hover for which).</div>}
+      <Card title="By project">
+        {/* edge to edge (the card's padding taken back); a phone scrolls the table sideways inside the card */}
+        <div className="-m-4">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className={BOARD_HEAD}>
+                  <th className="text-left font-extrabold px-4 py-2.5">project</th>
+                  <th className="text-right font-extrabold px-2 py-2.5" title="finished / started in the window">goals</th>
+                  <th className="text-right font-extrabold px-2 py-2.5">spend</th>
+                  <th className="text-right font-extrabold px-2 py-2.5" title="the average cost of a finished Claude Code goal">per goal</th>
+                  <th className="text-right font-extrabold px-2 py-2.5" title="Foundry's working time, waits for you left out">hours</th>
+                  <th className="text-right font-extrabold px-2 py-2.5" title="attempted tasks that needed more than one attempt">retries</th>
+                  <th className="text-right font-extrabold px-4 py-2.5" title="actual ÷ the Brief's estimate: cost / time">estimate</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {r.repos.map((p) => (
+                  <tr key={p.repoPath} className="transition-colors hover:bg-inset">
+                    <td className="px-4 py-2.5">
+                      <span className="mono font-bold text-ink" title={p.repoPath}>{p.name}</span>
+                    </td>
+                    <td className="text-right px-2 py-2.5 mono text-ink whitespace-nowrap" title={`${p.goals.failed} failed · ${p.goals.cancelled} cancelled · ${p.goals.open} still open`}>
+                      {p.goals.finished} / {p.goals.total}
+                      {p.goals.failed ? <span className="text-bad-ink"> · {p.goals.failed} failed</span> : null}
+                    </td>
+                    <td className="text-right px-2 py-2.5 mono font-semibold text-ink" title={partial(p) || undefined}>{fmtUsd(p.costUsd)}{partial(p) ? '*' : ''}</td>
+                    <td className="text-right px-2 py-2.5 mono text-ink-soft">{p.costPerFinishedGoal == null ? '—' : fmtUsd(p.costPerFinishedGoal)}</td>
+                    <td className="text-right px-2 py-2.5 mono text-ink-soft whitespace-nowrap">{fmtMin(p.activeMin)}</td>
+                    <td className="text-right px-2 py-2.5 mono text-ink-soft" title={`${p.retries.retried} of ${p.retries.tasks} attempted tasks · ${p.retries.fixTasks} fix task${p.retries.fixTasks === 1 ? '' : 's'}`}>{pct(p.retries.rate)}</td>
+                    <td className="text-right px-4 py-2.5 mono text-ink-soft whitespace-nowrap" title={`${p.estimate.samples} goal${p.estimate.samples === 1 ? '' : 's'} with an estimate`}>{factors(p.estimate)}</td>
+                  </tr>
+                ))}
+                {t.noGoal.sessions > 0 && (
+                  <tr className="text-ink-faint">
+                    <td className="px-4 py-2.5">no goal (probes, setup, goals since deleted)</td>
+                    <td className="text-right px-2 py-2.5">—</td>
+                    <td className="text-right px-2 py-2.5 mono">{fmtUsd(t.noGoal.costUsd)}</td>
+                    <td colSpan={4} className="text-right px-4 py-2.5">{t.noGoal.sessions} session{t.noGoal.sessions === 1 ? '' : 's'}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {r.repos.some((p) => partial(p)) && <div className="border-t border-line px-4 py-2.5 text-xs text-ink-faint">* a spend that leaves sessions out: Codex or Antigravity sessions, or Claude Code sessions with unknown cost (hover for which).</div>}
+        </div>
       </Card>
 
+      {/* two bars per kind, both in ink: the dollars solid on top, the time paler under them */}
       <Card title="Where the budget goes">
-        <ul className="space-y-1.5 text-xs">
+        <ul className="space-y-3 text-[13px]">
           {r.kinds.map((k) => (
-            <li key={k.kind} className="grid grid-cols-[9rem_1fr_auto] sm:grid-cols-[11rem_1fr_auto] items-center gap-2">
-              <span className="text-zinc-300 truncate" title={k.kind}>{kindLabel(k.kind)}</span>
-              <span className="flex flex-col gap-0.5">
-                <span className="block h-1.5 rounded bg-emerald-500/60" style={{ width: `${Math.round((k.costShare ?? 0) * 100)}%` }} title={`${pct(k.costShare)} of the dollars`} />
-                <span className="block h-1.5 rounded bg-sky-500/60" style={{ width: `${Math.round(k.timeShare * 100)}%` }} title={`${pct(k.timeShare)} of the time`} />
+            <li key={k.kind} className="grid grid-cols-[minmax(0,8rem)_1fr] sm:grid-cols-[11rem_1fr_auto] items-center gap-x-3 gap-y-1">
+              <span className="font-semibold text-ink truncate" title={k.kind}>{kindLabel(k.kind)}</span>
+              <span className="flex flex-col gap-1">
+                <span className="block h-1.5 rounded-xs bg-ink" style={{ width: `${Math.round((k.costShare ?? 0) * 100)}%` }} title={`${pct(k.costShare)} of the dollars`} />
+                <span className="block h-1.5 rounded-xs bg-ink/35" style={{ width: `${Math.round(k.timeShare * 100)}%` }} title={`${pct(k.timeShare)} of the time`} />
               </span>
-              <span className="mono text-zinc-400 whitespace-nowrap text-[11px]">{fmtUsd(k.costUsd)} · {pct(k.costShare)} of $ · {pct(k.timeShare)} of time · {k.sessions}×</span>
+              <span className="col-span-2 sm:col-span-1 mono text-ink-soft sm:whitespace-nowrap text-xs">{fmtUsd(k.costUsd)} · {pct(k.costShare)} of $ · {pct(k.timeShare)} of time · {k.sessions}×</span>
             </li>
           ))}
         </ul>
-        <div className="text-[11px] text-zinc-500 mt-2">Green: the share of the Claude Code dollars. Blue: the share of the session time, which both coding agents report.</div>
+        <div className="text-xs text-ink-faint mt-3">Top bar: the share of the Claude Code dollars. Bottom bar: the share of the session time, which both coding agents report.</div>
       </Card>
 
       <Card title="Estimate misses">
         {r.misses.length ? (
-          <ul className="space-y-1 text-xs">
+          <ul className="-my-1 divide-y divide-line text-[13px]">
             {r.misses.map((m) => (
-              <li key={m.goalId} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                <Link to={`/goals/${m.goalId}`} className="underline text-zinc-200 truncate max-w-[24rem]">{m.title}</Link>
-                <span className="mono text-zinc-500">{m.repo}</span>
-                <span className="mono text-zinc-400">cost {fmtUsd(m.estimateUsd)} → {m.actualUsd == null ? '—' : fmtUsd(m.actualUsd)}{m.costFactor != null ? ` (×${m.costFactor})` : ''}</span>
-                <span className="mono text-zinc-400">time {m.estimateMin} min → {m.actualMin == null ? '—' : `${Math.round(m.actualMin)} min`}{m.timeFactor != null ? ` (×${m.timeFactor})` : ''}</span>
+              <li key={m.goalId} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 py-2">
+                <Link to={`/goals/${m.goalId}`} className="font-semibold text-ink underline underline-offset-2 truncate max-w-[24rem]">{m.title}</Link>
+                <span className="mono text-xs text-ink-faint">{m.repo}</span>
+                <span className="mono text-xs text-ink-soft">cost {fmtUsd(m.estimateUsd)} → {m.actualUsd == null ? '—' : fmtUsd(m.actualUsd)}{m.costFactor != null ? ` (×${m.costFactor})` : ''}</span>
+                <span className="mono text-xs text-ink-soft">time {m.estimateMin} min → {m.actualMin == null ? '—' : `${Math.round(m.actualMin)} min`}{m.timeFactor != null ? ` (×${m.timeFactor})` : ''}</span>
               </li>
             ))}
           </ul>
         ) : (
           <Empty>No finished goal with an estimate in the window.</Empty>
         )}
-        <div className="text-[11px] text-zinc-500 mt-2">Furthest from the Brief's estimate first, too much or too little. The medians above are what calibration corrects new estimates with.</div>
+        <div className="text-xs text-ink-faint mt-3">Furthest from the Brief's estimate first, too much or too little. The medians above are what calibration corrects new estimates with.</div>
       </Card>
-      <p className="text-xs text-zinc-500">{r.note}</p>
-    </div>
-  );
-}
-
-function Kpi({ label, value, hint, bad }: { label: string; value: string; hint?: string; bad?: boolean }) {
-  return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2" title={hint}>
-      <div className="text-[10px] uppercase text-zinc-500">{label}</div>
-      <div className={cn('mono text-lg', bad ? 'text-rose-300' : 'text-zinc-100')}>{value}</div>
+      <p className="text-xs text-ink-faint">{r.note}</p>
     </div>
   );
 }

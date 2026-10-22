@@ -17,5 +17,6 @@ export function AccountMenu() {
     };
   }, [version]);
   const on = (Object.entries(current) as [AgentProvider, string | null][]).filter(([, who]) => who).map(([p, who]) => `${PROVIDER_NAME[p]}: ${who}`);
-  return <Link to="/accounts" aria-label="Agent accounts" title={on.length ? `Coding agent accounts — new sessions run on ${on.join(', ')}` : 'Coding agent accounts'} className="flex h-8 sm:h-7 items-center gap-1.5 rounded-md border border-zinc-700 px-2 text-xs text-zinc-300 hover:bg-zinc-900"><UserCircle2 size={14} /><span className="hidden sm:inline">Accounts</span></Link>;
+  // in the top bar's own colours, as the Inbox beside it
+  return <Link to="/accounts" aria-label="Agent accounts" title={on.length ? `Coding agent accounts — new sessions run on ${on.join(', ')}` : 'Coding agent accounts'} className="flex h-8 sm:h-7 items-center gap-1.5 rounded-md border border-band-line px-2 text-xs font-semibold text-band-ink-soft hover:text-band-ink hover:bg-band-hover"><UserCircle2 size={14} /><span className="hidden sm:inline">Accounts</span></Link>;
 }

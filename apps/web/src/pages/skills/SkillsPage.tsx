@@ -1,11 +1,11 @@
 import type { EngineEvent } from '@foundry/core/browser';
 import { PROVIDER_LABEL } from '@foundry/core/browser';
 import type { InstalledSkill, SkillScope, SkillSourceRow, SkillTier, SkillUsage, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
-import { RefreshCw, Search, Trash2 } from 'lucide-react';
+import { Blocks, FolderGit2, PackageCheck, Plug, RefreshCw, Search, SquareTerminal, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { Button, ConfirmDialog, Empty, Input, Modal, ago, cn, useAffix } from '../../ui.tsx';
+import { Board, Button, ConfirmDialog, Empty, Input, Modal, ago, chipClass, cn, useAffix } from '../../ui.tsx';
 import { OpsDock } from './OpsDock.tsx';
 import { startOp, useRunningOp, useSkillOps } from './ops.ts';
 import { SessionLine, SidePanelTabs } from './SidePanels.tsx';
@@ -23,6 +23,8 @@ const MANAGER_HEADING: Record<(typeof MANAGER_ORDER)[number], string> = {
   hand: 'Hand-installed',
   project: 'Project skills',
 };
+/** each kind of source's mark beside its board's name */
+const MANAGER_ICON: Record<(typeof MANAGER_ORDER)[number], LucideIcon> = { foundry: PackageCheck, plugin: Plug, 'agents-cli': SquareTerminal, hand: Wrench, project: FolderGit2 };
 
 /** The rows the list shows: the scope buttons, the search, `needs attention` and `unused only` all apply. */
 export function rowFilter({ scope, q, onlyOutdated, onlyUnused, usage }: { scope: SkillScope | 'all'; q: string; onlyOutdated: boolean; onlyUnused: boolean; usage: Map<string, SkillUsage | null> }) {
@@ -200,90 +202,94 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
   const opLink = (key: string): ReactNode => {
     const t = runningOp(key);
     return t ? (
-      <button type="button" className="inline-flex items-center gap-1 text-[11px] text-sky-300 hover:text-sky-200 underline decoration-dotted" onClick={() => showOp(t.id)} title={`${t.label} — show its log`}>
-        <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" /> running…
+      <button type="button" className="inline-flex items-center gap-1 text-[11px] font-semibold text-work-ink underline decoration-dotted hover:decoration-solid" onClick={() => showOp(t.id)} title={`${t.label} — show its log`}>
+        <span className="h-1.5 w-1.5 rounded-full bg-work animate-pulse" /> running…
       </button>
     ) : null;
   };
 
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-lg font-semibold">Skills</h1>
-        <span className="text-xs text-zinc-500">
-          {total} installed · <span className={cn(updates ? 'text-amber-300' : 'text-zinc-400')}>{updates} source{updates === 1 ? '' : 's'} with updates</span> ({outdatedSkills} skills)
+      {/* the tab's own head, in the capitals of a section; what needs your attention (updates, stale copies) in yellow */}
+      <div className="flex items-center gap-x-3 gap-y-2 flex-wrap">
+        <h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+          <Blocks size={14} aria-hidden="true" />
+          Skills
+        </h2>
+        <span className="text-[13px] font-semibold text-ink-faint">
+          {total} installed · <span className={cn(updates ? 'text-you-ink' : 'text-ink-soft')}>{updates} source{updates === 1 ? '' : 's'} with updates</span> ({outdatedSkills} skills)
           {report.shadowed.length > 0 && (
             <>
               {' '}
-              · <span className="text-amber-300">{report.shadowed.length} stale copies shadow plugin skills</span>
+              · <span className="text-you-ink">{report.shadowed.length} stale copies shadow plugin skills</span>
             </>
           )}
         </span>
         <div className="ml-auto flex items-center gap-2">
-          <span className="text-[11px] text-zinc-500">{report.refreshing ? 'checking upstream…' : `checked ${ago(report.checkedAt)}${report.stale ? ' (stale)' : ''}`}</span>
+          <span className="text-xs text-ink-faint">{report.refreshing ? 'checking upstream…' : `checked ${ago(report.checkedAt)}${report.stale ? ' (stale)' : ''}`}</span>
           <Button size="sm" disabled={pending.has('refresh') || report.refreshing} onClick={checkUpdates}>
             <RefreshCw size={13} className={cn(report.refreshing && 'animate-spin')} /> Check for updates
           </Button>
         </div>
       </div>
-      <p className="text-xs text-zinc-500 -mt-2">
+      <p className="text-[13px] leading-relaxed text-ink-faint max-w-[80ch] -mt-1">
         {provider === 'agy' ? "Antigravity reads skills only from a goal's workspace: Foundry installs them in the shared ~/.agents/skills folder (Codex and the skills CLI read it too) and links the installed ones into each goal's workspace. Plugins and their servers are not available for Antigravity. Uninstall never deletes — copies go to the Trash tab." : provider === 'codex' ? 'Codex skills are grouped by their native source. Foundry manages supported standalone installs and updates; manage native Codex plugins in the Plugins tab. Skills in the shared ~/.agents/skills folder can be uninstalled here (to the trash), except one Claude Code reaches through a link: remove that one on the Claude Code side.' : "Grouped by where each skill comes from. Updates run the source's own tool (npx skills, claude plugin) or Foundry's installer; every run is recorded in History. Uninstall never deletes — copies go to the Trash tab."}
       </p>
       <div className="-mt-1">
         {provider !== 'claude' ? (
-          <p className="text-[11px] text-zinc-500">Skill invocation telemetry is unavailable for {backend}. Installed or listed skills do not prove a session used them; review the work and tests.</p>
+          <p className="text-xs text-ink-faint">Skill invocation telemetry is unavailable for {backend}. Installed or listed skills do not prove a session used them; review the work and tests.</p>
         ) : (
           <>
             <SessionLine view={overview.lastSession} />
-            {note && <p className="text-[11px] text-zinc-500">{note}</p>}
+            {note && <p className="text-xs text-ink-faint">{note}</p>}
           </>
         )}
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
         {(['all', 'user', 'plugin', 'project'] as const).map((s) => (
-          <button key={s} onClick={() => setScope(s)} className={cn('rounded-md border px-2 py-1 text-xs', scope === s ? 'border-emerald-500 text-emerald-300' : 'border-zinc-800 text-zinc-400')}>
-            {s} <span className="text-zinc-600">{counts[s]}</span>
+          <button key={s} onClick={() => setScope(s)} className={chipClass(scope === s)}>
+            {s} <span className={cn('mono', scope === s ? 'opacity-70' : 'text-ink-faint')}>{counts[s]}</span>
           </button>
         ))}
-        <label className="flex items-center gap-1 text-xs text-zinc-400">
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft">
           <input type="checkbox" checked={onlyOutdated} onChange={(e) => setOnlyOutdated(e.target.checked)} /> needs attention
         </label>
         {provider === 'claude' && (
-          <label className="flex items-center gap-1 text-xs text-zinc-400">
+          <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft">
             <input type="checkbox" checked={onlyUnused} onChange={(e) => setOnlyUnused(e.target.checked)} /> unused only
           </label>
         )}
         <div className="relative flex-1 min-w-[160px] max-w-xs">
-          <Search size={13} className="absolute left-2 top-2 text-zinc-500" />
+          <Search size={13} className="absolute left-2 top-2 text-ink-faint" />
           <Input className="pl-7 py-1 text-xs" placeholder="search" value={q} onChange={(e) => setQ(e.target.value)} />
         </div>
-        <button className="lg:hidden text-xs underline text-zinc-400" onClick={() => setShowCatalog(!showCatalog)}>
+        <button className="lg:hidden text-xs font-semibold underline text-ink-soft hover:text-ink" onClick={() => setShowCatalog(!showCatalog)}>
           {showCatalog ? 'hide catalog' : 'catalog & history'}
         </button>
       </div>
 
-      {msg && <div className={cn('rounded-md border px-3 py-2 text-xs', msg.kind === 'ok' ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-200' : msg.kind === 'info' ? 'border-sky-500/40 bg-sky-500/5 text-sky-200' : 'border-rose-500/40 bg-rose-500/5 text-rose-200')}>{msg.text}</div>}
+      {msg && <div className={cn('rounded-md border px-3 py-2 text-xs', msg.kind === 'ok' ? 'border-ok/40 bg-ok/5 text-ok-ink' : msg.kind === 'info' ? 'border-work/40 bg-work/5 text-work-ink' : 'border-bad/40 bg-bad/5 text-bad-ink')}>{msg.text}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-3">
-          {MANAGER_ORDER.filter((m) => report.sources.some((s) => s.manager === m && s.skills.some(filter))).map((m) => (
-            <div key={m} className="space-y-2">
-              <div className="flex items-center gap-2 pt-1">
-                <span className="text-[10px] uppercase tracking-wide text-zinc-500">{m === 'plugin' ? `${backend} plugins` : MANAGER_HEADING[m]}</span>
-                <span className="text-[10px] text-zinc-600">{report.sources.filter((s) => s.manager === m).reduce((n, s) => n + s.skills.length, 0)}</span>
-                <span className="flex-1 h-px bg-zinc-800/70" />
-              </div>
-              {report.sources
-                .filter((s) => s.manager === m)
-                .map((s) => (
-                  <SourceGroup key={s.id} s={s} busy={pending.has('shadows') || s.skills.some((r) => runningOp(r.name))} updating={report.updating === s.id || !!runningOp(s.id)} running={opLink(s.id) ?? s.skills.map((r) => opLink(r.name)).find(Boolean) ?? null} filter={filter} a={{ onUpdate: (names) => void updateSource(s.id, s.label, names), onAdopt: (names) => void adopt(names), onTrashShadows: trashShadows, onUninstallPlugin: provider === 'claude' ? (id) => void uninstallPlugin(id) : undefined, onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} usage={usageByDir} windowGoals={overview.usageWindow?.goals} />
-                ))}
-            </div>
-          ))}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-6 gap-y-8 items-start">
+        {/* each kind of source on a board of its own, as the Goals page's boards: a source is a row, its skills rows under it */}
+        <div className="lg:col-span-2 min-w-0">
+          {MANAGER_ORDER.filter((m) => report.sources.some((s) => s.manager === m && s.skills.some(filter))).map((m) => {
+            const Icon = MANAGER_ICON[m];
+            return (
+              <Board key={m} id={`skills-${m}`} icon={<Icon size={14} aria-hidden="true" />} title={m === 'plugin' ? `${backend} plugins` : MANAGER_HEADING[m]} count={report.sources.filter((s) => s.manager === m).reduce((n, s) => n + s.skills.length, 0)}>
+                {report.sources
+                  .filter((s) => s.manager === m)
+                  .map((s) => (
+                    <SourceGroup key={s.id} s={s} busy={pending.has('shadows') || s.skills.some((r) => runningOp(r.name))} updating={report.updating === s.id || !!runningOp(s.id)} running={opLink(s.id) ?? s.skills.map((r) => opLink(r.name)).find(Boolean) ?? null} filter={filter} a={{ onUpdate: (names) => void updateSource(s.id, s.label, names), onAdopt: (names) => void adopt(names), onTrashShadows: trashShadows, onUninstallPlugin: provider === 'claude' ? (id) => void uninstallPlugin(id) : undefined, onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} usage={usageByDir} windowGoals={overview.usageWindow?.goals} />
+                  ))}
+              </Board>
+            );
+          })}
           {report.sources.every((s) => !s.skills.some(filter)) && <Empty>Nothing matches.</Empty>}
         </div>
-        <div ref={affix.ref} className={cn(showCatalog ? 'block' : 'hidden lg:block', affix.className)}>
+        {/* level with the boards' panels, under their headings, on a wide screen */}
+        <div ref={affix.ref} className={cn(showCatalog ? 'block' : 'hidden lg:block', 'lg:mt-[31px]', affix.className)}>
           <SidePanelTabs catalog={overview.catalog} trash={trash} runs={runs} busy={(key) => pending.has(key) || !!runningOp(key)} opLink={opLink} onInstall={(id, force) => void install(id, force)} onInstallTier={(tiers) => void installTier(tiers)} onInstallTool={(id) => void installTool(id)} onRestore={restore} />
         </div>
       </div>
@@ -292,9 +298,9 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
       <BottomDock>
         <OpsDock />
         {selected.size > 0 && (
-          <div className="border-t border-zinc-800 bg-zinc-950/95 backdrop-blur px-4 py-2.5 flex items-center gap-3 flex-wrap">
-            <span className="text-xs text-zinc-300">
-              {selected.size} selected: <span className="text-zinc-500">{[...selected].slice(0, 6).join(', ')}{selected.size > 6 ? '…' : ''}</span>
+          <div className="border-t border-line bg-panel px-4 py-2.5 flex items-center gap-3 flex-wrap">
+            <span className="text-xs font-semibold text-ink">
+              {selected.size} selected: <span className="mono font-normal text-ink-faint">{[...selected].slice(0, 6).join(', ')}{selected.size > 6 ? '…' : ''}</span>
             </span>
             <div className="ml-auto flex items-center gap-2">
               <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
@@ -321,15 +327,15 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
         }}
       >
         <p>The skill director{(confirmNames?.length ?? 0) === 1 ? 'y is' : 'ies are'} moved to this backend's trash (restorable from the Trash panel). Symlinked skills lose only the link; plugin skills cannot be removed here.</p>
-        {confirmNames && confirmNames.length > 1 && <div className="mono text-[11px] text-zinc-400 max-h-32 overflow-auto">{confirmNames.join('\n')}</div>}
+        {confirmNames && confirmNames.length > 1 && <div className="mono text-[11px] text-ink-soft max-h-32 overflow-auto">{confirmNames.join('\n')}</div>}
       </ConfirmDialog>
 
       <Modal open={view !== null} title={view && view !== 'loading' ? <span className="mono">{view.invoke}</span> : 'Loading…'} onClose={() => setView(null)} wide>
         {view === 'loading' ? (
-          <div className="text-xs text-zinc-500">reading SKILL.md…</div>
+          <div className="text-xs text-ink-faint">reading SKILL.md…</div>
         ) : view ? (
           <div className="space-y-3">
-            <div className="text-[11px] text-zinc-500 mono break-all">{view.dir}</div>
+            <div className="text-[11px] text-ink-faint mono break-all">{view.dir}</div>
             {view.skillMd ? (
               (() => {
                 const m = view.skillMd.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
@@ -338,16 +344,16 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
                 return (
                   <>
                     {fm && (
-                      <div className="rounded-md border border-zinc-800 bg-zinc-900/60 p-2 text-[11px] space-y-0.5">
+                      <div className="rounded-md border border-line bg-inset p-2.5 text-xs space-y-0.5">
                         {fm.split('\n').map((line, i) => {
                           const k = line.match(/^([\w-]+):\s*(.*)$/);
                           return k ? (
                             <div key={i} className="flex gap-2">
-                              <span className="text-zinc-500 w-28 shrink-0">{k[1]}</span>
-                              <span className="text-zinc-200 break-words min-w-0">{k[2]}</span>
+                              <span className="mono text-ink-faint w-28 shrink-0">{k[1]}</span>
+                              <span className="text-ink break-words min-w-0">{k[2]}</span>
                             </div>
                           ) : (
-                            <div key={i} className="text-zinc-400 pl-30 break-words">{line}</div>
+                            <div key={i} className="text-ink-soft pl-30 break-words">{line}</div>
                           );
                         })}
                       </div>
@@ -357,16 +363,16 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
                 );
               })()
             ) : (
-              <div className="text-xs text-amber-300">no SKILL.md in this directory</div>
+              <div className="text-xs text-bad-ink">no SKILL.md in this directory</div>
             )}
             {view.files.length > 1 && (
               <details className="text-xs">
-                <summary className="cursor-pointer text-zinc-400">{view.files.length} files in this skill</summary>
-                <div className="mono text-[11px] text-zinc-400 mt-1 space-y-0.5 max-h-40 overflow-auto">
+                <summary className="cursor-pointer font-semibold text-ink-soft hover:text-ink">{view.files.length} files in this skill</summary>
+                <div className="mono text-[11px] text-ink-soft mt-1 space-y-0.5 max-h-40 overflow-auto">
                   {view.files.map((f) => (
                     <div key={f.path} className="flex gap-3">
                       <span className="truncate">{f.path}</span>
-                      <span className="ml-auto text-zinc-600 shrink-0">{f.size < 1024 ? `${f.size} B` : `${(f.size / 1024).toFixed(0)} KB`}</span>
+                      <span className="ml-auto text-ink-faint shrink-0">{f.size < 1024 ? `${f.size} B` : `${(f.size / 1024).toFixed(0)} KB`}</span>
                     </div>
                   ))}
                 </div>

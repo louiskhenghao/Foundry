@@ -6,7 +6,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import { headingAnchor } from '@foundry/core/browser';
 import { api } from '../api.ts';
-import { Empty, cn } from '../ui.tsx';
+import { ButtonGroup, Empty, PageHeader, Select, buttonClass, cn, navItemClass } from '../ui.tsx';
 
 type Lang = 'en' | 'zh';
 const LANG_KEY = 'foundry.guide.lang';
@@ -73,7 +73,7 @@ export function HelpPage() {
     h3: heading('h3'),
     img: ({ src, alt }: { src?: string; alt?: string }) => {
       const file = (src ?? '').split('/').pop() ?? '';
-      return <img src={`/api/guide/images/${encodeURIComponent(file)}`} alt={alt ?? ''} loading="lazy" className="rounded border border-zinc-800 my-3 max-w-full" />;
+      return <img src={`/api/guide/images/${encodeURIComponent(file)}`} alt={alt ?? ''} loading="lazy" className="rounded border border-line my-3 max-w-full" />;
     },
     a: ({ href, children }: { href?: string; children?: ReactNode }) => {
       const h = href ?? '';
@@ -91,47 +91,58 @@ export function HelpPage() {
     },
   };
   // the page's own language switcher line ("> English · [中文](…)") is replaced by the toggle above
-  const markdown = page?.markdown.replace(/^>\s*(English|\[English\]).*\n/m, '') ?? '';
+  const body = page?.markdown.replace(/^>\s*(English|\[English\]).*\n/m, '') ?? '';
+  // its first line ("# Title") heads the page as every page's title does; the article is the rest, in the Markdown styles
+  const title = body.match(/^#[ \t]+(.+)\n/)?.[1]?.trim() ?? null;
+  const markdown = title ? body.replace(/^#[ \t]+.+\n/, '') : body;
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 flex gap-6">
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16 flex gap-8">
       <aside className="hidden md:block w-56 shrink-0">
-        <div className="sticky top-16 space-y-1 text-sm">
+        {/* level with the page's title (the page's top padding), pinned there while the page scrolls */}
+        <div className="sticky top-9 space-y-0.5">
           <div className="flex items-center gap-2 mb-3">
-            <HelpCircle size={15} className="text-zinc-400" />
-            <span className="text-zinc-200 font-medium">Guide</span>
-            <div className="ml-auto flex rounded border border-zinc-700 overflow-hidden text-[11px]">
-              {(['en', 'zh'] as const).map((l) => (
-                <button key={l} type="button" onClick={() => setLang(l)} className={cn('px-2 py-0.5', lang === l ? 'bg-zinc-700 text-zinc-100' : 'text-zinc-400')}>
-                  {l === 'en' ? 'EN' : '中文'}
-                </button>
-              ))}
-            </div>
+            <span className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+              <HelpCircle size={14} aria-hidden="true" />
+              Guide
+            </span>
+            <span className="ml-auto">
+              <ButtonGroup<Lang>
+                label="Language"
+                value={lang}
+                onChange={setLang}
+                options={[
+                  { id: 'en', label: 'EN' },
+                  { id: 'zh', label: '中文' },
+                ]}
+              />
+            </span>
           </div>
           {(pages ?? []).map((p, i) => (
-            <Link key={p.slug} to={`/help/${p.slug}`} className={cn('block rounded px-2 py-1', p.slug === slug ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-200')}>
-              <span className="text-zinc-600 mr-1.5">{i + 1}</span>
+            <Link key={p.slug} to={`/help/${p.slug}`} className={navItemClass(p.slug === slug)}>
+              <span className="mono mr-2 text-[11px] text-ink-faint">{i + 1}</span>
               {lang === 'zh' && p.zh ? p.zh : p.title}
             </Link>
           ))}
         </div>
       </aside>
       <main className="min-w-0 flex-1">
-        <div className="md:hidden flex items-center gap-2 mb-3">
-          <select className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm" value={slug} onChange={(e) => nav(`/help/${e.target.value}`)}>
+        <div className="md:hidden flex items-center gap-2 mb-5">
+          <Select className="flex-1" value={slug} onChange={(e) => nav(`/help/${e.target.value}`)}>
             {(pages ?? []).map((p) => (
               <option key={p.slug} value={p.slug}>
                 {lang === 'zh' && p.zh ? p.zh : p.title}
               </option>
             ))}
-          </select>
-          <button type="button" className="text-xs border border-zinc-700 rounded px-2 py-1" onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}>
+          </Select>
+          <button type="button" className={buttonClass('default', 'sm', 'shrink-0')} onClick={() => setLang(lang === 'en' ? 'zh' : 'en')}>
             {lang === 'en' ? '中文' : 'EN'}
           </button>
         </div>
-        {err ? <Empty>{err}</Empty> : !page ? <div className="text-zinc-500 text-sm">…</div> : (
+        {err ? <Empty>{err}</Empty> : !page ? <div className="text-ink-faint text-sm">…</div> : (
           <>
-            {lang === 'zh' && page.lang === 'en' && <div className="text-xs text-amber-300 mb-2">这一页还没有中文版，下面是英文原文。</div>}
+            {title && <PageHeader title={<span id={headingAnchor(title)} className="scroll-mt-16">{title}</span>} />}
+            {lang === 'zh' && page.lang === 'en' && <div className="mb-4 rounded-md border border-line bg-inset px-3 py-2 text-xs text-ink-soft">这一页还没有中文版，下面是英文原文。</div>}
             <article className="md guide text-[15px] leading-7">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={components as never}>
                 {markdown}

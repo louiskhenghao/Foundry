@@ -2,15 +2,15 @@ import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { MinimaxQuota, UsageBucket, WindowSummary } from '@foundry/engine/usage-types';
 import { agyQuotaExhausted, agyQuotaSummary, codexQuotaSummary } from '@foundry/engine/quota-windows';
 import { AGENT_PROVIDERS, PROVIDER_LABEL, PROVIDER_NAME, reportsDollars } from '@foundry/core/browser';
-import { Gauge, RefreshCw } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Activity, Gauge, Pause, RefreshCw } from 'lucide-react';
+import { type ReactNode, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, type AgentProvider, type Usage } from '../api.ts';
 import { AgyQuotaCard } from '../components/AgyQuotaCard.tsx';
 import { AccountsUsageCard } from '../components/AccountsUsageCard.tsx';
 import { CodexQuotaCard } from '../components/CodexQuotaCard.tsx';
 import { useLive } from '../store.ts';
-import { Badge, Button, Card, Empty, cn, fmtUsd } from '../ui.tsx';
+import { BOARD_ROW, Badge, Button, Card, Empty, PageHeader, cn, fmtUsd } from '../ui.tsx';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { ProviderBadge } from './agents/rows.tsx';
@@ -28,24 +28,42 @@ export function UsagePage() {
   const [query, setQuery] = useSearchParams();
   const provider: AgentProvider = AGENT_PROVIDERS.find((p) => p === query.get('provider')) ?? 'claude';
   // shared numbers first, so switching the coding agent below moves nothing above it
-  return <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-6">
-    <div className="space-y-3">
-      <h1 className="text-lg font-semibold flex items-center gap-2"><Gauge size={18} /> Usage <HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" /></h1>
+  return <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16">
+    <div className="mb-3">
       <UsagePausedBanner />
     </div>
-    <FoundryActivity />
-    <section className="space-y-3 border-t border-zinc-800 pt-5" aria-labelledby="account-limits">
-      <div className="flex items-end justify-between gap-3 flex-wrap">
-        <div>
-          <h2 id="account-limits" className="text-sm font-medium text-zinc-200">Account limits</h2>
-          <p className="text-xs text-zinc-500">What each coding agent's account allows, and what Foundry used within it.</p>
-        </div>
-        <ProviderSelector hideLabel value={provider} onChange={(id) => setQuery((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} />
-      </div>
-      <ProviderUsage key={provider} provider={provider} />
-    </section>
-    <MinimaxCard />
+    <PageHeader title="Usage" help={<HelpLink to="costs-and-usage" label="What costs money and how to spend less (new tab)" />} />
+    <div className="space-y-12">
+      <FoundryActivity />
+      <section className="space-y-4" aria-labelledby="account-limits">
+        <SectionHead
+          id="account-limits"
+          icon={<Gauge size={14} aria-hidden="true" />}
+          title="Account limits"
+          note="What each coding agent's account allows, and what Foundry used within it."
+          aside={<ProviderSelector hideLabel value={provider} onChange={(id) => setQuery((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} />}
+        />
+        <ProviderUsage key={provider} provider={provider} />
+      </section>
+      <MinimaxCard />
+    </div>
   </div>;
+}
+
+/** a section of the page, headed as the Goals page's boards are: a small icon, its name in capitals, a line on what it holds */
+function SectionHead({ id, icon, title, note, aside }: { id: string; icon: ReactNode; title: ReactNode; note: ReactNode; aside?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      <div className="min-w-0">
+        <h2 id={id} className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+          {icon}
+          {title}
+        </h2>
+        <p className="mt-1.5 text-[13px] text-ink-faint">{note}</p>
+      </div>
+      {aside}
+    </div>
+  );
 }
 
 /** Remount on backend changes so late reads and refreshes cannot replace another backend's data. */
@@ -85,24 +103,30 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <span className="text-xs text-zinc-500">{provider === 'codex' ? 'The ChatGPT account’s quota, and Foundry’s Codex activity on this machine' : provider === 'agy' ? 'The Google account’s Antigravity quota, and Foundry’s Antigravity activity on this machine' : 'Claude’s usage windows, and what Foundry spent in each on this machine'}</span>
+      <div className="flex items-center gap-x-3 gap-y-2 flex-wrap">
+        <span className="text-[13px] text-ink-faint">{provider === 'codex' ? 'The ChatGPT account’s quota, and Foundry’s Codex activity on this machine' : provider === 'agy' ? 'The Google account’s Antigravity quota, and Foundry’s Antigravity activity on this machine' : 'Claude’s usage windows, and what Foundry spent in each on this machine'}</span>
         <Button size="sm" variant="primary" className="ml-auto" disabled={busy} onClick={probe} title={provider === 'codex' ? 'Reads native Codex account limits without running inference' : provider === 'agy' ? 'Reads the account quota with agy /usage, without running a model' : 'Runs one tiny haiku session (~$0.02) to refresh the rate-limit signal'}>
           <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> {provider === 'claude' ? 'Refresh signal' : 'Refresh quota'}
         </Button>
-        {err && <span className="text-xs text-rose-400 basis-full">{err}</span>}
+        {err && <span className="text-xs text-bad-ink basis-full">{err}</span>}
         {/* several accounts: the quota and windows below are the current account's (ADR-0065) */}
-        {u.currentAccount && <span className="text-xs text-zinc-400 basis-full">Windows and quota of the current account, <span className="text-zinc-200">{u.currentAccount}</span>; the activity totals count every account.</span>}
+        {u.currentAccount && <span className="text-xs text-ink-soft basis-full">Windows and quota of the current account, <span className="font-semibold text-ink">{u.currentAccount}</span>; the activity totals count every account.</span>}
       </div>
       {u.accounts && <AccountsUsageCard provider={provider} accounts={u.accounts} />}
       {provider === 'codex' && <CodexQuotaCard quota={u.codexQuota} />}
       {provider === 'agy' && <AgyQuotaCard quota={u.agyQuota} />}
+      {/* drawn as the banner it echoes: a plate in the yellow tint, its sign square solid; Resume now is the person's to press */}
       {u.pausedUntil && (
-        <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 px-4 py-2.5 text-sm">
-          {provider !== 'claude' ? <>⏸ New {PROVIDER_LABEL[provider]} sessions are paused after a rate-limit response. Foundry's next retry is scheduled for {new Date(u.pausedUntil).toLocaleString()}; account availability is checked independently.</> : <>⏸ Rate limited — this backend is not starting new sessions and will resume automatically in {untilText(u.pausedUntil)} ({new Date(u.pausedUntil).toLocaleString()}). Goals stay where they are.</>}{' '}
-          <button type="button" className="underline text-amber-200 disabled:opacity-50" disabled={busy} onClick={resume} title="Start sessions again now; if the limit still holds, the next session pauses them again">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-you/10 px-3 py-2.5 inset-ring inset-ring-you/50 sm:px-4">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-you text-on-you" aria-hidden="true">
+            <Pause size={14} strokeWidth={2.75} />
+          </span>
+          <span className="min-w-0 flex-1 basis-64 text-sm leading-snug text-ink">
+            {provider !== 'claude' ? <>New {PROVIDER_LABEL[provider]} sessions are paused after a rate-limit response. Foundry's next retry is scheduled for {new Date(u.pausedUntil).toLocaleString()}; account availability is checked independently.</> : <>Rate limited — this backend is not starting new sessions and will resume automatically in {untilText(u.pausedUntil)} ({new Date(u.pausedUntil).toLocaleString()}). Goals stay where they are.</>}
+          </span>
+          <Button type="button" size="sm" disabled={busy} onClick={resume} title="Start sessions again now; if the limit still holds, the next session pauses them again">
             Resume now
-          </button>
+          </Button>
         </div>
       )}
 
@@ -131,14 +155,18 @@ function FoundryActivity() {
   if (!both) return null;
   const m = mergeActivity(both);
   return (
-    <section className="space-y-3" aria-labelledby="foundry-activity">
-      <div className="flex items-baseline gap-2 flex-wrap">
-        <h2 id="foundry-activity" className="text-sm font-medium text-zinc-200">Foundry activity · last 7 days</h2>
-        <span className="text-xs text-zinc-500">Every coding agent together, as recorded by Foundry.</span>
-        <Link to="/reports" className="text-xs underline text-sky-300 sm:ml-auto" title="Longer windows, by project and over time, with retries and estimate error">
-          Longer windows, by project: Reports →
-        </Link>
-      </div>
+    <section className="space-y-4" aria-labelledby="foundry-activity">
+      <SectionHead
+        id="foundry-activity"
+        icon={<Activity size={14} aria-hidden="true" />}
+        title="Foundry activity · last 7 days"
+        note="Every coding agent together, as recorded by Foundry."
+        aside={
+          <Link to="/reports" className="text-[13px] font-semibold text-work-ink hover:underline underline-offset-2" title="Longer windows, by project and over time, with retries and estimate error">
+            Longer windows, by project: Reports →
+          </Link>
+        }
+      />
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <Kpi label="cache hit rate" value={m.cacheHitRate == null ? '—' : `${(m.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens" good={m.cacheHitRate != null && m.cacheHitRate > 0.6} />
         <Kpi label="avg cost / Claude session" value={m.avgCostPerSession == null ? '—' : fmtUsd(m.avgCostPerSession)} hint="Claude Code only: Codex and Antigravity report no dollar cost" />
@@ -147,7 +175,7 @@ function FoundryActivity() {
         <Kpi label="sessions with unknown cost" value={String(m.unmeasuredSessions)} hint="Claude Code sessions cut before a cost was reported: unknown, not $0, and missing from every cost here" good={m.unmeasuredSessions === 0} bad={m.unmeasuredSessions > 0} />
       </div>
       <Breakdowns m={m} />
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs leading-relaxed text-ink-faint">
         Rows are listed by time, which every coding agent reports. Cost is estimated for Claude Code only; Codex and Antigravity report no dollar cost, so their rows show —, and <span className="mono">*</span> marks a row whose cost leaves sessions out: its Codex or Antigravity sessions, or Claude Code sessions cut before a cost was reported (unknown, not $0). Counts only sessions started by Foundry on this machine. Account limits are below, per coding agent; for exact Claude percentages run /usage inside Claude Code.
       </p>
     </section>
@@ -183,41 +211,42 @@ function Breakdown({ title, rows }: { title: string; rows: ActivityRow[] }) {
   const [all, setAll] = useState(false);
   const shown = all ? rows : rows.slice(0, SHOWN);
   return (
-    <Card title={title} bodyClassName="px-4 py-1">
+    <Card title={title}>
+      {/* the rows run edge to edge: the card's own padding is taken back */}
       {rows.length === 0 ? (
-        <div className="py-2 text-xs text-zinc-500">nothing yet</div>
+        <div className="-m-4 px-4 py-3 text-xs text-ink-faint">nothing yet</div>
       ) : (
-        <>
-          <ul className="divide-y divide-zinc-800/70">
+        <div className="-m-4">
+          <ul className="divide-y divide-line">
             {shown.map((r) => (
-              <li key={r.id} className="py-2 min-w-0">
-                <div className="flex items-center gap-1.5 min-w-0 text-xs">
+              <li key={r.id} className={cn(BOARD_ROW, 'min-w-0 px-4 py-2.5')}>
+                <div className="flex items-center gap-1.5 min-w-0 text-[13px]">
                   {r.agents.map((a) => (
                     <ProviderBadge key={a} provider={a} compact />
                   ))}
                   {r.goalId ? (
-                    <Link className="truncate text-zinc-200 hover:underline" to={`/goals/${r.goalId}`} title={r.label}>
+                    <Link className="truncate font-semibold text-ink hover:underline" to={`/goals/${r.goalId}`} title={r.label}>
                       {r.label}
                     </Link>
                   ) : (
-                    <span className={cn('truncate', r.muted ? 'text-zinc-400' : 'text-zinc-200')} title={r.label}>
+                    <span className={cn('truncate font-semibold', r.muted ? 'text-ink-faint' : 'text-ink')} title={r.label}>
                       {r.label}
                     </span>
                   )}
-                  <span className="ml-auto pl-2 mono shrink-0 text-zinc-200">
+                  <span className="ml-auto pl-2 mono shrink-0 font-semibold text-ink">
                     {r.costUsd == null ? (
-                      <span className="text-zinc-600" title={`${r.agents.map((a) => PROVIDER_NAME[a]).join(' and ')} report${r.agents.length === 1 ? 's' : ''} no dollar cost`}>—</span>
+                      <span className="font-normal text-ink-faint" title={`${r.agents.map((a) => PROVIDER_NAME[a]).join(' and ')} report${r.agents.length === 1 ? 's' : ''} no dollar cost`}>—</span>
                     ) : (
                       <span title={r.partial ? partialNote(r) : 'estimated cost'}>
                         {fmtUsd(r.costUsd)}
-                        {r.partial && <span className="text-zinc-500">*</span>}
+                        {r.partial && <span className="text-ink-faint">*</span>}
                       </span>
                     )}
                   </span>
                 </div>
-                <div className="mt-1 flex items-center gap-x-2 gap-y-1 flex-wrap text-[11px] text-zinc-500">
-                  {r.state && <Badge state={r.state} className="text-[9px] px-1 py-px" />}
-                  <span className="mono text-zinc-300">{fmtSpan(r.durationMs)}</span>
+                <div className="mt-1 flex items-center gap-x-2 gap-y-1 flex-wrap text-[11px] text-ink-faint">
+                  {r.state && <Badge state={r.state} />}
+                  <span className="mono text-ink-soft">{fmtSpan(r.durationMs)}</span>
                   <span>· {r.sessions} session{r.sessions === 1 ? '' : 's'}</span>
                   <span title={`input ${fmtK(r.tokens.input)} · cache read ${fmtK(r.tokens.cacheRead)} · cache write ${fmtK(r.tokens.cacheCreate)} · output ${fmtK(r.tokens.output)}`}>· {fmtK(totalTokens(r))} tokens</span>
                 </div>
@@ -225,11 +254,11 @@ function Breakdown({ title, rows }: { title: string; rows: ActivityRow[] }) {
             ))}
           </ul>
           {rows.length > SHOWN && (
-            <button type="button" className="w-full py-2 text-[11px] text-zinc-500 hover:text-zinc-300 border-t border-zinc-800/70" onClick={() => setAll((v) => !v)}>
+            <button type="button" className="w-full py-2 text-xs font-semibold text-ink-faint hover:text-ink border-t border-line" onClick={() => setAll((v) => !v)}>
               {all ? 'Show fewer' : `Show all ${rows.length}`}
             </button>
           )}
-        </>
+        </div>
       )}
     </Card>
   );
@@ -336,7 +365,7 @@ function MinimaxCard() {
       }
       actions={
         <>
-          <span className="text-[11px] text-zinc-500">checked {new Date(q.checkedAt).toLocaleTimeString()}</span>
+          <span className="text-xs text-ink-faint">checked {new Date(q.checkedAt).toLocaleTimeString()}</span>
           <Button size="sm" disabled={busy} onClick={() => load(true)} title="Runs mmx quota show">
             <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> Refresh
           </Button>
@@ -344,30 +373,31 @@ function MinimaxCard() {
       }
     >
       {q.state === 'unavailable' && (
-        <div className="text-xs text-zinc-400">
+        <div className="text-xs text-ink-soft">
           mmx is installed but has no key. Add one under <Link className="underline" to="/settings#tools">Settings → Tools &amp; keys</Link>, or run <span className="mono">mmx auth login</span>.
         </div>
       )}
-      {q.state === 'error' && <div className="text-xs text-rose-400">{q.message}</div>}
+      {q.state === 'error' && <div className="text-xs text-bad-ink">{q.message}</div>}
+      {/* a low balance or window is yours to top up: the yellow of the top bar's dot */}
       {q.state === 'balance' && (
         <div>
-          <div className={cn('text-2xl font-semibold mono', q.low ? 'text-amber-300' : 'text-zinc-100')}>{q.available.toFixed(2)}</div>
-          <div className="text-[11px] text-zinc-500">pay-as-you-go balance available</div>
+          <div className={LABEL}>pay-as-you-go balance available</div>
+          <div className={cn('mt-1 text-2xl font-bold mono', q.low ? 'text-you-ink' : 'text-ink')}>{q.available.toFixed(2)}</div>
         </div>
       )}
       {q.state === 'plan' && (
-        <div className="space-y-2">
-          {q.models.length === 0 && <div className="text-xs text-zinc-500">no models in this plan</div>}
+        <div className="space-y-3">
+          {q.models.length === 0 && <div className="text-xs text-ink-faint">no models in this plan</div>}
           {q.models.map((m) => (
             <div key={m.name} className="text-xs">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-zinc-200 truncate flex-1">{m.name}</span>
-                <span className="mono text-zinc-300">{m.remainingPercent == null ? '—' : `${m.remainingPercent}% left`}</span>
-                {m.weeklyRemainingPercent != null && <span className="text-zinc-500">· week {m.weeklyRemainingPercent}%</span>}
-                {m.resetsAt && <span className="text-zinc-500">· resets in {untilText(m.resetsAt)}</span>}
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="font-semibold text-ink truncate flex-1">{m.name}</span>
+                <span className="mono font-semibold text-ink">{m.remainingPercent == null ? '—' : `${m.remainingPercent}% left`}</span>
+                {m.weeklyRemainingPercent != null && <span className="text-ink-faint">· week {m.weeklyRemainingPercent}%</span>}
+                {m.resetsAt && <span className="text-ink-faint">· resets in {untilText(m.resetsAt)}</span>}
               </div>
-              <div className="h-1.5 rounded bg-zinc-800 overflow-hidden">
-                <div className={cn('h-full', (m.remainingPercent ?? 100) < 10 ? 'bg-amber-400' : 'bg-emerald-500')} style={{ width: `${Math.max(0, Math.min(100, m.remainingPercent ?? 0))}%` }} />
+              <div className="h-1.5 rounded-xs bg-line overflow-hidden">
+                <div className={cn('h-full', (m.remainingPercent ?? 100) < 10 ? 'bg-you' : 'bg-work')} style={{ width: `${Math.max(0, Math.min(100, m.remainingPercent ?? 0))}%` }} />
               </div>
             </div>
           ))}
@@ -380,7 +410,7 @@ function MinimaxCard() {
 /** Fixed reporting periods describe local activity; they do not create account quota windows. */
 export function UsageActivity({ provider, u }: { provider: AgentProvider; u: Pick<Usage, 'costAvailable' | 'fiveHour' | 'sevenDay' | 'series' | 'now'> }) {
   if (!reportsDollars(provider)) return <div className="space-y-2">
-    <p className="text-xs text-zinc-500">Local activity over the last 7 days. This reporting period is not an account limit.</p>
+    <p className="text-xs text-ink-faint">Local activity over the last 7 days. This reporting period is not an account limit.</p>
     <WindowCard showSignal={false} costAvailable={false} w={{ ...u.sevenDay, label: 'Foundry activity · last 7 days' }} series={u.series.daily} now={u.now} />
   </div>;
   return <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -406,57 +436,58 @@ function WindowCard({ w, series, now, costAvailable = true, showSignal = true }:
   return (
     <Card
       title={
-        <span className="flex items-center gap-2">
+        <span className="flex flex-wrap items-center gap-2">
           {w.label}
           {showSignal && <Badge state={state}>{w.status ? signalLabel(w.status) : w.lastSignalAt ? 'no current signal' : 'no signal yet'}</Badge>}
           {showSignal && w.isUsingOverage && <Badge state="warn">overage</Badge>}
         </span>
       }
-      actions={<span className="text-[11px] text-zinc-500">{showSignal ? (w.resetsAt ? (Date.parse(w.resetsAt) > Date.parse(now) ? `resets in ${untilText(w.resetsAt)}` : 'rolled over — next signal sets the window') : 'no reset signal yet') : 'Foundry activity'}</span>}
+      actions={<span className="text-xs text-ink-faint">{showSignal ? (w.resetsAt ? (Date.parse(w.resetsAt) > Date.parse(now) ? `resets in ${untilText(w.resetsAt)}` : 'rolled over — next signal sets the window') : 'no reset signal yet') : 'Foundry activity'}</span>}
     >
-      <div className="flex items-end gap-4 flex-wrap">
+      <div className="flex items-end gap-x-6 gap-y-3 flex-wrap">
         <div>
-          <div className="text-2xl font-semibold mono text-zinc-100">{costAvailable ? fmtUsd(w.costUsd) : fmtK(w.outputTokens) + ' tokens'}</div>
-          <div className="text-[11px] text-zinc-500">{w.sessions} session{w.sessions === 1 ? '' : 's'} · {costAvailable ? 'est. cost' : 'output tokens'}</div>
+          <div className="text-2xl font-bold mono leading-tight text-ink">{costAvailable ? fmtUsd(w.costUsd) : fmtK(w.outputTokens) + ' tokens'}</div>
+          <div className="mt-0.5 text-xs text-ink-faint">{w.sessions} session{w.sessions === 1 ? '' : 's'} · {costAvailable ? 'est. cost' : 'output tokens'}</div>
         </div>
-        <div className="grid grid-cols-3 gap-x-4 text-[11px] ml-auto">
+        <div className="grid grid-cols-3 gap-x-5 ml-auto">
           <Stat label="output" value={fmtK(w.outputTokens)} />
           <Stat label="input" value={fmtK(w.inputTokens)} />
           <Stat label="cache read" value={fmtK(w.cacheReadTokens)} />
         </div>
       </div>
-      {showSignal && <div className="mt-3">
-        <div className="flex justify-between text-[10px] text-zinc-500 mb-1">
+      {/* how far through the window: time, not quota, so a quiet bar that never turns a signal colour */}
+      {showSignal && <div className="mt-4">
+        <div className="flex justify-between gap-3 text-[11px] text-ink-faint mb-1.5">
           <span>window {new Date(start).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
           <span>{w.resetsAt && Date.parse(w.resetsAt) > Date.parse(now) ? `resets ${new Date(w.resetsAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}` : 'rolling'}</span>
         </div>
-        <div className="h-1.5 rounded bg-zinc-800 overflow-hidden" title={`${elapsed.toFixed(0)}% of the window elapsed (time, not quota)`}>
-          <div className="h-full bg-zinc-500" style={{ width: `${elapsed}%` }} />
+        <div className="h-1 rounded-xs bg-line overflow-hidden" title={`${elapsed.toFixed(0)}% of the window elapsed (time, not quota)`}>
+          <div className="h-full bg-ink-faint" style={{ width: `${elapsed}%` }} />
         </div>
       </div>}
       <Bars buckets={series} costAvailable={costAvailable} />
-      {showSignal && w.status && SIGNAL[w.status]?.hint && <p className={cn('text-[11px] mt-3', state === 'warn' ? 'text-amber-300' : 'text-rose-300')}>{SIGNAL[w.status]!.hint}</p>}
-      {showSignal && w.lastSignalAt && <div className="text-[10px] text-zinc-600 mt-2">last rate-limit signal {new Date(w.lastSignalAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}{!w.status && ' · that window has since reset; Claude sends a new one when this window nears its limit'}</div>}
+      {showSignal && w.status && SIGNAL[w.status]?.hint && <p className={cn('text-xs mt-3', state === 'warn' ? 'text-ink-soft' : 'text-bad-ink')}>{SIGNAL[w.status]!.hint}</p>}
+      {showSignal && w.lastSignalAt && <div className="text-[11px] text-ink-faint mt-2">last rate-limit signal {new Date(w.lastSignalAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}{!w.status && ' · that window has since reset; Claude sends a new one when this window nears its limit'}</div>}
     </Card>
   );
 }
 
-/** Cost per bucket as plain divs; hover shows the detail. */
+/** Cost per bucket as plain divs, in ink like everything the agents spend; hover shows the detail. */
 function Bars({ buckets, costAvailable }: { buckets: UsageBucket[]; costAvailable: boolean }) {
   const value = (b: UsageBucket) => costAvailable ? b.costUsd : b.outputTokens;
   const max = Math.max(0.0001, ...buckets.map(value));
   return (
-    <div className="mt-3">
-      <div className="flex items-end gap-1 h-16">
+    <div className="mt-4">
+      <div className="flex items-end gap-1 h-16 border-b border-line">
         {buckets.map((b) => (
           <div key={b.t} className="flex-1 flex flex-col items-center justify-end h-full group" title={`${b.label}: ${costAvailable ? fmtUsd(b.costUsd) : 'cost unavailable'} · ${b.sessions} session${b.sessions === 1 ? '' : 's'} · ${fmtK(b.outputTokens)} output tokens`}>
-            <div className={cn('w-full rounded-t transition-colors', value(b) > 0 ? 'bg-emerald-500/70 group-hover:bg-emerald-400' : 'bg-zinc-800')} style={{ height: `${value(b) > 0 ? Math.max(6, (value(b) / max) * 100) : 2}%` }} />
+            <div className={cn('w-full rounded-t-xs transition-opacity', value(b) > 0 ? 'bg-ink group-hover:opacity-70' : 'bg-line')} style={{ height: `${value(b) > 0 ? Math.max(6, (value(b) / max) * 100) : 2}%` }} />
           </div>
         ))}
       </div>
-      <div className="flex gap-1 mt-1">
+      <div className="flex gap-1 mt-1.5">
         {buckets.map((b) => (
-          <div key={b.t} className="flex-1 text-center text-[9px] text-zinc-600 truncate">
+          <div key={b.t} className="flex-1 text-center text-[10px] text-ink-faint truncate">
             {b.label}
           </div>
         ))}
@@ -465,19 +496,23 @@ function Bars({ buckets, costAvailable }: { buckets: UsageBucket[]; costAvailabl
   );
 }
 
-function Kpi({ label, value, hint, good, bad }: { label: string; value: string; hint?: string; good?: boolean; bad?: boolean }) {
+/** the label of a figure: small capitals over it, as on every page */
+const LABEL = 'text-[11px] font-extrabold uppercase leading-tight tracking-[0.1em] text-ink-faint';
+
+/** a figure tile (Usage, Reports): what it counts in small capitals, the figure large under it; `good` and `bad` colour a figure that passes or fails */
+export function Kpi({ label, value, hint, good, bad }: { label: string; value: string; hint?: string; good?: boolean; bad?: boolean }) {
   return (
-    <div className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2" title={hint}>
-      <div className="text-[10px] uppercase text-zinc-500">{label}</div>
-      <div className={cn('mono text-lg', bad ? 'text-rose-300' : good ? 'text-emerald-300' : 'text-zinc-100')}>{value}</div>
+    <div className="flex flex-col justify-between gap-2 rounded-lg border border-line bg-panel px-4 py-3 shadow-[0_1px_2px_rgb(0_0_0/0.05)]" title={hint}>
+      <div className={LABEL}>{label}</div>
+      <div className={cn('mono text-2xl font-bold leading-none', bad ? 'text-bad-ink' : good ? 'text-ok-ink' : 'text-ink')}>{value}</div>
     </div>
   );
 }
 function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] uppercase text-zinc-500">{label}</div>
-      <div className="mono text-zinc-200">{value}</div>
+      <div className={LABEL}>{label}</div>
+      <div className="mono mt-0.5 text-[15px] font-bold text-ink">{value}</div>
     </div>
   );
 }
@@ -520,8 +555,9 @@ export function UsagePillView({ usages, minimaxLow = false }: { usages: Partial<
     return `${name} · ${u.pausedUntil && Date.parse(u.pausedUntil) > Date.now() ? 'sessions paused · ' : ''}${provider === 'codex' ? codexQuotaSummary(u.codexQuota) : provider === 'agy' ? agyQuotaSummary(u.agyQuota) : `Foundry activity (5h) ${fmtUsd(u.fiveHour.costUsd)}`}`;
   });
   const title = [...summaries, ...(minimaxLow ? ['MiniMax quota low'] : []), 'Open Usage to view each coding agent separately.'].join('\n');
-  return <Link to="/usage" aria-label={`Usage across the coding agents${attention ? ' · needs attention' : ''}`} title={title} className={cn('flex h-8 sm:h-7 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs', attention ? 'text-amber-300 border-amber-500/40' : 'text-zinc-300 border-zinc-700 hover:bg-zinc-900')}>
+  // in the top bar's own colours, as the Inbox beside it; what needs a look is the yellow dot (the guide calls it amber)
+  return <Link to="/usage" aria-label={`Usage across the coding agents${attention ? ' · needs attention' : ''}`} title={title} className={cn('flex h-8 sm:h-7 shrink-0 items-center gap-1.5 rounded-md border border-band-line px-2 text-xs font-semibold hover:bg-band-hover', attention ? 'text-band-ink' : 'text-band-ink-soft hover:text-band-ink')}>
     <Gauge size={14} /><span className="hidden sm:inline">Usage</span>
-    {attention && <span className="h-1.5 w-1.5 rounded-full bg-amber-400" aria-hidden="true" />}
+    {attention && <span className="h-1.5 w-1.5 rounded-full bg-you" aria-hidden="true" />}
   </Link>;
 }
