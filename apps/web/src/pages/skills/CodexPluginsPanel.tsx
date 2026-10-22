@@ -35,7 +35,7 @@ export function CodexPluginsPanel() {
   const plugins = view?.state === 'available' ? view.plugins.filter(p => `${p.name} ${p.marketplace}`.toLowerCase().includes(query.toLowerCase())) : [];
   return <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
     {/* the tab's own head, in the capitals of a section */}
-    <div className="flex items-center gap-3 flex-wrap"><h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink"><Plug size={14} aria-hidden="true" />Codex plugins</h2><Button className="ml-auto" size="sm" disabled={refreshing || running} onClick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh plugins'}</Button></div>
+    <div className="flex items-center gap-3 flex-wrap"><h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink"><Plug size={14} aria-hidden="true" />Codex plugins</h2><Button className="ml-auto" size="sm" disabled={refreshing || running} onClick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh plugins'}</Button></div>
     <p className="text-sm text-ink-soft">Manage plugins from your native Codex marketplaces. Installation affects the local Codex CLI and new Foundry sessions. Claude plugins remain separate.</p>
     <p className="text-xs text-ink-faint">Plugins can include skills, tools and hooks. Install sources you trust. Connected services still require native authorization; installing does not automatically allow their MCP tools in goals. Marketplace setup and plugin updates remain in the native CLI.</p>
     {error && <div role="alert" className="text-sm text-bad-ink">{error}</div>}

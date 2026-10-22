@@ -167,10 +167,10 @@ export function MergeResolvePage() {
       <div className="grid gap-4 md:gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
         {/* the files as a side list on the page, as the Brief's sections: the one open marked, each with its mark (yellow waits for you, solid is resolved) */}
         <section className="self-start md:sticky md:top-4 md:max-h-[calc(100dvh-5.5rem)] md:overflow-y-auto">
-          <header className="px-2.5 pb-2 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">
+          <header className="px-2.5 pb-2 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">
             <span>Files</span>
             <b className="mono text-xs tracking-normal text-ink">{state.files.length}</b>
-            <span className="ml-auto normal-case tracking-normal font-semibold">
+            <span className="ml-auto no-caps font-semibold">
               <span className="mono">{state.remaining}</span> left
             </span>
           </header>
@@ -196,7 +196,7 @@ export function MergeResolvePage() {
 /** a panel of the page, as the kit's Card draws one */
 const PANEL = 'rounded-lg border border-line bg-panel shadow-[0_1px_2px_rgb(0_0_0/0.05)] min-w-0';
 /** a label in small capitals, as a figure's on Wayfinding pages */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 
 /** one file: its header with the sides to take, both sides coloured by language, and the result to edit */
 function FilePane({ file, busy, onTake, onSave, onUndo }: { file: ResolveFile; busy: string | null; onTake: (side: 'ours' | 'theirs' | 'both') => void; onSave: (content: string) => void; onUndo: () => void }) {

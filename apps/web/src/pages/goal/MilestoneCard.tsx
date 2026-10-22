@@ -12,7 +12,7 @@ import { HelpLink } from '../HelpPage.tsx';
 const KIND_LABEL: Record<FeedbackPlan['kind'], string> = { hint: 'Hint for the remaining tasks', fix: 'Fix tasks (then a second look here)', decision: 'Decision (every later task follows it)' };
 const IMAGE = /\.(png|jpe?g|webp|gif|svg)$/i;
 /** a label in small capitals over a row of pictures */
-const LABEL = 'mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+const LABEL = 'mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 
 /**
  * The goal paused at a milestone: what to look at, the preview, what the self-check saw, the artifacts — and the two ways
@@ -200,7 +200,7 @@ function FinalWalkthrough({ d }: { d: GoalDetail }) {
           <div className="flex flex-wrap items-center gap-2 text-[13px] font-bold text-ink">
             {task.title}
             {/* a failed recording in the failure colour; fake data is a caveat, not a signal */}
-            {evidenceStatus(ev) !== 'pass' && <span className={cn('rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] ring-1 ring-inset', evidenceStatus(ev) === 'fail' ? 'bg-bad/10 text-bad-ink ring-bad/40' : 'text-ink-soft ring-line-strong')}>{evidenceStatus(ev) === 'fail' ? 'failed' : 'fake data only'}</span>}
+            {evidenceStatus(ev) !== 'pass' && <span className={cn('rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset', evidenceStatus(ev) === 'fail' ? 'bg-bad/10 text-bad-ink ring-bad/40' : 'text-ink-soft ring-line-strong')}>{evidenceStatus(ev) === 'fail' ? 'failed' : 'fake data only'}</span>}
           </div>
           <EvidenceView key={at} goalId={d.goal.id} evidence={ev} taskId={task.id} />
         </div>

@@ -59,7 +59,7 @@ export function OpsDock() {
         <div className="flex items-center gap-2 h-9">
           <button type="button" className="flex items-center gap-2 min-w-0 flex-1 text-left h-full" onClick={() => setOpen(!open)} aria-expanded={open} title={open ? 'fold the operations' : 'show the operations'}>
             <SquareTerminal size={14} className="text-ink-soft shrink-0" />
-            <span className="text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink shrink-0">Operations</span>
+            <span className="text-[12.5px] font-extrabold caps text-ink shrink-0">Operations</span>
             {counts}
           </button>
           {open && ok + failed > 0 && (
@@ -114,7 +114,7 @@ function OpBody({ t, logClass }: { t: OpTab; logClass: string }) {
   return (
     <div className="pt-2 space-y-2">
       <div className="flex items-center gap-x-2 gap-y-0.5 flex-wrap text-[11px] text-ink-faint">
-        <span className="font-extrabold uppercase tracking-[0.1em] text-ink-soft">{KIND_LABEL[t.kind]}</span>
+        <span className="font-extrabold caps text-ink-soft">{KIND_LABEL[t.kind]}</span>
         <span>· started {time(t.startedAt)}</span>
         {took(t) && <span>· took {took(t)}</span>}
         <span className={cn('font-semibold', STATUS_TEXT[t.status])}>· {t.status === 'running' ? 'running…' : t.status}</span>

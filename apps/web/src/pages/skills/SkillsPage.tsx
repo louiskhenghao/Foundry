@@ -212,7 +212,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       {/* the tab's own head, in the capitals of a section; what needs your attention (updates, stale copies) in yellow */}
       <div className="flex items-center gap-x-3 gap-y-2 flex-wrap">
-        <h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+        <h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink">
           <Blocks size={14} aria-hidden="true" />
           Skills
         </h2>

@@ -86,7 +86,7 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design', provid
                 {o.id !== 'none' && (
                   // no catalog entry for this backend: nothing to install here, which is not "0 missing"; a quiet plate, green
                   // only once installed (what is missing waits for no one: the Install button is the call)
-                  <span className={cn('whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.07em] ring-1 ring-inset', installing === o.id ? 'text-work-ink ring-work/50' : ready ? 'text-ok-ink ring-ok/50' : !o.entries.length ? 'text-ink-faint ring-line' : 'text-ink-soft ring-line-strong')} title={!o.entries.length ? 'This option has nothing to install for the selected coding agent' : undefined}>
+                  <span className={cn('whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset', installing === o.id ? 'text-work-ink ring-work/50' : ready ? 'text-ok-ink ring-ok/50' : !o.entries.length ? 'text-ink-faint ring-line' : 'text-ink-soft ring-line-strong')} title={!o.entries.length ? 'This option has nothing to install for the selected coding agent' : undefined}>
                     {installing === o.id ? 'installing…' : ready ? 'installed' : !o.entries.length ? 'not for this agent' : `${missing.length} missing`}
                   </span>
                 )}

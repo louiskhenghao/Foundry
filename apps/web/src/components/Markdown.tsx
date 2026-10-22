@@ -58,7 +58,7 @@ export function MarkdownPanel({ source, title, className, maxHeight, local, defa
   return (
     <div className={cn('surface-card relative rounded-md border border-zinc-800 bg-zinc-950/60', className)}>
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-zinc-800/80">
-        <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint flex-1">{title ?? 'markdown'}</span>
+        <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint flex-1">{title ?? 'markdown'}</span>
         {actions}
         <div className="flex gap-0.5 rounded-md p-0.5 ring-1 ring-inset ring-line-strong text-[10.5px] font-semibold">
           <button className={cn('rounded-sm px-2 py-0.5', !raw ? 'bg-accent text-on-accent' : 'text-ink-soft hover:text-ink')} onClick={() => setRaw(false)}>

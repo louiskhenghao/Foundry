@@ -125,7 +125,7 @@ export function DecisionsBar({ brief, goal, goalId, editable, revisable = editab
             ) : d.kind === 'note' ? (
               <span className="flex-1 flex items-start gap-2">
                 <span className="flex-1 whitespace-pre-wrap">
-                  <span className="mr-1.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-ink-faint">note</span>
+                  <span className="mr-1.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-faint">note</span>
                   {d.text}
                 </span>
                 {editable && (

@@ -22,7 +22,7 @@ const METHOD: Record<string, string> = { 'claude.ai': 'Claude subscription', oau
 const methodOf = (m: string | null | undefined) => (m && m !== 'none' ? (METHOD[m] ?? m) : null);
 const stateOf = (account: AccountInfo | undefined, refreshing: boolean): State => (!account ? (refreshing ? 'checking' : 'unknown') : account.status.loggedIn ? 'connected' : account.installed ? 'signin' : 'missing');
 /** a figure's label: small capitals */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 
 export function AccountsPage() {
   const [info, setInfo] = useState<AccountsInfo | null>(null);
@@ -73,7 +73,7 @@ export function AccountsPage() {
             </div>
             <p className="text-sm text-ink-soft mt-0.5 truncate" title={who}>{who}</p>
           </div>
-          <span className={cn('inline-flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-[12.5px] font-extrabold uppercase leading-none tracking-[0.12em]', state.cls)}><state.Icon size={13} strokeWidth={2.5} aria-hidden="true" className={cn(at === 'checking' && 'animate-spin')} />{state.label}</span>
+          <span className={cn('inline-flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-[12.5px] font-extrabold caps leading-none', state.cls)}><state.Icon size={13} strokeWidth={2.5} aria-hidden="true" className={cn(at === 'checking' && 'animate-spin')} />{state.label}</span>
           {provider !== 'agy' && <Button disabled={busy || refreshing || !account?.installed} variant={status?.loggedIn ? 'default' : 'primary'} onClick={() => status?.loggedIn ? setLogout(provider) : setLogin(provider)}>{status?.loggedIn ? 'Sign out' : `Sign in to ${name}`}</Button>}
         </header>
         {status?.error && <p className="px-4 sm:px-5 -mt-1 pb-3 text-xs text-ink-faint">{status.error}</p>}

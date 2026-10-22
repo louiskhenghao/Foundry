@@ -16,7 +16,7 @@ const MODES: { id: DeliveryPolicy['mode']; label: string; desc: string }[] = [
 function Section({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
   return (
     <div className={className}>
-      <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">{title}</div>
+      <div className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">{title}</div>
       {children}
     </div>
   );

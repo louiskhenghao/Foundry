@@ -150,7 +150,7 @@ export function ExportPanel({ initialGoals }: { initialGoals?: GoalRow[] }) {
 
 const STATUS: Record<IncomingGoal['status'], string> = { new: '', here: 'already here', 'deleted-here': 'deleted here' };
 /** a part of the import, labelled in small capitals */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 /** what an import starts from: every goal that is new here, each repository's matching checkout, the imported settings */
 const newGoals = (r: IncomingReport | null) => new Set((r?.goals ?? []).filter((g) => g.status === 'new').map((g) => g.id));
 const matchedRepos = (r: IncomingReport | null) => Object.fromEntries((r?.repos ?? []).map((x) => [x.original, x.match ?? '']));

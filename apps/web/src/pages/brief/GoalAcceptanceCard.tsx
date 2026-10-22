@@ -48,7 +48,7 @@ export function GoalAcceptanceCard({ brief, editable, edit }: { brief: Brief; ed
               {g.name && (
                 <div className="flex items-center gap-2 mb-2">
                   {g.key && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: areaStyle(brief, g.key).dot }} aria-hidden="true" />}
-                  <span className={cn('text-[11px] font-extrabold uppercase tracking-[0.1em]', g.key ? 'text-ink-soft' : 'text-ink-faint')}>{g.name}</span>
+                  <span className={cn('text-[11px] font-extrabold uppercase tracking-[0.08em]', g.key ? 'text-ink-soft' : 'text-ink-faint')}>{g.name}</span>
                 </div>
               )}
               <div className="space-y-1.5">

@@ -17,7 +17,7 @@ import { LiveLog } from '../LiveLog.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
 
 /** a section's label in the drawer, in small capitals */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 /** a fact about the task, as a small plate under its title (the goal's head has the same) */
 const FACT = 'inline-flex items-center gap-1.5 min-w-0 max-w-full rounded-md bg-panel px-2.5 py-1 text-[13px] font-semibold text-ink-soft ring-1 ring-inset ring-line';
 /** the checkerboard behind a picture, so a transparent one shows its edges */
@@ -31,7 +31,7 @@ function TaskPlate({ state }: { state: TaskState }) {
   const m = taskMark(state);
   const Icon = m === 'done' ? Check : m === 'you' ? Hand : m === 'bad' ? X : m === 'off' ? Ban : m === 'next' ? Clock : state === 'observing' ? Eye : state === 'merging' ? GitMerge : Play;
   return (
-    <span className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] font-extrabold uppercase leading-none tracking-[0.12em]', m === 'you' ? 'bg-you text-on-you' : m === 'bad' ? 'bg-bad text-on-bad' : m === 'next' || m === 'off' ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-soft' : 'bg-ink text-on-ink')}>
+    <span className={cn('inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[11.5px] font-extrabold uppercase tracking-[0.08em] leading-none', m === 'you' ? 'bg-you text-on-you' : m === 'bad' ? 'bg-bad text-on-bad' : m === 'next' || m === 'off' ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-soft' : 'bg-ink text-on-ink')}>
       <Icon size={12} strokeWidth={2.5} aria-hidden="true" />
       {stateLabel(state)}
     </span>
@@ -173,7 +173,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                   <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={c.spec.type === 'command' ? c.spec.cmd : c.name}>
                     {c.name}
                   </span>
-                  <span className="shrink-0 text-[10.5px] font-extrabold uppercase tracking-[0.07em] text-ink-faint" title={c.tier}>{c.tier}</span>
+                  <span className="shrink-0 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-faint" title={c.tier}>{c.tier}</span>
                   <span className={cn('mono text-[11px] shrink-0 w-[3.25rem] text-right', res.mark === 'bad' ? 'font-bold text-bad-ink' : 'text-ink-faint')}>{r ? res.word : '—'}</span>
                 </div>
               );
@@ -227,7 +227,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           {openEsc.length > 0 && (
             // a heading in capitals, as the Goals page's boards have: each card under it carries its own yellow head
             <section aria-labelledby="task-needs-you" className="mb-5 space-y-3">
-              <h3 id="task-needs-you" className="flex items-center gap-2 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+              <h3 id="task-needs-you" className="flex items-center gap-2 text-[12.5px] font-extrabold caps text-ink">
                 <Hand size={14} aria-hidden="true" />
                 This task is waiting for you
                 <b className="mono grid h-5 min-w-5 place-items-center rounded-[5px] bg-you px-1.5 text-xs tracking-normal text-on-you">{openEsc.length}</b>
@@ -330,7 +330,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
   const running = !a.endedAt;
   const cell = (label: string, value: ReactNode, title?: string) => (
     <div className="min-w-0" title={title}>
-      <div className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">{label}</div>
+      <div className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">{label}</div>
       <div className="mt-1 text-[13px] font-semibold text-ink truncate">{value}</div>
     </div>
   );
@@ -350,7 +350,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
       {a.sessions.length > 0 && (
         <div className="overflow-x-auto">
           <table className="text-[11.5px] w-full">
-            <thead className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">
+            <thead className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">
               <tr className="text-left">
                 <th className="pr-3 pb-1 font-extrabold">session</th>
                 <th className="pr-3 pb-1 font-extrabold">model</th>

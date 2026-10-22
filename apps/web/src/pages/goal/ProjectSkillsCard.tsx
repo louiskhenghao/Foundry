@@ -36,7 +36,7 @@ export function ProjectSkillsCard({ d }: { d: GoalDetail }) {
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-xs">
           {group(a.skills).map(([name, list]) => (
             <div key={name} className="contents">
-              <dt className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint pt-1">{name}</dt>
+              <dt className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-faint pt-1">{name}</dt>
               <dd className="flex flex-wrap gap-1">
                 {list.map((s) => (
                   <span key={s} className="mono rounded-sm bg-sunken px-1.5 py-px text-[11px] text-ink ring-1 ring-inset ring-line" title={`/${s}`}>

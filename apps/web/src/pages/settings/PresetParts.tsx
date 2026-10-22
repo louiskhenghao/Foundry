@@ -12,7 +12,7 @@ import { Button, Field, Input, Select, chipClass, cn } from '../../ui.tsx';
 export const NATURE_HINT: Record<ModelNature, string> = { code: 'software and CAD goals, and goals not yet classified', docs: 'documents and cited research reports', media: 'image and video goals' };
 
 /** a fact about a preset (modified, a newer default) as a quiet plate: no signal colour, nothing here waits for you */
-const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-ink-soft ring-1 ring-inset ring-line-strong';
+const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line-strong';
 
 export function SectionTitle({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn('text-sm font-bold text-ink', className)}>{children}</div>;

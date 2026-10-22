@@ -47,7 +47,7 @@ const STATUS: Record<'pass' | 'fail' | 'unverified' | 'running' | 'none', { labe
 function StatusChip({ status, files = false }: { status: keyof typeof STATUS; files?: boolean }) {
   const s = STATUS[status];
   return (
-    <span className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] ring-1 ring-inset', s.className)}>
+    <span className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset', s.className)}>
       {status === 'running' && <Loader2 size={10} className="animate-spin" />}
       {status === 'running' && files ? 'collecting…' : s.label}
     </span>
@@ -250,7 +250,7 @@ export function LikenessView({ goalId, look, subjects, running, fixTitle }: { go
     // rounded-md: the guide's screenshot script finds this box by it
     <div className="rounded-md border border-line bg-sunken p-3 space-y-3">
       <div className="text-[11px] text-ink-soft">
-        <span className="font-extrabold uppercase tracking-[0.1em] text-ink">Likeness to the pictures</span>
+        <span className="font-extrabold caps text-ink">Likeness to the pictures</span>
         {look.verdict.summary ? ` · ${look.verdict.summary}` : ''}
       </div>
       {look.verdict.subjects.map((v) => {

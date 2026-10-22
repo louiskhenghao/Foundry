@@ -19,7 +19,7 @@ const resetIn = (iso: string | null) => {
   return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
 };
 /** a figure's label: small capitals, as on every page */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 
 /**
  * Each of the coding agent's accounts on the Usage page (ADR-0065): for Claude Code its own window signals and what
@@ -41,7 +41,7 @@ export function AccountsUsageCard({ provider, accounts }: { provider: AgentProvi
                 <span className="truncate text-sm font-bold text-ink" title={a.label}>{a.label}</span>
                 {/* the account new sessions run on, marked as the Accounts page marks it: a plate in the accent */}
                 {a.current && (
-                  <span className="inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-on-accent">
+                  <span className="inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-accent">
                     <Check size={11} aria-hidden="true" />current
                   </span>
                 )}

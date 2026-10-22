@@ -15,7 +15,7 @@ const WHAT: Record<Check['spec']['type'], string> = {
 };
 
 /** a section's label in the dialog, in small capitals */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink';
 
 /**
  * A run's output the way it reads best: a command's as numbered lines, an AI verdict as Markdown (Preview / Raw), and
@@ -66,7 +66,7 @@ export function CheckDialog({ goalId, check, results, taskName, initial, onClose
         // the check as the Acceptance list shows it: its square, its tier in capitals, its name
         <span className="flex items-center gap-2 min-w-0">
           <CheckSquare mark={CHECK_RESULT[initial?.status ?? 'none'].mark} />
-          <span className="shrink-0 rounded-sm px-1.5 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.07em] text-ink-soft ring-1 ring-inset ring-line-strong" title={check.tier}>{check.tier}</span>
+          <span className="shrink-0 rounded-sm px-1.5 py-0.5 text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line-strong" title={check.tier}>{check.tier}</span>
           <span className="truncate">{check.name}</span>
         </span>
       }

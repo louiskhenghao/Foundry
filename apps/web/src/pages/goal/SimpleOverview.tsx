@@ -31,7 +31,7 @@ const STATE_TEXT: Record<string, string> = {
 /** the squares in a row read finished first, as on the Goals page */
 const MARK_ORDER: Mark[] = ['done', 'run', 'you', 'bad', 'next', 'off'];
 /** a figure's label, in small capitals */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 
 /**
  * Progress for people who do not want the machinery: what is happening, how far, what it costs, what needs them, and
@@ -58,7 +58,7 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
 
       {open.length > 0 && (
         <section aria-labelledby="simple-needs-you" className="space-y-3">
-          <h2 id="simple-needs-you" className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+          <h2 id="simple-needs-you" className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink">
             <Hand size={14} aria-hidden="true" />
             Needs you
             <b className="mono grid h-5 min-w-5 place-items-center rounded-[5px] bg-you px-1.5 text-xs tracking-normal text-on-you">{open.length}</b>

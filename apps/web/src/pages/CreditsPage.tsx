@@ -47,7 +47,7 @@ export function CreditsPage() {
         title="Open source credits"
         summary="Foundry is built on the work of open-source maintainers and contributors. These are the projects it runs on, the agents and workflows it brings to your goals, and the license of everything it ships."
         actions={
-          <span className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] font-extrabold uppercase leading-none tracking-[0.12em] text-ink inset-ring-[1.5px] inset-ring-ink">
+          <span className="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] font-extrabold caps leading-none text-ink inset-ring-[1.5px] inset-ring-ink">
             <HeartHandshake size={14} aria-hidden="true" /> With thanks
           </span>
         }
@@ -93,7 +93,7 @@ export function CreditsPage() {
 function Stat({ value, label, icon: Icon }: { value: number; label: string; icon: LucideIcon }) {
   return (
     <div className={cn(PANEL, 'flex flex-col justify-between gap-2 px-3 py-3 sm:px-4')}>
-      <dt className="flex items-start gap-1.5 text-[11px] font-extrabold uppercase leading-tight tracking-[0.1em] text-ink-faint">
+      <dt className="flex items-start gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] leading-tight text-ink-faint">
         {/* a phone's third of the row has room for the words alone */}
         <Icon size={13} className="mt-px hidden shrink-0 sm:block" aria-hidden="true" />
         {label}
@@ -109,7 +109,7 @@ function Section({ id, title, count, blurb, icon: Icon, aside, children }: { id?
     <section id={id} className="scroll-mt-16 space-y-4 pt-12">
       <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
         <div className="min-w-0 max-w-2xl">
-          <h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+          <h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink">
             <Icon size={14} aria-hidden="true" />
             {title}
             {count != null && <b className="mono text-[13px] tracking-normal">{count}</b>}
@@ -204,7 +204,7 @@ function Notices() {
         )}
         {licenses.length > 0 && (
           <div>
-            <h3 className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">npm packages, by license</h3>
+            <h3 className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">npm packages, by license</h3>
             <div className="space-y-2">
               {licenses.map((g) => (
                 <Group key={g.license} title={g.license} marker={<span className="h-2 w-2 rounded-[2px] bg-line-strong" />} count={g.rows.length} unit="package" open={!!q || open.has(g.license)} onToggle={() => toggle(g.license)}>
@@ -265,7 +265,7 @@ function NoticeRow({ row, showLicense }: { row: Row; showLicense: boolean }) {
 
 const LicenseText = ({ text, label }: { text: string; label?: string }) => (
   <div>
-    {label && <div className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">{label}</div>}
+    {label && <div className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">{label}</div>}
     <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md border border-line bg-sunken p-3 text-[11px] leading-relaxed text-ink-soft">{text}</pre>
   </div>
 );

@@ -18,7 +18,7 @@ const SYNC_LABEL: Record<string, string | null> = { current: null, rebased: 'reb
 /** a delivery step as a checklist's square, and its state in words for a screen reader */
 const STEP_MARK: Record<string, [CheckMark, string]> = { ok: ['done', 'done'], skipped: ['off', 'skipped'], failed: ['bad', 'failed'] };
 /** a label inside a card, in small capitals */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em]';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em]';
 
 /** a small plate under a pull request: quiet, unless it says work is under way (blue), passed (green) or failed (red) */
 function Tag({ tone = 'zinc', title, children }: { tone?: 'zinc' | 'amber' | 'sky' | 'emerald' | 'rose'; title?: string; children: ReactNode }) {
@@ -125,7 +125,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
           title={
             <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               Delivery <Badge state={del.status === 'delivered' ? 'done' : del.status === 'failed' ? 'failed' : del.status === 'running' ? 'running' : 'pending'}>{del.status}</Badge>
-              <span className="mono text-xs font-semibold normal-case tracking-normal text-ink-faint">
+              <span className="mono text-xs font-semibold no-caps text-ink-faint">
                 {del.policy.mode}
                 {del.policy.mode !== 'local' && del.policy.unit === 'task' ? ' · one PR per task' : ''}
               </span>
@@ -165,7 +165,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
                   </span>
                   <span className="col-start-2 sm:col-start-auto flex flex-wrap items-center gap-2">
                   {p.ciSkipped ? (
-                    <Badge state="skipped" className="normal-case">CI skipped</Badge>
+                    <Badge state="skipped" className="no-caps">CI skipped</Badge>
                   ) : (
                     p.checks && <Badge state={p.checks === 'passing' ? 'pass' : p.checks === 'failing' ? 'fail' : p.checks === 'none' ? 'skipped' : 'pending'}>{p.checks === 'none' ? 'no CI' : `CI ${p.checks}`}</Badge>
                   )}

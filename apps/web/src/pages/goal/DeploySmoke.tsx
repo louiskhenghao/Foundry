@@ -35,7 +35,7 @@ export function SmokeView({ goalId, deployment, scripts, busy, onAgain }: { goal
     <div className="ml-1 mt-1.5 space-y-1.5 border-l-2 border-line pl-2.5 text-[11px]">
       <div className="flex flex-wrap items-center gap-2">
         {s && (
-          <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.07em] ring-1 ring-inset', STATUS[s.status].className)}>
+          <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset', STATUS[s.status].className)}>
             {running && <Loader2 size={9} className="animate-spin" />}
             {STATUS[s.status].label}
           </span>

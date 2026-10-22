@@ -124,7 +124,7 @@ export function DagCanvas({ tasks, selected, onSelect }: { tasks: DagTask[]; sel
         <div className="space-y-4">
           {sorted.map(([depth, ts]) => (
             <div key={depth}>
-              <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint mb-2">Step {depth + 1}</div>
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint mb-2">Step {depth + 1}</div>
               <div className="space-y-2">
                 {ts.map((t) => (
                   <TaskNode key={t.id} t={t} selected={selected === t.id} onSelect={onSelect} className="w-full" style={{ minHeight: MIN_H }} after={t.dependsOn.map((d) => byId.get(d)?.title ?? d)} />

@@ -102,7 +102,7 @@ export function HelpPage() {
         {/* level with the page's title (the page's top padding), pinned there while the page scrolls */}
         <div className="sticky top-9 space-y-0.5">
           <div className="flex items-center gap-2 mb-3">
-            <span className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+            <span className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink">
               <HelpCircle size={14} aria-hidden="true" />
               Guide
             </span>

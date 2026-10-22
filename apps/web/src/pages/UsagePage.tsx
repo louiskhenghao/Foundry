@@ -55,7 +55,7 @@ function SectionHead({ id, icon, title, note, aside }: { id: string; icon: React
   return (
     <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
-        <h2 id={id} className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+        <h2 id={id} className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink">
           {icon}
           {title}
         </h2>
@@ -497,7 +497,7 @@ function Bars({ buckets, costAvailable }: { buckets: UsageBucket[]; costAvailabl
 }
 
 /** the label of a figure: small capitals over it, as on every page */
-const LABEL = 'text-[11px] font-extrabold uppercase leading-tight tracking-[0.1em] text-ink-faint';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] leading-tight text-ink-faint';
 
 /** a figure tile (Usage, Reports): what it counts in small capitals, the figure large under it; `good` and `bad` colour a figure that passes or fails */
 export function Kpi({ label, value, hint, good, bad }: { label: string; value: string; hint?: string; good?: boolean; bad?: boolean }) {

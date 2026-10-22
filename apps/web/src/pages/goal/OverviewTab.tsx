@@ -16,7 +16,7 @@ import { MilestonesCard } from './MilestoneEvidence.tsx';
 import { ProjectSkillsCard } from './ProjectSkillsCard.tsx';
 
 /** a label inside a card, in small capitals */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em]';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em]';
 
 export function OverviewTab({ d }: { d: GoalDetail }) {
   const g = d.goal;

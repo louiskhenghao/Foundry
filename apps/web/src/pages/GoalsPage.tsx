@@ -310,7 +310,7 @@ export function GoalsPage() {
         <>
           {signs.length > 0 && (
             <section aria-labelledby="needs-you" className="mb-12">
-              <h2 id="needs-you" className="inline-flex items-center gap-2.5 rounded-t-md bg-ink px-3.5 py-2 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-on-ink">
+              <h2 id="needs-you" className="inline-flex items-center gap-2.5 rounded-t-md bg-ink px-3.5 py-2 text-[12.5px] font-extrabold caps text-on-ink">
                 Needs you
                 <b className="mono grid h-5 min-w-5 place-items-center rounded-[5px] bg-you px-1.5 text-xs tracking-normal text-on-you">{signs.length}</b>
               </h2>

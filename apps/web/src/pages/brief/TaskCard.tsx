@@ -85,7 +85,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
           <div className="px-2.5 pb-2.5 -mt-1 space-y-1.5 text-[11px]" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
             {task.dependsOnKeys.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint w-10 shrink-0" title="this task starts only after these are done">After</span>
+                <span className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-faint w-10 shrink-0" title="this task starts only after these are done">After</span>
                 {task.dependsOnKeys.map((k) => (
                   <DepChip key={k} taskKey={k} title={titleOf(brief, k)} onOpen={onOpenTask} />
                 ))}
@@ -93,7 +93,7 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
             )}
             {next.length > 0 && (
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-[10.5px] font-extrabold uppercase tracking-[0.1em] text-ink-faint w-10 shrink-0" title="these tasks wait for this one">Next</span>
+                <span className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-faint w-10 shrink-0" title="these tasks wait for this one">Next</span>
                 {next.map((t) => (
                   <DepChip key={t.key} taskKey={t.key} title={t.title || t.key} onOpen={onOpenTask} />
                 ))}
@@ -262,7 +262,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
 
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">Spec</span>
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">Spec</span>
             {editable && (
               <span className="ml-auto flex items-center gap-1.5">
                 <Input className="text-xs py-1 w-56" placeholder="notes for the AI (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -301,7 +301,7 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
 
         <div>
           <div className="flex items-center gap-x-2 gap-y-1 flex-wrap mb-1.5">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint whitespace-nowrap">Acceptance for this task</span>
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint whitespace-nowrap">Acceptance for this task</span>
             <span className="text-xs text-ink-faint">run after every attempt; the task is done when its must checks pass</span>
             {editable && (
               <Menu

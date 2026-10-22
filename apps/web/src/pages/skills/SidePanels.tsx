@@ -11,7 +11,7 @@ const TIER_LABEL: Record<SkillTier, string> = { required: 'Required — the engi
 type SideTab = 'catalog' | 'trash' | 'history';
 
 /** a catalog entry's bundle (mattpocock, ponytail…): a quiet tag, not a signal */
-const BUNDLE = 'shrink-0 rounded-sm px-1 text-[10px] font-bold uppercase tracking-[0.07em] text-ink-soft inset-ring inset-ring-line-strong';
+const BUNDLE = 'shrink-0 rounded-sm px-1 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft inset-ring inset-ring-line-strong';
 
 /** is something running on this key (catalog id, `tier`, `restore:<path>`)? */
 type Busy = (key: string) => boolean;
@@ -167,7 +167,7 @@ function sourceLine(c: CatalogEntryStatus): string {
 function CatalogEntryDialog({ c, open, onClose }: { c: CatalogEntryStatus; open: boolean; onClose: () => void }) {
   const row = (k: string, v: ReactNode) => (
     <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-2">
-      <span className="pt-px text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">{k}</span>
+      <span className="pt-px text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">{k}</span>
       <span className="min-w-0 break-words">{v}</span>
     </div>
   );
@@ -195,7 +195,7 @@ function CatalogEntryDialog({ c, open, onClose }: { c: CatalogEntryStatus; open:
         {c.entry.requiresEnv.length > 0 && row('needs', `${c.entry.requiresEnv.join(', ')}${c.entry.envFor ? ` for ${c.entry.envFor}` : ''}`)}
         {c.entry.workflow.length > 0 && (
           <div>
-            <div className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">workflow rules</div>
+            <div className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">workflow rules</div>
             <ul className="space-y-1.5">
               {c.entry.workflow.map((w, i) => (
                 <li key={i} className="rounded-md border border-line bg-sunken px-2.5 py-1.5">

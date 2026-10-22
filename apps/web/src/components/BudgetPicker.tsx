@@ -67,7 +67,7 @@ export function BudgetPicker({
                 {def.label}
                 {p === "auto" && (
                   // a quiet plate: which preset a new goal starts on is a fact, not a signal
-                  <span className="rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.07em] text-ink-soft ring-1 ring-inset ring-line-strong">
+                  <span className="rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line-strong">
                     default
                   </span>
                 )}

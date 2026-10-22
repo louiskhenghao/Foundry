@@ -101,7 +101,7 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
           <aside className="bg-sunken border-b md:border-b-0 md:border-r border-line p-2 overflow-auto max-h-40 md:max-h-none">
             {meta?.recent.length ? (
               <>
-                <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint px-2.5 py-1 flex items-center gap-1.5">
+                <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint px-2.5 py-1 flex items-center gap-1.5">
                   <Clock size={11} /> Recent
                 </div>
                 {meta.recent.map((p) => (
@@ -112,7 +112,7 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
                 ))}
               </>
             ) : null}
-            <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint px-2.5 py-1 mt-1">Places</div>
+            <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint px-2.5 py-1 mt-1">Places</div>
             {(meta?.roots ?? []).map((r) => (
               <button key={r.path} onClick={() => go(r.path)} className={navItemClass(listing?.path === r.path)}>
                 <span className="flex items-center gap-1.5">
@@ -174,7 +174,7 @@ export function FolderPicker({ initial, onPick, onClose }: { initial?: string; o
                   <button className="flex items-center gap-2 flex-1 min-w-0 text-left" onDoubleClick={() => go(e.path)} onClick={() => setTyped(e.path)} title="double-click to open">
                     {e.isGitRepo ? <FolderGit2 size={14} className="text-ink shrink-0" /> : <Folder size={14} className="text-ink-faint shrink-0" />}
                     <span className={cn('truncate text-ink', typed === e.path && 'font-bold')}>{e.name}</span>
-                    {e.isGitRepo && <span className="shrink-0 rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.07em] text-ink-soft ring-1 ring-inset ring-line-strong">git</span>}
+                    {e.isGitRepo && <span className="shrink-0 rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line-strong">git</span>}
                   </button>
                   <button className="text-[11px] font-semibold text-ink-faint hover:text-ink opacity-0 group-hover:opacity-100" onClick={() => go(e.path)}>
                     open

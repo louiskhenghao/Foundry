@@ -8,7 +8,7 @@ import { BOARD_PANEL, EmptyPanel, PLATE, shortCwd, traitChip } from './agents/ro
 import { HelpLink } from './HelpPage.tsx';
 
 /** a schedule that fires, as a solid plate of ink (the colour of what Foundry does); one turned off stays a quiet outline */
-const ON = 'inline-flex items-center whitespace-nowrap rounded-sm border border-ink bg-ink px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-on-ink';
+const ON = 'inline-flex items-center whitespace-nowrap rounded-sm border border-ink bg-ink px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-ink';
 
 /** when a schedule fires next, as this computer shows times; a disabled one has no next run */
 export function nextRunLabel(iso: string | null, now = new Date()): string {

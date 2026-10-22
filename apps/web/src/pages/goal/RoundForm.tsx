@@ -6,7 +6,7 @@ import { Button, Input, Textarea, choiceClass, cn } from '../../ui.tsx';
 export type RoundSubmitKind = 'send' | 'all' | 'finish';
 
 /** a small plate after a question or an option's words */
-const PLATE = 'ml-2 inline-block rounded-sm px-1.5 py-[3px] align-[2px] text-[10.5px] font-extrabold uppercase leading-none tracking-[0.08em] whitespace-nowrap';
+const PLATE = 'ml-2 inline-block rounded-sm px-1.5 py-[3px] align-[2px] text-[10.5px] font-extrabold uppercase tracking-[0.08em] leading-none whitespace-nowrap';
 
 /**
  * One round of questions as the Clarifier asks them: options with its recommendation first, a free answer per

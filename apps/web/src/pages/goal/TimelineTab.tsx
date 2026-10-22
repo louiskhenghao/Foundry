@@ -26,7 +26,7 @@ const STRIPES = { backgroundImage: 'repeating-linear-gradient(135deg, color-mix(
 /** a folded stretch is hatched faintly across every row */
 const FOLDED = { backgroundImage: 'repeating-linear-gradient(90deg, color-mix(in srgb, var(--color-ink-faint) 22%, transparent) 0 2px, transparent 2px 6px)' };
 /** a label inside a card, in small capitals */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em]';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em]';
 /** below this many pixels a minute a goal's steps are too thin to read or tap: the chart slides instead of fitting */
 const READABLE_PPM = 4;
 /** the zoom steps, in pixels a minute */

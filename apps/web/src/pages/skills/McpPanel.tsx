@@ -76,7 +76,7 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
       {/* the tab's own head, in the capitals of a section */}
       <div className="flex items-center gap-x-3 gap-y-2 flex-wrap">
-        <h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+        <h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink">
           <Server size={14} aria-hidden="true" />
           MCP servers <HelpLink to="settings#mcp-servers" />
         </h2>
@@ -157,7 +157,7 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect, keys, onC
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="mono text-sm font-bold text-ink">{s.name}</span>
-          <span className="rounded-sm px-1 text-[10px] font-bold uppercase tracking-[0.07em] text-ink-soft inset-ring inset-ring-line-strong">{SOURCE_LABEL[s.source]}</span>
+          <span className="rounded-sm px-1 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft inset-ring inset-ring-line-strong">{SOURCE_LABEL[s.source]}</span>
           {s.transport && <span className="mono text-[11px] text-ink-faint">{s.transport}</span>}
           {health && (
             <span title={health.detail}>

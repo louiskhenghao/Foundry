@@ -51,7 +51,7 @@ const SECTIONS: { id: string; label: string }[] = [
  * a small fact beside a setting (where its value comes from, a restart it needs) as a quiet plate: no signal colour. Its
  * outline is an inset-ring: with ring-inset the theme's colour named inset would win over ring-accent.
  */
-const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.07em] inset-ring';
+const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.08em] inset-ring';
 
 /** where a setting's value comes from: saved (outlined in the accent), the environment, or the default */
 function SourceBadge({ view, path }: { view: SettingsView; path: string }) {

@@ -39,7 +39,7 @@ function fullOf(it: AgentLogItem, resultFor: Map<string, ToolResult>): FullText 
 const oneLine = (s: string) => s.slice(0, 400).replace(/\s+/g, ' ');
 
 /** who speaks, as a small plate before the line: you in solid ink; a tool call or a command outlined, in mono */
-const ROLE = 'shrink-0 rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase leading-4 tracking-[0.07em]';
+const ROLE = 'shrink-0 rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.08em] leading-4';
 const TOOL = 'shrink-0 max-w-[45%] truncate rounded-sm px-1.5 py-px mono text-[11px] font-semibold leading-4 inset-ring-1';
 
 /**

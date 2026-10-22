@@ -68,7 +68,7 @@ export function AccountPoolList({ provider, pool, installed, onChange }: { provi
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="flex items-center gap-2.5 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+        <h3 className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink">
           <Users size={14} aria-hidden="true" />
           Accounts <b className="mono text-[13px] tracking-normal">{pool.accounts.length}</b>
         </h3>
@@ -95,10 +95,10 @@ export function AccountPoolList({ provider, pool, installed, onChange }: { provi
                 {meta && <div className="truncate text-xs text-ink-faint">{meta}</div>}
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                {a.current && <span className="inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-on-accent"><Check size={11} aria-hidden="true" />current</span>}
+                {a.current && <span className="inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-accent"><Check size={11} aria-hidden="true" />current</span>}
                 {/* a limit that lifts by itself: a quiet chip; a lost sign-in is yours to redo, so it is yellow */}
                 {a.limitedUntil && <span className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold text-ink-soft inset-ring inset-ring-line-strong"><Clock size={11} aria-hidden="true" />limited until <span className="mono">{at(a.limitedUntil)}</span></span>}
-                {signedOut && <span className="rounded-sm bg-you px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-on-you" title="Remove it and add it again">signed out</span>}
+                {signedOut && <span className="rounded-sm bg-you px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-you" title="Remove it and add it again">signed out</span>}
               </div>
               {(!a.current || !native) && (
                 <span className="ml-auto flex items-center gap-0.5">

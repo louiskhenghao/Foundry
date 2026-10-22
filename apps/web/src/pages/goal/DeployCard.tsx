@@ -152,7 +152,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
           {[...deployments].reverse().map((x, i) => (
             <li key={i} className="text-xs min-w-0">
               <div className="flex items-center gap-2 min-w-0">
-                <span className={cn('shrink-0 rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.07em] ring-1 ring-inset', STATUS[x.status])}>{x.status}</span>
+                <span className={cn('shrink-0 rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset', STATUS[x.status])}>{x.status}</span>
                 <span className="shrink-0 font-semibold text-ink">{info?.providers.find((p) => p.id === x.provider)?.label ?? x.provider}</span>
                 <span className="shrink-0 text-ink-faint">{x.production ? 'production' : 'preview'}</span>
                 {x.url ? (

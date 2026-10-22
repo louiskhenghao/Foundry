@@ -76,7 +76,7 @@ export function PlanSection({ costAvailable = true, brief, goalId, editable, edi
               {stages.ok && (
                 <div className="flex items-center gap-2.5 mb-2.5">
                   <span className="grid h-5 min-w-5 shrink-0 place-items-center rounded-[5px] bg-ink px-1 mono text-[11px] font-bold text-on-ink">{i + 1}</span>
-                  <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">
+                  <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">
                     Stage {i + 1}
                     {stage.length > 1 ? ` · ${stage.length} in parallel` : ''}
                     {i > 0 ? ' · after the previous stage' : ''}

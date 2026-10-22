@@ -68,7 +68,7 @@ export function InterviewPanel({ goal, skeleton = false, events = [] }: { goal: 
             <div className="mt-3 space-y-3">
               {past.map((r) => (
                 <div key={r.round}>
-                  <div className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">Round {r.round}{r.finish ? ' · asked for the Brief' : ''}</div>
+                  <div className="mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">Round {r.round}{r.finish ? ' · asked for the Brief' : ''}</div>
                   <ul className="space-y-1">
                     {r.questions.map((q) => (
                       <li key={q.key} className="text-xs">

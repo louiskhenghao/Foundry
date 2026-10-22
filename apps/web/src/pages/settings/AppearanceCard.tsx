@@ -156,7 +156,7 @@ function ThemeOption({ entry, chosen, light, onChoose, onCopy }: { entry: ThemeE
           <span className="flex items-center gap-2">
             <b className="text-[15px] text-ink" style={{ fontFamily: t.fonts?.sans }}>{t.name}</b>
             {chosen && (
-              <span className="inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] text-on-accent">
+              <span className="inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-accent">
                 <Check size={11} aria-hidden="true" /> in use
               </span>
             )}

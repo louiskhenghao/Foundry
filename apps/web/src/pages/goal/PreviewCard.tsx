@@ -422,7 +422,7 @@ const STATE_CHIP: Record<ServicesStatus['services'][number]['state'], string> = 
   unknown: 'text-ink-faint ring-line-strong',
 };
 /** the label inside a card above a section of it (Services, Environment), in small capitals */
-const SECTION = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink';
+const SECTION = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink';
 
 /** The Docker services from the repository's compose file: shared by every goal of the repository, kept running when previews stop. */
 function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: ServicesStatus; onChange: (s: ServicesStatus | null) => void; reload: () => Promise<void> }) {
@@ -475,7 +475,7 @@ function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: Serv
                 </span>
                 {s.ports.length > 0 && <span className="mono text-[11px] text-ink-faint">{s.ports.map((p) => `:${p}`).join(' ')}</span>}
                 <span
-                  className={cn('rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.07em] whitespace-nowrap ring-1 ring-inset', unhealthy ? (s.health === 'unhealthy' ? 'bg-bad/10 text-bad-ink ring-bad/40' : 'text-ink-soft ring-line-strong') : STATE_CHIP[s.state])}
+                  className={cn('rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.08em] whitespace-nowrap ring-1 ring-inset', unhealthy ? (s.health === 'unhealthy' ? 'bg-bad/10 text-bad-ink ring-bad/40' : 'text-ink-soft ring-line-strong') : STATE_CHIP[s.state])}
                   title={s.state === 'external' ? `Port ${s.ports.join(', ')} is already taken by something else on this computer (your own ${s.name}?). The apps use that one; Foundry does not start this service.` : undefined}
                 >
                   {label}
@@ -710,20 +710,20 @@ function EnvDialog({ open, env, goalId, anyRunning, onClose, onSaved, onReload }
         )}
         {setRows_.length > 0 && (
           <section className="space-y-2">
-            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">Set for this repository · <span className="mono">{setRows_.length}</span></h4>
+            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">Set for this repository · <span className="mono">{setRows_.length}</span></h4>
             <ul className="divide-y divide-line">{setRows_.map(row)}</ul>
           </section>
         )}
         {unset.length > 0 && (
           <section className="space-y-2">
-            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">Listed in example files, not set · <span className="mono">{unset.length}</span></h4>
+            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">Listed in example files, not set · <span className="mono">{unset.length}</span></h4>
             <p className="text-[11px] text-ink-faint">Those without an example value come first. Not every one is needed: example files list optional settings too, and some start scripts write their own. Only the ones you fill in are saved.</p>
             <ul className="divide-y divide-line">{unset.map(row)}</ul>
           </section>
         )}
         {custom.length > 0 && (
           <section className="space-y-2">
-            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">Added</h4>
+            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">Added</h4>
             <ul className="divide-y divide-line">{custom.map(row)}</ul>
           </section>
         )}

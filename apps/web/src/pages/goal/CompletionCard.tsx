@@ -161,10 +161,10 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
               <ol className="space-y-2">
                 {audit.findings.map((f, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className={cn('shrink-0 w-20 text-[10.5px] font-extrabold uppercase tracking-[0.07em] pt-0.5', SEVERITY_TONE[f.severity])}>{SEVERITY_LABEL[f.severity]}</span>
+                    <span className={cn('shrink-0 w-20 text-[10.5px] font-extrabold uppercase tracking-[0.08em] pt-0.5', SEVERITY_TONE[f.severity])}>{SEVERITY_LABEL[f.severity]}</span>
                     <span className="min-w-0 flex-1">
                       <span className="font-semibold text-ink">{f.title}</span>
-                      {f.severity === 'must' && f.inScope && <Badge state={f.fixTaskId ? 'done' : 'ready'} className="ml-1.5 normal-case">{f.fixTaskId ? 'fix task created' : "in this goal's code, for a follow-up"}</Badge>}
+                      {f.severity === 'must' && f.inScope && <Badge state={f.fixTaskId ? 'done' : 'ready'} className="ml-1.5 no-caps">{f.fixTaskId ? 'fix task created' : "in this goal's code, for a follow-up"}</Badge>}
                       <span className="block text-ink-soft whitespace-pre-wrap">{f.problem}</span>
                       <span className="block text-ink-faint">Fix: {f.fix}</span>
                       {f.files.length > 0 && <span className="block mono text-[11px] text-ink-faint break-all">{f.files.join(', ')}</span>}
@@ -188,10 +188,10 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
               <ol className="space-y-2">
                 {qa.results.map((r, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className={cn('shrink-0 w-20 text-[10.5px] font-extrabold uppercase tracking-[0.07em] pt-0.5', QA_TONE[r.status])}>{r.status}</span>
+                    <span className={cn('shrink-0 w-20 text-[10.5px] font-extrabold uppercase tracking-[0.08em] pt-0.5', QA_TONE[r.status])}>{r.status}</span>
                     <span className="min-w-0 flex-1">
                       <span className="font-semibold text-ink">{r.check}</span>
-                      {r.must && r.status === 'fail' && <Badge state={r.fixTaskId ? 'done' : 'ready'} className="ml-1.5 normal-case">{r.fixTaskId ? 'fix task created' : 'must check, for a follow-up'}</Badge>}
+                      {r.must && r.status === 'fail' && <Badge state={r.fixTaskId ? 'done' : 'ready'} className="ml-1.5 no-caps">{r.fixTaskId ? 'fix task created' : 'must check, for a follow-up'}</Badge>}
                       <span className="block text-ink-soft whitespace-pre-wrap">{r.evidence}</span>
                       {r.problem && <span className="block text-bad-ink whitespace-pre-wrap">{r.problem}</span>}
                       {r.fix && <span className="block text-ink-faint">Fix: {r.fix}</span>}
@@ -259,7 +259,7 @@ export function CompletionCard({ d }: { d: GoalDetail }) {
               <ul className="space-y-1.5">
                 {run.tools.map((t) => (
                   <li key={t.name} className="flex items-start gap-2">
-                    <span className={cn(CHIP, 'shrink-0 text-[10.5px] font-bold uppercase tracking-[0.07em]', TOOL_STATUS[t.status])}>{t.status}</span>
+                    <span className={cn(CHIP, 'shrink-0 text-[10.5px] font-bold uppercase tracking-[0.08em]', TOOL_STATUS[t.status])}>{t.status}</span>
                     <span className="min-w-0">
                       <span className="font-semibold text-ink">{TOOL_LABEL[t.name] ?? t.name}</span>
                       {t.detail && <span className={cn('block mono text-[11px] whitespace-pre-wrap break-words', t.status === 'failed' ? 'text-bad-ink' : 'text-ink-faint')}>{t.detail}</span>}

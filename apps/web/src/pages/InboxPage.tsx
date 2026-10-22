@@ -248,7 +248,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
           <div className="overflow-hidden rounded-lg border border-work/35 bg-work/[0.05] text-xs">
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 border-b border-work/20 px-3 py-2">
               <Sparkles size={13} className="text-work-ink" aria-hidden="true" />
-              <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-work-ink">AI diagnosis</span>
+              <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-work-ink">AI diagnosis</span>
               <span className="text-ink-faint">{suggestion.confidence} confidence · {suggestion.costAvailable === false ? 'cost unavailable' : <span className="mono">${suggestion.costUsd.toFixed(2)}</span>}</span>
               <span className="ml-auto text-ink-soft">
                 suggests <b className="text-ink">{ACTION_LABEL[suggestion.action as EscalationAction] ?? suggestion.action}</b>
@@ -366,10 +366,10 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
 }
 
 /** a label in small capitals above a field */
-const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 
 /** a small plate in a strip's title line (its state, a merge conflict): in the strip's own ink, or quiet */
-const stripTag = (quiet = false) => cn('inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-1 text-[10.5px] font-extrabold uppercase leading-none tracking-[0.08em] ring-[1.5px] ring-inset', quiet ? 'ring-line-strong text-ink-soft' : 'ring-on-you/45 text-on-you');
+const stripTag = (quiet = false) => cn('inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-1 text-[10.5px] font-extrabold uppercase tracking-[0.08em] leading-none ring-[1.5px] ring-inset', quiet ? 'ring-line-strong text-ink-soft' : 'ring-on-you/45 text-on-you');
 
 /** a trigger's icon in the card's header */
 const TRIGGER_ICON: Record<string, LucideIcon> = {
