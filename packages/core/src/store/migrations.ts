@@ -94,4 +94,12 @@ export const MIGRATIONS: Migration[] = [
     id: '0008-schedules',
     sql: `CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, data TEXT NOT NULL);`,
   },
+  {
+    // a coding agent's sign-ins beside the machine's own, and the one new sessions run on (ADR-0065)
+    id: '0009-accounts',
+    sql: `
+      CREATE TABLE IF NOT EXISTS accounts (provider TEXT NOT NULL, id TEXT NOT NULL, position INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (provider, id));
+      CREATE TABLE IF NOT EXISTS current_accounts (provider TEXT PRIMARY KEY, account_id TEXT NOT NULL);
+    `,
+  },
 ];

@@ -32,6 +32,8 @@ export interface EngineConfig {
   port: number;
   host: string;
   claudeBin?: string;
+  /** when the current account's usage limit stops a session: go on with the coding agent's next account (ADR-0065) */
+  autoSwitch: { claude: boolean; codex: boolean };
   /** Global cap on concurrent claude processes. */
   maxConcurrent: number;
   /** `--setting-sources`; undefined = inherit everything (user skills included). */
@@ -176,6 +178,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     port: Number(process.env.FOUNDRY_PORT ?? 4111),
     host: process.env.FOUNDRY_HOST ?? '127.0.0.1',
     maxConcurrent: Number(process.env.FOUNDRY_MAX_CONCURRENT ?? 3),
+    autoSwitch: { claude: false, codex: false },
     mcpAllowed: [...DEFAULT_MCP_ALLOWED],
     codexMcpAllowed: [],
     workspacesRoot: process.env.FOUNDRY_WORKSPACES_ROOT ?? null,

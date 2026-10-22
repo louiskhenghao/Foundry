@@ -1,7 +1,7 @@
 import type { AgentProvider } from '../schema/provider.ts';
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { FINAL_WALK, IDLE_COMPLETION, IDLE_DELIVERY, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
+import { AgentAccount, NATIVE_ACCOUNT, FINAL_WALK, IDLE_COMPLETION, IDLE_DELIVERY, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 import { applySubjectEvent } from '../machine/subjects.ts';
 
@@ -644,6 +644,22 @@ function project(db: Database, e: EngineEvent): void {
       if (sch) db.run('INSERT OR REPLACE INTO schedules (id, data) VALUES (?, ?)', [sch.id, JSON.stringify({ ...sch, lastRun: { at: e.payload.at, goalId: e.goalId ?? sch.lastRun?.goalId ?? null, skipped: e.payload.skipped }, runs: sch.runs + 1 })]);
       break;
     }
+    case 'account.added': {
+      const a = e.payload.account;
+      const last = db.query('SELECT MAX(position) AS p FROM accounts WHERE provider = ?').get(a.provider) as { p: number | null };
+      db.run('INSERT OR REPLACE INTO accounts (provider, id, position, data) VALUES (?, ?, ?, ?)', [a.provider, a.id, (last.p ?? 0) + 1, JSON.stringify(a)]);
+      break;
+    }
+    case 'account.removed':
+      db.run('DELETE FROM accounts WHERE provider = ? AND id = ?', [e.payload.provider, e.payload.accountId]);
+      db.run('DELETE FROM current_accounts WHERE provider = ? AND account_id = ?', [e.payload.provider, e.payload.accountId]);
+      break;
+    case 'account.reordered':
+      e.payload.order.forEach((id, i) => db.run('UPDATE accounts SET position = ? WHERE provider = ? AND id = ?', [i + 1, e.payload.provider, id]));
+      break;
+    case 'account.switched':
+      db.run('INSERT OR REPLACE INTO current_accounts (provider, account_id) VALUES (?, ?)', [e.payload.provider, e.payload.to]);
+      break;
     case 'learnings.set': {
       const p = e.payload;
       if (p.learnings.length) db.run('INSERT OR REPLACE INTO repo_learnings (repo_path, data) VALUES (?, ?)', [p.repoPath, JSON.stringify({ repoPath: p.repoPath, learnings: p.learnings, updatedAt: e.ts })]);
@@ -920,7 +936,16 @@ export function listRepoLearnings(db: Database): RepoLearnings[] {
   return (db.query('SELECT data FROM repo_learnings').all() as { data: string }[]).map((r) => JSON.parse(r.data) as RepoLearnings).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules'];
+/** a coding agent's added accounts (never the native one), in the order they are tried */
+export function listAccounts(db: Database, provider: AgentProvider): AgentAccount[] {
+  return (db.query('SELECT data FROM accounts WHERE provider = ? ORDER BY position, id').all(provider) as { data: string }[]).map((r) => AgentAccount.parse(JSON.parse(r.data)));
+}
+/** the account new sessions of the coding agent run on */
+export function currentAccountId(db: Database, provider: AgentProvider): string {
+  return (db.query('SELECT account_id FROM current_accounts WHERE provider = ?').get(provider) as { account_id: string } | null)?.account_id ?? NATIVE_ACCOUNT;
+}
+
+const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules', 'accounts', 'current_accounts'];
 
 export function clearReadModels(db: Database): void {
   for (const t of READ_MODEL_TABLES) db.exec(`DELETE FROM ${t}`);
