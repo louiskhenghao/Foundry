@@ -293,8 +293,10 @@ const STATE_LABELS: Record<string, string> = {
   goal_review: 'reviewing',
   awaiting_feedback: 'have a look',
 };
+/** a state in words, as a badge or a caption shows it */
+export const stateLabel = (state: string) => STATE_LABELS[state] ?? state.replace(/_/g, ' ');
 export function Badge({ state, children, className }: { state: string; children?: ReactNode; className?: string }) {
-  return <span className={cn('inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)} title={state.replace(/_/g, ' ')}>{children ?? STATE_LABELS[state] ?? state.replace(/_/g, ' ')}</span>;
+  return <span className={cn('inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)} title={state.replace(/_/g, ' ')}>{children ?? stateLabel(state)}</span>;
 }
 
 /** Progress bar against a limit; `max` null = no limit (renders a neutral bar). */

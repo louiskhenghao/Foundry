@@ -199,8 +199,49 @@ select:not([multiple]):is(:not([size]), [size='1']) {
     background-position: 6px 0;
   }
 }
+/* a Needs you sign: hung from the rail above it, it swings in when it appears and a little under the pointer; its
+   arrow nudges forward now and then */
+.sign-in {
+  transform-origin: 50% -26px;
+  animation: sign-hang 0.8s cubic-bezier(0.25, 0.8, 0.35, 1) both;
+}
+.sign {
+  transform-origin: 50% -26px;
+  box-shadow:
+    inset 0 -4px 0 color-mix(in srgb, var(--color-on-you) 14%, transparent),
+    0 2px 0 rgb(0 0 0 / 0.08),
+    0 24px 34px -20px rgb(0 0 0 / 0.55);
+}
+.sign:hover {
+  animation: sign-swing 0.7s cubic-bezier(0.3, 0.7, 0.4, 1);
+}
+.sign-arrow {
+  animation: arrow-nudge 5s cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
+}
+@keyframes sign-hang {
+  0% { transform: rotate(2.4deg); }
+  30% { transform: rotate(-1.4deg); }
+  56% { transform: rotate(0.7deg); }
+  80% { transform: rotate(-0.25deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes sign-swing {
+  0% { transform: rotate(0deg); }
+  22% { transform: rotate(1.3deg); }
+  48% { transform: rotate(-0.8deg); }
+  74% { transform: rotate(0.3deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes arrow-nudge {
+  0%, 80%, 100% { transform: translateX(0); }
+  87% { transform: translateX(6px); }
+  93% { transform: translateX(-1px); }
+}
 @media (prefers-reduced-motion: reduce) {
-  .hatch {
+  .hatch,
+  .sign-in,
+  .sign:hover,
+  .sign-arrow {
     animation: none;
   }
 }
