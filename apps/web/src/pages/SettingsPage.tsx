@@ -4,7 +4,7 @@ import type { Settings, SettingsView } from '@foundry/core/browser';
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
 import { RotateCcw } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
 import { ModelPresetsSection } from './settings/ModelPresets.tsx';
@@ -773,6 +773,13 @@ export function SettingsPage() {
             </div>
           )}
           <p className="text-[11px] text-zinc-500">Updates never interrupt running agents: new sessions stop first and active ones finish before the restart (unless you force it in the update dialog).</p>
+          <p className="text-[11px] text-zinc-500">
+            Foundry is built on open-source software:{' '}
+            <Link to="/credits" className="underline hover:text-zinc-300">
+              Open source credits
+            </Link>
+            , with the license notices of everything the Docker image ships.
+          </p>
         </div>
       </Card>
       <UpdateDialog open={updOpen} onClose={() => setUpdOpen(false)} status={upd} />

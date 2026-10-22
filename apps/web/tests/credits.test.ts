@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { CATALOG } from '../../../scripts/credits/catalog.ts';
 import { CREDITS_JSON, NOTICES_TXT, ROOT, catalogProjects, collectCredits, dockerfileInstalls, productionPackages, readLock, renderCreditsJson, renderNotices } from '../../../scripts/credits/credits.ts';
 import { EXCLUDED_INSTALLS, TOOLS } from '../../../scripts/credits/tools.ts';
+import { FEATURED, resolveFeatured } from '../src/pages/credits/featured.ts';
 import type { Credits } from '../src/pages/credits/types.ts';
 
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -36,5 +37,13 @@ describe('Open source credits', () => {
     const projects = [...catalogProjects().keys()];
     expect(projects.filter((p) => !CATALOG[p])).toEqual([]);
     expect(Object.keys(CATALOG).filter((p) => !projects.includes(p))).toEqual([]);
+  });
+
+  test("every featured card resolves to a package, tool or catalog project in the credits", () => {
+    const items = FEATURED.flatMap((g) => g.items);
+    expect(items.filter((f) => !resolveFeatured(f, committed)).map((f) => f.name)).toEqual([]);
+    // a featured catalog project is not listed twice
+    const featuredProjects = items.flatMap((f) => ('ref' in f && 'catalog' in f.ref ? [f.ref.catalog] : []));
+    expect(committed.catalog.filter((p) => p.featured).map((p) => p.project).sort()).toEqual(expect.arrayContaining(featuredProjects));
   });
 });
