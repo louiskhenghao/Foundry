@@ -294,7 +294,7 @@ main {
 
 /* minimal prose for model-authored markdown */
 .md {
-  @apply text-sm text-zinc-200 leading-relaxed;
+  @apply text-sm text-ink-soft leading-relaxed;
 }
 .md > * + * {
   margin-top: 0.6em;
@@ -303,7 +303,7 @@ main {
 .md h2,
 .md h3,
 .md h4 {
-  @apply font-semibold text-zinc-100;
+  @apply font-bold text-ink;
 }
 .md h1 {
   @apply text-base;
@@ -330,34 +330,35 @@ main {
 .md li > input[type='checkbox'] {
   @apply mr-1.5 align-middle;
 }
+/* code in the text is ink on the inset colour, framed by a hairline: a word set apart, not a signal */
 .md code {
   font-family: var(--font-mono);
-  @apply text-[12px] bg-zinc-900 border border-zinc-800 rounded px-1 py-0.5 text-emerald-200;
+  @apply text-[12px] bg-inset border border-line rounded-sm px-1 py-0.5 text-ink;
 }
 .md pre {
-  @apply bg-zinc-900 border border-zinc-800 rounded-md p-3 overflow-x-auto;
+  @apply bg-inset border border-line rounded-md p-3 overflow-x-auto;
 }
 .md pre code {
-  @apply bg-transparent border-0 p-0 text-zinc-200;
+  @apply bg-transparent border-0 p-0 text-ink-soft;
 }
 .md blockquote {
-  @apply border-l-2 border-zinc-700 pl-3 text-zinc-400;
+  @apply border-l-[3px] border-line-strong pl-3 text-ink-faint;
 }
 .md table {
   @apply text-xs border-collapse;
 }
 .md th,
 .md td {
-  @apply border border-zinc-800 px-2 py-1 text-left align-top;
+  @apply border border-line px-2 py-1 text-left align-top;
 }
 .md th {
-  @apply bg-zinc-900 text-zinc-300;
+  @apply bg-inset text-ink font-bold;
 }
 .md a {
-  @apply underline text-sky-300;
+  @apply underline decoration-[1.5px] underline-offset-2 text-work-ink;
 }
 .md hr {
-  @apply border-zinc-800;
+  @apply border-line;
 }
 .md img {
   @apply max-w-full rounded;
