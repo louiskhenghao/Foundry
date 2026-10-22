@@ -4,9 +4,9 @@ import { useState } from 'react';
 import { Button, ago, cn } from '../../ui.tsx';
 import { EvidenceView } from './MilestoneEvidence.tsx';
 
-/** a smoke's state as a small plate: ink while it runs, green once passed, red when it failed, quiet when there was none */
+/** a smoke's state as a small plate: blue while it runs, green once passed, red when it failed, quiet when there was none */
 const STATUS: Record<DeploySmoke['status'], { label: string; className: string }> = {
-  running: { label: 'smoke running…', className: 'text-ink ring-ink' },
+  running: { label: 'smoke running…', className: 'bg-work/10 text-work-ink ring-work/30' },
   pass: { label: 'smoke passed', className: 'bg-ok/10 text-ok-ink ring-ok/30' },
   fail: { label: 'smoke failed', className: 'bg-bad/10 text-bad-ink ring-bad/40' },
   skipped: { label: 'no smoke', className: 'text-ink-soft ring-line-strong' },
@@ -62,11 +62,12 @@ export function SmokeView({ goalId, deployment, scripts, busy, onAgain }: { goal
                 <button type="button" onClick={() => toggle(r.script)} aria-expanded={expanded} className="flex max-w-full items-center gap-1.5 text-left hover:underline underline-offset-2">
                   <ChevronRight size={11} className={cn('shrink-0 text-ink-faint transition-transform', expanded && 'rotate-90')} />
                   <span className={cn('font-bold', r.status === 'pass' ? 'text-ok-ink' : 'text-bad-ink')}>{r.status === 'pass' ? '✓' : '✗'}</span>
-                  <span className="mono font-semibold text-ink">{r.script}</span>
+                  {/* on a narrow screen the path and what it said are cut short, each whole in its tooltip */}
+                  <span className="mono min-w-0 truncate font-semibold text-ink" title={r.script}>{r.script}</span>
                   {r.status === 'fail' && firstLine ? (
                     <span className="truncate text-bad-ink" title={r.error ?? undefined}>{firstLine}</span>
                   ) : r.summary ? (
-                    <span className="truncate text-ink-faint">{r.summary}</span>
+                    <span className="truncate text-ink-faint" title={r.summary}>{r.summary}</span>
                   ) : null}
                 </button>
                 {expanded && (

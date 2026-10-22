@@ -54,17 +54,31 @@ export function MilestoneCard({ d }: { d: GoalDetail }) {
   };
   const cont = () => esc && act('continue', () => api.answer(esc.id, { action: 'continue' }));
   const confirm = () => esc && plan && act('confirm', () => api.answer(esc.id, { action: 'feedback', feedback: text, plan }));
+  const name = cp.taskId === FINAL_WALK ? 'the final walkthrough' : (task?.title ?? cp.taskId);
+  const lastSpace = name.lastIndexOf(' ');
   return (
     <section className={NEEDS_YOU_CARD}>
       <YouStrip
         icon={Eye}
         title={
-          <>
+          // balanced lines where the title wraps: no word left alone on the last one
+          <span className="block text-balance">
             {cp.recheck ? 'Second look' : 'Have a look'}
-            <span className="text-lg sm:text-xl font-bold tracking-[-0.01em]"> — {cp.taskId === FINAL_WALK ? 'the final walkthrough' : (task?.title ?? cp.taskId)}</span>
-          </>
+            <span className="text-lg sm:text-xl font-bold tracking-[-0.01em]">
+              {' — '}
+              {name.slice(0, lastSpace + 1)}
+              {/* the "?" holds on to the last word: where the title wraps it never stands alone on a line; in the strip's
+                  ink, as the strip's own tags have it */}
+              <span className="whitespace-nowrap">
+                {name.slice(lastSpace + 1)}
+                {'\u00a0'}
+                <span className="[&_a]:text-on-you/60 [&_a:hover]:text-on-you signs-card:[&_a]:text-ink-faint signs-card:[&_a:hover]:text-ink">
+                  <HelpLink to="while-it-runs#milestones" label="What a milestone look is for (new tab)" />
+                </span>
+              </span>
+            </span>
+          </span>
         }
-        tags={<HelpLink to="while-it-runs#milestones" label="What a milestone look is for (new tab)" />}
         since={cp.openedAt}
       />
       <div className="space-y-4 p-4 sm:p-5 text-xs text-ink-soft">
@@ -173,7 +187,7 @@ export function ArtifactsStrip({ goalId, files, shown }: { goalId: string; files
               <img src={api.artifactUrl(goalId, f)} alt={f} loading="lazy" decoding="async" className="h-24 w-24 object-cover rounded-md border border-line-strong hover:border-ink-faint" />
             </button>
           ) : (
-            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="mono text-[11px] text-ink-soft hover:text-ink hover:underline">
+            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="mono inline-flex items-center max-sm:min-h-8 text-[11px] text-ink-soft hover:text-ink hover:underline">
               {f}
             </a>
           ),

@@ -51,7 +51,7 @@ export function RestartDialog({ goalId, tasks, initial, open, onClose, onDone }:
           <label key={t.id} className={cn('flex items-center gap-2 px-2.5 py-2 cursor-pointer', affected.has(t.id) && 'bg-accent/[0.06]', from === t.id && 'shadow-[inset_3px_0_0_var(--color-accent)]')} style={{ paddingLeft: `${10 + (t.depth ?? 0) * 14}px` }}>
             <input type="radio" name="from" checked={from === t.id} onChange={() => setFrom(t.id)} />
             <Badge state={t.state} />
-            <span className={cn('truncate', affected.has(t.id) ? 'font-semibold text-ink' : 'text-ink-faint')}>{t.title}</span>
+            <span className={cn('min-w-0 truncate', affected.has(t.id) ? 'font-semibold text-ink' : 'text-ink-faint')} title={t.title}>{t.title}</span>
             {from === t.id && <span className="ml-auto text-[11px] font-bold text-accent-ink shrink-0">from here ↓</span>}
           </label>
         ))}

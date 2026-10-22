@@ -30,22 +30,27 @@ export function ReviewRounds({ rounds, open, busy, onFix }: { rounds: ReviewRoun
     <ul className="mt-1.5 ml-8 space-y-0.5">
       {rounds.map((r) => {
         const Icon = r.status === 'addressed' ? CheckCircle2 : r.status === 'nochange' ? Eye : r.status === 'failed' ? XCircle : r.status === 'fixing' ? Loader2 : MessageSquare;
-        // yellow only for a round that waits for you; one asked for is already starting
-        const tone = r.status === 'addressed' ? 'text-ok-ink' : r.status === 'nochange' ? 'text-ink-faint' : r.status === 'failed' ? 'text-bad-ink' : r.status === 'fixing' ? 'text-work-ink' : r.requested ? 'text-ink-soft' : 'text-you-ink';
+        // in the signal colours: green once settled (addressed, or nothing to change), blue while a fix works on it or one
+        // asked for starts, red when it could not be addressed; yellow only for a round that waits for you
+        const tone = r.status === 'addressed' || r.status === 'nochange' ? 'text-ok-ink' : r.status === 'failed' ? 'text-bad-ink' : r.status === 'fixing' || r.requested ? 'text-work-ink' : 'text-you-ink';
         const who = [...new Set(r.comments.map((c) => c.author).filter(Boolean))].map((a) => `@${a}`).join(', ');
         return (
-          <li key={r.id} className="text-xs text-ink-soft flex items-start gap-1.5 flex-wrap" title={r.detail ?? undefined}>
+          // the icon stays beside the words, which wrap under one another on a narrow screen with the link at their end
+          <li key={r.id} className="text-xs text-ink-soft flex items-start gap-1.5" title={r.detail ?? undefined}>
             <Icon size={11} className={cn('mt-0.5 shrink-0', tone, r.status === 'fixing' && 'animate-spin')} />
-            <span>
+            <span className="min-w-0">
               {roundLine(r)}
               {who && <span className="text-ink-faint"> · {who}</span>}
-              <span className="mono text-ink-faint"> · {r.at.slice(0, 10)}</span>
+              <span className="mono whitespace-nowrap text-ink-faint"> · {r.at.slice(0, 10)}</span>
+              {r.comments[0]?.url && (
+                <>
+                  {' '}
+                  <a className="inline-flex items-center max-sm:min-h-8 font-semibold text-work-ink hover:underline" href={r.comments[0].url} target="_blank" rel="noreferrer">
+                    first comment
+                  </a>
+                </>
+              )}
             </span>
-            {r.comments[0]?.url && (
-              <a className="font-semibold text-work-ink hover:underline" href={r.comments[0].url} target="_blank" rel="noreferrer">
-                first comment
-              </a>
-            )}
           </li>
         );
       })}

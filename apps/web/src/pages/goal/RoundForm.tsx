@@ -1,7 +1,7 @@
 import type { InterviewQuestion } from '@foundry/core/browser';
 import { CheckCheck, Send, SkipForward, X } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
-import { Button, Input, Textarea, choiceClass, cn } from '../../ui.tsx';
+import { Button, CODES, Input, Textarea, choiceClass, cn } from '../../ui.tsx';
 
 export type RoundSubmitKind = 'send' | 'all' | 'finish';
 
@@ -13,7 +13,8 @@ const PLATE = 'ml-2 inline-block rounded-sm px-1.5 py-[3px] align-[2px] text-[10
  * question, a note for what the questions missed, and the three ways to close the round (send, accept all
  * recommended, enough). Used by the interview before the Brief and by a Revise that asks before proposing.
  * Each question is numbered on a small plate; its options are cards, the chosen one in the accent; the recommended
- * one says so on a quiet plate, and a blocking question on a yellow one (only you can answer it).
+ * one says so on a plate in the Decisions' category colour (which option, not how anything stands), and a blocking
+ * question on a yellow one (only you can answer it).
  */
 export function RoundForm({ round, questions, rounds, busy, intro, finishLabel, finishTitle, onSubmit, onCancel }: {
   round: number;
@@ -60,7 +61,7 @@ export function RoundForm({ round, questions, rounds, busy, intro, finishLabel, 
                   <input type="radio" name={`${round}-${q.key}`} className="mt-[3px] shrink-0" checked={answers[q.key] === o} onChange={() => setAnswers((a) => ({ ...a, [q.key]: o }))} />
                   <span className="min-w-0">
                     {o}
-                    {j === 0 && <span className={cn(PLATE, 'text-ink-soft ring-1 ring-inset ring-line-strong')}>recommended</span>}
+                    {j === 0 && <span className={cn(PLATE, CODES[1].chip)}>recommended</span>}
                   </span>
                 </label>
               ))}

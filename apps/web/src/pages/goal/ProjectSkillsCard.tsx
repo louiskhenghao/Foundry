@@ -1,6 +1,6 @@
 import { agentsFolder } from '@foundry/core/browser';
 import type { GoalDetail } from '../../api.ts';
-import { Card } from '../../ui.tsx';
+import { CODES, Card, cn } from '../../ui.tsx';
 
 /** groups by what a skill is about, matched on its name in this order (the first that matches wins) */
 const GROUPS: [string, RegExp][] = [
@@ -13,6 +13,9 @@ const GROUPS: [string, RegExp][] = [
 
 /** the order the groups are shown in */
 const SHOWN = ['Frontend', 'Backend', 'Database', 'Testing', 'Tooling', 'Other'];
+
+/** each group's category colour (which group, never how anything stands): its square and its name; Other stays grey */
+const GROUP_CODE: Record<string, (typeof CODES)[number]> = { Frontend: CODES[0], Backend: CODES[2], Database: CODES[5], Testing: CODES[7], Tooling: CODES[6] };
 
 function group(skills: string[]): [string, string[]][] {
   const out = new Map<string, string[]>();
@@ -32,11 +35,15 @@ export function ProjectSkillsCard({ d }: { d: GoalDetail }) {
   return (
     <Card title={installed ? `Project skills · ${a.skills.length}` : 'Project skills'} actions={<span className="mono text-[11px] text-ink-faint">autoskills</span>}>
       {installed ? (
-        // per group, its name in small capitals and its skills as quiet plates
-        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-2.5 text-xs">
-          {group(a.skills).map(([name, list]) => (
+        // per group, its name in small capitals after a square in its colour, and its skills as quiet plates; on a phone
+        // the name sits over its skills
+        <dl className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5 sm:gap-y-2.5 text-xs">
+          {group(a.skills).map(([name, list], i) => (
             <div key={name} className="contents">
-              <dt className="text-[10.5px] font-extrabold uppercase tracking-[0.08em] text-ink-faint pt-1">{name}</dt>
+              <dt className={cn('flex items-center gap-1.5 self-start text-[11px] font-extrabold uppercase tracking-[0.08em] sm:pt-1', i > 0 && 'mt-2 sm:mt-0', GROUP_CODE[name]?.ink ?? 'text-ink-faint')}>
+                <i className={cn('block h-2 w-2 shrink-0 rounded-[2px]', GROUP_CODE[name]?.dot ?? 'bg-line-strong')} aria-hidden="true" />
+                {name}
+              </dt>
               <dd className="flex flex-wrap gap-1">
                 {list.map((s) => (
                   <span key={s} className="mono rounded-sm bg-sunken px-1.5 py-px text-[11px] text-ink ring-1 ring-inset ring-line" title={`/${s}`}>

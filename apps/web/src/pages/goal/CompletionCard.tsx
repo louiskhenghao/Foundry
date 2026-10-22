@@ -8,32 +8,36 @@ import { openFile } from '../../components/FilePreview.tsx';
 import { markFill, type Mark } from '../../components/progress.tsx';
 import { Badge, Button, Card, CopyButton, cn, fmtUsd } from '../../ui.tsx';
 
-/** how a row of a checklist stands: Wayfinding's marks, and `part` for a mix of passed and failed */
+/** how a row of a checklist stands: the shared progress marks, and `part` for a mix of passed and failed */
 export type CheckMark = Mark | 'part';
 
 /**
  * A checklist's square, the same wherever a list says how each of its items went (acceptance checks, delivery steps,
- * what ran after the goal): solid ink with a tick when it passed, red with a cross when it failed, hatched while it runs,
- * hollow before it ran, faded when it was skipped. `label` names the state for a screen reader when no word beside it does.
+ * what ran after the goal), in the signal colours of the shared marks: green with a tick when it passed, red with a
+ * cross when it failed, a blue hatch while it runs, hollow before it ran, faded when it was skipped, a red outline with a
+ * dash for a mix. `label` names the state for a screen reader when no word beside it does.
  */
 export function CheckSquare({ mark, label, className }: { mark: CheckMark; label?: string; className?: string }) {
   return (
     <span
       {...(label ? { role: 'img', 'aria-label': label, title: label } : { 'aria-hidden': true })}
-      className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-[5px]', mark === 'part' ? 'ring-[1.5px] ring-inset ring-bad text-bad-ink' : markFill[mark], mark === 'done' && 'text-on-ink', mark === 'bad' && 'text-on-bad', className)}
+      className={cn('grid h-5 w-5 shrink-0 place-items-center rounded-[5px]', mark === 'part' ? 'ring-[1.5px] ring-inset ring-bad text-bad-ink' : markFill[mark], mark === 'done' && 'text-on-ok', mark === 'bad' && 'text-on-bad', className)}
     >
       {mark === 'done' ? <Check size={13} strokeWidth={3} /> : mark === 'bad' ? <X size={13} strokeWidth={3} /> : mark === 'part' ? <Minus size={13} strokeWidth={3} /> : null}
     </span>
   );
 }
 
-/** an acceptance check's latest result as its square and the word beside it; no result yet is pending */
-export const CHECK_RESULT: Record<CheckResult['status'] | 'none', { mark: CheckMark; word: string }> = {
-  pass: { mark: 'done', word: 'passing' },
-  fail: { mark: 'bad', word: 'failing' },
-  error: { mark: 'bad', word: 'error' },
-  skipped: { mark: 'off', word: 'skipped' },
-  none: { mark: 'next', word: 'pending' },
+/**
+ * An acceptance check's latest result: its square, the word beside it and that word's colour (green passing, red
+ * failing, quiet when skipped or not run yet); no result yet is pending.
+ */
+export const CHECK_RESULT: Record<CheckResult['status'] | 'none', { mark: CheckMark; word: string; tone: string }> = {
+  pass: { mark: 'done', word: 'passing', tone: 'font-semibold text-ok-ink' },
+  fail: { mark: 'bad', word: 'failing', tone: 'font-bold text-bad-ink' },
+  error: { mark: 'bad', word: 'error', tone: 'font-bold text-bad-ink' },
+  skipped: { mark: 'off', word: 'skipped', tone: 'text-ink-faint' },
+  none: { mark: 'next', word: 'pending', tone: 'text-ink-faint' },
 };
 
 type Status = 'ok' | 'partial' | 'failed' | 'skipped' | 'pending' | 'running';
@@ -50,7 +54,8 @@ function Row({ status, label, summary, action, open, children }: { status: Statu
   return (
     <li className="py-3 first:pt-0 last:pb-0">
       <div className="flex items-start gap-2.5">
-        <CheckSquare mark={MARK[status]} />
+        {/* on a phone the label is a 32px button: the square comes down to its middle */}
+        <CheckSquare mark={MARK[status]} className="max-sm:mt-1.5" />
         <div className="min-w-0 flex-1 flex items-baseline gap-x-2 gap-y-0.5 flex-wrap pt-px">
           <button type="button" disabled={!children} onClick={() => setExpanded((e) => !e)} aria-expanded={children ? expanded : undefined} className="inline-flex items-center gap-1 text-[13px] font-bold text-ink enabled:hover:underline underline-offset-[3px]">
             {label}

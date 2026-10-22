@@ -9,6 +9,7 @@ import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { Badge, Card, cn } from '../../ui.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
+import { BudgetCard } from './BudgetCard.tsx';
 import { CodexModelsCard } from './CodexModelsCard.tsx';
 import { CheckDialog } from './CheckDialog.tsx';
 import { CHECK_RESULT, CheckSquare, CompletionCard } from './CompletionCard.tsx';
@@ -95,36 +96,44 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           <CompletionCard d={d} />
         </div>
         <div className="space-y-4">
+          {/* the right column reads as the Wayfinding sample has it: what the goal has used, then how it stands */}
+          <BudgetCard d={d} />
           <Card title="Acceptance">
-            {/* a checklist: per tier its count, then each check's square, its name and how it stands */}
+            {/* a checklist: per tier its count (green once every check passes, red while one fails), then each check's
+                square, its name and how it stands, in the signal colours */}
             {[
               ['must', must],
               ['stretch', stretch],
-            ].map(([tier, list]) => (
-              <section key={tier as string} className="mb-5">
-                <div className="flex items-baseline gap-2 mb-2">
-                  <h4 className={cn(LABEL, 'text-ink')}>{tier as string}</h4>
-                  <span className="ml-auto text-[11px] text-ink-faint">
-                    <span className="mono font-bold text-ink-soft">{(list as typeof must).filter((c) => latestResult(c.id)?.status === 'pass').length}/{(list as typeof must).length}</span> passing
-                  </span>
-                </div>
-                {(list as typeof must).length === 0 && <div className="text-xs text-ink-faint">none</div>}
-                {(list as typeof must).map((c) => {
-                  const r = latestResult(c.id);
-                  const res = CHECK_RESULT[r?.status ?? 'none'];
-                  return (
-                    <button key={c.id} type="button" onClick={() => setOpenCheck(c.id)} className="-mx-1.5 w-[calc(100%+0.75rem)] flex items-center gap-2.5 rounded-md px-1.5 py-1.5 text-left text-[13px] transition-colors hover:bg-sunken focus-visible:outline-2 focus-visible:outline-accent" title="Show what it checks, its output and every run">
-                      <CheckSquare mark={res.mark} />
-                      <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={c.name}>
-                        {c.name}
-                      </span>
-                      <span className="text-[11px] text-ink-faint truncate max-w-[80px]">{taskName(c.taskId)}</span>
-                      <span className={cn('mono text-[11px] shrink-0 w-[3.25rem] text-right', res.mark === 'bad' ? 'font-bold text-bad-ink' : 'text-ink-faint')}>{res.word}</span>
-                    </button>
-                  );
-                })}
-              </section>
-            ))}
+            ].map(([tier, list]) => {
+              const checks = list as typeof must;
+              const passing = checks.filter((c) => latestResult(c.id)?.status === 'pass').length;
+              const failing = checks.some((c) => CHECK_RESULT[latestResult(c.id)?.status ?? 'none'].mark === 'bad');
+              return (
+                <section key={tier as string} className="mb-5">
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <h4 className={cn(LABEL, 'text-ink')}>{tier as string}</h4>
+                    <span className={cn('ml-auto text-[11px]', checks.length && passing === checks.length ? 'font-semibold text-ok-ink' : failing ? 'font-semibold text-bad-ink' : 'text-ink-faint')}>
+                      <span className={cn('mono font-bold', !(checks.length && passing === checks.length) && !failing && 'text-ink-soft')}>{passing}/{checks.length}</span> passing
+                    </span>
+                  </div>
+                  {checks.length === 0 && <div className="text-xs text-ink-faint">none</div>}
+                  {checks.map((c) => {
+                    const r = latestResult(c.id);
+                    const res = CHECK_RESULT[r?.status ?? 'none'];
+                    return (
+                      <button key={c.id} type="button" onClick={() => setOpenCheck(c.id)} className="-mx-1.5 w-[calc(100%+0.75rem)] flex items-center gap-2.5 rounded-md px-1.5 py-1.5 text-left text-[13px] transition-colors hover:bg-sunken focus-visible:outline-2 focus-visible:outline-accent" title="Show what it checks, its output and every run">
+                        <CheckSquare mark={res.mark} />
+                        <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={c.name}>
+                          {c.name}
+                        </span>
+                        <span className="text-[11px] text-ink-faint truncate max-w-[80px]" title={taskName(c.taskId)}>{taskName(c.taskId)}</span>
+                        <span className={cn('mono text-[11px] shrink-0 w-[3.25rem] text-right', res.tone)}>{res.word}</span>
+                      </button>
+                    );
+                  })}
+                </section>
+              );
+            })}
             {shownCheck && <CheckDialog goalId={g.id} check={shownCheck} results={d.checkResults} taskName={taskName(shownCheck.taskId)} initial={latestResult(shownCheck.id)} onClose={() => setOpenCheck(null)} />}
             {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <SelfCheckSection d={d} />}
             {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && d.tasks.some((t) => t.milestone) && <MilestonePauseSection d={d} />}
@@ -256,12 +265,15 @@ export function BriefStrip({ d }: { d: GoalDetail }) {
   );
 }
 
-/** the goal review's verdict in one line, on a quiet panel (tinted red only when it failed); the reviewer's notes fold out */
+/**
+ * the goal review's verdict in one line, on a quiet panel: the square and the word say how it went (green passed, red
+ * failed), the panel only takes a red edge when it failed; the reviewer's notes fold out
+ */
 export function GoalReview({ review }: { review: { passed: boolean; overDelivered: boolean; notes: string } }) {
   const [open, setOpen] = useState(false);
   const verdict = review.passed ? (review.overDelivered ? 'over-delivered' : 'passed') : 'failed';
   return (
-    <div className={cn('rounded-lg border px-4 py-2.5 text-[13px] shadow-[0_1px_2px_rgb(0_0_0/0.05)]', review.passed ? 'border-line bg-panel' : 'border-bad/40 bg-bad/5')}>
+    <div className={cn('rounded-lg border bg-panel px-4 py-2.5 text-[13px] shadow-[0_1px_2px_rgb(0_0_0/0.05)]', review.passed ? 'border-line' : 'border-bad/40')}>
       <button type="button" className="w-full flex items-center gap-2.5 text-left" disabled={!review.notes} onClick={() => setOpen((o) => !o)} aria-expanded={review.notes ? open : undefined}>
         <CheckSquare mark={review.passed ? 'done' : 'bad'} />
         <span className={cn(LABEL, 'text-ink shrink-0')}>Goal review</span>

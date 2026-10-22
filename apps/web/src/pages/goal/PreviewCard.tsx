@@ -2,6 +2,7 @@ import { ExternalLink, Eye, EyeOff, GitBranch, Lock, Play, Plus, Square, X } fro
 import { useEffect, useRef, useState } from 'react';
 import { type PreviewAppStatus, type PreviewEnv, type PreviewPlace, type PreviewSources, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
 import { Button, Card, CopyButton, Input, Modal, Select, cn } from '../../ui.tsx';
+import { markFill } from '../../components/progress.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { WorkspaceDetails } from './WorkspaceDetails.tsx';
 import { PortLine, usePortRelease, usePorts } from '../PortsPage.tsx';
@@ -11,9 +12,9 @@ import { HelpLink } from '../HelpPage.tsx';
 
 const startedByText = (by: PreviewAppStatus['startedBy']) => (by === 'human' ? 'by you' : by === 'milestone' ? 'for the milestone' : by === 'integration' ? 'after a task landed' : null);
 
-/** ready (answering) / starting / failed / stopped, as a small square: solid ink once it answers, hatched while it starts, red when the last run failed, hollow when stopped */
+/** ready (answering) / starting / failed / stopped, as a small square in the shared marks: green once it answers, a blue hatch while it starts, red when the last run failed, hollow when stopped */
 function StatusDot({ app }: { app: Pick<PreviewAppStatus, 'running' | 'ready' | 'error'> }) {
-  const [look, label] = app.running ? (app.ready ? ['bg-ink', 'answering'] : ['hatch text-ink ring-1 ring-inset ring-ink', 'starting…']) : app.error ? ['bg-bad', 'the last run failed'] : ['ring-[1.5px] ring-inset ring-line-strong', 'stopped'];
+  const [look, label] = app.running ? (app.ready ? [markFill.done, 'answering'] : [markFill.run, 'starting…']) : app.error ? [markFill.bad, 'the last run failed'] : [markFill.next, 'stopped'];
   return <span className={cn('inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]', look)} title={label} />;
 }
 
@@ -24,7 +25,7 @@ function AlsoServing({ app, onVisit }: { app: PreviewAppStatus; onVisit: () => v
     <div className="flex items-center gap-x-1.5 gap-y-1 flex-wrap text-[11px]">
       <span className="text-ink-faint">Also serving</span>
       {app.discovered.map((d) => (
-        <a key={d.port} href={d.url} target="_blank" rel="noreferrer" onClick={onVisit} title={`${d.url}${d.dir ? ` · started in ${d.dir}` : ''}`} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-semibold text-work-ink ring-1 ring-inset ring-line-strong hover:ring-work">
+        <a key={d.port} href={d.url} target="_blank" rel="noreferrer" onClick={onVisit} title={`${d.url}${d.dir ? ` · started in ${d.dir}` : ''}`} className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 max-sm:min-h-8 font-semibold text-work-ink ring-1 ring-inset ring-line-strong hover:ring-work">
           {d.name}
           <span className="mono font-normal text-ink-faint">:{d.port}</span>
           <ExternalLink size={10} />
@@ -92,7 +93,8 @@ function Problems({ app }: { app: PreviewAppStatus }) {
     );
   if (!app.error) return app.stopped ? <div className="text-[11px] text-ink-faint">Foundry stopped it: {app.stopped}.</div> : null;
   return (
-    <div className="rounded-md border border-bad/40 bg-bad/5 px-2.5 py-2 space-y-1">
+    // a red edge and red words, the box itself stays the card's
+    <div className="rounded-md border border-bad/40 px-2.5 py-2 space-y-1">
       <div className="font-semibold text-bad-ink">The last run failed: {app.error}</div>
       {app.errorDetail.length > 0 && <pre className="mono text-[11px] leading-snug text-ink-soft whitespace-pre-wrap break-all max-h-40 overflow-auto">{app.errorDetail.join('\n')}</pre>}
       {busyPort(app) != null && <PortHolder port={busyPort(app)!} />}
@@ -117,7 +119,7 @@ function PortHolder({ port }: { port: number }) {
     <div className="rounded-lg border border-line bg-panel px-3">
       <div className="pt-2 flex items-center gap-2 text-[11px] text-ink-soft">
         <span>Port {port} is in use{view && !rows.length ? ' by nothing Foundry can see now: start the preview again, or check with sudo lsof' : ''}</span>
-        <Link to={`/ports?port=${port}`} className="ml-auto shrink-0 font-semibold text-ink-faint hover:text-ink">
+        <Link to={`/ports?port=${port}`} className="ml-auto inline-flex shrink-0 items-center max-sm:min-h-8 font-semibold text-ink-faint hover:text-ink">
           Ports →
         </Link>
       </div>
@@ -217,7 +219,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
             </span>
             {hereOnly(a) && <HereOnly app={a} onVisit={visit} />}
             {a.url && !hereOnly(a) && (
-              <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} className="inline-flex items-center gap-1 text-[13px] font-semibold text-work-ink hover:underline">
+              <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} className="inline-flex items-center gap-1 max-sm:min-h-8 text-[13px] font-semibold text-work-ink hover:underline">
                 {viewerOnly ? 'Open the model' : 'Open preview'} <ExternalLink size={12} />
               </a>
             )}
@@ -263,7 +265,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
               {a.running && a.port != null && <span className="mono text-[11px] text-ink-faint">:{a.port}</span>}
               {hereOnly(a) && <HereOnly app={a} onVisit={visit} />}
               {a.running && a.url && !hereOnly(a) && (
-                <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} title={openUrl(a)!} className="inline-flex items-center gap-1 self-center font-semibold text-work-ink hover:underline">
+                <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} title={openUrl(a)!} className="inline-flex items-center gap-1 self-center max-sm:min-h-8 font-semibold text-work-ink hover:underline">
                   Open <ExternalLink size={12} />
                 </a>
               )}
@@ -475,7 +477,8 @@ function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: Serv
                 </span>
                 {s.ports.length > 0 && <span className="mono text-[11px] text-ink-faint">{s.ports.map((p) => `:${p}`).join(' ')}</span>}
                 <span
-                  className={cn('rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.08em] whitespace-nowrap ring-1 ring-inset', unhealthy ? (s.health === 'unhealthy' ? 'bg-bad/10 text-bad-ink ring-bad/40' : 'text-ink-soft ring-line-strong') : STATE_CHIP[s.state])}
+                  // a health check still starting is at work (blue); a failing one red
+                  className={cn('rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.08em] whitespace-nowrap ring-1 ring-inset', unhealthy ? (s.health === 'unhealthy' ? 'bg-bad/10 text-bad-ink ring-bad/40' : 'bg-work/10 text-work-ink ring-work/30') : STATE_CHIP[s.state])}
                   title={s.state === 'external' ? `Port ${s.ports.join(', ')} is already taken by something else on this computer (your own ${s.name}?). The apps use that one; Foundry does not start this service.` : undefined}
                 >
                   {label}

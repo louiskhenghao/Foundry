@@ -1,5 +1,6 @@
 import { CornerDownRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { api, type GoalDetail, type GoalRow } from '../../api.ts';
 import { Badge, ConfirmDialog, Select } from '../../ui.tsx';
@@ -13,7 +14,8 @@ export function FollowLinks({ d }: { d: GoalDetail }) {
     <div className="text-xs text-ink-faint flex items-center gap-x-3 gap-y-1 mt-1.5 flex-wrap">
       {f && (
         <span className="inline-flex items-center gap-1 min-w-0">
-          <CornerDownRight size={12} className="shrink-0 text-work-ink" />
+          {/* a follow-up's colour, as the Goals page marks one: a kind of goal, not a state */}
+          <CornerDownRight size={12} className="shrink-0 text-code-1-ink" />
           {d.followUps?.followsExists ? (
             <>
               Follows:{' '}
@@ -57,7 +59,9 @@ export function MarkFollowUpDialog({ d, open, onClose }: { d: GoalDetail; open: 
   }, [open]);
   const earlier = (goals ?? []).filter((x) => x.id !== g.id && x.repoPath === g.repoPath && x.createdAt < g.createdAt);
   const chosen = earlier.find((x) => x.id === pick);
-  return (
+  // portalled to <body>, as the Restart dialog: among the goal page's spaced rows it took their bottom margin, and its
+  // backdrop stopped 20px short of the window's foot
+  return createPortal(
     <ConfirmDialog
       open={open}
       title="Mark as follow-up of…"
@@ -101,6 +105,7 @@ export function MarkFollowUpDialog({ d, open, onClose }: { d: GoalDetail; open: 
         </>
       )}
       {err && <p className="text-bad-ink">{err}</p>}
-    </ConfirmDialog>
+    </ConfirmDialog>,
+    document.body,
   );
 }

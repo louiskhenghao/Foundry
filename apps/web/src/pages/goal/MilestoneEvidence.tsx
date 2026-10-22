@@ -34,12 +34,12 @@ export const FINAL_WALK = 'final';
 /** what a recording proved: older recordings carry no status, so it is read from what they hold */
 export const evidenceStatus = (e: Evidence): 'pass' | 'fail' | 'unverified' => e.status ?? (e.mock ? 'unverified' : e.shots.length || e.video ? 'pass' : 'fail');
 
-/** how a milestone's recording went: green when it was shown, red when it failed, ink while it records, quiet otherwise (fake data is not the person's to act on, so not yellow) */
+/** how a milestone's recording went: green when it was shown, red when it failed, blue while it records, quiet otherwise (fake data is not the person's to act on, so not yellow) */
 const STATUS: Record<'pass' | 'fail' | 'unverified' | 'running' | 'none', { label: string; className: string }> = {
   pass: { label: 'shown', className: 'bg-ok/10 text-ok-ink ring-ok/30' },
   unverified: { label: 'unverified · fake data', className: 'text-ink ring-line-strong' },
   fail: { label: 'failed', className: 'bg-bad/10 text-bad-ink ring-bad/40' },
-  running: { label: 'recording…', className: 'text-ink ring-ink' },
+  running: { label: 'recording…', className: 'bg-work/10 text-work-ink ring-work/30' },
   none: { label: 'not reached yet', className: 'text-ink-faint ring-line-strong' },
 };
 
@@ -123,7 +123,7 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
       {files && (evidence.files ?? []).length > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
           {evidence.files!.map((f) => (
-            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-work-ink hover:underline mono" title={`${f}: opens or downloads in a new tab`}>
+            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 max-sm:min-h-8 font-semibold text-work-ink hover:underline mono" title={`${f}: opens or downloads in a new tab`}>
               <FileDown size={11} /> {f}
             </a>
           ))}
@@ -133,7 +133,7 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
         <div className="flex flex-wrap items-center gap-3 text-[11px]">
           {evidence.script && (
             taskId ? (
-              <a href={fileUrl({ goal: goalId, task: taskId, rel: evidence.script })} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-work-ink hover:underline mono" title="The Playwright script that recorded this milestone (opens in a new tab)">
+              <a href={fileUrl({ goal: goalId, task: taskId, rel: evidence.script })} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 max-sm:min-h-8 font-semibold text-work-ink hover:underline mono" title="The Playwright script that recorded this milestone (opens in a new tab)">
                 <FileCode2 size={11} /> {evidence.script}
               </a>
             ) : (
@@ -141,7 +141,7 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
             )
           )}
           {evidence.log && (
-            <a href={api.screenshotUrl(goalId, evidence.log)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-work-ink hover:underline" title="What the script runner printed (opens in a new tab)">
+            <a href={api.screenshotUrl(goalId, evidence.log)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 max-sm:min-h-8 font-semibold text-work-ink hover:underline" title="What the script runner printed (opens in a new tab)">
               <ScrollText size={11} /> runner log
             </a>
           )}
@@ -244,7 +244,8 @@ export function LikenessChip({ look }: { look: Likeness | null }) {
  */
 export function LikenessView({ goalId, look, subjects, running, fixTitle }: { goalId: string; look: Likeness | null; subjects: BriefSubject[]; running: boolean; fixTitle: string | null }) {
   const [viewing, setViewing] = useState<{ key: string; index: number } | null>(null);
-  if (!look) return running ? <div className="text-[11px] text-ink-faint flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Comparing with the pictures…</div> : null;
+  // a review under way: the review colour
+  if (!look) return running ? <div className="text-[11px] text-extra-ink flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Comparing with the pictures…</div> : null;
   if (look.status === 'failed' || !look.verdict) return <div className="text-[11px] text-ink-soft">The likeness review gave no verdict{look.detail ? `: ${look.detail}` : ''}.</div>;
   return (
     // rounded-md: the guide's screenshot script finds this box by it
@@ -378,7 +379,12 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
   const finalRunning = runs.has(FINAL_WALK);
   return (
     <Card
-      title={`Milestones (${reached}/${milestones.length} shown)`}
+      // the count turns green once every milestone was shown
+      title={
+        <>
+          Milestones (<span className={cn(reached === milestones.length && 'text-ok-ink')}>{reached}/{milestones.length} shown</span>)
+        </>
+      }
       actions={
         landed.length > 0 && (
           <Button size="sm" variant="info" disabled={landed.every((m) => runs.has(m.task.id))} onClick={() => void rerun(FINAL_WALK)} title="Record every milestone that landed again: scripts run, walkthroughs replay, milestones of files collect their files again">
@@ -389,10 +395,11 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
     >
       {err && <div className="mb-2 text-[11px] text-bad-ink">{err}</div>}
       {(finalWalk || finalRunning) && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-line bg-sunken px-3 py-2 text-xs">
+        // what it says wraps under the name on a narrow screen rather than being cut
+        <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-line bg-sunken px-3 py-2 text-xs">
           <span className="font-bold text-ink">Final walkthrough</span>
           <StatusChip status={finalRunning ? 'running' : finalWalk!.passed ? 'pass' : 'fail'} />
-          <span className="text-[11px] text-ink-faint truncate">
+          <span className="min-w-0 text-[11px] text-ink-faint">
             {finalRunning ? 'every feature’s script runs once more on the finished branch' : finalWalk!.passed ? `every script passed · ${ago(finalWalk!.at)}` : `${finalWalk!.failed.length} script${finalWalk!.failed.length > 1 ? 's' : ''} failed · ${ago(finalWalk!.at)}`}
           </span>
         </div>
@@ -404,19 +411,23 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
           const running = runs.has(task.id);
           const files = showsFiles(task);
           const status = running ? 'running' : rec ? evidenceStatus(rec.evidence) : 'none';
+          // the goal is paused at this milestone right now: the look waits for you
+          const waiting = g.state === 'awaiting_feedback' && g.checkpoint?.taskId === task.id;
           return (
             <li key={task.id} className="py-2.5 first:pt-0 last:pb-0">
-              <div className="flex items-start gap-2">
-                <button type="button" disabled={!rec} onClick={() => toggle(task.id)} className="group min-w-0 flex-1 flex items-start gap-2 text-left" aria-expanded={rec ? expanded : undefined}>
-                  {/* a past look in ink (it no longer waits for you), a milestone it went past quiet, one not reached yet faint */}
-                  <span className="mt-0.5 shrink-0">{!last ? <Eye size={13} className="text-ink-faint" /> : last.paused ? <Eye size={13} className="text-ink" /> : <FastForward size={13} className="text-ink-soft" />}</span>
+              {/* on a phone the row keeps the whole width and Rerun goes under it, in line with its words */}
+              <div className="flex flex-wrap items-start gap-x-2 gap-y-1.5">
+                <button type="button" disabled={!rec} onClick={() => toggle(task.id)} className="group min-w-0 grow basis-full sm:basis-0 flex items-start gap-2 text-left" aria-expanded={rec ? expanded : undefined}>
+                  {/* the look that waits for you now in yellow, a past one in ink, a milestone it went past quiet, one not reached yet faint */}
+                  <span className="mt-0.5 shrink-0">{!last ? <Eye size={13} className="text-ink-faint" /> : last.paused ? <Eye size={13} className={waiting ? 'text-you-ink' : 'text-ink'} /> : <FastForward size={13} className="text-ink-soft" />}</span>
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-[13px] font-bold text-ink group-enabled:group-hover:underline underline-offset-[3px]">{task.title}</span>
                       <StatusChip status={status} files={files} />
                       {rec && <LikenessChip look={likenessOf(d, task.id, rec.at)} />}
                     </span>
-                    <span className="block text-ink-soft truncate">{task.milestone}</span>
+                    {/* whole on a phone (no pointer to hover for the rest), one line beside Rerun on a wider screen */}
+                    <span className="block text-ink-soft sm:truncate" title={task.milestone ?? undefined}>{task.milestone}</span>
                     <span className="block text-[11px] text-ink-faint">
                       {!last ? (task.state === 'done' ? 'landed' : 'not reached yet') : `${ago(last.at)} · ${last.paused ? (last.recheck ? 'second look' : 'paused for a look') : task.milestoneScript ? 'recorded, the goal went on' : 'went on (Have a look off)'}`}
                       {rec && rec.at !== last?.at && <span> · {files ? 'collected' : 'recorded'} {ago(rec.at)}{rec.evidence.final ? ' (final walkthrough)' : ''}</span>}
@@ -427,7 +438,7 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
                   {rec && <ChevronRight size={13} className={cn('mt-0.5 shrink-0 text-ink-faint transition-transform', expanded && 'rotate-90')} />}
                 </button>
                 {task.state === 'done' && (
-                  <Button size="sm" variant="info" className="shrink-0" disabled={running} onClick={() => void rerun(task.id)} title={task.milestoneScript ? `Run ${task.milestoneScript} again and record what it shows` : files ? "Show the task's files again (snapshots, images, video)" : 'Replay the walkthrough recorded last time in the preview'}>
+                  <Button size="sm" variant="info" className="shrink-0 ml-5 sm:ml-0" disabled={running} onClick={() => void rerun(task.id)} title={task.milestoneScript ? `Run ${task.milestoneScript} again and record what it shows` : files ? "Show the task's files again (snapshots, images, video)" : 'Replay the walkthrough recorded last time in the preview'}>
                     <RotateCcw size={12} /> Rerun
                   </Button>
                 )}

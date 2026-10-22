@@ -2,7 +2,7 @@ import type { EngineEvent, Goal } from '@foundry/core/browser';
 import { MessageCircleQuestion } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../../api.ts';
-import { Card, NEEDS_YOU_CARD, YouStrip } from '../../ui.tsx';
+import { Card, NEEDS_YOU_CARD, YouStrip, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { ClarifyProgress, SkeletonNotice, clarifyChannel } from './ClarifyProgress.tsx';
@@ -98,7 +98,8 @@ export function InterviewPanel({ goal, skeleton = false, events = [] }: { goal: 
     <Card
       title={
         <span className="flex items-center gap-2">
-          <MessageCircleQuestion size={14} aria-hidden="true" />
+          {/* how the interview stands: green once done, blue while the Clarifier reads and thinks */}
+          <MessageCircleQuestion size={14} className={cn('shrink-0', iv.status === 'done' ? 'text-ok-ink' : 'text-work-ink')} aria-hidden="true" />
           {title}
           {help}
         </span>

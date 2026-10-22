@@ -13,10 +13,10 @@ const fmt = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}m ${String(s % 60).p
 /** the live log of the Clarify step under way: REA's investigation while it studies the references, else the Clarifier's and the planner's sessions */
 export const clarifyChannel = (goal: Goal) => (goal.clarifyStage?.stage === 'investigating' ? `investigate-${goal.id}` : `clarify-${goal.id}`);
 
-/** the Brief skeleton is out: the Brief page shows it, editable, while the planner works (a note: the information colour) */
+/** the Brief skeleton is out: the Brief page shows it, editable, while the planner works (a note: an edge and a link in the information colour) */
 export function SkeletonNotice({ goalId }: { goalId: string }) {
   return (
-    <p className="mt-3 rounded-md bg-work/[0.07] px-3 py-2 text-[13px] leading-snug text-ink ring-1 ring-inset ring-work/30">
+    <p className="mt-3 rounded-md px-3 py-2 text-[13px] leading-snug text-ink ring-1 ring-inset ring-work/40">
       The Brief is taking shape: its understanding, Areas and assumptions are ready to read and edit while the planner splits the goal into tasks.{' '}
       <Link to={`/goals/${goalId}/brief`} className="font-bold text-work-ink underline underline-offset-2">
         Open the Brief
@@ -76,9 +76,9 @@ export function ClarifyProgress({ goal, writingBrief, skeleton = false, events =
   const current = Math.max(0, steps.findIndex((s) => s.key === activeKey));
   return (
     <div className="space-y-2">
-      {/* Clarify waits for you to install the plugin: a plate with the yellow tint */}
+      {/* Clarify waits for you to install the plugin: a yellow edge and a yellow tile, the plate itself stays the card's */}
       {goal.nature === 'cad' && cad && !cad.installed && (
-        <div className="rounded-lg bg-you/10 px-3.5 py-3 text-[13px] text-ink ring-1 ring-inset ring-you/50 space-y-2">
+        <div className="rounded-lg px-3.5 py-3 text-[13px] text-ink ring-1 ring-inset ring-you/60 space-y-2">
           <p className="flex items-start gap-2.5">
             <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-you text-on-you" aria-hidden="true">
               <Download size={13} strokeWidth={2.5} />
@@ -91,7 +91,7 @@ export function ClarifyProgress({ goal, writingBrief, skeleton = false, events =
             <Button size="sm" variant="primary" disabled={!cad.uv || !!busy} onClick={() => void installCad()}>
               {busy ? 'Installing…' : error ? 'Retry install' : 'Install text-to-cad'}
             </Button>
-            <Link to={`/setup?provider=${goal.provider ?? 'claude'}`} className="font-semibold underline underline-offset-2">Setup page</Link>
+            <Link to={`/setup?provider=${goal.provider ?? 'claude'}`} className="inline-flex items-center max-sm:min-h-8 font-semibold underline underline-offset-2">Setup page</Link>
           </div>
           {busy && (
             <p className="text-xs text-ink-soft" role="status">
@@ -110,13 +110,16 @@ export function ClarifyProgress({ goal, writingBrief, skeleton = false, events =
           // a step's square: done solid, under way hatched; one waiting for a slot, or still to come, hollow
           const mark = done ? 'done' : active && !queued ? 'run' : 'next';
           return (
-            <li key={s.key} className={cn('flex items-center gap-x-2.5 gap-y-1 flex-wrap text-[13px]', active ? 'font-semibold text-ink' : done ? 'text-ink-soft' : 'text-ink-faint')}>
-              <i className={cn('block h-3 w-3 shrink-0 rounded-[3px]', markFill[mark])} aria-hidden="true" />
-              <span>{s.label}</span>
-              {done && !!took && <span className="mono text-xs font-normal text-ink-faint">{fmt(took)}</span>}
-              {/* a wait for a session slot is not a wait for you: a quiet chip */}
-              {active && queued && <span className="rounded-sm px-1.5 py-0.5 text-[11px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong">waiting for a free session slot (every slot is taken)</span>}
-              {active && since !== null && <span className="mono text-xs font-normal text-ink-faint">{fmt(since)}</span>}
+            // the square stays beside the step's words, which wrap with their timer and chip on a narrow screen
+            <li key={s.key} className={cn('flex items-start gap-2.5 text-[13px]', active ? 'font-semibold text-ink' : done ? 'text-ink-soft' : 'text-ink-faint')}>
+              <i className={cn('mt-1 block h-3 w-3 shrink-0 rounded-[3px]', markFill[mark])} aria-hidden="true" />
+              <span className="min-w-0 flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                <span>{s.label}</span>
+                {done && !!took && <span className="mono text-xs font-normal text-ink-faint">{fmt(took)}</span>}
+                {/* a wait for a session slot is not a wait for you: a quiet chip */}
+                {active && queued && <span className="rounded-sm px-1.5 py-0.5 text-[11px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong">waiting for a free session slot (every slot is taken)</span>}
+                {active && since !== null && <span className="mono text-xs font-normal text-ink-faint">{fmt(since)}</span>}
+              </span>
             </li>
           );
         })}

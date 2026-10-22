@@ -32,6 +32,8 @@ const STATE_TEXT: Record<string, string> = {
 const MARK_ORDER: Mark[] = ['done', 'run', 'you', 'bad', 'next', 'off'];
 /** a figure's label, in small capitals */
 const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
+/** the progress bar in the goal's signal colour: green once done, red when it stopped failed, grey when cancelled, blue while at work */
+const BAR: Record<string, string> = { done: 'bg-ok', over_delivered: 'bg-ok', failed: 'bg-bad', cancelled: 'bg-line-strong' };
 
 /**
  * Progress for people who do not want the machinery: what is happening, how far, what it costs, what needs them, and
@@ -88,14 +90,15 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
         <Card title="Progress">
           <div className="flex flex-wrap items-end gap-x-6 gap-y-3">
             <div className="flex items-baseline gap-2">
-              <b className="mono text-2xl font-bold leading-none text-ink">{done}/{total}</b>
+              {/* the count turns green once every piece is done */}
+              <b className={cn('mono text-2xl font-bold leading-none', done === total ? 'text-ok-ink' : 'text-ink')}>{done}/{total}</b>
               <span className="text-sm text-ink-soft">pieces</span>
             </div>
             {/* the squares a size up from a list row's: here they are the progress itself */}
             <TaskSquares marks={marks} max={40} className="gap-1 pb-0.5 [&>i]:h-4 [&>i]:w-4 [&>i]:rounded-[4px]" />
           </div>
           <span className="mt-3 block h-1.5 overflow-hidden rounded-xs bg-line" aria-hidden="true">
-            <i className="block h-full rounded-xs bg-ink" style={{ width: `${pct}%` }} />
+            <i className={cn('block h-full rounded-xs', BAR[g.state] ?? 'bg-work')} style={{ width: `${pct}%` }} />
           </span>
           {running.length > 0 && (
             <ul className="mt-4 space-y-1.5 text-sm text-ink">
@@ -150,8 +153,8 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
             </div>
           )}
           <div className="flex flex-wrap items-center gap-x-4 gap-y-3">
-            {/* done: the solid plate the goal's state wears when it is finished */}
-            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ink text-on-ink" aria-hidden="true">
+            {/* done: a green plate with a tick, the signal of a finished goal */}
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-ok text-on-ok" aria-hidden="true">
               <Check size={17} strokeWidth={2.5} />
             </span>
             <span className="min-w-0 flex-1 basis-64 text-[15px] leading-snug text-ink">

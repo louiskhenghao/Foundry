@@ -44,8 +44,9 @@ export function WorkspaceDetails({ goal: g }: { goal: Goal }) {
   };
   return (
     <div className="space-y-1.5 border-b border-line pb-3">
-      <div className="flex items-start gap-2">
-        <p className="min-w-0 flex-1 text-xs text-ink-soft">
+      {/* on a phone the Open menu goes under the words, which then keep the card's whole width */}
+      <div className="flex flex-col items-start gap-2 sm:flex-row">
+        <p className="min-w-0 flex-1 text-xs text-ink-soft wrap-anywhere">
           Workers commit to <span className="mono font-semibold text-ink">{g.branch}</span> in the goal's folder, a worktree of your repository; your own checkout on <span className="mono text-ink">{g.baseBranch}</span> is never touched.
           {ws.head && (
             <>

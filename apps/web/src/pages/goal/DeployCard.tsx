@@ -8,8 +8,8 @@ import { HelpLink } from '../HelpPage.tsx';
 import { SmokeView } from './DeploySmoke.tsx';
 
 const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of pages, uploaded as it is', built: 'built into files', ssr: 'rendered on the host’s servers' };
-/** a deploy's state as a small plate: ink while it runs, green once live, red when it failed */
-const STATUS: Record<Deployment['status'], string> = { running: 'text-ink ring-ink', live: 'bg-ok/10 text-ok-ink ring-ok/30', failed: 'bg-bad/10 text-bad-ink ring-bad/40' };
+/** a deploy's state as a small plate: blue while it runs, green once live, red when it failed */
+const STATUS: Record<Deployment['status'], string> = { running: 'bg-work/10 text-work-ink ring-work/30', live: 'bg-ok/10 text-ok-ink ring-ok/30', failed: 'bg-bad/10 text-bad-ink ring-bad/40' };
 
 /**
  * Deploy (ADR-0041): a finished goal's web app to Vercel, Netlify or Cloudflare Pages on the person's click — what is
@@ -156,7 +156,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
                 <span className="shrink-0 font-semibold text-ink">{info?.providers.find((p) => p.id === x.provider)?.label ?? x.provider}</span>
                 <span className="shrink-0 text-ink-faint">{x.production ? 'production' : 'preview'}</span>
                 {x.url ? (
-                  <a href={x.url} target="_blank" rel="noreferrer" className="mono truncate text-work-ink hover:underline inline-flex items-center gap-1">
+                  <a href={x.url} target="_blank" rel="noreferrer" className="mono truncate text-work-ink hover:underline inline-flex items-center gap-1 max-sm:min-h-8">
                     {x.url} <ExternalLink size={11} />
                   </a>
                 ) : x.reason ? (

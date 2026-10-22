@@ -1,7 +1,7 @@
 import { CornerDownRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { GoalDetail } from '../../api.ts';
-import { Badge } from '../../ui.tsx';
+import { Badge, cn } from '../../ui.tsx';
 
 /**
  * "Delegated from: M" under a Delegated goal's title (a link to the main goal's task), and "Delegated goals: A, B" under
@@ -15,7 +15,8 @@ export function DelegationLinks({ d }: { d: GoalDetail }) {
     <div className="text-xs text-ink-faint flex items-center gap-x-3 gap-y-1 mt-1.5 flex-wrap">
       {from && (
         <span className="inline-flex items-center gap-1 min-w-0">
-          <CornerDownRight size={12} className="shrink-0 text-extra-ink" />
+          {/* a delegated goal's colour, as the Goals page marks one: a kind of goal, not a state */}
+          <CornerDownRight size={12} className="shrink-0 text-code-7-ink" />
           {d.delegations?.fromExists ? (
             <>
               Delegated from:{' '}
@@ -53,6 +54,9 @@ export function DelegationLinks({ d }: { d: GoalDetail }) {
   );
 }
 
+/** how a companion's delivery stands, in the signal colours: green delivered, blue under way, red failed, quiet before it starts */
+const DELIVERY_TONE: Record<string, string> = { delivered: 'text-ok-ink', running: 'text-work-ink', failed: 'text-bad-ink' };
+
 /**
  * The companions' deliveries on the Delivery tab (ADR-0063): each companion repository's delegated goal, how its own
  * delivery stands and its pull request, with a link to that goal, where it can be re-checked, resumed or reverted.
@@ -69,13 +73,18 @@ export function CompanionDeliveries({ d }: { d: GoalDetail }) {
           <li key={g.id} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="mono font-semibold text-ink" title={g.repoPath}>{g.repoPath!.split('/').pop()}</span>
             <Badge state={g.state} />
-            {g.delivery && <span className="text-ink-soft">delivery: {g.delivery.status}{g.delivery.outcome ? ` · ${g.delivery.outcome.replace('_', ' ')}` : ''}</span>}
+            {g.delivery && (
+              <span className="text-ink-soft">
+                delivery: <span className={cn('font-semibold', DELIVERY_TONE[g.delivery.status] ?? 'text-ink-soft')}>{g.delivery.status}</span>
+                {g.delivery.outcome ? ` · ${g.delivery.outcome.replace('_', ' ')}` : ''}
+              </span>
+            )}
             {g.delivery?.pr && (
-              <a className="mono font-semibold text-work-ink hover:underline" href={g.delivery.pr.url} target="_blank" rel="noreferrer">
+              <a className="mono inline-flex items-center max-sm:min-h-8 font-semibold text-work-ink hover:underline" href={g.delivery.pr.url} target="_blank" rel="noreferrer">
                 PR #{g.delivery.pr.number}
               </a>
             )}
-            <Link to={`/goals/${g.id}#delivery`} className="font-semibold text-ink-soft hover:text-ink hover:underline">its goal →</Link>
+            <Link to={`/goals/${g.id}#delivery`} className="inline-flex items-center max-sm:min-h-8 font-semibold text-ink-soft hover:text-ink hover:underline">its goal →</Link>
           </li>
         ))}
       </ul>
