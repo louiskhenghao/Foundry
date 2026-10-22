@@ -3,7 +3,7 @@ import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
 import { Check, CheckCircle2, CircleDashed, LoaderCircle, RotateCcw, XCircle } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
@@ -11,12 +11,13 @@ import { ModelPresetsSection } from './settings/ModelPresets.tsx';
 import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
 import { AgyModelsSection } from './settings/AgyModels.tsx';
 import { SectionTitle } from './settings/PresetParts.tsx';
-import { SectionDot, SettingsTitle } from './settings/sections.tsx';
+import { SECTION_STYLE, SettingsTitle } from './settings/sections.tsx';
+import { SectionChipNav, SectionSideNav, type NavSection } from '../components/SectionNav.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { AccessCard } from './settings/AccessCard.tsx';
-import { Button, Card, CopyButton, Empty, Field, Input, PageHeader, Select, chipClass, cn, navItemClass } from '../ui.tsx';
+import { Button, Card, CopyButton, Empty, Field, Input, PageHeader, Select, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { AppearanceCard } from './settings/AppearanceCard.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
@@ -52,6 +53,8 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'appearance', label: 'Appearance' },
   { id: 'about', label: 'About & updates' },
 ];
+/** the menu's entries, each with its section's colour */
+const NAV: NavSection[] = SECTIONS.map((s) => ({ ...s, dot: SECTION_STYLE[s.id]?.dot }));
 
 /**
  * a small fact beside a setting (where its value comes from, a restart it needs) as a plate. Its outline is an
@@ -100,7 +103,6 @@ export function SettingsPage() {
   const [known, setKnown] = useState<ModelRecordView[] | null>(null);
   const [probe, setProbe] = useState<Record<string, string>>({});
   const [notifMsg, setNotifMsg] = useState<string | null>(null);
-  const [active, setActive] = useState(SECTIONS[0]!.id);
   const [upd, setUpd] = useState<UpdateStatusView | null>(null);
   const [updBusy, setUpdBusy] = useState(false);
   const [updOpen, setUpdOpen] = useState(false);
@@ -147,35 +149,6 @@ export function SettingsPage() {
     loadModels();
     loadUpdate();
   }, []);
-  // highlight the section the page is on; the scroller is <main>, not the window. At the very top and the very end the
-  // first and last sections may never reach the band the observer watches: there they are where you are
-  useEffect(() => {
-    if (!draft) return;
-    const root = document.querySelector('main');
-    const edge = () => (!root ? null : root.scrollTop <= 0 ? SECTIONS[0]!.id : root.scrollTop + root.clientHeight >= root.scrollHeight - 2 ? SECTIONS[SECTIONS.length - 1]!.id : null);
-    const io = new IntersectionObserver(
-      (entries) => {
-        const at = edge();
-        if (at) return setActive(at);
-        const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (top?.target.id) setActive(top.target.id);
-      },
-      { root, rootMargin: '-20% 0px -70% 0px' },
-    );
-    for (const s of SECTIONS) {
-      const el = document.getElementById(s.id);
-      if (el) io.observe(el);
-    }
-    const onScroll = () => {
-      const at = edge();
-      if (at) setActive(at);
-    };
-    root?.addEventListener('scroll', onScroll, { passive: true });
-    return () => {
-      io.disconnect();
-      root?.removeEventListener('scroll', onScroll);
-    };
-  }, [draft]);
   const testModel = async (name: string) => {
     setProbe((p) => ({ ...p, [name]: 'testing…' }));
     try {
@@ -324,7 +297,6 @@ export function SettingsPage() {
   const list = (path: Leaf, placeholder: string) => <Input className="mono" value={((get(draft, path) as string[] | null) ?? []).join(', ')} placeholder={placeholder} onChange={(e) => set(path, e.target.value.trim() ? e.target.value.split(',').map((s) => s.trim()).filter(Boolean) : null)} />;
 
   const grid = (children: ReactNode) => <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">{children}</div>;
-  const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   const agent = PROVIDER_STYLE[draft.engine.provider];
 
   return (
@@ -338,23 +310,14 @@ export function SettingsPage() {
         }
       />
       <div className="grid lg:grid-cols-[11rem_minmax(0,1fr)] gap-x-8">
-        <nav aria-label="Settings sections" className="hidden lg:block sticky top-0 self-start max-h-screen overflow-auto py-2 space-y-0.5">
-          {SECTIONS.map((s) => (
-            <button key={s.id} onClick={() => go(s.id)} aria-current={active === s.id ? 'location' : undefined} className={navItemClass(active === s.id)}>
-              <span className="flex items-center gap-2">
-                <SectionDot id={s.id} />
-                <span className="min-w-0 flex-1">{s.label}</span>
-              </span>
-            </button>
-          ))}
-        </nav>
+        <SectionSideNav items={NAV} label="Settings sections" />
         {/* a section jumped to stops clear of the sticky bar above it, taller where the row of sections rides in it (the
             parent's rule outranks each card's own scroll margin) */}
         <div className="min-w-0 space-y-4 [&>section]:scroll-mt-28 lg:[&>section]:scroll-mt-16">
           {/* the save bar follows you down the page: settings are long and the change you just made is at the bottom. On a
               phone or a tablet the sections ride in it too, as the side list's row of chips */}
           <div className="sticky top-0 z-20 bg-page border-b border-line">
-            <SectionChips active={active} onGo={go} />
+            <SectionChipNav items={NAV} label="Settings sections" inBar />
             <div className="py-2.5 flex items-center gap-2">
               <span className="text-[13px] text-ink-faint mr-auto">{changed.length ? <><b className="mono font-bold text-ink">{changed.length}</b> unsaved</> : 'no changes'}</span>
               <Button size="sm" variant="ghost" disabled={!changed.length || busy} onClick={() => setDraft(structuredClone(view.values))}>
@@ -875,31 +838,6 @@ export function SettingsPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-/**
- * The side list's place on a phone or a tablet: the sections as a row of chips, each with its colour, the one you are
- * at filled. As the page scrolls the row slides sideways (itself only, never the page) to keep that chip in view.
- */
-function SectionChips({ active, onGo }: { active: string; onGo: (id: string) => void }) {
-  const row = useRef<HTMLElement>(null);
-  useEffect(() => {
-    const nav = row.current;
-    const chip = nav?.querySelector<HTMLElement>(`[data-section="${active}"]`);
-    if (!nav || !chip || nav.scrollWidth <= nav.clientWidth) return;
-    nav.scrollTo({ left: chip.offsetLeft - (nav.clientWidth - chip.offsetWidth) / 2, behavior: 'smooth' });
-  }, [active]);
-  return (
-    // edge to edge on the screen, so the chips scroll under its sides; relative: the chips' offsets are the row's
-    <nav ref={row} aria-label="Settings sections" className="lg:hidden relative -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 pt-2.5 flex gap-1.5 overflow-x-auto whitespace-nowrap">
-      {SECTIONS.map((s) => (
-        <button key={s.id} type="button" data-section={s.id} onClick={() => onGo(s.id)} aria-current={active === s.id ? 'location' : undefined} className={cn(chipClass(active === s.id), 'shrink-0 inline-flex items-center gap-1.5')}>
-          <SectionDot id={s.id} />
-          {s.label}
-        </button>
-      ))}
-    </nav>
   );
 }
 

@@ -28,9 +28,6 @@ export const SECTION_STYLE: Record<string, { Icon: LucideIcon; ink: string; dot:
   about: { Icon: Info, ...hue(1) },
 };
 
-/** the section's colour, as a small square before its name */
-export const SectionDot = ({ id }: { id: string }) => <span className={cn('h-2 w-2 shrink-0 rounded-[2px]', SECTION_STYLE[id]?.dot ?? 'bg-line-strong')} aria-hidden="true" />;
-
 /**
  * a card title led by an icon in a category colour (`ink`), the words (and a guide's "?") in the case of the card's
  * head: the Settings sections, Setup's bundles, Transfer's two ways
