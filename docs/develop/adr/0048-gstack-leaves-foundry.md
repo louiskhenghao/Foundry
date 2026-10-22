@@ -1,6 +1,6 @@
 # ADR-0048: gstack leaves Foundry
 
-**Status:** accepted · 2026-10-20 · see ADR-0001 for the hooks, ADR-0047 for the retro clash
+**Status:** accepted · 2026-10-20 · see ADR-0001 for the hooks, ADR-0047 for the retro clash · amended by [ADR-0069](0069-a-linked-skill-folder-belongs-to-where-it-links.md) (a linked folder is never taken for a skill that shares its name)
 
 ## Context
 

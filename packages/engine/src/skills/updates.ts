@@ -232,8 +232,10 @@ export class SkillsUpdateChecker {
   }
 
   private async rowStatus(key: SourceKey, row: InstalledSkill, pathInRepo: string | null, candidate: Candidate | null, facts: RepoFacts | undefined, cache: string | null, catalog: Catalog, gitOk: boolean): Promise<SkillSourceRow> {
-    const catalogId = candidate?.catalogEntry?.id ?? row.marker?.catalogId ?? catalog.entries.find((e) => e.name === row.name || e.aliases.includes(row.name))?.id ?? null;
-    const shadowedBy = row.scope === 'user' ? (row.duplicateOf.find((i) => i.includes(':')) ?? null) : null;
+    // a linked folder only shares its name with a catalog or plugin skill: it is neither a copy of the one nor a shadow of the other
+    const linked = key.id === 'linked';
+    const catalogId = linked ? null : (candidate?.catalogEntry?.id ?? row.marker?.catalogId ?? catalog.entries.find((e) => e.name === row.name || e.aliases.includes(row.name))?.id ?? null);
+    const shadowedBy = row.scope === 'user' && !linked ? (row.duplicateOf.find((i) => i.includes(':')) ?? null) : null;
     const local = {
       commit: row.marker?.commit ?? row.plugin?.gitCommitSha ?? null,
       installedAt: row.marker?.installedAt ?? row.lock?.installedAt ?? row.plugin?.installedAt ?? null,
@@ -360,6 +362,7 @@ function pluginVersionIn(repoDir: string, pluginName: string | null): string | n
 }
 
 function updaterFor(key: SourceKey, rows: SkillSourceRow[], provider: AgentProvider = 'claude'): SkillSource['updater'] {
+  if (key.id === 'linked') return { kind: 'none', command: null, hint: 'Each folder is kept where it links to: update it there.' };
   const kind: UpdaterKind = key.kind === 'suite' ? 'suite' : key.manager === 'foundry' ? 'foundry' : key.manager === 'agents-cli' ? 'agents-cli' : key.manager === 'plugin' ? 'plugin' : key.manager === 'hand' ? (rows.some((r) => r.actions.includes('adopt')) ? 'adopt' : 'none') : 'none';
   const pluginId = key.id.startsWith('plugin:') ? key.id.slice('plugin:'.length) : null;
   const mkt = pluginId?.includes('@') ? pluginId.split('@').slice(1).join('@') : null;

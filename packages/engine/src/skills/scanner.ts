@@ -171,6 +171,18 @@ function classifyDir(name: string, dir: string, paths: SkillsPaths): InstalledSk
       return row;
     } catch {}
   }
+  // 4. a folder whose SKILL.md links into another folder (another tool's tree) belongs to where it links, as a linked folder does
+  const skillMd = join(dir, 'SKILL.md');
+  try {
+    if (lstatSync(skillMd).isSymbolicLink()) {
+      const raw = readlinkSync(skillMd);
+      const file = isAbsolute(raw) ? raw : resolve(dir, raw);
+      row.symlink = { target: dirname(file), broken: !existsSync(file) };
+      row.managedBy = 'symlink';
+      row.uninstallNote = `Only this folder is removed; ${dirname(file)} stays.`;
+      if (row.symlink.broken) row.hint = `broken link → ${file}`;
+    }
+  } catch {}
   return row;
 }
 

@@ -42,6 +42,8 @@ export function sourceOf(row: InstalledSkill, paths: SkillsPaths): SourceKey | n
     const repo = row.lock?.source ?? null;
     return { id: `agents-cli:${repo ?? 'unknown'}`, kind: repo ? 'github' : 'unknown', label: repo ?? 'npx skills (unknown source)', manager: 'agents-cli', repo, url: row.lock?.sourceUrl ?? (repo ? `https://github.com/${repo}` : null), homepage: repo ? `https://github.com/${repo}` : null };
   }
+  // a linked folder (ADR-0069) is kept where it links: never matched by name to a catalog or plugin skill it may only share a name with
+  if (row.managedBy === 'symlink') return { id: 'linked', kind: 'local', label: 'Linked from another folder', manager: 'hand', repo: null, url: null, homepage: null };
   return null;
 }
 

@@ -277,7 +277,10 @@ export class SkillsManager {
     {
       const results: BundleResult[] = [];
       const statuses = await this.status();
-      const ictx = { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine, suites: this.catalog().suites };
+      // a linked folder that holds an entry's name belongs to where it links (ADR-0069): it is never taken over
+      const scan = this.scan();
+      const linkedTo = (name: string) => scan.installed.find((r) => r.scope === 'user' && r.name === name && r.managedBy === 'symlink')?.symlink?.target ?? null;
+      const ictx ={ paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine, suites: this.catalog().suites };
       // a plugin bundle shares one install: the first member installs it, the others ride along; a plugin already on disk
       // (installed by hand, or a second run) still gets its servers allowed and its runtime warmed up afterwards
       const plugins = new Map<string, { ok: boolean; detail: string; src: PluginSource }>();
@@ -301,6 +304,8 @@ export class SkillsManager {
           else if (s.status === 'installed') {
             const u = await updateEntry(s.entry, { paths: this.paths, log: this.opts.log, suites: this.catalog().suites });
             results.push({ id: s.entry.id, name: s.entry.name, action: u.changed ? 'updated' : 'kept', detail: u.changed ? `${u.from?.slice(0, 7)} → ${u.to?.slice(0, 7)}` : `at ${u.to?.slice(0, 7)}` });
+          } else if (s.status === 'installed-unmanaged' && linkedTo(s.entry.name)) {
+            results.push({ id: s.entry.id, name: s.entry.name, action: 'kept', detail: `a folder linked to ${linkedTo(s.entry.name)} holds this name; kept where it links` });
           } else if (s.status === 'installed-unmanaged') {
             const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log, suites: this.catalog().suites }, { force: true, refresh: true });
             results.push({ id: s.entry.id, name: s.entry.name, action: 'adopted', detail: `loose copy replaced @ ${r.commit?.slice(0, 7)} (old copy in trash)` });
@@ -342,6 +347,7 @@ export class SkillsManager {
         const row = scan.installed.find((r) => r.scope === 'user' && r.name === name);
         const plugin = scan.installed.find((r) => r.scope === 'plugin' && r.name === name);
         if (!row) skipped.push({ name, reason: 'not a user-level skill' });
+        else if (row.managedBy === 'symlink') skipped.push({ name, reason: `links to ${row.symlink?.target ?? '?'}: kept where it links, not a copy of ${plugin?.invoke ?? 'a plugin skill'}` });
         else if (!plugin) skipped.push({ name, reason: 'no plugin skill with this name — nothing is shadowed' });
         else trashed.push(trashSkill(name, this.paths, `shadowed ${plugin.invoke} (plugin copy is newer)`));
       }
