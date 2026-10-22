@@ -10,7 +10,7 @@ import { AgyQuotaCard } from '../components/AgyQuotaCard.tsx';
 import { AccountsUsageCard } from '../components/AccountsUsageCard.tsx';
 import { CodexQuotaCard } from '../components/CodexQuotaCard.tsx';
 import { useLive } from '../store.ts';
-import { BOARD_ROW, Badge, Button, Card, Empty, PageHeader, cn, fmtUsd } from '../ui.tsx';
+import { BOARD_ROW, Badge, Button, Card, Empty, PageHeader, cn, code, fmtUsd } from '../ui.tsx';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { ProviderBadge } from './agents/rows.tsx';
@@ -23,6 +23,12 @@ export const untilText = (iso: string) => {
   return m < 60 ? `${m}m` : `${Math.floor(m / 60)}h ${m % 60}m`;
 };
 const fmtDur = (ms: number | null) => (ms == null ? '—' : ms < 1000 ? `${ms} ms` : ms < 60_000 ? `${(ms / 1000).toFixed(0)} s` : `${(ms / 60_000).toFixed(1)} min`);
+
+/**
+ * The colours the charts of Usage and Reports draw their series in: category colours (ADR-0067), never a state. Spend
+ * is blue wherever it is charted, time violet; green stays for what finished and how a limit stands.
+ */
+export const SERIES = { spend: code(0), time: code(2) };
 
 export function UsagePage() {
   const [query, setQuery] = useSearchParams();
@@ -50,10 +56,14 @@ export function UsagePage() {
   </div>;
 }
 
-/** a section of the page, headed as the Goals page's boards are: a small icon, its name in capitals, a line on what it holds */
+/**
+ * A section of the page, headed as the Goals page's boards are: a small icon, its name in capitals, a line on what it
+ * holds. `relative`: the coding-agent picker's hidden legend is placed against this box, not the page's body, where it
+ * made the whole page scroll past <main> on a phone.
+ */
 function SectionHead({ id, icon, title, note, aside }: { id: string; icon: ReactNode; title: ReactNode; note: ReactNode; aside?: ReactNode }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+    <div className="relative flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
       <div className="min-w-0">
         <h2 id={id} className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink">
           {icon}
@@ -115,9 +125,10 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
       {u.accounts && <AccountsUsageCard provider={provider} accounts={u.accounts} />}
       {provider === 'codex' && <CodexQuotaCard quota={u.codexQuota} />}
       {provider === 'agy' && <AgyQuotaCard quota={u.agyQuota} />}
-      {/* drawn as the banner it echoes: a plate in the yellow tint, its sign square solid; Resume now is the person's to press */}
+      {/* a sign that waits for you: the yellow on its small marks only, the sign's square and a thin edge, on a calm
+          panel; Resume now is the person's to press */}
       {u.pausedUntil && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-you/10 px-3 py-2.5 inset-ring inset-ring-you/50 sm:px-4">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-line bg-panel py-2.5 pl-4 pr-3 shadow-[inset_4px_0_0_var(--color-you),var(--surface-shadow)] sm:pl-5 sm:pr-4">
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-you text-on-you" aria-hidden="true">
             <Pause size={14} strokeWidth={2.75} />
           </span>
@@ -162,12 +173,14 @@ function FoundryActivity() {
         title="Foundry activity · last 7 days"
         note="Every coding agent together, as recorded by Foundry."
         aside={
-          <Link to="/reports" className="text-[13px] font-semibold text-work-ink hover:underline underline-offset-2" title="Longer windows, by project and over time, with retries and estimate error">
+          <Link to="/reports" className="-my-1.5 py-1.5 text-[13px] font-semibold text-work-ink hover:underline underline-offset-2" title="Longer windows, by project and over time, with retries and estimate error">
             Longer windows, by project: Reports →
           </Link>
         }
       />
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      {/* two to a row on a phone, three on a tablet, all five on a wide screen; a row's tiles grow to fill it, so the
+          last row never ends in a gap */}
+      <div className="flex flex-wrap gap-3 [&>*]:min-w-0 [&>*]:grow [&>*]:basis-[40%] sm:[&>*]:basis-[30%] lg:[&>*]:basis-0">
         <Kpi label="cache hit rate" value={m.cacheHitRate == null ? '—' : `${(m.cacheHitRate * 100).toFixed(0)}%`} hint="cache-read tokens ÷ all input tokens" good={m.cacheHitRate != null && m.cacheHitRate > 0.6} />
         <Kpi label="avg cost / Claude session" value={m.avgCostPerSession == null ? '—' : fmtUsd(m.avgCostPerSession)} hint="Claude Code only: Codex and Antigravity report no dollar cost" />
         <Kpi label="avg session length" value={fmtDur(m.avgDurationMs)} />
@@ -189,10 +202,13 @@ const fmtSpan = (ms: number) => {
   return min < 60 ? `${min} min` : min % 60 ? `${Math.floor(min / 60)} h ${min % 60} min` : `${min / 60} h`;
 };
 
-/** The three breakdowns side by side, all visible at once; rows by time, which both coding agents report. */
+/**
+ * The three breakdowns side by side on a wide screen, all visible at once; one under another below that, where three
+ * columns would cut every goal's title short. Rows by time, which both coding agents report.
+ */
 function Breakdowns({ m }: { m: ReturnType<typeof mergeActivity> }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
       <Breakdown title="By goal" rows={m.byGoal} />
       <Breakdown title="By session kind" rows={m.byKind} />
       <Breakdown title="By model" rows={m.byModel} />
@@ -225,7 +241,7 @@ function Breakdown({ title, rows }: { title: string; rows: ActivityRow[] }) {
                     <ProviderBadge key={a} provider={a} compact />
                   ))}
                   {r.goalId ? (
-                    <Link className="truncate font-semibold text-ink hover:underline" to={`/goals/${r.goalId}`} title={r.label}>
+                    <Link className="-my-1.5 truncate py-1.5 font-semibold text-ink hover:underline" to={`/goals/${r.goalId}`} title={r.label}>
                       {r.label}
                     </Link>
                   ) : (
@@ -378,11 +394,12 @@ function MinimaxCard() {
         </div>
       )}
       {q.state === 'error' && <div className="text-xs text-bad-ink">{q.message}</div>}
-      {/* a low balance or window is yours to top up: the yellow of the top bar's dot */}
+      {/* how it stands against its limit: green while there is enough, a low balance or window is yours to top up (the
+          yellow of the top bar's dot) */}
       {q.state === 'balance' && (
         <div>
           <div className={LABEL}>pay-as-you-go balance available</div>
-          <div className={cn('mt-1 text-2xl font-bold mono', q.low ? 'text-you-ink' : 'text-ink')}>{q.available.toFixed(2)}</div>
+          <div className={cn('mt-1 text-2xl font-bold mono', q.low ? 'text-you-ink' : 'text-ok-ink')}>{q.available.toFixed(2)}</div>
         </div>
       )}
       {q.state === 'plan' && (
@@ -397,7 +414,7 @@ function MinimaxCard() {
                 {m.resetsAt && <span className="text-ink-faint">· resets in {untilText(m.resetsAt)}</span>}
               </div>
               <div className="h-1.5 rounded-xs bg-line overflow-hidden">
-                <div className={cn('h-full', (m.remainingPercent ?? 100) < 10 ? 'bg-you' : 'bg-work')} style={{ width: `${Math.max(0, Math.min(100, m.remainingPercent ?? 0))}%` }} />
+                <div className={cn('h-full', (m.remainingPercent ?? 100) < 10 ? 'bg-you' : 'bg-ok')} style={{ width: `${Math.max(0, Math.min(100, m.remainingPercent ?? 0))}%` }} />
               </div>
             </div>
           ))}
@@ -413,7 +430,8 @@ export function UsageActivity({ provider, u }: { provider: AgentProvider; u: Pic
     <p className="text-xs text-ink-faint">Local activity over the last 7 days. This reporting period is not an account limit.</p>
     <WindowCard showSignal={false} costAvailable={false} w={{ ...u.sevenDay, label: 'Foundry activity · last 7 days' }} series={u.series.daily} now={u.now} />
   </div>;
-  return <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  // side by side from a wide screen on: a tablet's half is too narrow for a chart's hours
+  return <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
     <WindowCard costAvailable={u.costAvailable} w={u.fiveHour} series={u.series.hourly} now={u.now} />
     <WindowCard costAvailable={u.costAvailable} w={u.sevenDay} series={u.series.daily} now={u.now} />
   </div>;
@@ -438,7 +456,8 @@ function WindowCard({ w, series, now, costAvailable = true, showSignal = true }:
       title={
         <span className="flex flex-wrap items-center gap-2">
           {w.label}
-          {showSignal && <Badge state={state}>{w.status ? signalLabel(w.status) : w.lastSignalAt ? 'no current signal' : 'no signal yet'}</Badge>}
+          {/* how the window stands against its limit, in its signal; with no signal from the account it is not known: hollow */}
+          {showSignal && (w.status ? <Badge state={state}>{signalLabel(w.status)}</Badge> : <Unknown>{w.lastSignalAt ? 'no current signal' : 'no signal yet'}</Unknown>)}
           {showSignal && w.isUsingOverage && <Badge state="warn">overage</Badge>}
         </span>
       }
@@ -449,7 +468,8 @@ function WindowCard({ w, series, now, costAvailable = true, showSignal = true }:
           <div className="text-2xl font-bold mono leading-tight text-ink">{costAvailable ? fmtUsd(w.costUsd) : fmtK(w.outputTokens) + ' tokens'}</div>
           <div className="mt-0.5 text-xs text-ink-faint">{w.sessions} session{w.sessions === 1 ? '' : 's'} · {costAvailable ? 'est. cost' : 'output tokens'}</div>
         </div>
-        <div className="grid grid-cols-3 gap-x-5 ml-auto">
+        {/* beside the figure where it fits; on a phone a full row of its own under it */}
+        <div className="grid grid-cols-3 gap-x-5 max-sm:w-full sm:ml-auto">
           <Stat label="output" value={fmtK(w.outputTokens)} />
           <Stat label="input" value={fmtK(w.inputTokens)} />
           <Stat label="cache read" value={fmtK(w.cacheReadTokens)} />
@@ -466,13 +486,16 @@ function WindowCard({ w, series, now, costAvailable = true, showSignal = true }:
         </div>
       </div>}
       <Bars buckets={series} costAvailable={costAvailable} />
-      {showSignal && w.status && SIGNAL[w.status]?.hint && <p className={cn('text-xs mt-3', state === 'warn' ? 'text-ink-soft' : 'text-bad-ink')}>{SIGNAL[w.status]!.hint}</p>}
+      {showSignal && w.status && SIGNAL[w.status]?.hint && <p className={cn('text-xs mt-3', state === 'warn' ? 'text-you-ink' : 'text-bad-ink')}>{SIGNAL[w.status]!.hint}</p>}
       {showSignal && w.lastSignalAt && <div className="text-[11px] text-ink-faint mt-2">last rate-limit signal {new Date(w.lastSignalAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}{!w.status && ' · that window has since reset; Claude sends a new one when this window nears its limit'}</div>}
     </Card>
   );
 }
 
-/** Cost per bucket as plain divs, in ink like everything the agents spend; hover shows the detail. */
+/**
+ * Cost per bucket as plain divs, in the blue every chart of spend is drawn in (SERIES); hover shows the detail. A
+ * label too long for its bucket on a phone wraps to a second line instead of being cut.
+ */
 function Bars({ buckets, costAvailable }: { buckets: UsageBucket[]; costAvailable: boolean }) {
   const value = (b: UsageBucket) => costAvailable ? b.costUsd : b.outputTokens;
   const max = Math.max(0.0001, ...buckets.map(value));
@@ -481,13 +504,14 @@ function Bars({ buckets, costAvailable }: { buckets: UsageBucket[]; costAvailabl
       <div className="flex items-end gap-1 h-16 border-b border-line">
         {buckets.map((b) => (
           <div key={b.t} className="flex-1 flex flex-col items-center justify-end h-full group" title={`${b.label}: ${costAvailable ? fmtUsd(b.costUsd) : 'cost unavailable'} · ${b.sessions} session${b.sessions === 1 ? '' : 's'} · ${fmtK(b.outputTokens)} output tokens`}>
-            <div className={cn('w-full rounded-t-xs transition-opacity', value(b) > 0 ? 'bg-ink group-hover:opacity-70' : 'bg-line')} style={{ height: `${value(b) > 0 ? Math.max(6, (value(b) / max) * 100) : 2}%` }} />
+            {/* at most 3rem wide: a wide card keeps bars, not blocks of colour */}
+            <div className={cn('w-full max-w-12 rounded-t-xs transition-opacity', value(b) > 0 ? cn(SERIES.spend.dot, 'group-hover:opacity-70') : 'bg-line')} style={{ height: `${value(b) > 0 ? Math.max(6, (value(b) / max) * 100) : 2}%` }} />
           </div>
         ))}
       </div>
       <div className="flex gap-1 mt-1.5">
         {buckets.map((b) => (
-          <div key={b.t} className="flex-1 text-center text-[10px] text-ink-faint truncate">
+          <div key={b.t} className="min-w-0 flex-1 text-center text-[11px] leading-tight text-ink-faint break-words">
             {b.label}
           </div>
         ))}
@@ -496,13 +520,18 @@ function Bars({ buckets, costAvailable }: { buckets: UsageBucket[]; costAvailabl
   );
 }
 
+/** a state that is not known (no signal from the account yet): a hollow tag in the Badge's shape, never a colour */
+function Unknown({ children }: { children: ReactNode }) {
+  return <span className="inline-flex items-center whitespace-nowrap rounded-sm border border-line-strong px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] text-ink-soft" title="pending">{children}</span>;
+}
+
 /** the label of a figure: small capitals over it, as on every page */
 const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em] leading-tight text-ink-faint';
 
 /** a figure tile (Usage, Reports): what it counts in small capitals, the figure large under it; `good` and `bad` colour a figure that passes or fails */
 export function Kpi({ label, value, hint, good, bad }: { label: string; value: string; hint?: string; good?: boolean; bad?: boolean }) {
   return (
-    <div className="flex flex-col justify-between gap-2 rounded-lg border border-line bg-panel px-4 py-3 shadow-[0_1px_2px_rgb(0_0_0/0.05)]" title={hint}>
+    <div className="flex flex-col justify-between gap-2 rounded-lg border border-line bg-panel px-4 py-3 shadow-[var(--surface-shadow)]" title={hint}>
       <div className={LABEL}>{label}</div>
       <div className={cn('mono text-2xl font-bold leading-none', bad ? 'text-bad-ink' : good ? 'text-ok-ink' : 'text-ink')}>{value}</div>
     </div>
