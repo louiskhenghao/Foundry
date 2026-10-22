@@ -1,6 +1,6 @@
 import type { BudgetPreset, Budgets } from "@foundry/core/browser";
 import { BUDGET_PRESETS } from "@foundry/core/browser";
-import { Input, cn } from "../ui.tsx";
+import { Input, choiceClass, cn } from "../ui.tsx";
 
 export const PRESET_ORDER: BudgetPreset[] = [
   "auto",
@@ -59,21 +59,20 @@ export function BudgetPicker({
                 })
               }
               className={cn(
-                "text-left rounded-md border p-2.5 min-h-[84px] h-full flex flex-col items-start justify-start",
-                on
-                  ? "border-emerald-500 bg-emerald-500/5"
-                  : "border-zinc-800 hover:border-zinc-600"
+                "text-left rounded-lg border p-2.5 min-h-[84px] h-full flex flex-col items-start justify-start",
+                choiceClass(on)
               )}
             >
-              <div className="text-sm text-zinc-100 flex items-center gap-1.5">
+              <div className="text-sm font-bold text-ink flex items-center gap-1.5">
                 {def.label}
                 {p === "auto" && (
-                  <span className="text-[9px] uppercase rounded bg-emerald-500/15 text-emerald-300 px-1">
+                  // a quiet plate: which preset a new goal starts on is a fact, not a signal
+                  <span className="rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.07em] text-ink-soft ring-1 ring-inset ring-line-strong">
                     default
                   </span>
                 )}
               </div>
-              <div className="text-[11px] text-zinc-500 mt-0.5 leading-snug">
+              <div className="text-xs text-ink-faint mt-1 leading-snug">
                 {costAvailable ? def.blurb : ({ auto: 'The Brief proposes a time limit for your approval. Attempts and concurrency still apply.', quick: 'Small fix · 30 min · 2 parallel · 2 attempts per task.', thorough: 'Feature with review · 8 h · 3 parallel · 4 attempts per task.', unlimited: 'No time cap. Attempts and concurrency still apply.', custom: 'Set time, concurrency and attempts.' })[p]}
               </div>
             </button>
@@ -124,10 +123,10 @@ export function BudgetPicker({
           </Field>
         </div>
       ) : (
-        <div className="text-xs text-zinc-400 flex flex-wrap gap-x-4 gap-y-1">
+        <div className="text-xs text-ink-faint flex flex-wrap items-baseline gap-x-4 gap-y-1">
           {costAvailable && <span>
             cost{" "}
-            <span className="text-zinc-200 mono">
+            <span className="mono font-semibold text-ink">
               {b.maxCostUsd == null
                 ? value.preset === "auto"
                   ? "from Brief"
@@ -137,7 +136,7 @@ export function BudgetPicker({
           </span>}
           <span>
             time{" "}
-            <span className="text-zinc-200 mono">
+            <span className="mono font-semibold text-ink">
               {b.maxDurationMin == null
                 ? value.preset === "auto"
                   ? "from Brief"
@@ -147,28 +146,28 @@ export function BudgetPicker({
           </span>
           <span>
             parallel{" "}
-            <span className="text-zinc-200 mono">{b.maxConcurrent}</span>
+            <span className="mono font-semibold text-ink">{b.maxConcurrent}</span>
           </span>
           <span>
             attempts/task{" "}
-            <span className="text-zinc-200 mono">{b.attemptsPerTask}</span>
+            <span className="mono font-semibold text-ink">{b.attemptsPerTask}</span>
           </span>
           <button
             type="button"
-            className="underline text-zinc-500 hover:text-zinc-300"
+            className="underline text-ink-soft hover:text-ink"
             onClick={() => onChange({ preset: "custom", budgets: b })}
           >
             customize
           </button>
         </div>
       )}
-      {!costAvailable && <p className="text-xs text-amber-300">This coding agent reports tokens, not dollar cost. USD budgets are unavailable.</p>}
+      {!costAvailable && <p className="text-xs text-work-ink">This coding agent reports tokens, not dollar cost. USD budgets are unavailable.</p>}
       {invalid && (
-        <div className="text-xs text-rose-400">
+        <div className="text-xs text-bad-ink">
           Limits must be positive (leave blank for no limit).
         </div>
       )}
-      <p className="text-xs text-zinc-500">
+      <p className="text-xs text-ink-faint">
         Exceeding a limit pauses the goal and asks you — it never fails
         silently. Rate limits pause the affected backend regardless of budget.
       </p>
@@ -187,8 +186,8 @@ function Field({
 }) {
   return (
     <div>
-      <label className="text-xs text-zinc-400">
-        {label} {hint && <span className="text-zinc-600">· {hint}</span>}
+      <label className="block mb-1 text-xs font-semibold text-ink-soft">
+        {label} {hint && <span className="font-normal text-ink-faint">· {hint}</span>}
       </label>
       {children}
     </div>

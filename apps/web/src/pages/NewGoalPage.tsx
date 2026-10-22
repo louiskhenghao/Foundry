@@ -14,7 +14,7 @@ import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPoli
 import { RepoCard } from '../components/RepoCard.tsx';
 import { useUnsaved } from '../unsaved.ts';
 import { CodexModelSelect } from '../components/CodexModelSelect.tsx';
-import { Button, ButtonGroup, Card, Input, Select, Textarea, cn } from '../ui.tsx';
+import { Button, ButtonGroup, Card, Input, PageHeader, Select, Textarea, choiceClass, cn } from '../ui.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 import { HelpLink } from './HelpPage.tsx';
 import { initialWorkflow, updateWorkflow } from './new-goal-workflow.ts';
@@ -416,6 +416,8 @@ export function NewGoalPage() {
   // a schedule is saved without starting a session: the sign-in gates do not hold it back (a run refuses at its time instead)
   const scheduleReady = !!prompt.trim() && !!repoInfo?.ok && !missingPreset && !unsupportedCodexChoices.length && !(provider === 'codex' && codexOverride && !codexModel.trim());
   const done = [prompt.trim().length > 0, repoInfo?.ok ?? false, true, true];
+  /** the step you are at: the first not done yet */
+  const current = done.indexOf(false);
 
   /** what Create sends: the goal as the form stands (a schedule keeps it as its recipe) */
   const formBody = () => ({
@@ -466,37 +468,48 @@ export function NewGoalPage() {
   const defaultPick = activePresetInfo?.picks[natureKey(nature)];
   const defaultPreset = provider === 'codex' && nature === 'auto' ? 'By goal type' : defaultPick ? (activePresetInfo!.ids.find((p) => p.id === defaultPick)?.label ?? defaultPick) : null;
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4 pb-24">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-lg font-semibold">New goal</h1>
-        <ol className="flex items-center gap-1 text-[11px] text-zinc-500">
-          {STEPS.map((s, i) => (
-            <li key={s} className="flex items-center gap-1">
-              <span className={cn('h-4 w-4 rounded-full text-[9px] flex items-center justify-center border', done[i] ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300' : 'border-zinc-600')}>{i + 1}</span>
-              <span className="hidden sm:inline">{s}</span>
-              {i < STEPS.length - 1 && <span className="w-3 h-px bg-zinc-800 mx-0.5" />}
-            </li>
-          ))}
-        </ol>
-      </div>
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-24 space-y-4">
+      <PageHeader
+        title="New goal"
+        actions={
+          <ol className="flex items-center gap-1.5" aria-label="Steps">
+            {STEPS.map((s, i) => (
+              <li key={s} className="flex items-center gap-1.5" aria-current={i === current ? 'step' : undefined}>
+                {/* a small leaning plate, as the goal page's stages: filled once done, outlined heavily where you are, hollow after */}
+                <span className={cn('relative isolate inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold', done[i] ? 'text-on-ink' : i === current ? 'text-ink' : 'text-ink-faint')}>
+                  {/* inset-ring, not ring-inset: the theme has a colour named inset, and ring-inset would paint the ring in it */}
+                  <i aria-hidden="true" className={cn('absolute inset-0 -z-10 rounded-[4px] slant', done[i] ? 'bg-ink' : i === current ? 'bg-panel inset-ring-2 inset-ring-ink' : 'inset-ring-[1.5px] inset-ring-line-strong')} />
+                  <span className="mono">{i + 1}</span>
+                  <span className="hidden sm:inline">{s}</span>
+                </span>
+                {i < STEPS.length - 1 && <span className="h-0.5 w-3 rounded-full bg-line-strong" aria-hidden="true" />}
+              </li>
+            ))}
+          </ol>
+        }
+      />
       {follow && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-800 bg-sky-950/40 text-sky-200 text-xs pl-2.5 pr-1 py-1 max-w-full">
-            <CornerDownRight size={12} className="shrink-0" />
+          <span className="inline-flex items-center gap-1.5 rounded-md bg-panel text-ink text-[13px] font-semibold pl-2.5 pr-1 py-1 max-w-full ring-1 ring-inset ring-line-strong">
+            <CornerDownRight size={13} className="shrink-0 text-work-ink" />
             <span className="truncate">Follows: {follow.draft.previous.title}</span>
-            <button type="button" className="rounded-full p-0.5 hover:bg-sky-900 shrink-0" aria-label="Remove follows" title="This goal will not follow it" onClick={() => setFollow(null)}>
+            <button type="button" className="rounded p-0.5 text-ink-soft hover:bg-inset hover:text-ink shrink-0" aria-label="Remove follows" title="This goal will not follow it" onClick={() => setFollow(null)}>
               <X size={12} />
             </button>
           </span>
-          <span className="text-[11px] text-zinc-500">Settings are prefilled from it; Clarify gets what it asked, decided and delivered as background.</span>
+          <span className="text-xs text-ink-faint">Settings are prefilled from it; Clarify gets what it asked, decided and delivered as background.</span>
         </div>
       )}
 
       <Card title="Coding agent">
         <ProviderSelector hideLabel value={provider} onChange={(id) => { changed.current.add('provider'); setProvider(id); if (id !== 'codex' && ['none', 'minimal', 'ultra'].includes(effort)) setEffort(''); }} />
-        <p className="mt-2 text-xs text-zinc-400">{PROVIDER_LABEL[provider]} · {!selectedAccount ? 'Checking account…' : selectedAccount.status.loggedIn ? 'Connected' : selectedAccount.installed ? 'Sign in required' : 'CLI not installed'}</p>
-        {accountError && <p role="alert" className="mt-3 text-xs text-rose-400">Unable to check accounts: {accountError}. Open Manage accounts to retry.</p>}
-        <p className="text-xs text-zinc-400 mt-3">This choice stays fixed for the goal, including retries and reviews. <a href="/accounts" className="text-emerald-400">Manage accounts</a></p>
+        <p className="mt-2.5 text-xs text-ink-soft">
+          {PROVIDER_LABEL[provider]} ·{' '}
+          {/* connected passed; a sign-in only you can do waits for you; a missing CLI failed */}
+          <span className={cn('font-semibold', !selectedAccount ? 'text-ink-faint' : selectedAccount.status.loggedIn ? 'text-ok-ink' : selectedAccount.installed ? 'text-you-ink' : 'text-bad-ink')}>{!selectedAccount ? 'Checking account…' : selectedAccount.status.loggedIn ? 'Connected' : selectedAccount.installed ? 'Sign in required' : 'CLI not installed'}</span>
+        </p>
+        {accountError && <p role="alert" className="mt-3 text-xs text-bad-ink">Unable to check accounts: {accountError}. Open Manage accounts to retry.</p>}
+        <p className="text-xs text-ink-faint mt-3">This choice stays fixed for the goal, including retries and reviews. <a href="/accounts" className="font-semibold text-work-ink hover:underline">Manage accounts</a></p>
       </Card>
       <Card title={<>What kind of goal is this?<HelpLink to="your-first-goal#what-kind-of-goal-is-this" className="ml-1.5" /></>}>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -512,21 +525,21 @@ export function NewGoalPage() {
                 if (!paceTouched.current) setPace(n.id === 'image' || n.id === 'video' ? 'fast' : basePace.current);
               }}
               // a stretched button centres its content; flex-col keeps short cards aligned with tall ones
-              className={cn('flex flex-col text-left rounded-lg border p-2.5', nature === n.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-600')}
+              className={cn('flex flex-col text-left rounded-lg border p-2.5', choiceClass(nature === n.id))}
             >
-              <div className="text-sm font-medium text-zinc-100">{n.label}</div>
-              <div className="text-[11px] text-zinc-400 mt-0.5 leading-snug">{n.text}</div>
+              <div className="text-sm font-bold text-ink">{n.label}</div>
+              <div className="text-xs text-ink-faint mt-1 leading-snug">{n.text}</div>
             </button>
           ))}
         </div>
         {nature === 'cad' && cad && !cad.installed && (
-          <p className="mt-2 text-xs text-amber-300" role="status">
+          <p className="mt-2 text-xs text-work-ink" role="status">
             {provider === 'agy' ? 'text-to-cad is not available for Antigravity: a CAD goal would wait for it before Clarify. Run CAD goals on Claude Code or Codex.' : <>text-to-cad is not installed for this coding agent: a CAD goal waits for it before Clarify. Install it on the <Link to={`/setup?provider=${provider}`} className="underline">Setup page</Link> (3D models){cad.uv ? '' : '; uv, which runs its CAD kernel, is missing too'}.</>}
           </p>
         )}
         {ARTIFACT_NATURES.includes(nature) && (
           <div className="mt-3">
-            <label className="text-xs text-zinc-400">Output folder — the finished files are copied here when the goal completes (optional; otherwise they stay in the goal's workspace)</label>
+            <label className="text-xs text-ink-soft">Output folder — the finished files are copied here when the goal completes (optional; otherwise they stay in the goal's workspace)</label>
             <div className="flex gap-2 mt-1">
               <Input className="mono flex-1" placeholder="/Users/you/Desktop/output" value={outputDir} onChange={(e) => setOutputDir(e.target.value)} />
               <Button
@@ -551,22 +564,22 @@ export function NewGoalPage() {
               { id: 'expert', label: 'Expert', text: 'Every control: Areas, task graph, acceptance checks, attempt logs, merge resolution, engineering discipline.' },
             ] as const
           ).map((m) => (
-            <button key={m.id} type="button" onClick={() => setMode(m.id)} className={cn('flex flex-col text-left rounded-lg border p-3', mode === m.id ? 'border-emerald-500 bg-emerald-500/10' : 'border-zinc-800 hover:border-zinc-600')}>
-              <div className="text-sm font-medium text-zinc-100">{m.label}</div>
-              <div className="text-[11px] text-zinc-400 mt-1 leading-snug">{m.text}</div>
+            <button key={m.id} type="button" onClick={() => setMode(m.id)} className={cn('flex flex-col text-left rounded-lg border p-3', choiceClass(mode === m.id))}>
+              <div className="text-sm font-bold text-ink">{m.label}</div>
+              <div className="text-xs text-ink-faint mt-1 leading-snug">{m.text}</div>
             </button>
           ))}
         </div>
         <label className="mt-3 flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={pace === 'fast'} onChange={(e) => choosePace(e.target.checked ? 'fast' : 'thorough')} />
           <span>
-            <span className="text-zinc-100">Fast mode</span><HelpLink to="your-first-goal#fast-mode" className="ml-1.5" />
-            <span className="text-[11px] text-zinc-400 block leading-snug">Once you approve the Brief, the engine skips its own extra AI reviews (and the TDD mandate). The acceptance checks you approved still run — good for media goals and quick jobs.</span>
+            <span className="font-semibold text-ink">Fast mode</span><HelpLink to="your-first-goal#fast-mode" className="ml-1.5" />
+            <span className="text-xs text-ink-faint block leading-snug">Once you approve the Brief, the engine skips its own extra AI reviews (and the TDD mandate). The acceptance checks you approved still run — good for media goals and quick jobs.</span>
           </span>
         </label>
         <div className="mt-3 space-y-1 text-xs">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-zinc-100">Interview depth<HelpLink to="your-first-goal#interview-depth" className="ml-1.5" /></span>
+            <span className="font-semibold text-ink-soft">Interview depth<HelpLink to="your-first-goal#interview-depth" className="ml-1.5" /></span>
             <ButtonGroup
               label="Interview depth"
               value={interviewDepth}
@@ -574,27 +587,27 @@ export function NewGoalPage() {
               options={INTERVIEW_DEPTHS.map((d) => ({ id: d.id, label: d.short, title: d.label }))}
             />
           </div>
-          <span className="text-[11px] text-zinc-400 block leading-snug">{INTERVIEW_DEPTHS.find((d) => d.id === interviewDepth)?.label}. How deep the Clarifier questions you before writing the Brief (options with its recommendation first); it sets how thoroughly it probes, not a number of rounds.</span>
+          <span className="text-xs text-ink-faint block leading-snug">{INTERVIEW_DEPTHS.find((d) => d.id === interviewDepth)?.label}. How deep the Clarifier questions you before writing the Brief (options with its recommendation first); it sets how thoroughly it probes, not a number of rounds.</span>
         </div>
         <label className="mt-3 flex items-start gap-2 text-sm">
           <input type="checkbox" className="mt-1" checked={delegate} onChange={(e) => { setDelegate(e.target.checked); if (!e.target.checked) setDelegateAuto(false); }} />
           <span>
-            <span className="text-zinc-100">Delegated goals</span><HelpLink to="your-first-goal#delegated-goals" className="ml-1.5" />
-            <span className="text-[11px] text-zinc-400 block leading-snug">The planner may hand a step that is a project of its own (research that comes first, a 3D model or a video next to the code, a part too large for one plan) to a goal of its own, with its own Clarify and plan. Its result lands on this goal's branch before the tasks that need it. They run side by side, as many as the goal's parallel limit allows, each with a share of the budget. Off: every step is one task.</span>
+            <span className="font-semibold text-ink">Delegated goals</span><HelpLink to="your-first-goal#delegated-goals" className="ml-1.5" />
+            <span className="text-xs text-ink-faint block leading-snug">The planner may hand a step that is a project of its own (research that comes first, a 3D model or a video next to the code, a part too large for one plan) to a goal of its own, with its own Clarify and plan. Its result lands on this goal's branch before the tasks that need it. They run side by side, as many as the goal's parallel limit allows, each with a share of the budget. Off: every step is one task.</span>
           </span>
         </label>
         {delegate && (
           <label className="mt-2 ml-6 flex items-start gap-2 text-sm">
             <input type="checkbox" className="mt-1" checked={delegateAuto} onChange={(e) => setDelegateAuto(e.target.checked)} />
             <span>
-              <span className="text-zinc-100">Approve delegated goals' Briefs for me</span>
-              <span className="text-[11px] text-zinc-400 block leading-snug">Their Briefs are approved as soon as they are written, unless a question only you can answer is left. Off: this goal pauses until you approve each one.</span>
+              <span className="font-semibold text-ink">Approve delegated goals' Briefs for me</span>
+              <span className="text-xs text-ink-faint block leading-snug">Their Briefs are approved as soon as they are written, unless a question only you can answer is left. Off: this goal pauses until you approve each one.</span>
             </span>
           </label>
         )}
         <div className="mt-4 flex flex-wrap items-center gap-x-8 gap-y-3">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs text-zinc-300">Effort<HelpLink to="your-first-goal#effort" className="ml-1.5" /></span>
+            <span className="text-xs font-semibold text-ink-soft">Effort<HelpLink to="your-first-goal#effort" className="ml-1.5" /></span>
             <ButtonGroup
               label="Effort"
               value={effort}
@@ -612,7 +625,7 @@ export function NewGoalPage() {
             />
           </div>
           <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs text-zinc-300">Models<HelpLink to="your-first-goal#models" className="ml-1.5" /></span>
+            <span className="text-xs font-semibold text-ink-soft">Models<HelpLink to="your-first-goal#models" className="ml-1.5" /></span>
             {provider === 'agy' ? (
               <div className="w-72 max-w-full">
                 <Select aria-label="Antigravity model" className="text-xs" value={agyModel} onChange={(e) => { changed.current.add('agyModel'); setAgyModel(e.target.value); }}>
@@ -637,23 +650,23 @@ export function NewGoalPage() {
             )}
           </div>
         </div>
-        {missingPreset && <p role="alert" className="mt-3 text-xs text-amber-300">The earlier goal’s preset “{selectedPreset}” is no longer available. Choose a preset for this new goal.</p>}
-        {provider === 'codex' && <div className="mt-4 space-y-3 rounded-md border border-zinc-800 p-3">
-          <p className="text-xs text-zinc-400">This goal captures its Codex preset and fallback order when created. An explicit effort above overrides every role; Default uses each role’s preset.</p>
-          {nature === 'auto' && !codexPreset && <p className="text-xs text-zinc-400">Auto captures the defaults for every goal type. The preview shows Code roles until classification; the inferred type uses its captured Code (software and CAD), Docs & research or Media table.</p>}
-          <label className="flex items-start gap-2 text-xs text-zinc-300"><input type="checkbox" className="accent-emerald-500 mt-0.5" checked={codexOverride} onChange={(e) => setCodexOverride(e.target.checked)} />Use one model for every role in this goal</label>
-          {codexOverride && <div className="max-w-lg"><CodexModelSelect label="Codex goal model override" known={codexKnown} value={codexModel} defaultLabel="CLI default model" onChange={(value) => { changed.current.add('codexModel'); setCodexModel(value); }} /><p className="text-[11px] text-zinc-500 mt-1">This replaces each role’s model while keeping its preset effort unless you choose a goal-wide effort. CLI default model follows your native Codex configuration.</p></div>}
-          {codexPreview && <details className="text-xs"><summary className="cursor-pointer text-zinc-300">View {codexPreview.label} role assignments</summary><p className="text-zinc-500 mt-2">{codexPreview.description}</p><div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-3">{CODEX_MODEL_ACTIONS.map((role) => { const choice = codexPreview.tables[natureKey(nature)][role]; const model = codexOverride || choice.model === 'codex-default' ? codexModel : choice.model; return <div key={role} className="flex justify-between gap-3 border-b border-zinc-800 py-1"><span className="text-zinc-400">{role === 'housekeeping' ? 'Housekeeping' : ACTION_INFO[role].label}</span><span className="text-right mono text-zinc-300">{model === 'codex-default' ? 'CLI default model' : model} · {effort || choice.effort || 'CLI effort'}</span></div>; })}</div></details>}
-          {unsupportedCodexChoices.length > 0 && <p role="alert" className="text-xs text-amber-300">{unsupportedCodexChoices.join('; ')}. Choose a supported goal effort or update the preset in Settings.</p>}
-          <p className="text-xs text-amber-300">Codex dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>
+        {missingPreset && <p role="alert" className="mt-3 text-xs text-bad-ink">The earlier goal’s preset “{selectedPreset}” is no longer available. Choose a preset for this new goal.</p>}
+        {provider === 'codex' && <div className="mt-4 space-y-3 rounded-lg border border-line bg-inset p-3">
+          <p className="text-xs text-ink-soft">This goal captures its Codex preset and fallback order when created. An explicit effort above overrides every role; Default uses each role’s preset.</p>
+          {nature === 'auto' && !codexPreset && <p className="text-xs text-ink-soft">Auto captures the defaults for every goal type. The preview shows Code roles until classification; the inferred type uses its captured Code (software and CAD), Docs & research or Media table.</p>}
+          <label className="flex items-start gap-2 text-xs font-semibold text-ink"><input type="checkbox" className="mt-0.5" checked={codexOverride} onChange={(e) => setCodexOverride(e.target.checked)} />Use one model for every role in this goal</label>
+          {codexOverride && <div className="max-w-lg"><CodexModelSelect label="Codex goal model override" known={codexKnown} value={codexModel} defaultLabel="CLI default model" onChange={(value) => { changed.current.add('codexModel'); setCodexModel(value); }} /><p className="text-[11px] text-ink-faint mt-1">This replaces each role’s model while keeping its preset effort unless you choose a goal-wide effort. CLI default model follows your native Codex configuration.</p></div>}
+          {codexPreview && <details className="text-xs"><summary className="cursor-pointer font-semibold text-ink-soft hover:text-ink">View {codexPreview.label} role assignments</summary><p className="text-ink-faint mt-2">{codexPreview.description}</p><div className="grid sm:grid-cols-2 gap-x-6 gap-y-1.5 mt-3">{CODEX_MODEL_ACTIONS.map((role) => { const choice = codexPreview.tables[natureKey(nature)][role]; const model = codexOverride || choice.model === 'codex-default' ? codexModel : choice.model; return <div key={role} className="flex justify-between gap-3 border-b border-line py-1"><span className="text-ink-soft">{role === 'housekeeping' ? 'Housekeeping' : ACTION_INFO[role].label}</span><span className="text-right mono text-ink">{model === 'codex-default' ? 'CLI default model' : model} · {effort || choice.effort || 'CLI effort'}</span></div>; })}</div></details>}
+          {unsupportedCodexChoices.length > 0 && <p role="alert" className="text-xs text-bad-ink">{unsupportedCodexChoices.join('; ')}. Choose a supported goal effort or update the preset in Settings.</p>}
+          <p className="text-xs text-work-ink">Codex dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>
         </div>}
-        {provider === 'agy' && <div className="mt-4 space-y-2 rounded-md border border-zinc-800 p-3">
-          <p className="text-xs text-zinc-400">Every role of this goal runs on the one model above, kept when the goal is created. Default is the model Settings names; Antigravity default follows the model agy itself is set to. An explicit effort applies to every role.</p>
-          <p className="text-xs text-amber-300">Antigravity dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>
+        {provider === 'agy' && <div className="mt-4 space-y-2 rounded-lg border border-line bg-inset p-3">
+          <p className="text-xs text-ink-soft">Every role of this goal runs on the one model above, kept when the goal is created. Default is the model Settings names; Antigravity default follows the model agy itself is set to. An explicit effort applies to every role.</p>
+          <p className="text-xs text-work-ink">Antigravity dollar costs are unavailable; dollar budgets do not stop runs. Use duration and attempt limits.</p>
         </div>}
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs text-zinc-300">Powered by<HelpLink to="your-first-goal#workflow-suite" className="ml-1.5" /></span>
+            <span className="text-xs font-semibold text-ink-soft">Powered by<HelpLink to="your-first-goal#workflow-suite" className="ml-1.5" /></span>
             <ButtonGroup
               label="Workflow suite"
               value={profile}
@@ -664,15 +677,15 @@ export function NewGoalPage() {
                 { id: 'plain', label: 'plain', title: 'No workflow rules: sessions only hear which skills are installed' },
               ]}
             />
-            <span className="text-[11px] text-zinc-500">Whose skills the roles follow for this goal; fixed once the goal is created.{pstackReady === false && <> pstack is not installed: <Link to="/setup" className="underline">Setup page</Link>.</>}</span>
+            <span className="text-[11px] text-ink-faint">Whose skills the roles follow for this goal; fixed once the goal is created.{pstackReady === false && <> pstack is not installed: <Link to="/setup" className="underline">Setup page</Link>.</>}</span>
           </div>
         )}
         {mode === 'expert' && workflow.inherited.length > 0 && workflow.lastGoal && (
-          <p className="mt-1 text-[11px] text-zinc-500">from the last goal in this folder: {workflow.lastGoal.title}</p>
+          <p className="mt-1 text-[11px] text-ink-faint">from the last goal in this folder: {workflow.lastGoal.title}</p>
         )}
         {mode === 'expert' && (
           <div className="mt-3 flex items-center gap-2.5 flex-wrap">
-            <span className="text-xs text-zinc-300">Engineering discipline — TDD<HelpLink to="your-first-goal#engineering-discipline-tdd" className="ml-1.5" /></span>
+            <span className="text-xs font-semibold text-ink-soft">Engineering discipline — TDD<HelpLink to="your-first-goal#engineering-discipline-tdd" className="ml-1.5" /></span>
             <ButtonGroup
               label="Engineering discipline — TDD"
               value={tdd}
@@ -683,15 +696,15 @@ export function NewGoalPage() {
                 { id: 'off', label: 'off', title: 'Never mentioned' },
               ]}
             />
-            <span className="text-[11px] text-zinc-500">docs, infra, research, image and video tasks never get a TDD mandate; a task can also switch it off in the Brief.</span>
+            <span className="text-[11px] text-ink-faint">docs, infra, research, image and video tasks never get a TDD mandate; a task can also switch it off in the Brief.</span>
           </div>
         )}
         {mode === 'expert' && (
-          <label className="mt-3 flex items-start gap-2 text-xs text-zinc-300 cursor-pointer" title="Ponytail, the lazy senior dev: before writing, a worker checks whether the code needs to exist, whether the repository, the standard library or an installed dependency already has it, and only then writes the smallest complete change. The planner plans lean; ponytail-review reviews each task and the whole goal. TDD still decides how tests are written. Switchable later on the goal page.">
-            <input type="checkbox" className="mt-0.5 accent-emerald-500" checked={ponytail === 'on'} onChange={(e) => { changed.current.add('ponytail'); changeWorkflow({ type: 'edit', field: 'ponytail', value: { ponytail: e.target.checked ? 'on' : 'off' } }); }} />
+          <label className="mt-3 flex items-start gap-2 text-xs text-ink cursor-pointer" title="Ponytail, the lazy senior dev: before writing, a worker checks whether the code needs to exist, whether the repository, the standard library or an installed dependency already has it, and only then writes the smallest complete change. The planner plans lean; ponytail-review reviews each task and the whole goal. TDD still decides how tests are written. Switchable later on the goal page.">
+            <input type="checkbox" className="mt-0.5" checked={ponytail === 'on'} onChange={(e) => { changed.current.add('ponytail'); changeWorkflow({ type: 'edit', field: 'ponytail', value: { ponytail: e.target.checked ? 'on' : 'off' } }); }} />
             <span>
-              Ponytail — the smallest change that fully solves the task<HelpLink to="your-first-goal#ponytail-less-code" className="ml-1.5" />
-              <span className="block text-[11px] text-zinc-500">Workers reuse what exists before writing new code; ponytail-review reviews. Needs the Ponytail skills (Setup page).</span>
+              <span className="font-semibold">Ponytail — the smallest change that fully solves the task</span><HelpLink to="your-first-goal#ponytail-less-code" className="ml-1.5" />
+              <span className="block text-[11px] text-ink-faint">Workers reuse what exists before writing new code; ponytail-review reviews. Needs the Ponytail skills (Setup page).</span>
             </span>
           </label>
         )}
@@ -700,13 +713,13 @@ export function NewGoalPage() {
       <Card title={<>1 · What do you want done?<HelpLink to="your-first-goal#what-do-you-want-done" className="ml-1.5" /></>}>
         <div className="mb-2 flex items-center gap-2 flex-wrap text-xs">
           {issue ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-900 bg-sky-950/40 px-2 py-0.5 text-sky-200" title={issue.read.issue.title}>
+            <span className="inline-flex items-center gap-1.5 rounded-md bg-panel px-2 py-0.5 font-semibold text-ink-soft ring-1 ring-inset ring-line-strong" title={issue.read.issue.title}>
               <Github size={12} className="shrink-0" />
-              <a href={issue.read.issue.url} target="_blank" rel="noreferrer" className="hover:underline">
+              <a href={issue.read.issue.url} target="_blank" rel="noreferrer" className="mono text-ink hover:underline">
                 {issue.read.issue.repo}#{issue.read.issue.number}
               </a>
-              <span className="text-sky-400/80">· {issue.read.issue.state}</span>
-              <button type="button" className="rounded-full p-0.5 hover:bg-sky-900 shrink-0" style={{ minHeight: 0 }} aria-label="Unlink issue" title="This goal is not made from the issue after all: its thread leaves the attachments; your text stays" onClick={unlinkIssue}>
+              <span className="font-normal text-ink-faint">· {issue.read.issue.state}</span>
+              <button type="button" className="rounded p-0.5 hover:bg-inset hover:text-ink shrink-0" style={{ minHeight: 0 }} aria-label="Unlink issue" title="This goal is not made from the issue after all: its thread leaves the attachments; your text stays" onClick={unlinkIssue}>
                 <X size={12} />
               </button>
             </span>
@@ -715,7 +728,7 @@ export function NewGoalPage() {
               <Github size={12} /> From a GitHub issue<HelpLink to="your-first-goal#from-a-github-issue" className="ml-1.5" />
             </Button>
           )}
-          {issue && keptOwnText({ prompt, title, attachments, issue }) && <span className="text-zinc-500">your description is kept; the issue's thread is attached</span>}
+          {issue && keptOwnText({ prompt, title, attachments, issue }) && <span className="text-ink-faint">your description is kept; the issue's thread is attached</span>}
           {issueOpen && !issue && (
             <form
               className="basis-full flex items-center gap-2"
@@ -731,7 +744,7 @@ export function NewGoalPage() {
             </form>
           )}
           {issueErr && (
-            <p className="basis-full text-[11px] text-rose-300">
+            <p className="basis-full text-[11px] text-bad-ink">
               {issueErr}
               {/not logged in|not installed/i.test(issueErr) && (
                 <>
@@ -746,7 +759,7 @@ export function NewGoalPage() {
         <AttachmentInput className="mt-2" items={attachments} onChange={setAttachments} />
         <div className="mt-3 space-y-1.5">
           <div className="flex items-center gap-2">
-            <span className="text-xs text-zinc-400">
+            <span className="text-xs font-semibold text-ink-soft">
               Reference (optional)<HelpLink to="your-first-goal#reference" className="ml-1.5" />
             </span>
             <Button size="sm" variant="ghost" disabled={references.length >= 5} onClick={() => setReferences((r) => [...r, { target: '', lookAt: '' }])} title="A site, an app or a package whose feature this goal should learn from; REA studies it before Clarify">
@@ -762,15 +775,15 @@ export function NewGoalPage() {
               </Button>
             </div>
           ))}
-          {references.length > 0 && auto && <p className="text-[11px] text-amber-300">Skip Clarify is on: the references are dropped (REA studies them before Clarify).</p>}
+          {references.length > 0 && auto && <p className="text-[11px] text-work-ink">Skip Clarify is on: the references are dropped (REA studies them before Clarify).</p>}
           {references.length > 0 && (
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-[11px] text-ink-faint">
               Before Clarify, REA studies each reference and writes a report with its evidence; every session reads it, and it is committed under docs/reference. Only software you are allowed to examine: the goal builds its own version, never a copy. Needs the REA server (Extensions → MCP servers); native apps and binaries also need Hopper, Ghidra or IDA on this computer (Setup page).
             </p>
           )}
         </div>
         <div className="mt-3">
-          <label className="text-xs text-zinc-400">Title (optional — defaults to the first line)</label>
+          <label className="block mb-1 text-xs font-semibold text-ink-soft">Title (optional — defaults to the first line)</label>
           <Input value={title} onChange={(e) => setTitle(e.target.value)} />
         </div>
       </Card>
@@ -778,9 +791,9 @@ export function NewGoalPage() {
       <Card title={<>2 · Repository<HelpLink to="your-first-goal#repository" className="ml-1.5" /></>}>
         <RepoCard key={repoKey} path={repoPath} info={repoInfo} onPath={setRepoPath} onValidation={beginRepoValidation} />
         {repoInfo?.ok && learned > 0 && (
-          <div className="mt-2 text-[11px] text-zinc-500">
+          <div className="mt-2 text-xs text-ink-faint">
             Foundry knows {learned} thing{learned === 1 ? '' : 's'} about this folder from earlier goals; the plan is written with them.{' '}
-            <Link to={`/learnings?repo=${encodeURIComponent(repoPath.trim())}`} className="text-zinc-300 hover:underline">
+            <Link to={`/learnings?repo=${encodeURIComponent(repoPath.trim())}`} className="font-semibold text-ink hover:underline">
               See the Learnings
             </Link>
           </div>
@@ -795,16 +808,16 @@ export function NewGoalPage() {
 
       <Card title={<>4 · Delivery — what may the engine do with the result?<HelpLink to="your-first-goal#delivery" className="ml-1.5" /></>}>
         {repoInfo?.ok && delivery.mode !== 'local' && (
-          <div className="text-[11px] text-zinc-500 mb-2">
-            Prefilled from the repository: remote <span className="mono text-zinc-300">{delivery.remote ?? 'origin'}</span>
-            {repoInfo.remotes.find((r) => r.name === (delivery.remote ?? 'origin'))?.url ? <span className="mono text-zinc-400"> → {repoInfo.remotes.find((r) => r.name === (delivery.remote ?? 'origin'))!.url}</span> : ' (none yet)'} · base <span className="mono text-zinc-300">{delivery.baseBranch ?? repoInfo.branch}</span>
+          <div className="text-xs text-ink-faint mb-3">
+            Prefilled from the repository: remote <span className="mono text-ink">{delivery.remote ?? 'origin'}</span>
+            {repoInfo.remotes.find((r) => r.name === (delivery.remote ?? 'origin'))?.url ? <span className="mono text-ink-soft"> → {repoInfo.remotes.find((r) => r.name === (delivery.remote ?? 'origin'))!.url}</span> : ' (none yet)'} · base <span className="mono text-ink">{delivery.baseBranch ?? repoInfo.branch}</span>
           </div>
         )}
         <DeliveryPolicyForm value={delivery} onChange={onDelivery} repo={repoInfo} />
       </Card>
 
       <div>
-        <button className="text-xs text-zinc-400 underline decoration-dotted" onClick={() => setAdvanced(!advanced)}>
+        <button className="text-xs font-semibold text-ink-soft hover:text-ink underline decoration-dotted" onClick={() => setAdvanced(!advanced)}>
           {advanced ? 'Hide advanced' : 'Advanced: skip Clarify'}
         </button>
         {advanced && (
@@ -815,24 +828,25 @@ export function NewGoalPage() {
             {auto && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
                 <div>
-                  <label className="text-xs text-zinc-400">Must checks (one command per line)</label>
+                  <label className="block mb-1 text-xs font-semibold text-ink-soft">Must checks (one command per line)</label>
                   <Textarea rows={3} className="mono" placeholder={'bun test\nbun run typecheck'} value={checks} onChange={(e) => setChecks(e.target.value)} />
                 </div>
                 <div>
-                  <label className="text-xs text-zinc-400">Stretch checks</label>
+                  <label className="block mb-1 text-xs font-semibold text-ink-soft">Stretch checks</label>
                   <Textarea rows={3} className="mono" placeholder="bun run lint" value={stretch} onChange={(e) => setStretch(e.target.value)} />
                 </div>
               </div>
             )}
-            {auto && budget.preset === 'auto' && <p className="text-xs text-zinc-500 mt-2">With Auto budget and no Brief, the engine applies the minimum proposal ({reportsDollars(provider) ? '$3 / 30 min' : '30 min'}) and pauses to ask if it is exceeded.</p>}
+            {auto && budget.preset === 'auto' && <p className="text-xs text-ink-faint mt-2">With Auto budget and no Brief, the engine applies the minimum proposal ({reportsDollars(provider) ? '$3 / 30 min' : '30 min'}) and pauses to ask if it is exceeded.</p>}
           </Card>
         )}
       </div>
 
-      {err && <div className="text-sm text-rose-400">{err}</div>}
-      <div className="fixed bottom-0 left-0 right-0 sm:static border-t sm:border-0 border-zinc-800 bg-zinc-950/90 sm:bg-transparent backdrop-blur p-3 sm:p-0 flex items-center justify-end gap-3">
+      {err && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-sm text-bad-ink">{err}</div>}
+      {/* on a phone the actions stay at the bottom of the screen, on the page's own grey */}
+      <div className="fixed bottom-0 left-0 right-0 sm:static border-t sm:border-0 border-line bg-page sm:bg-transparent p-3 sm:p-0 flex items-center justify-end gap-3">
         {notReady && (
-          <span role="status" className="text-xs text-zinc-500 mr-auto sm:mr-0">
+          <span role="status" className="text-xs font-semibold text-ink-soft mr-auto sm:mr-0">
             {notReady}
           </span>
         )}
@@ -853,9 +867,9 @@ function FollowsPicker({ follow, candidates, onPick, onChange }: { follow: Follo
   const d = follow?.draft;
   const options = d && !candidates.some((c) => c.id === d.previous.id) ? [{ id: d.previous.id, title: d.previous.title, state: d.previous.state }, ...candidates] : candidates;
   return (
-    <div className="mt-4 border-t border-zinc-800 pt-3 space-y-2.5">
+    <div className="mt-4 border-t border-line pt-3 space-y-2.5">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-zinc-300">
+        <span className="text-xs font-semibold text-ink-soft">
           Follows<HelpLink to="your-first-goal#follows" className="ml-1.5" />
         </span>
         <Select aria-label="Follows" className="flex-1 min-w-0 max-w-md" value={d?.previous.id ?? ''} onChange={(e) => onPick(e.target.value)}>
@@ -868,9 +882,9 @@ function FollowsPicker({ follow, candidates, onPick, onChange }: { follow: Follo
         </Select>
       </div>
       {follow && d && (
-        <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-3 space-y-2 text-xs">
+        <div className="rounded-lg border border-line bg-inset p-3 space-y-2 text-xs text-ink">
           <div className="flex items-center gap-2.5 flex-wrap">
-            <span className="text-zinc-300">Start from</span>
+            <span className="font-semibold text-ink-soft">Start from</span>
             <ButtonGroup
               label="Start from"
               value={follow.startFrom}
@@ -881,7 +895,7 @@ function FollowsPicker({ follow, candidates, onPick, onChange }: { follow: Follo
               ]}
             />
           </div>
-          <p className="text-zinc-400 leading-snug">
+          <p className="text-ink-soft leading-snug">
             {follow.startFrom === 'previous' ? (
               <>
                 Its work is not on <span className="mono">{d.start.baseBranch}</span> yet, so this goal starts from its goal branch <span className="mono">{d.start.previousBranch}</span>. Its changes go along in this goal's delivery (and pull request); the delivery still targets <span className="mono">{d.start.baseBranch}</span>.
@@ -900,7 +914,7 @@ function FollowsPicker({ follow, candidates, onPick, onChange }: { follow: Follo
             <label className="flex items-start gap-2">
               <input type="checkbox" className="mt-0.5" checked={follow.attachments} onChange={(e) => onChange({ ...follow, attachments: e.target.checked })} />
               <span>
-                Bring its attachments <span className="text-zinc-500">({d.attachments.map((a) => a.name).join(', ')})</span>
+                Bring its attachments <span className="text-ink-faint">({d.attachments.map((a) => a.name).join(', ')})</span>
               </span>
             </label>
           )}
@@ -908,11 +922,11 @@ function FollowsPicker({ follow, candidates, onPick, onChange }: { follow: Follo
             <label className="flex items-start gap-2">
               <input type="checkbox" className="mt-0.5" checked={follow.style} onChange={(e) => onChange({ ...follow, style: e.target.checked })} />
               <span className="flex items-center gap-1.5 flex-wrap">
-                Keep its style direction <span className="text-zinc-200">{d.style.name}</span>
+                Keep its style direction <span className="font-semibold text-ink">{d.style.name}</span>
                 {d.style.palette.slice(0, 6).map((c) => (
-                  <span key={c} className="inline-block h-3 w-3 rounded-sm border border-zinc-700" style={{ background: c }} title={c} />
+                  <span key={c} className="inline-block h-3 w-3 rounded-sm border border-line-strong" style={{ background: c }} title={c} />
                 ))}
-                <span className="text-zinc-500">and its reference sample</span>
+                <span className="text-ink-faint">and its reference sample</span>
               </span>
             </label>
           )}

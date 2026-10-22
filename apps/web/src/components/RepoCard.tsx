@@ -82,10 +82,10 @@ export function RepoCard({ path, info, onPath, onValidation }: { path: string; i
         </Button>
         {path && !editing && (
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <span className="mono text-sm text-zinc-200 truncate" title={path}>
+            <span className="mono text-sm text-ink truncate" title={path}>
               {path}
             </span>
-            <button className="text-zinc-500 hover:text-zinc-200 shrink-0" title="edit path" onClick={() => { setDraft(path); setEditing(true); }}>
+            <button className="text-ink-faint hover:text-ink shrink-0" title="edit path" onClick={() => { setDraft(path); setEditing(true); }}>
               <Pencil size={13} />
             </button>
           </div>
@@ -109,52 +109,53 @@ export function RepoCard({ path, info, onPath, onValidation }: { path: string; i
       </div>
 
       {info && (
-        <div className={cn('rounded-md border p-3 text-xs space-y-1.5', info.ok ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5')}>
+        // a usable repository on a quiet inset box, its heading in green (it passed); a folder that cannot be used in red
+        <div className={cn('rounded-lg border p-3 text-xs space-y-1.5', info.ok ? 'border-line bg-inset' : 'border-bad/40 bg-bad/5')}>
           {info.ok ? (
             <>
-              <div className="flex items-center gap-2 text-emerald-300">
+              <div className="flex items-center gap-2 font-bold text-ok-ink">
                 <FolderGit2 size={14} /> Git repository
-                <span className="text-zinc-500">· {info.commitCount} commit{info.commitCount === 1 ? '' : 's'}</span>
+                <span className="font-normal text-ink-faint">· {info.commitCount} commit{info.commitCount === 1 ? '' : 's'}</span>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-zinc-300">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 text-ink">
                 <Row icon={<GitBranch size={12} />} label="branch">
                   <span className="mono">{info.branch}</span>
-                  {info.dirty ? <span className="text-amber-300 ml-2">· {info.dirtyCount} uncommitted change{info.dirtyCount === 1 ? '' : 's'} (the Brief will ask)</span> : <span className="text-zinc-500 ml-2">· clean</span>}
+                  {info.dirty ? <span className="text-work-ink ml-2">· {info.dirtyCount} uncommitted change{info.dirtyCount === 1 ? '' : 's'} (the Brief will ask)</span> : <span className="text-ink-faint ml-2">· clean</span>}
                 </Row>
                 {info.lastCommit && (
                   <Row icon={<GitCommitHorizontal size={12} />} label="last commit">
-                    <span className="mono">{info.lastCommit.sha.slice(0, 7)}</span> <span className="text-zinc-400 truncate">{info.lastCommit.subject}</span>
-                    {info.lastCommit.date && <span className="text-zinc-500"> · {ago(info.lastCommit.date)}</span>}
+                    <span className="mono">{info.lastCommit.sha.slice(0, 7)}</span> <span className="text-ink-soft truncate">{info.lastCommit.subject}</span>
+                    {info.lastCommit.date && <span className="text-ink-faint"> · <span className="mono">{ago(info.lastCommit.date)}</span></span>}
                   </Row>
                 )}
                 <Row icon={<Globe size={12} />} label="remote">
                   {info.remotes.length ? (
                     info.remotes.map((r) => (
                       <span key={r.name} className="mr-3">
-                        <span className="mono">{r.name}</span> <span className="text-zinc-400 break-all">→ {r.url}</span>
+                        <span className="mono">{r.name}</span> <span className="mono text-ink-soft break-all">→ {r.url}</span>
                       </span>
                     ))
                   ) : (
-                    <span className="text-zinc-500">none — Delivery can create one on GitHub</span>
+                    <span className="text-ink-faint">none — Delivery can create one on GitHub</span>
                   )}
                 </Row>
-                <Row icon={<User size={12} />} label="identity">{info.identity ? `${info.identity.name} <${info.identity.email}>` : <span className="text-amber-300">not configured — commits will be authored as foundry</span>}</Row>
+                <Row icon={<User size={12} />} label="identity">{info.identity ? `${info.identity.name} <${info.identity.email}>` : <span className="text-work-ink">not configured — commits will be authored as foundry</span>}</Row>
                 {info.remotes.length > 0 && (
                   <Row icon={<ArrowDownToLine size={12} />} label="upstream">
                     {up === 'loading' ? (
-                      <span className="text-zinc-500">fetching {info.remotes[0]!.name}/{info.branch}…</span>
+                      <span className="text-ink-faint">fetching {info.remotes[0]!.name}/{info.branch}…</span>
                     ) : up === null ? (
-                      <span className="text-zinc-500">could not fetch</span>
+                      <span className="text-ink-faint">could not fetch</span>
                     ) : !up.remote || !up.remoteRef ? (
-                      <span className="text-zinc-500">{up.error ?? `no ${info.branch} on the remote yet`}</span>
+                      <span className="text-ink-faint">{up.error ?? `no ${info.branch} on the remote yet`}</span>
                     ) : up.behind === 0 && up.ahead === 0 ? (
-                      <span className="text-emerald-300">up to date with {up.remote}/{up.base}</span>
+                      <span className="text-ok-ink">up to date with {up.remote}/{up.base}</span>
                     ) : (
-                      <span className={up.behind ? 'text-amber-300' : 'text-zinc-300'}>
+                      <span className={up.behind ? 'text-work-ink' : 'text-ink'}>
                         {up.behind ? `${up.behind} behind` : ''}
                         {up.behind && up.ahead ? ', ' : ''}
                         {up.ahead ? `${up.ahead} ahead (unpushed)` : ''} {up.remote}/{up.base}
-                        <span className="text-zinc-500"> — the goal will start from {up.start.from === 'remote' ? `${up.remote}/${up.base}` : `local ${up.base}`}</span>
+                        <span className="text-ink-faint"> — the goal will start from {up.start.from === 'remote' ? `${up.remote}/${up.base}` : `local ${up.base}`}</span>
                         {up.behind > 0 && up.ahead === 0 && (
                           <Button size="sm" variant="ghost" className="ml-2 underline decoration-dotted" disabled={busy} onClick={pull} title="git pull --ff-only into your checkout (refused when you have uncommitted changes)">
                             pull into my checkout
@@ -162,28 +163,28 @@ export function RepoCard({ path, info, onPath, onValidation }: { path: string; i
                         )}
                       </span>
                     )}
-                    {pullMsg && <span className="block text-zinc-400 mt-0.5">{pullMsg}</span>}
+                    {pullMsg && <span className="block text-ink-soft mt-0.5">{pullMsg}</span>}
                   </Row>
                 )}
               </div>
             </>
           ) : (
             <>
-              <div className="flex items-center gap-2 text-amber-300">
-                <TriangleAlert size={14} /> {info.error}
+              <div className="flex items-center gap-2 font-semibold text-bad-ink">
+                <TriangleAlert size={14} className="shrink-0" /> {info.error}
               </div>
               {info.exists && info.isDir && !info.isGitRepo && !info.insideRepoAt && (
                 <div className="flex flex-wrap items-center gap-2 pt-1">
                   <Button size="sm" variant="primary" disabled={busy} onClick={gitInit}>
                     <Check size={13} /> Initialize git here
                   </Button>
-                  <span className="text-zinc-500">git init + .gitignore + initial commit{info.identity ? ` as ${info.identity.name}` : ' (no git identity configured → authored as foundry)'}</span>
+                  <span className="text-ink-faint">git init + .gitignore + initial commit{info.identity ? ` as ${info.identity.name}` : ' (no git identity configured → authored as foundry)'}</span>
                 </div>
               )}
-              {info.insideRepoAt && <div className="text-zinc-400">Use the repository root instead: <button className="underline mono" onClick={() => choose(info.insideRepoAt!)}>{info.insideRepoAt}</button></div>}
+              {info.insideRepoAt && <div className="text-ink-soft">Use the repository root instead: <button className="underline mono text-ink" onClick={() => choose(info.insideRepoAt!)}>{info.insideRepoAt}</button></div>}
             </>
           )}
-          {initMsg && <div className="text-zinc-300 pt-1">{initMsg}</div>}
+          {initMsg && <div className="text-ink pt-1">{initMsg}</div>}
         </div>
       )}
       {picker && <FolderPicker initial={path || undefined} onPick={choose} onClose={() => setPicker(false)} />}
@@ -194,8 +195,8 @@ export function RepoCard({ path, info, onPath, onValidation }: { path: string; i
 function Row({ icon, label, children }: { icon: React.ReactNode; label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start gap-1.5 min-w-0">
-      <span className="text-zinc-500 mt-0.5 shrink-0">{icon}</span>
-      <span className="text-zinc-500 w-16 shrink-0">{label}</span>
+      <span className="text-ink-faint mt-0.5 shrink-0">{icon}</span>
+      <span className="text-ink-faint w-16 shrink-0">{label}</span>
       <span className="min-w-0 flex-1">{children}</span>
     </div>
   );

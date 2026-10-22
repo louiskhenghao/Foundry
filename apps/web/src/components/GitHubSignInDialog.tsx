@@ -23,20 +23,21 @@ export function GitHubSignInDialog({ onClose }: { onClose: () => void }) {
   return (
     <Modal open title="Sign in to GitHub" onClose={onClose}>
       <div className="space-y-4 text-sm">
-        <p className="text-xs text-zinc-400">For pushing branches and opening and merging pull requests. The GitHub CLI keeps the credential; Foundry never sees your password or token.</p>
-        {err && <div className="text-xs text-rose-400">{err}</div>}
-        {!session && !err && <div className="text-xs text-zinc-500">Starting…</div>}
+        <p className="text-xs text-ink-soft">For pushing branches and opening and merging pull requests. The GitHub CLI keeps the credential; Foundry never sees your password or token.</p>
+        {err && <div className="text-xs text-bad-ink">{err}</div>}
+        {!session && !err && <div className="text-xs text-ink-faint">Starting…</div>}
         {session && (
           <>
-            <div className={cn('rounded-md border p-3', session.done ? (session.ok ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-rose-500/40 bg-rose-500/5') : 'border-zinc-800')}>
+            {/* signed in: green · failed: red · waiting for your approval on GitHub: yellow, it waits for you · asking: quiet */}
+            <div className={cn('rounded-md border p-3', session.done ? (session.ok ? 'border-ok/40 bg-ok/5 text-ok-ink' : 'border-bad/40 bg-bad/5 text-bad-ink') : waitingForCode ? 'border-line bg-inset text-ink-soft' : 'border-you/60 bg-you/10 font-semibold text-ink')}>
               {session.done ? (session.ok ? `✔ Signed in${session.login ? ` as ${session.login}` : ''}.` : `✘ ${session.error ?? 'Sign-in failed'}`) : waitingForCode ? 'Asking GitHub for a code…' : 'Waiting for you to approve on GitHub…'}
             </div>
             {!session.done && session.code && (
-              <ol className="space-y-3 text-xs text-zinc-300 list-decimal pl-4">
+              <ol className="space-y-3 text-xs text-ink-soft list-decimal pl-4">
                 <li>
                   Copy the one-time code:
                   <div className="mt-1.5 flex items-center gap-2">
-                    <span className="mono text-lg tracking-widest text-zinc-100 rounded border border-zinc-700 px-3 py-1">{session.code}</span>
+                    <span className="mono text-2xl font-bold tracking-widest text-ink rounded-md bg-inset px-3 py-1 ring-1 ring-inset ring-line-strong">{session.code}</span>
                     <CopyButton text={session.code} />
                   </div>
                 </li>
@@ -44,7 +45,7 @@ export function GitHubSignInDialog({ onClose }: { onClose: () => void }) {
                   Open GitHub's device page, paste the code and approve:
                   {session.url && (
                     <div className="mt-1.5 flex items-center gap-2">
-                      <a className="underline text-sky-300 flex items-center gap-1 truncate" href={session.url} target="_blank" rel="noreferrer noopener">
+                      <a className="underline text-work-ink flex items-center gap-1 truncate" href={session.url} target="_blank" rel="noreferrer noopener">
                         <ExternalLink size={12} /> {session.url}
                       </a>
                       <CopyButton text={session.url} />
@@ -55,9 +56,9 @@ export function GitHubSignInDialog({ onClose }: { onClose: () => void }) {
               </ol>
             )}
             {session.lines.length > 0 && (
-              <details className="text-[11px] text-zinc-500">
+              <details className="text-[11px] text-ink-faint">
                 <summary className="cursor-pointer">gh output</summary>
-                <pre className="mono mt-1 bg-zinc-900 border border-zinc-800 rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap">{session.lines.slice(-12).join('\n')}</pre>
+                <pre className="mono mt-1 bg-inset border border-line rounded-md p-2 max-h-40 overflow-auto whitespace-pre-wrap">{session.lines.slice(-12).join('\n')}</pre>
               </details>
             )}
           </>

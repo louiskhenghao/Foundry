@@ -77,7 +77,7 @@ export function CodexModelPresetsSection({ draft, setFields }: { draft: Settings
   const testButton = (choice: CodexModelChoice, label: string, nativeDefault = false) => <Button size="sm" className="shrink-0" variant="ghost" aria-label={`Test ${label}`} disabled={!resolvedModel(choice.model, nativeDefault).trim() || probe[probeKey(choice, nativeDefault)]?.busy} onClick={() => test(choice, nativeDefault)} title="Runs one short Codex session and consumes account quota.">{probe[probeKey(choice, nativeDefault)]?.busy ? 'Testing…' : 'Test'}</Button>;
   const testStatus = (choice: CodexModelChoice, nativeDefault = false) => {
     const result = probe[probeKey(choice, nativeDefault)];
-    return result && <p role="status" className={cn('text-[11px] mt-1 break-words', result.ok === false ? 'text-amber-300' : 'text-zinc-400')}>{result.text}</p>;
+    return result && <p role="status" className={cn('text-[11px] mt-1 break-words', result.ok === false ? 'text-bad-ink' : 'text-ink-soft')}>{result.text}</p>;
   };
   const reorder = (index: number, direction: -1 | 1) => {
     const next = [...fallbacks];
@@ -122,7 +122,7 @@ export function CodexModelPresetsSection({ draft, setFields }: { draft: Settings
       }}
     />
 
-    <div id="codex-preset-editor" className="scroll-mt-16 space-y-3 border-t border-zinc-800 pt-4">
+    <div id="codex-preset-editor" className="scroll-mt-16 space-y-3 border-t border-line pt-4">
       <PresetChips options={options} editing={currentId} onSelect={setEditing} onNew={duplicate} />
       <PresetDetails
         label={current.label}
@@ -150,15 +150,15 @@ export function CodexModelPresetsSection({ draft, setFields }: { draft: Settings
               <div className="w-36 shrink-0"><Select className="text-xs" aria-label={`${info.label} reasoning effort`} title="Reasoning effort" value={choice.effort ?? ''} onChange={(e) => setCell(role, { ...choice, effort: (e.target.value || null) as CodexEffort | null })}><option value="">CLI default{rec?.codex?.defaultReasoningEffort ? ` · ${rec.codex.defaultReasoningEffort}` : ''}</option>{available.map((e) => <option key={e} value={e}>{e}</option>)}{unsupported && <option value={choice.effort!}>{choice.effort} · unsupported</option>}</Select></div>
               {testButton(choice, info.label)}
             </div>
-            {unsupported && <p className="text-[11px] text-amber-300 mt-1">This model does not advertise {choice.effort} reasoning. Choose a supported effort before saving.</p>}
+            {unsupported && <p className="text-[11px] text-bad-ink mt-1">This model does not advertise {choice.effort} reasoning. Choose a supported effort before saving.</p>}
             {testStatus(choice)}
           </RoleRow>;
         })}
       </div>
-      <p className="text-[11px] text-zinc-500">Each role has a model and a reasoning effort. Changes apply after Save, to new goals. A goal-wide effort selection overrides these role settings. With Default effort, each role uses its preset. A role set to CLI default leaves the choice to Codex.</p>
+      <p className="text-[11px] text-ink-faint">Each role has a model and a reasoning effort. Changes apply after Save, to new goals. A goal-wide effort selection overrides these role settings. With Default effort, each role uses its preset. A role set to CLI default leaves the choice to Codex.</p>
     </div>
 
-    <div className="border-t border-zinc-800 pt-4 space-y-3">
+    <div className="border-t border-line pt-4 space-y-3">
       <SectionTitle>Other models</SectionTitle>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">
         <div>
@@ -169,10 +169,10 @@ export function CodexModelPresetsSection({ draft, setFields }: { draft: Settings
         </div>
         <FieldGroup label="Fallbacks (in order)" help="Used only when a model is unavailable. Authentication, quota and other failures are reported without switching accounts. Each new goal keeps this order.">
           <div className="space-y-2">
-            {fallbacks.length === 0 && <p className="text-xs text-zinc-500">No fallback configured. An unavailable model pauses the goal for your decision.</p>}
+            {fallbacks.length === 0 && <p className="text-xs text-ink-faint">No fallback configured. An unavailable model pauses the goal for your decision.</p>}
             {fallbacks.map((model, i) => <div key={i}>
               <div className="flex flex-wrap items-start gap-2">
-                <span className="text-xs text-zinc-500 pt-2 w-4">{i + 1}</span>
+                <span className="mono text-xs font-bold text-ink-faint pt-2 w-4">{i + 1}</span>
                 <CodexModelSelect label={`Fallback model ${i + 1}`} known={known} value={model} defaultLabel="CLI default model" className="flex-1 min-w-[10rem]" onChange={(value) => setFields({ codexFallbacks: fallbacks.map((m, index) => index === i ? value : m) })} />
                 <div className="flex gap-1">
                   {testButton({ model, effort: null }, `fallback ${i + 1}`, true)}
@@ -188,7 +188,7 @@ export function CodexModelPresetsSection({ draft, setFields }: { draft: Settings
         </FieldGroup>
       </div>
     </div>
-    <p className="text-xs text-amber-300">Codex reports token use without USD cost. Dollar caps cannot be enforced. Time, concurrency and attempt limits still apply.</p>
-    <ConfirmDialog open={deleting} title={`Delete preset “${current.label}”?`} danger confirmLabel="Delete" onClose={() => setDeleting(false)} onConfirm={remove}><p className="text-sm text-zinc-300">Existing goals retain their captured settings. Goal types using this preset return to their built-in default. This takes effect after Save.</p></ConfirmDialog>
+    <p className="text-xs text-work-ink">Codex reports token use without USD cost. Dollar caps cannot be enforced. Time, concurrency and attempt limits still apply.</p>
+    <ConfirmDialog open={deleting} title={`Delete preset “${current.label}”?`} danger confirmLabel="Delete" onClose={() => setDeleting(false)} onConfirm={remove}><p className="text-sm text-ink-soft">Existing goals retain their captured settings. Goal types using this preset return to their built-in default. This takes effect after Save.</p></ConfirmDialog>
   </div>;
 }

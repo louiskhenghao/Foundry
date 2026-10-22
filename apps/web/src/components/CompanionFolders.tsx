@@ -17,12 +17,12 @@ function Standing({ path, main }: { path: string; main: string }) {
     };
   }, [path]);
   if (!path.trim()) return null;
-  if (path.trim() === main) return <span className="text-rose-300">that is the goal's own folder</span>;
-  if (info === 'checking') return <span className="text-zinc-500">checking…</span>;
-  if (!info) return <span className="text-rose-300">could not be checked</span>;
-  if (!info.ok) return <span className="text-rose-300">{info.error ?? 'not a repository'}</span>;
+  if (path.trim() === main) return <span className="text-bad-ink">that is the goal's own folder</span>;
+  if (info === 'checking') return <span className="text-ink-faint">checking…</span>;
+  if (!info) return <span className="text-bad-ink">could not be checked</span>;
+  if (!info.ok) return <span className="text-bad-ink">{info.error ?? 'not a repository'}</span>;
   return (
-    <span className="text-emerald-300">
+    <span className="text-ok-ink">
       repository on <span className="mono">{info.branch}</span>
     </span>
   );
@@ -37,11 +37,11 @@ export function CompanionFolders({ value, onChange, main }: { value: string[]; o
   const remove = (i: number) => onChange(value.filter((_, j) => j !== i));
   return (
     <div className="mt-3 space-y-1.5" data-testid="companion-folders">
-      <div className="text-xs text-zinc-300">
-        Also change these folders <span className="text-zinc-500">(optional)</span>
+      <div className="text-xs font-semibold text-ink-soft">
+        Also change these folders <span className="font-normal text-ink-faint">(optional)</span>
         <HelpLink to="your-first-goal#also-change-companion-folders" className="ml-1.5" />
       </div>
-      <p className="text-[11px] text-zinc-500">Other repositories this goal must change too — a backend beside the frontend that calls it. The planner gives each its part as a delegated goal in that repository, on that folder's current branch; it is delivered with this goal, as a pull request of its own.</p>
+      <p className="text-[11px] text-ink-faint">Other repositories this goal must change too — a backend beside the frontend that calls it. The planner gives each its part as a delegated goal in that repository, on that folder's current branch; it is delivered with this goal, as a pull request of its own.</p>
       {value.map((p, i) => (
         <div key={i} className="flex flex-wrap items-center gap-2">
           <Input className="mono text-xs max-w-md" value={p} placeholder="/path/to/the/other/repository" onChange={(e) => set(i, e.target.value)} />
