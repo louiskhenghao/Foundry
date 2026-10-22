@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, type AgentProvider, type Usage } from '../api.ts';
 import { AgyQuotaCard } from '../components/AgyQuotaCard.tsx';
+import { AccountsUsageCard } from '../components/AccountsUsageCard.tsx';
 import { CodexQuotaCard } from '../components/CodexQuotaCard.tsx';
 import { useLive } from '../store.ts';
 import { Badge, Button, Card, Empty, cn, fmtUsd } from '../ui.tsx';
@@ -90,7 +91,10 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
           <RefreshCw size={13} className={cn(busy && 'animate-spin')} /> {provider === 'claude' ? 'Refresh signal' : 'Refresh quota'}
         </Button>
         {err && <span className="text-xs text-rose-400 basis-full">{err}</span>}
+        {/* several accounts: the quota and windows below are the current account's (ADR-0065) */}
+        {u.currentAccount && <span className="text-xs text-zinc-400 basis-full">Windows and quota of the current account, <span className="text-zinc-200">{u.currentAccount}</span>; the activity totals count every account.</span>}
       </div>
+      {u.accounts && <AccountsUsageCard provider={provider} accounts={u.accounts} />}
       {provider === 'codex' && <CodexQuotaCard quota={u.codexQuota} />}
       {provider === 'agy' && <AgyQuotaCard quota={u.agyQuota} />}
       {u.pausedUntil && (
