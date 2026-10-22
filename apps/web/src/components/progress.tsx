@@ -1,6 +1,7 @@
 import type { GoalState, TaskState } from '@foundry/core/browser';
-import { Check, Eye, FileText, GitMerge, MessageSquare, Play, type LucideIcon } from 'lucide-react';
+import { Ban, Check, Eye, FileText, GitMerge, Hand, MessageSquare, Play, X, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { cn } from '../ui.tsx';
 
 /**
@@ -16,7 +17,12 @@ interface GoalLike {
   state: GoalState;
   delivery: { status: string; policy: { mode: string } };
   interview?: { status: string } | null;
+  /** where a blocked goal stopped */
+  stateBeforeBlock?: GoalState | null;
 }
+
+/** the stage a goal in this state stands on */
+const STAGE_OF: Partial<Record<GoalState, number>> = { draft: 0, clarifying: 0, awaiting_brief_approval: 1, running: 2, awaiting_feedback: 2, goal_review: 3, done: 4, over_delivered: 4 };
 
 /** where a goal stands on the five stages: one mark per stage */
 export function stageMarks(g: GoalLike, hasTasks: boolean): Mark[] {
@@ -29,10 +35,12 @@ export function stageMarks(g: GoalLike, hasTasks: boolean): Mark[] {
       return at(1, 'you');
     case 'running':
       return at(2, 'run');
-    // a milestone, the final walkthrough or an Inbox item holds the run until you answer
+    // a milestone or the final walkthrough holds the run until you have looked
     case 'awaiting_feedback':
-    case 'blocked':
       return at(2, 'you');
+    // an Inbox item holds the goal where it stopped
+    case 'blocked':
+      return at(STAGE_OF[g.stateBeforeBlock ?? 'running'] ?? 2, 'you');
     case 'goal_review':
       return at(3, 'run');
     case 'done':
@@ -108,7 +116,7 @@ export function MiniRail({ marks, className }: { marks: Mark[]; className?: stri
  * The five stages as large leaning plates (the goal page): done ones filled, the current one outlined heavily with its
  * note, and the Run plate carrying the tasks as a bar while it is the current one.
  */
-export function StageRail({ marks, notes, tasks }: { marks: Mark[]; notes: ReactNode[]; tasks: Mark[] }) {
+export function StageRail({ marks, notes, tasks, links }: { marks: Mark[]; notes: ReactNode[]; tasks: Mark[]; /** where each stage's work shows */ links?: ({ to: string; title: string } | null)[] }) {
   const now = marks.findIndex((m) => m !== 'done');
   return (
     <ol aria-label="Stages" className="grid grid-cols-5 gap-2 sm:gap-4 px-1.5 sm:px-3">
@@ -127,6 +135,7 @@ export function StageRail({ marks, notes, tasks }: { marks: Mark[]; notes: React
                 </span>
               )}
             </span>
+            {links?.[i] && <Link to={links[i]!.to} title={links[i]!.title} aria-label={`${label}: ${links[i]!.title}`} className="absolute inset-0 z-10 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" />}
             <span className={cn('relative flex min-w-0 items-center justify-center gap-3 px-1 pb-3 pt-2 sm:justify-start sm:pl-6 sm:pr-3', current && i === 2 && 'sm:pb-5', m === 'you' && 'text-on-you')}>
               <span className={cn('hidden lg:inline-grid h-7 w-7 shrink-0 place-items-center rounded-md', m === 'done' ? 'bg-on-ink text-ink' : current && m === 'run' ? 'bg-ink text-on-ink' : 'ring-[1.5px] ring-inset ring-current')}>
                 <Icon size={15} aria-hidden="true" />
@@ -145,5 +154,17 @@ export function StageRail({ marks, notes, tasks }: { marks: Mark[]; notes: React
         );
       })}
     </ol>
+  );
+}
+
+/** A goal's state as a plate: graphite while Foundry works, yellow while it waits for you, red when it failed. */
+export function StatePlate({ state, label }: { state: GoalState; label: string }) {
+  const you = state === 'awaiting_brief_approval' || state === 'awaiting_feedback' || state === 'blocked';
+  const Icon = state === 'running' ? Play : state === 'goal_review' ? Eye : state === 'clarifying' || state === 'draft' ? MessageSquare : state === 'failed' ? X : state === 'cancelled' ? Ban : you ? Hand : Check;
+  return (
+    <span className={cn('inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] font-extrabold uppercase leading-none tracking-[0.12em]', you ? 'bg-you text-on-you' : state === 'failed' ? 'bg-bad text-on-bad' : state === 'cancelled' ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-faint' : 'bg-ink text-on-ink')}>
+      <Icon size={13} strokeWidth={2.5} aria-hidden="true" />
+      {label}
+    </span>
   );
 }

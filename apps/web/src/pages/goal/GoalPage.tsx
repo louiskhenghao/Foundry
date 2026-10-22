@@ -1,5 +1,5 @@
 import { PROVIDER_LABEL, isHistory, reportsDollars, taskUsage, unmeasuredSessions } from '@foundry/core/browser';
-import { Ban, CornerDownRight, Folder, GitBranch, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, CornerDownRight, Folder, GitBranch, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -12,7 +12,8 @@ import { MilestoneCard } from './MilestoneCard.tsx';
 import { ImportedCard } from './ImportedCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Badge, Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, Meter, Tabs, fmtLimitMin, fmtLimitUsd, fmtUsd } from '../../ui.tsx';
+import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, Meter, Tabs, fmtLimitMin, fmtLimitUsd, fmtUsd, stateLabel } from '../../ui.tsx';
+import { StatePlate, StageRail, stageMarks, taskMark } from '../../components/progress.tsx';
 import { CutSessionsDot } from '../../components/CutSessionsDot.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { MoreMenu, type MoreItem } from '../../components/MoreMenu.tsx';
@@ -30,6 +31,9 @@ import { ProviderBadge } from '../agents/rows.tsx';
 
 type Tab = 'overview' | 'tasks' | 'timeline' | 'activity' | 'diff' | 'delivery';
 const TABS: Tab[] = ['overview', 'tasks', 'timeline', 'activity', 'diff', 'delivery'];
+
+/** what each delivery policy does, as the Deliver stage says it */
+const DELIVER_NOTE: Record<string, string> = { local: 'kept on its branch', push: 'pushed', pr: 'a pull request', 'pr-automerge': 'a pull request, auto-merged' };
 
 export function GoalPage() {
   const { id = '' } = useParams();
@@ -108,61 +112,105 @@ export function GoalPage() {
     { label: 'Delete goal…', icon: <Trash2 size={13} />, onClick: () => setDel(true), danger: true },
   ];
 
+  // where the goal stands, said once above the stages: the plate, then the tasks and the time
+  const total = d.tasks.length;
+  const doneTasks = d.tasks.filter((t) => t.state === 'done').length;
+  const statusLine = [total ? (running ? `${running} of ${total} task${total === 1 ? '' : 's'} running` : `${doneTasks} of ${total} task${total === 1 ? '' : 's'} done`) : null, d.budget.elapsedMin >= 1 ? `${d.budget.elapsedMin.toFixed(0)} min in` : null].filter(Boolean).join(' · ');
+  const marks = stageMarks(g, total > 0);
+  const rounds = g.interview?.rounds.length ?? 0;
+  const prs = g.delivery.prs.length;
+  const stageNotes = [
+    g.state === 'clarifying' ? (g.interview?.status === 'awaiting_answers' ? 'questions for you' : 'reading the project') : rounds ? `${rounds} round${rounds === 1 ? '' : 's'} of questions` : 'no questions needed',
+    awaiting ? 'waiting for you' : marks[1] === 'done' ? (g.approvedBy ? `approved by ${g.approvedBy}` : 'approved') : 'not written yet',
+    total ? `${doneTasks} of ${total} tasks` : 'no tasks yet',
+    g.state === 'goal_review' ? 'reviewing the whole' : marks[3] === 'done' ? 'passed' : 'the whole goal',
+    g.delivery.status === 'delivered' ? `delivered${prs ? ` · ${prs} PR${prs === 1 ? '' : 's'}` : ''}` : (DELIVER_NOTE[g.delivery.policy.mode] ?? g.delivery.policy.mode),
+  ];
+  // in Expert, each stage opens where its work shows; the Brief has its own page in both views
+  const stageLinks = [
+    isExpert ? { to: `/goals/${id}#activity`, title: 'open the Activity tab (Clarify session log)' } : null,
+    { to: `/goals/${id}/brief`, title: 'open the Brief page' },
+    isExpert ? { to: `/goals/${id}#tasks`, title: 'open the Tasks tab' } : null,
+    isExpert ? { to: `/goals/${id}#activity`, title: 'open the Activity tab (review sessions)' } : null,
+    isExpert ? { to: `/goals/${id}#delivery`, title: 'open the Delivery tab' } : null,
+  ];
+  /** a fact about the goal, as a small plate in the row under its title */
+  const fact = 'inline-flex items-center gap-1.5 min-w-0 max-w-full rounded-md bg-panel px-2.5 py-1 text-[13px] font-semibold text-ink-soft ring-1 ring-inset ring-line';
+
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
+    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-5">
       <UsagePausedBanner />
-      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_21rem] md:gap-6 md:items-start">
+      <nav aria-label="Breadcrumb" className="flex items-center gap-2.5 text-sm text-ink-faint min-w-0">
+        <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 font-bold text-ink hover:underline underline-offset-[3px]">
+          <ArrowLeft size={14} aria-hidden="true" /> Goals
+        </Link>
+        <span aria-hidden="true">/</span>
+        <span className="mono truncate" title={g.repoPath}>{repoName}</span>
+      </nav>
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_21rem] md:gap-8 md:items-start">
         <div className="min-w-0">
-          <div className="flex items-start gap-2 flex-wrap">
-            <h1 className="text-lg font-semibold leading-snug line-clamp-2 min-w-0" title={g.title}>
-              {g.title}
-            </h1>
-            <Badge state={g.state} className="mt-1" />
-            {g.transfer && <span className="text-[10px] rounded-full border border-sky-800 text-sky-300 px-1.5 mt-1.5" title={`came from ${g.transfer.from.hostname}`}>imported</span>}
-            {g.delivery.reverts[g.delivery.reverts.length - 1]?.status === 'merged' && <span className="text-[10px] rounded-full border border-rose-800 text-rose-300 px-1.5 mt-1.5" title="Its merge was undone by a revert pull request (Delivery tab)">reverted</span>}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
+            <StatePlate state={g.state} label={stateLabel(g.state)} />
+            {statusLine && <span className="text-sm font-semibold text-ink-faint">{statusLine}</span>}
+            {g.transfer && <span className="text-[11px] font-semibold rounded-sm ring-1 ring-inset ring-sky-800 text-sky-300 px-1.5 py-0.5" title={`came from ${g.transfer.from.hostname}`}>imported</span>}
+            {g.delivery.reverts[g.delivery.reverts.length - 1]?.status === 'merged' && <span className="text-[11px] font-semibold rounded-sm ring-1 ring-inset ring-rose-800 text-rose-300 px-1.5 py-0.5" title="Its merge was undone by a revert pull request (Delivery tab)">reverted</span>}
+          </div>
+          <h1 className="text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-extrabold leading-[1.05] tracking-[-0.035em] line-clamp-3 break-words" title={g.title}>
+            {g.title}
+          </h1>
+          <ul className="mt-4 flex flex-wrap gap-2" aria-label="About this goal">
+            <li className={fact}>
+              <Folder size={13} className="shrink-0" aria-hidden="true" />
+              <span className="mono font-medium truncate max-w-[14rem]" title={g.repoPath}>{repoName}</span>
+              <CopyButton text={g.repoPath} />
+            </li>
+            <li className={fact} title={`${g.baseBranch} → ${g.branch}`}>
+              <GitBranch size={13} className="shrink-0" aria-hidden="true" />
+              <span className="mono font-medium truncate">{g.baseBranch} → {g.branch}</span>
+            </li>
+            <li className="inline-flex items-center">
+              <ProviderBadge provider={g.provider} />
+            </li>
+            {g.workflow.profile && (
+              <li className={fact} title="Workflow suite: whose skills the roles follow for this goal">
+                <span className="font-medium text-ink-faint">workflow</span> {g.workflow.profile}
+              </li>
+            )}
+            {g.workflow.pace === 'fast' && (
+              <li className={fact}>
+                <span className="font-medium text-ink-faint">pace</span> fast
+              </li>
+            )}
+            <li className={fact}>
+              <span className="font-medium text-ink-faint">delivery</span> {g.delivery.policy.mode}
+            </li>
             {(g.companions?.length ?? 0) > 0 && (
-              <span className="text-[10px] rounded-full border border-zinc-700 text-zinc-300 px-1.5 mt-1.5" title={`Also changes: ${g.companions!.map((c) => c.repoPath).join(', ')}`}>
+              <li className={fact} title={`Also changes: ${g.companions!.map((c) => c.repoPath).join(', ')}`}>
                 +{g.companions!.length} folder{g.companions!.length === 1 ? '' : 's'}
-              </span>
+              </li>
             )}
-            {g.workflow.pace === 'fast' && <span className="text-[10px] rounded-full border border-amber-800 text-amber-300 px-1.5 mt-1.5">fast</span>}
-            {g.workflow.profile && <span className="text-[10px] rounded-full border border-violet-800 text-violet-300 px-1.5 mt-1.5" title="Workflow suite: whose skills the roles follow for this goal">Powered by {g.workflow.profile}</span>}
-          </div>
-          <div className="text-xs text-zinc-500 flex items-center gap-1.5 mt-1.5 min-w-0 flex-wrap">
-            <Folder size={12} className="shrink-0" />
-            <span className="mono text-zinc-400 truncate max-w-[14rem]" title={g.repoPath}>
-              {repoName}
-            </span>
-            <CopyButton text={g.repoPath} />
-            {(g.by || g.approvedBy) && (
-              <span className="truncate" title="Who asked for the goal and who approved its Brief (Settings → Access)">
-                · {[g.by ? `asked by ${g.by}` : '', g.approvedBy ? `Brief approved by ${g.approvedBy}` : ''].filter(Boolean).join(', ')}
-              </span>
-            )}
-            <span className="text-zinc-600">·</span>
-            <ProviderBadge provider={g.provider} />
-            <span className="text-zinc-600">·</span>
-            <GitBranch size={12} className="shrink-0" />
-            <span className="mono truncate" title={`${g.baseBranch} → ${g.branch}`}>
-              {g.baseBranch} → {g.branch}
-            </span>
-          </div>
+          </ul>
+          {(g.by || g.approvedBy) && (
+            <p className="text-xs text-ink-faint mt-2.5" title="Who asked for the goal and who approved its Brief (Settings → Access)">
+              {[g.by ? `Asked by ${g.by}` : '', g.approvedBy ? `Brief approved by ${g.approvedBy}` : ''].filter(Boolean).join(' · ')}
+            </p>
+          )}
           <IssueLink issue={g.issue} />
           <ScheduleLink schedule={g.schedule} />
           <FollowLinks d={d} />
           <DelegationLinks d={d} />
           {(d.learningsCount ?? 0) > 0 && (
-            <div className="text-xs text-zinc-500 mt-1.5">
-              <Link to={`/learnings?repo=${encodeURIComponent(g.repoPath)}`} className="inline-flex items-center gap-1 hover:text-zinc-300" title="What earlier goals in this folder learned; every new goal here is given it">
+            <div className="text-xs text-ink-faint mt-1.5">
+              <Link to={`/learnings?repo=${encodeURIComponent(g.repoPath)}`} className="inline-flex items-center gap-1 hover:text-ink" title="What earlier goals in this folder learned; every new goal here is given it">
                 <NotebookPen size={12} /> Learnings for this folder: {d.learningsCount}
               </Link>
             </div>
           )}
         </div>
-        <div className="space-y-2.5">
+        <div className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             {!reportsDollars(g.provider) ? (
-              <span className="text-xs text-zinc-400">{PROVIDER_LABEL[g.provider ?? 'claude']} · dollar cost unavailable</span>
+              <span className="text-xs text-ink-soft">{PROVIDER_LABEL[g.provider ?? 'claude']} · dollar cost unavailable</span>
             ) : (
               <div>
                 <Meter label={`cost ${fmtUsd(g.costUsd)} / ${fmtLimitUsd(g.budgets.maxCostUsd)}`} value={g.costUsd} max={g.budgets.maxCostUsd} note={unmeasured > 0 ? <CutSessionsDot n={unmeasured} est={d.costEstimate} /> : null} />
@@ -215,6 +263,7 @@ export function GoalPage() {
           </div>
         </div>
       </div>
+      <StageRail marks={marks} notes={stageNotes} tasks={d.tasks.map((t) => taskMark(t.state))} links={stageLinks} />
       {history && <ImportedCard goal={g} onChanged={() => api.goal(id).then(setD).catch((e) => setErr(e.message))} />}
       <MarkFollowUpDialog d={d} open={markFollow} onClose={() => setMarkFollow(false)} />
       {restart !== false && <RestartDialog goalId={id} tasks={d.tasks} initial={typeof restart === 'string' ? restart : null} open onClose={() => setRestart(false)} onDone={() => { setRestart(false); setTab('tasks'); }} />}
