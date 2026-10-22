@@ -60,6 +60,8 @@ In Simple view the goal page shows:
 
 ## Expert view tabs
 
+The row of tabs stays at the top of the page while you scroll, so another tab is always one click away; the tab you switch to opens at its top.
+
 | Tab | What it shows |
 |---|---|
 | **Overview** | Where the goal stands, what needs you, the progress folder, the preview, acceptance checks. A number on the tab means something waits for you. |

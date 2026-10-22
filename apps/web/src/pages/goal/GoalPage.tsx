@@ -1,7 +1,7 @@
 import { isHistory, reportsDollars, taskUsage } from '@foundry/core/browser';
 import { ArrowLeft, Ban, CircleAlert, CornerDownRight, Folder, GitBranch, GitMerge, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
 import { IssueLink, ScheduleLink } from './IssueLink.tsx';
@@ -73,7 +73,34 @@ export function GoalPage() {
     } catch {}
   };
   const tab = (TABS.find((t) => `#${t}` === loc.hash) ?? 'overview') as Tab;
-  const setTab = (t: Tab) => nav({ hash: t }, { replace: true });
+  /** the tabs and what they show, from where the row of tabs sits before it sticks to the top */
+  const tabsBox = useRef<HTMLDivElement | null>(null);
+  /** the row of tabs is stuck to the top of the page, a tab scrolling under it */
+  const [stuck, setStuck] = useState(false);
+  const unwatch = useRef<() => void>(() => {});
+  // a callback ref: the tabs mount once the goal is in, and again on every switch back to Expert
+  const watchTabs = useCallback((el: HTMLDivElement | null) => {
+    unwatch.current();
+    unwatch.current = () => {};
+    tabsBox.current = el;
+    const main = el?.closest('main');
+    if (!el || !main) return setStuck(false);
+    const check = () => setStuck(el.getBoundingClientRect().top < main.getBoundingClientRect().top);
+    check();
+    main.addEventListener('scroll', check, { passive: true });
+    unwatch.current = () => main.removeEventListener('scroll', check);
+  }, []);
+  useEffect(() => () => unwatch.current(), []);
+  const setTab = (t: Tab) => {
+    const box = tabsBox.current;
+    const main = box?.closest('main');
+    if (box && main) {
+      // chosen from the row stuck at the top: the tab opens at its own top, not as far down as the last one was scrolled
+      const top = box.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop;
+      if (main.scrollTop > top) main.scrollTop = top;
+    }
+    nav({ hash: t }, { replace: true });
+  };
 
   useEffect(() => {
     const t = setTimeout(() => api.goal(id).then(setD).catch((e) => setErr(e.message)), 200);
@@ -326,7 +353,11 @@ export function GoalPage() {
           }}
         />
       ) : (
-        <>
+        <div ref={watchTabs} className="space-y-5">
+      {/* the row of tabs stays at the top of the page while a tab scrolls under it. Only then on the page's colour,
+          see-through and blurred, so what passes under it is frosted: at rest a plain panel showed as a band over the
+          theme's grain */}
+      <div className={cn('sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 transition-colors', stuck && 'bg-page/85 backdrop-blur-md')}>
       <Tabs<Tab>
         value={tab}
         onChange={setTab}
@@ -339,7 +370,10 @@ export function GoalPage() {
           { id: 'delivery', label: 'Delivery' },
         ]}
       />
+      </div>
 
+      {/* every tab at least as tall as the room under the stuck row: switching to a short one never moves the row or the page */}
+      <div className="min-h-[calc(100dvh-8rem)] xl:nav-side:min-h-[calc(100dvh-4.5rem)]">
       {tab === 'overview' && <OverviewTab d={d} />}
       {tab === 'tasks' && (
         <div className="space-y-4">
@@ -371,7 +405,8 @@ export function GoalPage() {
       {tab === 'activity' && <ActivityTab d={d} />}
       {tab === 'diff' && <DiffTab goalId={id} baseBranch={g.baseBranch} branch={g.branch} workspace={d.paths.workspace} />}
       {tab === 'delivery' && <DeliveryTab d={d} />}
-        </>
+      </div>
+        </div>
       )}
     </div>
   );
