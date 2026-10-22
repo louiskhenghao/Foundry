@@ -1,5 +1,5 @@
 import { fillPalette, layoutOf, type Layout, type ThemeEntry } from '@foundry/core/browser';
-import { Check, ChevronDown, Copy, Download, FilePenLine, FolderOpen, MoreHorizontal, Pencil, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { Check, ChevronDown, Copy, Download, FilePenLine, FolderOpen, MoreHorizontal, Pencil, RefreshCw, Trash2, Upload, XCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api, type OpenTarget } from '../../api.ts';
 import { loadThemes, selectTheme, setMode, useTheme, type Mode } from '../../theme.ts';
@@ -142,7 +142,13 @@ export function Appearance({ themes, problems, dir, id, mode, light, editors = [
             {note.id && <OpenInEditor theme={note.id} editors={editors} onError={setErr} />}
           </div>
         )}
-        {err && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-xs text-bad-ink">{err}</div>}
+        {/* a failure in red words with its mark, on a plain box: no red panel */}
+        {err && (
+          <div className="flex items-start gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-xs text-bad-ink">
+            <XCircle size={13} className="mt-px shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">{err}</span>
+          </div>
+        )}
 
         <section aria-labelledby="own-theme" className="border-t border-line pt-4 space-y-3">
           <h4 id="own-theme" className="text-sm font-bold text-ink">Make your own theme</h4>
@@ -175,7 +181,7 @@ export function Appearance({ themes, problems, dir, id, mode, light, editors = [
             </Button>
           </div>
           {problems.length > 0 && (
-            <ul className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-xs space-y-1" aria-label="Theme files that cannot be used">
+            <ul className="rounded-md border border-line bg-sunken px-3 py-2 text-xs space-y-1" aria-label="Theme files that cannot be used">
               {problems.map((p) => (
                 <li key={p.file}>
                   <span className="mono font-semibold text-bad-ink">{p.file}</span> <span className="text-ink-soft">— {p.error}</span>

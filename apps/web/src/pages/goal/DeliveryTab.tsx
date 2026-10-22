@@ -120,7 +120,8 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
   return (
     <div className="space-y-4">
       {ridesAlong && (
-        <div className="rounded-lg border border-work/30 bg-work/5 px-4 py-2.5 text-[13px] text-ink-soft">
+        // a note, on a plain panel with a thin blue edge (as the banners): colour marks, it never fills
+        <div className="rounded-lg bg-panel py-2.5 pl-4 pr-4 text-[13px] text-ink-soft inset-ring inset-ring-line shadow-[inset_4px_0_0_var(--color-work)]">
           This goal follows <span className="font-semibold text-ink">{g.follows!.title}</span> and started from its goal branch <span className="mono text-ink">{g.follows!.branch}</span>, whose work is not on <span className="mono text-ink">{g.baseBranch}</span>. Its changes go along in this goal's delivery{del.policy.mode === 'local' ? '' : ' and pull request'}.
         </div>
       )}
