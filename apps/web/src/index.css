@@ -363,76 +363,78 @@ main {
   @apply bg-line-strong rounded;
 }
 
-/* minimal prose for model-authored markdown */
-.md {
-  @apply text-sm text-ink-soft leading-relaxed;
-}
-.md > * + * {
-  margin-top: 0.6em;
-}
-.md h1,
-.md h2,
-.md h3,
-.md h4 {
-  @apply font-bold text-ink;
-}
-.md h1 {
-  @apply text-base;
-}
-.md h2 {
-  @apply text-[15px];
-}
-.md h3,
-.md h4 {
-  @apply text-sm;
-}
-.md p {
-  @apply whitespace-pre-wrap;
-}
-.md ul {
-  @apply list-disc pl-5;
-}
-.md ol {
-  @apply list-decimal pl-5;
-}
-.md li + li {
-  margin-top: 0.15em;
-}
-.md li > input[type='checkbox'] {
-  @apply mr-1.5 align-middle;
-}
-/* code in the text is ink on the inset colour, framed by a hairline: a word set apart, not a signal */
-.md code {
-  font-family: var(--font-mono);
-  @apply text-[12px] bg-sunken border border-line rounded-sm px-1 py-0.5 text-ink;
-}
-.md pre {
-  @apply bg-sunken border border-line rounded-md p-3 overflow-x-auto;
-}
-.md pre code {
-  @apply bg-transparent border-0 p-0 text-ink-soft;
-}
-.md blockquote {
-  @apply border-l-[3px] border-line-strong pl-3 text-ink-faint;
-}
-.md table {
-  @apply text-xs border-collapse;
-}
-.md th,
-.md td {
-  @apply border border-line px-2 py-1 text-left align-top;
-}
-.md th {
-  @apply bg-sunken text-ink font-bold;
-}
-.md a {
-  @apply underline decoration-[1.5px] underline-offset-2 text-work-ink;
-}
-.md hr {
-  @apply border-line;
-}
-.md img {
-  @apply max-w-full rounded;
+/* minimal prose for model-authored markdown; a layer below the utilities, so a class given to a Markdown block wins */
+@layer components {
+  .md {
+    @apply text-sm text-ink-soft leading-relaxed;
+  }
+  .md > * + * {
+    margin-top: 0.6em;
+  }
+  .md h1,
+  .md h2,
+  .md h3,
+  .md h4 {
+    @apply font-bold text-ink;
+  }
+  .md h1 {
+    @apply text-base;
+  }
+  .md h2 {
+    @apply text-[15px];
+  }
+  .md h3,
+  .md h4 {
+    @apply text-sm;
+  }
+  .md p {
+    @apply whitespace-pre-wrap;
+  }
+  .md ul {
+    @apply list-disc pl-5;
+  }
+  .md ol {
+    @apply list-decimal pl-5;
+  }
+  .md li + li {
+    margin-top: 0.15em;
+  }
+  .md li > input[type='checkbox'] {
+    @apply mr-1.5 align-middle;
+  }
+  /* code in the text is ink on the inset colour, framed by a hairline: a word set apart, not a signal */
+  .md code {
+    font-family: var(--font-mono);
+    @apply text-[12px] bg-sunken border border-line rounded-sm px-1 py-0.5 text-ink;
+  }
+  .md pre {
+    @apply bg-sunken border border-line rounded-md p-3 overflow-x-auto;
+  }
+  .md pre code {
+    @apply bg-transparent border-0 p-0 text-ink-soft;
+  }
+  .md blockquote {
+    @apply border-l-[3px] border-line-strong pl-3 text-ink-faint;
+  }
+  .md table {
+    @apply text-xs border-collapse;
+  }
+  .md th,
+  .md td {
+    @apply border border-line px-2 py-1 text-left align-top;
+  }
+  .md th {
+    @apply bg-sunken text-ink font-bold;
+  }
+  .md a {
+    @apply underline decoration-[1.5px] underline-offset-2 text-work-ink;
+  }
+  .md hr {
+    @apply border-line;
+  }
+  .md img {
+    @apply max-w-full rounded;
+  }
 }
 
 /* phones: slightly larger touch targets, no horizontal page scroll */
