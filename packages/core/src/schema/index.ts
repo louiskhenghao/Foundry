@@ -19,3 +19,4 @@ export * from './deploy.ts';
 export * from './schedule.ts';
 export * from './provider.ts';
 export * from './account.ts';
+export * from './theme.ts';
