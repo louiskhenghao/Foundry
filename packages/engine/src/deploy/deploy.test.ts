@@ -32,7 +32,11 @@ case "$*" in
 esac
 case "$host" in
   vercel) echo "Vercel CLI 64.5.0"; echo "https://site-abc-preview.vercel.app" ;;
-  netlify) echo '{"site_id":"s1","deploy_url":"https://d1--site.netlify.app","url":"https://site.netlify.app"}' ;;
+  netlify)
+    # the real CLI links the folder to its site; an unlinked folder naming an existing site gets a new one
+    if [ -f .netlify/state.json ]; then echo linked >> "${join(dir, 'netlify.log')}"; else echo new >> "${join(dir, 'netlify.log')}"; fi
+    mkdir -p .netlify && echo '{"siteId":"s1"}' > .netlify/state.json
+    echo '{"site_id":"s1","deploy_url":"https://d1--site.netlify.app","url":"https://site.netlify.app"}' ;;
   cloudflare)
     case "$*" in
       *"project create"*) if [ -f "${join(dir, 'PROJECT')}" ]; then echo "A project with this name already exists [code: 8000002]" >&2; exit 1; fi; touch "${join(dir, 'PROJECT')}"; echo "Successfully created the project" ;;
@@ -102,6 +106,16 @@ describe('deploying a finished goal', () => {
     engine.deploy(goal.id, { provider: 'vercel', production: true });
     await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 2 && last(engine, goal.id)?.status === 'live');
     expect(calls()[1]).toContain('vercel|deploy --yes --prod|');
+  }, 60_000);
+
+  test('Netlify’s link to its site stays between deploys where the project does not ignore it: without it, Netlify makes a new site each time', async () => {
+    const { engine, goal } = await finishedGoal({ 'index.html': '<h1>studio</h1>' });
+    for (const n of [1, 2]) {
+      engine.deploy(goal.id, { provider: 'netlify', production: false });
+      await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === n && last(engine, goal.id)?.status !== 'running');
+      expect(last(engine, goal.id)!.status).toBe('live');
+    }
+    expect(readFileSync(join(bin, '..', 'netlify.log'), 'utf8').trim().split('\n')).toEqual(['new', 'linked']);
   }, 60_000);
 
   test('Netlify uploads the folder as it is; Cloudflare Pages makes its project once and files a preview under the goal’s branch', async () => {
