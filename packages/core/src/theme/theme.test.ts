@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Theme, parseTheme } from '../schema/theme.ts';
 import { BUILTIN_THEMES, CLASSIC, LEDGER, WAYFINDING } from './builtins.ts';
-import { contrast, mix, readable } from './color.ts';
+import { contrast, distance, mix, readable } from './color.ts';
 import { DEFAULT_LAYOUT, layoutOf } from './layout.ts';
 import { CODE_COUNT, entryCss, fillPalette, paletteVars, themeCss } from './palette.ts';
 
@@ -172,6 +172,15 @@ describe('layout', () => {
     expect(parseTheme(JSON.stringify({ ...minimal, layout: { nav: 'bottom' } }))).toEqual({ error: expect.stringContaining('layout.nav') });
     expect(parseTheme(JSON.stringify({ ...minimal, layout: { grid: 'masonry' } }))).toEqual({ error: 'layout.grid: not a theme setting' });
   });
+});
+
+test('no category colour of a built-in theme looks like what waits for you', () => {
+  // Classic once gave its fourth category the very amber of its Needs you signs
+  for (const e of BUILTIN_THEMES)
+    for (const mode of ['light', 'dark'] as const) {
+      const p = fillPalette(e.theme[mode], mode);
+      for (const c of p.codes) expect(distance(c, p.you)).toBeGreaterThan(0.09);
+    }
 });
 
 test("the guide's example theme files are valid, in both languages", () => {

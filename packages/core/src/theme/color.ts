@@ -37,6 +37,13 @@ function labToLinear([L, a, b]: Lab): Rgb {
 
 const fromLab = (lab: Lab) => toHex(labToLinear(lab).map(toGamma) as Rgb);
 
+/** how far apart two colours look (OKLab distance): about 0.02 is the least the eye tells apart */
+export function distance(a: string, b: string): number {
+  const x = toLab(a);
+  const y = toLab(b);
+  return Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]);
+}
+
 /** `t` of the way from `a` to `b` (0 = a, 1 = b), mixed in OKLab so the halfway point looks halfway */
 export function mix(a: string, b: string, t: number): string {
   const x = toLab(a);

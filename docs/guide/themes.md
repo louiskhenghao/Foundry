@@ -98,7 +98,7 @@ Each mode, `light` and `dark`, has its own colours, written `#rrggbb` (or `#rgb`
 | `ok` | done, passing, merged, delivered, added lines | green |
 | `bad` | failed, errors, danger, removed lines | red |
 | `extra` | reviews, merges and other things that need telling apart | the `work` colour |
-| `codes` | up to eight colours that tell things of a kind apart, never how something stands: the Brief's sections, Areas, extension sources, groups of credits. Fewer than eight repeat. | eight hues that read in the mode: blue, green, violet, orange, pink, teal, magenta, lime |
+| `codes` | up to eight colours that tell things of a kind apart, never how something stands: the Brief's sections, Areas, extension sources, groups of credits. Fewer than eight repeat. Keep them clear of `you`: a category in its colour reads as waiting for you. | eight hues that read in the mode: blue, green, violet, orange, pink, teal, magenta, lime |
 
 You pick each of `you`, `work`, `ok`, `bad` and `extra` once, and each of the `codes`. Where one is used as text on a card, Foundry darkens it (in light mode) or lightens it (in dark mode) until it reads, keeping its hue: a bright yellow `you` becomes ochre in text. Text on a filled sign or button gets whichever of the theme's colours reads best on it.
 

@@ -85,7 +85,7 @@ export const CLASSIC: Theme = {
     ok: '#059669',
     bad: '#e11d48',
     extra: '#7c3aed',
-    codes: ['#0284c7', '#059669', '#7c3aed', '#d97706', '#e11d48', '#0d9488', '#c026d3', '#65a30d'],
+    codes: ['#0284c7', '#059669', '#7c3aed', '#c2410c', '#e11d48', '#0d9488', '#c026d3', '#65a30d'],
   },
   dark: {
     page: '#09090b',
@@ -104,7 +104,7 @@ export const CLASSIC: Theme = {
     ok: '#34d399',
     bad: '#fb7185',
     extra: '#a78bfa',
-    codes: ['#38bdf8', '#34d399', '#a78bfa', '#fbbf24', '#fb7185', '#2dd4bf', '#e879f9', '#a3e635'],
+    codes: ['#38bdf8', '#34d399', '#a78bfa', '#f97316', '#fb7185', '#2dd4bf', '#e879f9', '#a3e635'],
   },
 };
 

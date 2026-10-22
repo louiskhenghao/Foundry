@@ -80,8 +80,9 @@
   --color-code-3: var(--color-violet-400);
   --color-code-3-ink: var(--color-violet-300);
   --color-on-code-3: #09090b;
-  --color-code-4: var(--color-amber-400);
-  --color-code-4-ink: var(--color-amber-300);
+  /* orange, a step away from the amber of what waits for you */
+  --color-code-4: var(--color-orange-500);
+  --color-code-4-ink: var(--color-orange-400);
   --color-on-code-4: #09090b;
   --color-code-5: var(--color-rose-400);
   --color-code-5-ink: var(--color-rose-300);
@@ -212,6 +213,9 @@ select:not([multiple]):is(:not([size]), [size='1']) {
   --color-teal-200: var(--color-teal-800);
   --color-teal-300: var(--color-teal-700);
   --color-teal-400: var(--color-teal-600);
+  /* the fourth category colour, darker in light so it stays clear of the amber of what waits for you */
+  --color-code-4: var(--color-orange-700);
+  --color-code-4-ink: var(--color-orange-700);
   /* the eighth category colour */
   --color-lime-200: var(--color-lime-800);
   --color-lime-300: var(--color-lime-700);
