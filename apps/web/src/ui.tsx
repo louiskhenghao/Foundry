@@ -562,10 +562,11 @@ export function YouStrip({ icon: Icon, title, tags, since, aside, children, quie
         <Icon size={18} strokeWidth={2.25} className="sm:h-[22px] sm:w-[22px]" />
       </span>
       <div className="min-w-0 self-center">
-        <h3 className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-          <span className={cn('min-w-0 font-extrabold leading-tight tracking-[-0.02em] break-words', quiet ? 'text-lg sm:text-xl text-ink-soft' : 'text-xl sm:text-2xl')}>{title}</span>
-          {/* a "?" link to the guide reads in the strip's ink */}
-          {tags && <span className={cn('flex flex-wrap items-center gap-1.5', !quiet && '[&_a]:text-on-you/60 [&_a:hover]:text-on-you signs-card:[&_a]:text-ink-faint signs-card:[&_a:hover]:text-ink')}>{tags}</span>}
+        <h3 className={cn('min-w-0 font-extrabold leading-tight tracking-[-0.02em] break-words', quiet ? 'text-lg sm:text-xl text-ink-soft' : 'text-xl sm:text-2xl')}>
+          {title}
+          {/* in the title's line, after its last word: a long title that wraps keeps its "?" with it, never alone on a line
+              of its own. A "?" link to the guide reads in the strip's ink */}
+          {tags && <span className={cn('ml-2.5 inline-flex flex-wrap items-center gap-1.5 align-middle', !quiet && '[&_a]:text-on-you/60 [&_a:hover]:text-on-you signs-card:[&_a]:text-ink-faint signs-card:[&_a:hover]:text-ink')}>{tags}</span>}
         </h3>
         {children}
       </div>
