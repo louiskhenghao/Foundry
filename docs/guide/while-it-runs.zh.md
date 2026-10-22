@@ -11,18 +11,32 @@ Codex 任务的 **Codex models** 卡片展示创建时保存的角色模型、�
 
 Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会在你的电脑上继续。本页讲解 goal 页面，方便你想看的时候跟上进度。
 
-![任务运行中的 goal 页面：费用和时间计量、阶段时间线和任务图](images/goal-running.png)
+![Goals 页面：等你处理的事以黄色指示牌挂在顶部，正在进行的 goal 排在下方的信息板上](images/goals.png)
+
+## Goals 页面
+
+**Goals** 是第一个页面，按每个 goal 需要你做什么来排列。
+
+- **Needs you**：每个在等你的 goal 都以一块黄色指示牌挂在顶部，等得最久的在前。牌上最大的字就是要做的事：**Review brief**、**Answer questions**、**Have a look**、**Open Inbox** 或 **See why**，点指示牌就过去。动作下面是 goal 的标题、已经等了多久、一句话说明需要什么，以及它的编码智能体、任务、费用和用时。
+- **Working**：Foundry 正在做、不需要你的 goal。每行显示标题、编码智能体和项目文件夹；goal 的五个阶段（Clarify、Brief、Run、Review、Deliver）画成一排斜切的小段，下面写着状态；任务画成小方块；费用和用时对比上限；以及最近一次变化的时间。
+- **Finished**：已完成、超额完成、失败和已取消的 goal，最新的在前，默认每页 10 个。可在信息板下方改为每页 20 或 50 个（这个浏览器会记住）。页码记在地址栏里。
+
+方块和小段在 Foundry 各处的意思都一样：实心是完成，流动的斜纹是进行中，黄色是在等你，红色是失败，空心是还没开始。一个 goal 和它的后续 goal 在信息板上是一个条目（见 [接着做后续 goal](./getting-the-result.zh.md#continue-with-a-follow-up)），委派 goal 折叠在主 goal 下面（见 [Delegated goals](#delegated-goals)）。
+
+![任务运行中的 goal 页面：状态、标题和基本信息，费用和时间计量，五个阶段，以及任务图](images/goal-running.png)
 
 ## goal 页面一览
 
-从 **Goals**（顶栏上的列表）打开一个 goal。页面顶部有：
+从 **Goals**（第一个页面，顶栏上也有）打开一个 goal。页面顶部有：
 
-- 标题、状态标记（比如 **running**、**have a look**、**reviewing**、**done**）；goal 以 fast 模式运行时还有一个 **fast** 标签。
-- 项目文件夹（**copy** 复制它的路径）、goal 的编码智能体（**Claude Code** 或 **Codex**）和分支：goal 起步的分支 → goal 自己的分支。**Goals** 列表也在每个项目路径旁显示同样的编码智能体。列表的每一行把相关信息叠在一起：标题、编码智能体和文件夹；状态和任务数；费用和时间对比上限；最近更新和创建日期。默认每页显示 10 个 goal，最新创建的在前，底部显示总数和页码；可在那里改为每页 20 或 50 个（这个浏览器会记住）。页码记在地址栏里。
+- goal 的状态牌：Foundry 在干活时是石墨色（比如 **running**、**reviewing**），等你时是黄色（**approve brief**、**have a look**、**blocked**），失败时是红色（**failed**）。旁边写着完成或正在运行的任务数，以及 Foundry 已经工作了多久。
+- 标题，以及标题下面的基本信息：项目文件夹（**copy** 复制它的路径）、分支（goal 起步的分支 → goal 自己的分支）、编码智能体（**Claude Code**、**Codex** 或 **Antigravity**）、workflow 套件、goal 以 fast 模式运行时的 **pace fast**，以及交付方式。
 - **time** 显示已用分钟数对比时间上限；Claude 还显示 **cost** 对比美元预算。后面的琥珀色圆点表示有会话在 Claude Code 回报费用之前就结束了（超时、被终止、崩溃）：鼠标停在上面，或在手机上点它，就能看到有几个、大约花了多少。这个估算（≈）按同一个模型在已回报费用的会话里的单价计算它们的 token；它不计入总数，也不占用预算。它们的轮数和 token 照常统计，美元数绝不记为 $0。Codex 美元费用不可用。
 - **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)），或者用 **VS Code (web)** 打开：浏览器标签里的 VS Code，经 Tailscale 在手机上也能打开。第一次使用时启动（先在 [Settings → Tools & keys](./settings.zh.md#tools--keys) 装一次），只在这台电脑上运行，闲置两小时后停止。它的登录页要输入密码，菜单里会显示这个密码并带复制按钮；浏览器会记住它。编码智能体写过的文件夹会以受限模式打开，直到你选择信任它。在里面的修改是真实修改：goal 运行时，菜单会提醒你在它的文件夹里改动可能和编码智能体的冲突，并被带进它们的下一个提交。
 - 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
 - **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal**、**Delete goal…**，视情况出现。
+
+页面顶部下方横排着五个阶段：**Clarify**、**Brief**、**Run**、**Review** 和 **Deliver**。完成的阶段是实心的；当前阶段加粗描边，上方标着 **Now**；等你时变成黄色并标 **You**，失败时变成红色并标 **Failed**。每个阶段用几个字说明情况，比如“approved”“3 of 4 tasks”“a pull request”。goal 运行时，Run 阶段上有一条它的任务进度条。在 Expert view 里，点一个阶段就打开显示它工作内容的地方：Clarify 和 Review 打开 Activity 标签，Brief 打开 Brief 页面，Run 打开 Tasks 标签，Deliver 打开 Delivery 标签。
 
 再往下，卡片只在需要时出现：goal 等你查看时的里程碑卡片，Foundry 提问时的访谈，以及最终审查运行时带实时日志的 **Goal review…**。
 
@@ -49,7 +63,7 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 | 标签 | 显示什么 |
 |---|---|
 | **Overview** | goal 进行到哪了、什么需要你、进度文件夹、预览、验收检查。标签上有数字表示有事等你。 |
-| **Tasks** | 任务图和每个任务的状态。显示 **done/total · N running**。 |
+| **Tasks** | 任务的依赖图，或者任务列表。显示 **done/total · N running**。 |
 | **Timeline** | 每一步什么时候进行、花了多久，goal 和它的 delegated goal 画在同一条时间轴上。 |
 | **Activity** | 发生过的所有事，最新的在前。 |
 | **Diff** | 相对 goal 起点的全部改动。 |
@@ -57,12 +71,11 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 
 ## Overview
 
-![已完成 goal 的 Overview 标签：时间线各阶段全部完成、四个 pull request 已合并、goal 描述、进度文件夹，以及全部通过的验收检查](images/goal-overview.png)
+![已完成 goal 的 Overview 标签：Brief、goal 描述、最终审查的结论、进度文件夹，以及全部通过的验收检查](images/goal-overview.png)
 
 从上到下：
 
-- **时间线**：**Clarify → Brief → Run → Review → Done**（或 **Over-delivered**）；goal 要推送或开 pull request 时还有 **Deliver · mode**。当前阶段会闪动。点一个阶段，就跳到显示它工作内容的地方。
-- **Brief**：时间线下方的一行，比如 **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**。点它打开 Brief 页面，Understanding 和 Clarifier 写的其它内容都在那里。
+- **Brief**：一行，比如 **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**。点它打开 Brief 页面，Understanding 和 Clarifier 写的其它内容都在那里。
 - **What needs you**：和 Inbox 里一样的卡片，带按钮。
 - **goal**：你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它。
 - **Goal review**：最终审查运行后，紧跟在 goal 下面：一行显示结论（**passed**、**over-delivered** 或 **failed**）和审查员意见的开头；点 **reviewer notes** 展开全文，**Open full** 图标会在更大的窗口里打开。
@@ -79,9 +92,13 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 
 ## Tasks
 
-**Tasks** 标签把计划画成一张图。每张卡片是一个任务，显示状态、已用的尝试次数和允许的次数（比如 2/3），这个任务到目前为止所有尝试加起来的费用、它的难度（**simple**、**standard** 或 **complex**，由它决定用预设里的哪个模型），以及最近一次尝试用的模型。箭头表示哪个任务在等哪个。在手机上，这张图会变成列表。
+**Tasks** 标签有两种方式显示计划，用标签右上角的 **Graph | List** 切换；这个浏览器会记住你的选择，所有 goal 都用它。
+
+**Graph** 把计划画成一张图。每张卡片是一个任务，显示状态、已用的尝试次数和允许的次数（比如 2/3），这个任务到目前为止所有尝试加起来的费用、它的难度（**simple**、**standard** 或 **complex**，由它决定用预设里的哪个模型），以及最近一次尝试用的模型。箭头表示哪个任务在等哪个。在手机上，这张图会变成按步骤分组的列表。
 
 ![Tasks 标签：计划画成一张图，一个任务已完成，两个并排（其中一个仍在运行），一个在等它们两个](images/goal-tasks.png)
+
+**List** 每个任务一行，按计划的顺序编号为 **T1**、**T2**……每行有任务的方块（见 [Goals 页面](#goals-页面)）、标题、状态、尝试次数和模型、它在等的任务（**after T1, T2**）、它在 **Work**、**Review**、**Merge** 三步中走到哪一步（审查打回过一次时显示 **Review ↺1**），以及用时和费用。点一行就打开这个任务，和点图里的卡片一样。
 
 ### 任务状态
 

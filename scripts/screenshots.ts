@@ -141,9 +141,14 @@ try {
   // into one entry (seeded for this shot only). The Setup banner reports this machine's missing tools, not the demo's,
   // and the empty page below the list is cut off.
   const chain = await seedFollowUpChain(demo.engine, g.done!);
+  // the signs of what needs you and the boards below them: a taller window than the other shots
+  await page.setViewportSize({ width: 1280, height: 1400 });
   await shot('goals', '/', async () => {
     await page.evaluate(() => Array.from(document.querySelectorAll('div')).find((d) => d.textContent?.startsWith('Setup incomplete') && d.parentElement?.textContent !== d.textContent)?.remove());
-  }, 630);
+    // the signs hang in with a swing: wait until they hang still
+    await page.waitForTimeout(1200);
+  }, 1400);
+  await page.setViewportSize({ width: 1280, height: 860 });
   for (const id of chain) await demo.engine.deleteGoal(id);
   await shot('new-goal', '/goals/new', async () => {
     await page.getByRole('button', { name: 'Expert', exact: false }).click();
@@ -204,6 +209,8 @@ try {
     await page.evaluate(() => document.getElementById('models')?.scrollIntoView({ block: 'start' }));
     await page.waitForTimeout(300);
   });
+  // Settings → Appearance (ADR-0066): the built-in themes, light or dark, and how to make your own
+  await partShot('appearance', '/settings#appearance', () => page.locator('#appearance'));
   await shot('usage', '/usage');
   // Reports (ADR-0060): the demo's goals and their sessions over the last 30 days
   await shot('reports', '/reports');

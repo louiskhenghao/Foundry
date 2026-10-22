@@ -10,7 +10,7 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 你批准 Brief 之后，它就驱动你选定的 Claude Code、Codex 或 Antigravity 去干活，并检查、审查做出来的结果。
 做好的东西放在一个单独的分支上；Foundry 只会按你选择的交付策略推送或发布成果。
 
-![Goals 页面：六个 goal，各处在一个状态，每个都显示任务进度和相对预算的花费](images/goals.png)
+![Goals 页面：等你处理的事以黄色指示牌挂在顶部，正在进行的 goal 排在下方的信息板上，带着阶段、任务、费用和用时](images/goals.png)
 
 ## 一个 goal 的一生
 
@@ -53,9 +53,10 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 7. [拿到结果](./getting-the-result.zh.md)：分支、推送和 pull request，还有媒体文件。
 8. [Schedules](./schedules.zh.md)：自己运行的 goal，每天、每周或每月。
 9. [设置说明](./settings.zh.md)：用大白话讲 Settings 的每一部分。
-10. [费用与用量](./costs-and-usage.zh.md)：哪些要花钱，怎样少花钱。
-11. [搬到新电脑](./moving-to-a-new-computer.zh.md)：把设置、key 和 goal 带到另一个 Foundry。
-12. [端口](./ports.zh.md)：哪些端口正在被使用、被谁占着，以及怎样释放。
-13. [常见问题](./faq.zh.md)：常见问题的简短回答。
+10. [主题](./themes.zh.md)：选择 Foundry 的样子，以及做一个自己的主题。
+11. [费用与用量](./costs-and-usage.zh.md)：哪些要花钱，怎样少花钱。
+12. [搬到新电脑](./moving-to-a-new-computer.zh.md)：把设置、key 和 goal 带到另一个 Foundry。
+13. [端口](./ports.zh.md)：哪些端口正在被使用、被谁占着，以及怎样释放。
+14. [常见问题](./faq.zh.md)：常见问题的简短回答。
 
-顶栏右侧 ⚙ 菜单里的 **Help** 在 Foundry 里面直接显示本指南。同一个菜单里还有 **Settings**、**Setup**、**Transfer**、**Ports**、浅色／深色模式，以及你运行的版本：⚙ 按钮上的红点表示有新版本，按版本号会打开 **About & updates**。
+顶栏右侧 ⚙ 菜单里的 **Help** 在 Foundry 里面直接显示本指南。同一个菜单里还有 **Settings**、**Setup**、**Transfer**、**Ports**、浅色／深色模式、**Appearance**（主题，见 [主题](./themes.zh.md)），以及你运行的版本：⚙ 按钮上的红点表示有新版本，按版本号会打开 **About & updates**。

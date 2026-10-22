@@ -336,6 +336,10 @@ Settings for whoever installed Foundry. Leave them unless you know why.
 - **Codex binary** and **Codex home**: the Codex executable and native account/configuration directory. Empty uses PATH and `CODEX_HOME` or `~/.codex`. Restart needed. The launch profile is fixed; choose each goal’s coding agent on New goal.
 - **Progress folders**: where each goal's folder is created. Empty puts it next to your project as `<project>-foundry/<goal>`. A folder here gives `<folder>/<project>/<goal>` instead. Applies to goals created from now on.
 
+## Appearance
+
+The theme and light or dark mode, for this browser only: each person and each device picks their own, and a change applies at once without **Save**. **Make a copy** under a theme writes it as a file to edit by hand. See [Themes](./themes.md) for choosing one and making your own.
+
 ## About & updates
 
 Shows the version you run and how it is installed. **Check now** asks whether a newer version exists (Foundry also checks once a day). When one exists, the button **Update to X** appears, with what changed, and a pill in the top bar.

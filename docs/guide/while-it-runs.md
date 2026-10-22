@@ -11,18 +11,32 @@ A Codex goal's **Codex models** card shows the saved role table, goal-wide overr
 
 After you approve the Brief, Foundry works on its own. You can close the browser; the work continues on your computer. This page explains the goal page, so you can follow along when you want to.
 
-![A goal page while tasks run: cost and time meters, the stage timeline, and the task graph](images/goal-running.png)
+![The Goals page: what needs you hangs as yellow signs at the top, the goals at work sit on a board below](images/goals.png)
+
+## The Goals page
+
+**Goals**, the first page, sorts your goals by what they need from you.
+
+- **Needs you**: every goal that waits for you hangs as a yellow sign at the top, the longest waiting first. Its largest words say what to do: **Review brief**, **Answer questions**, **Have a look**, **Open Inbox** or **See why**. Press the sign to go there. Under the action are the goal's title, how long it has waited, one sentence on what is needed, and its coding agent, tasks, cost and time.
+- **Working**: the goals Foundry is working on that need nothing from you. Each row shows the title, the coding agent and the project folder; the goal's five stages (Clarify, Brief, Run, Review, Deliver) as small leaning segments with its state under them; its tasks as small squares; its cost and time against their limits; and when it last changed.
+- **Finished**: done, over-delivered, failed and cancelled goals, newest first, 10 per page by default. Choose 20 or 50 per page below the board (remembered in this browser). The page number is kept in the address.
+
+The squares and segments mean the same everywhere in Foundry: solid is done, moving stripes are under way, yellow waits for you, red failed, an outline has not started. A goal and its follow-ups are one entry on its board (see [Continue with a follow-up](./getting-the-result.md#continue-with-a-follow-up)), and delegated goals fold under their main goal (see [Delegated goals](#delegated-goals)).
+
+![A goal page while tasks run: its state, title and facts, the cost and time meters, the five stages, and the task graph](images/goal-running.png)
 
 ## The goal page at a glance
 
-Open a goal from **Goals** (the list in the top bar). At the top of its page:
+Open a goal from **Goals** (the first page, also in the top bar). At the top of its page:
 
-- The title, a state badge (for example **running**, **have a look**, **reviewing**, **done**), and a **fast** chip if the goal runs in fast mode.
-- The project folder (with **copy** for its path), the goal's coding agent (**Claude Code** or **Codex**) and the branches: the one the goal started from → the goal's own branch. The **Goals** list shows the same coding agent next to each project path. Each of its rows stacks related facts: title, coding agent and folder; state and task counts; cost and time against their limits; last update and creation date. It shows 10 goals per page by default, newest first, with the count and the page at the bottom; choose 20 or 50 per page there (remembered in this browser). The page number is kept in the address.
+- The goal's state on a plate: graphite while Foundry works (for example **running** or **reviewing**), yellow while it waits for you (**approve brief**, **have a look**, **blocked**), red when it **failed**. Beside it, how many tasks are done or running and how long Foundry has worked.
+- The title, and under it the goal's facts: the project folder (with **copy** for its path), the branches (the one the goal started from → the goal's own branch), the coding agent (**Claude Code**, **Codex** or **Antigravity**), the workflow suite, **pace fast** if the goal runs in fast mode, and its delivery.
 - **Time** in minutes against the limit; Claude also shows **cost** against its USD budget. An amber dot after it means some sessions ended before Claude Code reported a cost (a timeout, a kill, a crash): hold the pointer over it, or tap it on a phone, for how many and about what they cost. That estimate (≈) prices their tokens at the rate the same model cost in sessions that did report it; it is never added to the total and never counts against the budget. Codex dollar cost is unavailable.
 - **Open ▾**: open the project or the progress folder on your computer (see [The progress folder](#the-progress-folder)), or in **VS Code (web)**: VS Code in a browser tab, which also opens on your phone over Tailscale. It starts on first use (install it once under [Settings → Tools & keys](./settings.md#tools--keys)), runs on this computer only, and stops after two idle hours. Its sign-in page asks for a password, which the menu shows with a copy button; a browser remembers it. A folder the coding agents wrote opens in restricted mode until you choose to trust it. Edits there are real edits: while the goal runs, the menu warns that changes in its folders can clash with the coding agents' and go into their next commit.
 - One main button that changes with the state: **Review brief →** while the Brief waits, **Cancel** while it runs, **Deliver…**, **Delivering…** or **Delivery** when it is done.
 - **⋯** (More actions): **Restart…**, **Re-run Clarify**, **Cancel goal**, **Delete goal…**, whichever apply.
+
+Under the header the five stages run across the page: **Clarify**, **Brief**, **Run**, **Review** and **Deliver**. A finished stage is filled. The current one is outlined with **Now** above it, or turns yellow with **You** when it waits for you and red with **Failed**. Each stage says how it went in a few words, for example "approved", "3 of 4 tasks" or "a pull request". While the goal runs, the Run stage carries a bar of its tasks. In Expert view, press a stage to open where its work shows: the Activity tab for Clarify and Review, the Brief page, the Tasks tab for Run, the Delivery tab for Deliver.
 
 Below that, cards appear only when they matter: the milestone card when the goal waits for your look, the interview while Foundry asks questions, and **Goal review…** with a live log while the final review runs.
 
@@ -49,7 +63,7 @@ In Simple view the goal page shows:
 | Tab | What it shows |
 |---|---|
 | **Overview** | Where the goal stands, what needs you, the progress folder, the preview, acceptance checks. A number on the tab means something waits for you. |
-| **Tasks** | The task graph with each task's state. Shows **done/total · N running**. |
+| **Tasks** | The tasks as a graph of which waits for which, or as a list. Shows **done/total · N running**. |
 | **Timeline** | When each step ran and how long it took, the goal and its delegated goals on one time axis. |
 | **Activity** | Everything that happened, newest first. |
 | **Diff** | Every change compared with where the goal started. |
@@ -57,12 +71,11 @@ In Simple view the goal page shows:
 
 ## Overview
 
-![The Overview tab of a finished goal: every stage of the timeline done, four pull requests merged, the goal, the progress folder, and all acceptance checks passing](images/goal-overview.png)
+![The Overview tab of a finished goal: the Brief, the goal, the goal review's verdict, the progress folder, and all acceptance checks passing](images/goal-overview.png)
 
 From top to bottom:
 
-- **The timeline**: **Clarify → Brief → Run → Review → Done** (or **Over-delivered**), plus **Deliver · mode** if the goal pushes or opens a pull request. The current stage pulses. Click a stage to jump to where its work is shown.
-- **Brief**: one line under the timeline, for example **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**. Click it to open the Brief, where the Understanding and everything else the Clarifier wrote are.
+- **Brief**: one line, for example **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**. Click it to open the Brief, where the Understanding and everything else the Clarifier wrote are.
 - **What needs you**: the same cards as in the Inbox, with their buttons.
 - **goal**: your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window.
 - **Goal review**: right under the goal once the final review ran: one line with the verdict (**passed**, **over-delivered** or **failed**) and the start of the reviewer's notes; **reviewer notes** unfolds them, and the **Open full** icon reads them in a larger window.
@@ -79,9 +92,13 @@ From top to bottom:
 
 ## Tasks
 
-The **Tasks** tab draws the plan as a graph. Each card is a task with its state, its attempts so far out of those allowed (for example 2/3) what the task has cost so far, all attempts together, its difficulty (**simple**, **standard** or **complex**, which picks the model from the preset) and the model its latest attempt ran on. Arrows show which task waits for which. On a phone the graph becomes a list.
+The **Tasks** tab shows the plan two ways; **Graph | List** at the top right of the tab switches between them, and this browser remembers your choice for every goal.
+
+**Graph** draws the plan as a graph. Each card is a task with its state, its attempts so far out of those allowed (for example 2/3), what the task has cost so far, all attempts together, its difficulty (**simple**, **standard** or **complex**, which picks the model from the preset) and the model its latest attempt ran on. Arrows show which task waits for which. On a phone the graph becomes a list by step.
 
 ![The Tasks tab: the plan as a graph, with one task done, two side by side (one still running) and one waiting for both](images/goal-tasks.png)
+
+**List** shows one row per task, numbered **T1**, **T2**… in the order they were planned. Each row has the task's square (see [The Goals page](#the-goals-page)), its title, its state, attempt and model, the tasks it waits for (**after T1, T2**), how far it is through **Work**, **Review** and **Merge** (**Review ↺1** when a review sent it back once), and its time and cost. Press a row to open the task, as you would a card in the graph.
 
 ### Task states
 

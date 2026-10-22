@@ -336,6 +336,10 @@ Access 打开后，每个人做的事都记在自己名下：goal 页面会写�
 - **Codex binary** 和 **Codex home**：Codex 程序和原生账户／配置目录。留空使用 PATH 及 `CODEX_HOME` 或 `~/.codex`。需要重启。启动配置保持固定，每个 goal 的编码智能体在 New goal 选择。
 - **Progress folders**：每个 goal 的文件夹在哪里创建。留空时放在你的项目旁边，即 `<project>-foundry/<goal>`。在这里填一个文件夹，就会变成 `<folder>/<project>/<goal>`。对今后创建的 goal 生效。
 
+## Appearance
+
+主题和浅色／深色模式，只对这个浏览器生效：每个人、每台设备可以各选各的，改动立即生效，不需要按 **Save**。在某个主题下按 **Make a copy**，会把它写成一个文件，供你手动修改。怎样选主题、怎样做自己的主题，见 [主题](./themes.zh.md)。
+
 ## About & updates
 
 显示你运行的版本以及安装方式。**Check now** 查询是否有新版本（Foundry 每天也会自己查一次）。有新版本时，会出现 **Update to X** 按钮，附带更新内容，顶栏上也会出现一个标签。

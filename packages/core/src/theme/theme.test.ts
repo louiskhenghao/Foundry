@@ -1,4 +1,6 @@
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { Theme, parseTheme } from '../schema/theme.ts';
 import { BUILTIN_THEMES, CLASSIC, WAYFINDING } from './builtins.ts';
 import { contrast, mix, readable } from './color.ts';
@@ -122,4 +124,13 @@ describe('the generated stylesheet', () => {
     const css = themeCss({ ...minimal, fonts: { sans: '"Inter", sans-serif', stylesheets: ['https://fonts.googleapis.com/css2?family=Inter'] } });
     expect(css.split('\n')[0]).toBe('@import url("https://fonts.googleapis.com/css2?family=Inter");');
   });
+});
+
+test("the guide's example theme files are valid, in both languages", () => {
+  for (const page of ['themes.md', 'themes.zh.md']) {
+    const md = readFileSync(join(import.meta.dir, '../../../../docs/guide', page), 'utf8');
+    const examples = [...md.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]!);
+    expect(examples).toHaveLength(2);
+    for (const json of examples) expect(parseTheme(json)).toEqual({ theme: expect.objectContaining({ name: expect.any(String) }) });
+  }
 });
