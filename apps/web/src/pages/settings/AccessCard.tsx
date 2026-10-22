@@ -1,13 +1,18 @@
 import { KeyRound, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type Person } from '../../api.ts';
-import { Button, Card, ConfirmDialog, CopyButton, Input, Modal, ago } from '../../ui.tsx';
+import { Button, Card, ConfirmDialog, CopyButton, EmptyState, Input, Modal, ago } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SettingsTitle } from './sections.tsx';
 
 /** The people with a token, each with when they last used it, and a Revoke. */
 export function PeopleList({ people, busy, onRevoke }: { people: Person[]; busy?: boolean; onRevoke: (p: Person) => void }) {
-  if (!people.length) return <p className="text-sm text-ink-faint">No one has a token: Access is off, and anyone who can reach this address is let in. Add the first person to turn it on.</p>;
+  if (!people.length)
+    return (
+      <EmptyState size="card" icon={KeyRound} title="No one has a token">
+        Access is off, and anyone who can reach this address is let in. Add the first person to turn it on.
+      </EmptyState>
+    );
   return (
     <ul className="divide-y divide-line text-sm">
       {people.map((p) => (

@@ -10,7 +10,7 @@ import { MarkdownPanel } from '../components/Markdown.tsx';
 import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { suggestEscalation, useEscalationDraft, useEscalationDrafts, useLive } from '../store.ts';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
-import { Button, Empty, Input, NEEDS_YOU_CARD, PageHeader, Textarea, YouStrip, ago, buttonClass, cn, stateLabel } from '../ui.tsx';
+import { Button, Empty, EmptyState, Input, NEEDS_YOU_CARD, PageHeader, Textarea, YouStrip, ago, buttonClass, cn, stateLabel } from '../ui.tsx';
 import { ProviderBadge } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
@@ -88,12 +88,10 @@ export function InboxPage() {
       {!list ? (
         <Empty>Loading…</Empty>
       ) : list.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line-strong px-6 py-14 text-center">
-          {/* all clear: the tick in green, as everything settled */}
-          <CheckCircle2 size={28} strokeWidth={2.25} className="mx-auto mb-3 text-ok-ink" aria-hidden="true" />
-          <p className="text-lg font-bold">Nothing needs you.</p>
-          <p className="mt-1 text-sm text-ink-faint">The engine only asks for: blocking brief questions, exhausted retries, leaving the workspace, exceeded budgets, or denied tools.</p>
-        </div>
+        // all clear: the tick in green, as everything settled
+        <EmptyState icon={CheckCircle2} tone="ok" title="Nothing needs you">
+          The engine only asks for: blocking brief questions, exhausted retries, leaving the workspace, exceeded budgets, or denied tools.
+        </EmptyState>
       ) : (
         <div className="space-y-6">
           {list.map((e) => (

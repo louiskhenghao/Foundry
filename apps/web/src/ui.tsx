@@ -519,8 +519,41 @@ export function useAffix<T extends HTMLElement>(): { ref: (el: T | null) => void
   return { ref, className: AFFIX_SIDE };
 }
 
+/** a line while something loads, or why it could not: nothing to show yet, unlike EmptyState's "there is none" */
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="text-sm text-ink-faint py-8 text-center">{children}</div>;
+}
+
+/** the dots behind an EmptyState's icon, fading out around it: the words under it stay on the plain page */
+const EMPTY_FIELD = {
+  backgroundImage: 'radial-gradient(var(--color-line-strong) 1px, transparent 1.6px)',
+  backgroundSize: '18px 18px',
+  backgroundPosition: 'center',
+  maskImage: 'radial-gradient(closest-side, black 20%, transparent)',
+  WebkitMaskImage: 'radial-gradient(closest-side, black 20%, transparent)',
+};
+
+/**
+ * What a page, a tab, a board or a card shows when there is nothing in it: the kind's icon on a tile ringed twice in a
+ * halo of dots, a heading in the theme's display font, a line on how something comes to be there, and the action that
+ * puts it there. `page`: a whole page's or tab's body, framed by a dashed line and tall; `card`: inside a card or a board,
+ * which is its frame. `tone`: `ok` where nothing is good news (nothing waits for you), `bad` where the page failed.
+ */
+export function EmptyState({ icon: Icon, title, children, actions, size = 'page', tone, className }: { icon: LucideIcon; title: ReactNode; children?: ReactNode; actions?: ReactNode; size?: 'page' | 'card'; tone?: 'ok' | 'bad'; className?: string }) {
+  const page = size === 'page';
+  return (
+    <div className={cn('relative isolate flex flex-col items-center justify-center overflow-hidden px-6 text-center', page ? 'min-h-[22rem] rounded-xl border border-dashed border-line-strong py-16' : 'min-h-[15rem] py-12', className)}>
+      <span aria-hidden="true" className="relative">
+        <span className={cn('pointer-events-none absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2', page ? 'h-56 w-[26rem]' : 'h-44 w-80')} style={EMPTY_FIELD} />
+        <span className={cn('grid place-items-center rounded-2xl bg-panel shadow-[0_0_0_1px_var(--color-line-strong),0_0_0_10px_var(--color-sunken),0_0_0_11px_var(--color-line)]', page ? 'h-16 w-16' : 'h-14 w-14', tone === 'ok' ? 'text-ok-ink' : tone === 'bad' ? 'text-bad-ink' : 'text-ink-soft')}>
+          <Icon size={page ? 28 : 24} strokeWidth={1.75} />
+        </span>
+      </span>
+      <h3 className={cn('font-display font-extrabold tracking-[-0.02em] text-ink text-balance', page ? 'mt-8 text-2xl sm:text-[1.75rem] leading-tight' : 'mt-7 text-xl leading-snug')}>{title}</h3>
+      {children && <div className="mt-2 max-w-md text-sm leading-relaxed text-ink-faint text-pretty">{children}</div>}
+      {actions && <div className="mt-6 flex flex-wrap items-center justify-center gap-2">{actions}</div>}
+    </div>
+  );
 }
 
 /** how long ago, in the fewest words: 40 s, 7 min, 3 h, 2 d */

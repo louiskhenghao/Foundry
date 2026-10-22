@@ -1,7 +1,7 @@
 import { PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
 import type { Brief } from '@foundry/core/browser';
 import { calibratedEstimate, decisionsOf, describeCalibration, pendingDecisions, proposeBudgetFromEstimate, topoSort, uncoveredAreas } from '@foundry/core/browser';
-import { ArrowLeft, Folder, GitBranch, Loader2, RotateCcw, Settings2 } from 'lucide-react';
+import { ArrowLeft, CircleAlert, Folder, GitBranch, Loader2, RotateCcw, Settings2 } from 'lucide-react';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, type GoalDetail } from '../../api.ts';
@@ -10,7 +10,7 @@ import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { StageRail, StatePlate, markFill, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { useLive } from '../../store.ts';
-import { Button, Card, CopyButton, Empty, Input, PAGE_TITLE, Textarea, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
+import { Button, Card, CopyButton, Empty, EmptyState, Input, PAGE_TITLE, Textarea, buttonClass, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { ReferenceCard } from './ReferenceCard.tsx';
 import { AreasCard } from './AreasCard.tsx';
@@ -96,7 +96,14 @@ export function BriefPage() {
     }
   }, [brief]);
 
-  if (err && !detail) return <Empty>{err}</Empty>;
+  if (err && !detail)
+    return (
+      <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
+        <EmptyState icon={CircleAlert} tone="bad" title="This Brief could not be opened" actions={<Link to={`/goals/${id}`} className={buttonClass('default', 'lg')}><ArrowLeft size={16} aria-hidden="true" /> Goal</Link>}>
+          {err}
+        </EmptyState>
+      </div>
+    );
   if (!detail) return <Empty>Loading…</Empty>;
   const g = detail.goal;
   /** the Clarifier's Brief without its tasks: read and edit it while the planner works; approval and the AI buttons wait for the plan */

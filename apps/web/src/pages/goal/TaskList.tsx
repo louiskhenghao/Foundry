@@ -1,6 +1,7 @@
+import { ListTodo } from 'lucide-react';
 import type { BriefArea, TaskState } from '@foundry/core/browser';
 import { markFill, taskMark, type Mark } from '../../components/progress.tsx';
-import { cn, fmtUsd, stateLabel } from '../../ui.tsx';
+import { EmptyState, cn, fmtUsd, stateLabel } from '../../ui.tsx';
 import { UNASSIGNED_STYLE, areaStyle } from '../brief/shared.ts';
 import { delegatedProgress, type DagTask } from './DagCanvas.tsx';
 
@@ -43,7 +44,12 @@ const STEP: Record<Mark, { plate: string; text: string }> = {
  * graph does. `areas`: the Brief's, so a task's Area shows as its chip in the Area's colour.
  */
 export function TaskList({ tasks, selected, onSelect, areas }: { tasks: DagTask[]; selected: string | null; onSelect: (id: string | null) => void; areas?: BriefArea[] }) {
-  if (!tasks.length) return <div className="text-sm text-ink-faint py-8 text-center">No tasks yet.</div>;
+  if (!tasks.length)
+    return (
+      <EmptyState size="card" icon={ListTodo} title="No tasks yet">
+        The plan's tasks show here once the Brief is approved, in the order they were planned.
+      </EmptyState>
+    );
   const order = [...tasks].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const num = new Map(order.map((t, i) => [t.id, i + 1]));
   return (

@@ -1,8 +1,8 @@
 import type { Brief } from '@foundry/core/browser';
 import { LARGE_BRIEF_TASKS, stagesOf } from '@foundry/core/browser';
-import { Info, Plus } from 'lucide-react';
+import { Info, ListTodo, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { Button, Card, chipClass, cn, fmtUsd } from '../../ui.tsx';
+import { Button, Card, EmptyState, chipClass, cn, fmtUsd } from '../../ui.tsx';
 import { BriefDag } from './BriefDag.tsx';
 import { TaskCard } from './TaskCard.tsx';
 import { areaStyle, newTask } from './shared.ts';
@@ -74,7 +74,11 @@ export function PlanSection({ costAvailable = true, brief, goalId, editable, edi
           ))}
         </div>
       )}
-      {brief.tasks.length === 0 && <div className="text-sm text-ink-faint">No tasks. Add one, or draft tasks for an Area above.</div>}
+      {brief.tasks.length === 0 && (
+        <EmptyState size="card" icon={ListTodo} title="No tasks">
+          Add one, or draft tasks for an Area above.
+        </EmptyState>
+      )}
       <div className="space-y-6">
         {stages.stages.map((stage, i) => {
           const xs = stage.filter((t) => visible(t.key));

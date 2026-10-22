@@ -52,16 +52,6 @@ export const FIGURE_LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08
 /** a board's panel without its heading, for a list the page's own title already names */
 export const BOARD_PANEL = 'overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)]';
 
-/** nothing to list: its first sentence large, the rest under it, on a dashed panel (as the Goals page's empty state) */
-export function EmptyPanel({ title, children }: { title: ReactNode; children?: ReactNode }) {
-  return (
-    <div className="rounded-lg border border-dashed border-line-strong px-6 py-14 text-center">
-      <p className="text-lg font-bold text-ink">{title}</p>
-      {children && <p className="mt-1 text-sm text-ink-faint">{children}</p>}
-    </div>
-  );
-}
-
 /** What a Foundry session did: a task's work or a merge (in the colour of reviews and merges), and which attempt. */
 export function AttemptChip({ kind, attempt }: { kind?: 'work' | 'merge'; attempt?: number | null }) {
   if (!kind) return null;

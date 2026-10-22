@@ -1,3 +1,4 @@
+import { Workflow } from 'lucide-react';
 import type { BriefArea, Task } from '@foundry/core/browser';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -5,7 +6,7 @@ import type { DelegatedView } from '../../api.ts';
 import { TaskTags } from '../../components/TaskTags.tsx';
 import { markFill, taskMark } from '../../components/progress.tsx';
 import { useElementWidth } from '../../hooks/useElementWidth.ts';
-import { Badge, cn, fmtUsd } from '../../ui.tsx';
+import { Badge, EmptyState, cn, fmtUsd } from '../../ui.tsx';
 import { areaStyle } from '../brief/shared.ts';
 
 const MIN_W = 236;
@@ -110,7 +111,12 @@ export function DagCanvas({ tasks, selected, onSelect, areas }: { tasks: DagTask
     return () => ro.disconnect();
   }, [tasks, nodeW, listMode]);
 
-  if (!tasks.length) return <div className="text-sm text-ink-faint py-8 text-center">No tasks yet.</div>;
+  if (!tasks.length)
+    return (
+      <EmptyState size="card" icon={Workflow} title="No tasks yet">
+        The plan's tasks show here once the Brief is approved, each linked to the ones it waits for.
+      </EmptyState>
+    );
 
   const byId = new Map(tasks.map((t) => [t.id, t]));
   const sorted = [...cols.entries()].sort(([a], [b]) => a - b);

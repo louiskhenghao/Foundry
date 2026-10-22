@@ -1,11 +1,11 @@
 import type { EngineEvent } from '@foundry/core/browser';
 import { PROVIDER_LABEL } from '@foundry/core/browser';
 import type { InstalledSkill, SkillScope, SkillSourceRow, SkillTier, SkillUsage, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from '@foundry/engine/skills-types';
-import { Blocks, FolderGit2, PackageCheck, Plug, RefreshCw, Search, SquareTerminal, Trash2, Wrench, type LucideIcon } from 'lucide-react';
+import { Blocks, FolderGit2, PackageCheck, Plug, RefreshCw, Search, SearchX, SquareTerminal, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { Board, Button, ConfirmDialog, Empty, Input, Modal, ago, chipClass, cn, code, useAffix } from '../../ui.tsx';
+import { Board, Button, ConfirmDialog, Empty, EmptyState, Input, Modal, ago, chipClass, cn, code, useAffix } from '../../ui.tsx';
 import { categorySquare, notice } from '../agents/marks.ts';
 import { OpsDock } from './OpsDock.tsx';
 import { startOp, useRunningOp, useSkillOps } from './ops.ts';
@@ -302,7 +302,11 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
               </Board>
             );
           })}
-          {report.sources.every((s) => !s.skills.some(filter)) && <Empty>Nothing matches.</Empty>}
+          {report.sources.every((s) => !s.skills.some(filter)) && (
+            <EmptyState icon={SearchX} title="Nothing matches">
+              No skill matches the search and the filters above.
+            </EmptyState>
+          )}
         </div>
         {/* level with the boards' panels, under their headings, on a wide screen */}
         <div ref={affix.ref} className={cn(showCatalog ? 'block' : 'hidden lg:block', 'lg:mt-[31px]', affix.className)}>

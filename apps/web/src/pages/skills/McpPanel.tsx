@@ -2,7 +2,7 @@ import type { McpCatalogStatus, McpHealth, McpKey, McpServerRow } from '@foundry
 import { ExternalLink, HardDrive, RefreshCw, Server, Stethoscope } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider, type McpCustomServer, type McpView } from '../../api.ts';
-import { BOARD_ROW, Board, Badge, Button, Card, ConfirmDialog, Empty, Input, Select, cn } from '../../ui.tsx';
+import { BOARD_ROW, Board, Badge, Button, Card, ConfirmDialog, Empty, Input, Select, cn, EmptyState } from '../../ui.tsx';
 import { STATE_INK, categoryPlate, notice, statePlate, type Tone } from '../agents/marks.ts';
 import { HelpLink } from '../HelpPage.tsx';
 import { McpConnectDialog } from './McpConnectDialog.tsx';
@@ -99,7 +99,11 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
           {/* the servers on a board, a row each, as the Goals page's goals */}
           <Board id="mcp-servers" icon={<HardDrive size={14} aria-hidden="true" />} title="On this computer" count={view.servers.length}>
             {view.servers.length === 0 ? (
-              <li className="px-5 py-6 text-sm text-ink-faint">No MCP servers yet. Install one from the recommendations, or add your own below.</li>
+              <li>
+                <EmptyState size="card" icon={Server} title="No MCP servers yet">
+                  Install one from the recommendations, or add your own below.
+                </EmptyState>
+              </li>
             ) : (
               view.servers.map((s) => (
                 <ServerRow key={`${s.source}:${s.plugin ?? ''}:${s.name}`} s={s} health={healthOf(s)} running={!!runningOp(`mcp:${s.name}`)} onAllow={(on) => allow(s, on)} onRemove={() => setRemoving(s.name)} onConnect={() => setConnecting(s.name)} keys={view.catalog.find((c) => c.entry.id === s.catalogId)?.entry.keys ?? []} onChangeKey={(k) => s.catalogId && void install({ catalogId: s.catalogId }, s.name, k, true)} />

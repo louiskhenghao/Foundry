@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronRight, CircleHelp, Container, Cpu, ExternalLink, Hammer, Lock, RefreshCw, Search, Square, Waypoints, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, CircleHelp, Container, Cpu, ExternalLink, Hammer, Lock, Plug, RefreshCw, Search, SearchX, Square, Waypoints, type LucideIcon } from 'lucide-react';
 import { api, type PortRow, type PortsView } from '../api.ts';
-import { BOARD_ROW, Board, Button, Card, ConfirmDialog, Empty, Input, PageHeader, Tabs, ago, buttonClass, chipClass, cn, code, useAffix } from '../ui.tsx';
+import { BOARD_ROW, Board, Button, Card, ConfirmDialog, Empty, EmptyState, Input, PageHeader, Tabs, ago, buttonClass, chipClass, cn, code, useAffix } from '../ui.tsx';
 import { categoryPlate, categorySquare, notice, statePlate } from './agents/marks.ts';
-import { EmptyPanel, FIGURE_LABEL } from './agents/rows.tsx';
+import { FIGURE_LABEL } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 type Category = PortRow['category'];
@@ -385,7 +385,15 @@ export function PortsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 min-w-0">
           {!view && <Empty>{error ? 'Ports unavailable; retrying…' : 'Scanning…'}</Empty>}
-          {view && !matching.length && (all.length ? <EmptyPanel title="Nothing matches.">Clear the search, pick all, or untick development only.</EmptyPanel> : <EmptyPanel title="No port is in use." />)}
+          {view && !matching.length && (all.length ? (
+            <EmptyState icon={SearchX} title="Nothing matches">
+              Clear the search, pick all, or untick development only.
+            </EmptyState>
+          ) : (
+            <EmptyState icon={Plug} title="No port is in use">
+              A dev server, a container or a preview shows here once it listens on a port of this computer.
+            </EmptyState>
+          ))}
           {CATEGORIES.filter((c) => groups.some((g) => g.category === c.id)).map((c) => {
             const list = groups.filter((g) => g.category === c.id);
             return (

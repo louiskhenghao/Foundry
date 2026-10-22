@@ -1,8 +1,8 @@
 import { SUBJECT_LIMITS, type BriefSubject, type SubjectPicture } from '@foundry/core/browser';
-import { ImagePlus, Loader2, Plus, Search, X } from 'lucide-react';
+import { ImageOff, ImagePlus, Loader2, Plus, Search, X } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { api } from '../../api.ts';
-import { Button, Card, Input, focusFirst } from '../../ui.tsx';
+import { Button, Card, EmptyState, Input, focusFirst } from '../../ui.tsx';
 import { MediaLightbox } from '../../components/MediaLightbox.tsx';
 import { subjectLightbox } from '../goal/MilestoneEvidence.tsx';
 import { HelpLink } from '../HelpPage.tsx';
@@ -46,7 +46,7 @@ export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId
       <p className="text-xs text-ink-faint mb-3">
         Real things the result must look like. Workers build from these pictures and every review compares against them; the pictures stay on this computer and are never part of the result.
       </p>
-      {subjects.length === 0 && <div className="text-sm text-ink-faint mb-2">Nothing real to match.</div>}
+      {subjects.length === 0 && <EmptyState size="card" icon={ImageOff} title="Nothing real to match">Add one below when the result must look like something real.</EmptyState>}
       <div className="space-y-4">
         {subjects.map((s) => (
           <SubjectRow key={s.key} goalId={goalId} subject={s} searching={searching.includes(s.key)} editable={editable} busy={busy} act={act} onView={(picture) => setViewing({ key: s.key, index: Math.max(0, s.pictures.findIndex((p) => p.file === picture.file)) })} />

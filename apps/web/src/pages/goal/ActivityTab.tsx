@@ -1,9 +1,10 @@
+import { Activity as ActivityIcon } from 'lucide-react';
 import { reportsDollars } from '@foundry/core/browser';
 import { useMemo, useState } from 'react';
 import type { GoalDetail } from '../../api.ts';
 import { type FullText, FullTextDialog } from '../../components/FullTextDialog.tsx';
 import { useLive } from '../../store.ts';
-import { BOARD_ROW, cn } from '../../ui.tsx';
+import { BOARD_ROW, EmptyState, cn } from '../../ui.tsx';
 import { clock } from '../../time.ts';
 import { NOISY, describe, type Tone } from './describe.ts';
 
@@ -102,7 +103,13 @@ export function ActivityTab({ d }: { d: GoalDetail }) {
             </li>
           );
         })}
-        {items.length === 0 && <li className="text-sm text-ink-faint py-8 text-center">Nothing yet.</li>}
+        {items.length === 0 && (
+          <li>
+            <EmptyState size="card" icon={ActivityIcon} title="Nothing yet">
+              What the goal's sessions do and say shows here as it happens.
+            </EmptyState>
+          </li>
+        )}
       </ul>
       <FullTextDialog value={open} onClose={() => setOpen(null)} />
     </div>

@@ -1,5 +1,5 @@
 import { isHistory, reportsDollars, taskUsage } from '@foundry/core/browser';
-import { ArrowLeft, Ban, CornerDownRight, Folder, GitBranch, GitMerge, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, CircleAlert, CornerDownRight, Folder, GitBranch, GitMerge, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -12,7 +12,7 @@ import { MilestoneCard } from './MilestoneCard.tsx';
 import { ImportedCard } from './ImportedCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, PAGE_TITLE, Tabs, cn, stateLabel } from '../../ui.tsx';
+import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, EmptyState, PAGE_TITLE, Tabs, buttonClass, cn, stateLabel } from '../../ui.tsx';
 import { StatePlate, StageRail, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { MoreMenu, type MoreItem } from '../../components/MoreMenu.tsx';
@@ -103,7 +103,14 @@ export function GoalPage() {
     [d],
   );
 
-  if (err) return <Empty>{err}</Empty>;
+  if (err)
+    return (
+      <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
+        <EmptyState icon={CircleAlert} tone="bad" title="Something went wrong" actions={<Link to="/" className={buttonClass('default', 'lg')}><ArrowLeft size={16} aria-hidden="true" /> Goals</Link>}>
+          {err}
+        </EmptyState>
+      </div>
+    );
   if (!d) return <Empty>Loading…</Empty>;
   const g = d.goal;
   // sessions that ended before Claude Code reported a cost: the meter's total leaves them out and says so

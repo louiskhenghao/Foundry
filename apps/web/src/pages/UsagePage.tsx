@@ -10,7 +10,7 @@ import { AgyQuotaCard } from '../components/AgyQuotaCard.tsx';
 import { AccountsUsageCard } from '../components/AccountsUsageCard.tsx';
 import { CodexQuotaCard } from '../components/CodexQuotaCard.tsx';
 import { useLive } from '../store.ts';
-import { BOARD_ROW, Badge, Button, Card, Empty, PageHeader, cn, code, fmtUsd } from '../ui.tsx';
+import { BOARD_ROW, Badge, Button, Card, Empty, EmptyState, PageHeader, cn, code, fmtUsd } from '../ui.tsx';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { ProviderBadge } from './agents/rows.tsx';
@@ -230,7 +230,9 @@ function Breakdown({ title, rows }: { title: string; rows: ActivityRow[] }) {
     <Card title={title}>
       {/* the rows run edge to edge: the card's own padding is taken back */}
       {rows.length === 0 ? (
-        <div className="-m-4 px-4 py-3 text-xs text-ink-faint">nothing yet</div>
+        <EmptyState size="card" icon={Activity} title="Nothing yet">
+          A row shows once a session has run in the last 7 days.
+        </EmptyState>
       ) : (
         <div className="-m-4">
           <ul className="divide-y divide-line">

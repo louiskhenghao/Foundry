@@ -1,8 +1,8 @@
 import type { Brief, BriefCheck, BriefTask } from '@foundry/core/browser';
-import { Check, ChevronRight, Sparkles, X } from 'lucide-react';
+import { Check, ChevronRight, CircleCheck, Sparkles, X } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import type { DraftProposal } from '../../api.ts';
-import { Button, ButtonGroup, Modal, cn } from '../../ui.tsx';
+import { Button, ButtonGroup, EmptyState, Modal, cn } from '../../ui.tsx';
 import { type BriefSection, SECTION_STYLE, fmtCost } from './shared.ts';
 
 /** how one field of a proposal is shown */
@@ -396,7 +396,7 @@ export function DraftPanel({ proposal, onApply, onClose }: { proposal: DraftProp
           )}
         </div>
       )}
-      {items.length === 0 && <div className="px-4 py-3 text-sm text-ink-faint">Nothing to change.</div>}
+      {items.length === 0 && <EmptyState size="card" icon={CircleCheck} tone="ok" title="Nothing to change">This proposal leaves the Brief as it is.</EmptyState>}
       {groups.map((g) => {
         const { Icon, ink, bar } = SECTION_STYLE[PART_OF[g.section]];
         return (

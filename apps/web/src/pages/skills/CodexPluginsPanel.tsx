@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Package, PackageCheck, Plug } from 'lucide-react';
+import { Package, PackageCheck, Plug, Puzzle, SearchX } from 'lucide-react';
 import type { CodexPlugin, CodexPluginsView } from '@foundry/engine/plugins-types';
 import { apiForProvider } from '../../api.ts';
-import { BOARD_ROW, Board, Button, Card, ConfirmDialog, Empty, Input, cn } from '../../ui.tsx';
+import { BOARD_ROW, Board, Button, Card, ConfirmDialog, Empty, EmptyState, Input, cn } from '../../ui.tsx';
 import { stateDot } from '../agents/marks.ts';
 import { OpsDock } from './OpsDock.tsx';
 import { BottomDock } from './SkillsPage.tsx';
@@ -42,7 +42,7 @@ export function CodexPluginsPanel() {
     {error && <div role="alert" className="text-sm text-bad-ink">{error}</div>}
     {!view ? <Empty>{error ? 'Could not load plugins. Try Refresh plugins.' : 'Reading native plugins…'}</Empty> : view.state === 'unavailable' ? <Card title="Native plugin list unavailable"><p className="text-sm text-you-ink">{view.message}</p><p className="mt-2 text-xs text-ink-soft">Use a compatible Codex CLI with plugin JSON commands, then refresh. No configuration was changed.</p></Card> : <>
       <Input aria-label="Filter plugins" placeholder="Filter by plugin or marketplace" value={query} onChange={e=>setQuery(e.target.value)} />
-      {plugins.length === 0 && <Empty>{view.plugins.length ? 'No matching plugins.' : 'No plugins returned by the native CLI. Configure a marketplace in Codex, then refresh.'}</Empty>}
+      {plugins.length === 0 && (view.plugins.length ? <EmptyState icon={SearchX} title="No matching plugins">Clear the filter to see every plugin.</EmptyState> : <EmptyState icon={Puzzle} title="No plugins returned by the native CLI">Configure a marketplace in Codex, then refresh.</EmptyState>)}
       {(['Installed', 'Available'] as const).map(group => {
         const rows = plugins.filter(p => p.installed === (group === 'Installed'));
         return rows.length > 0 && <Board key={group} id={`plugins-${group.toLowerCase()}`} icon={group === 'Installed' ? <PackageCheck size={14} strokeWidth={2.25} className="text-ok-ink" aria-hidden="true" /> : <Package size={14} aria-hidden="true" />} title={group} count={rows.length}>{rows.map(plugin => <PluginRow key={plugin.id} plugin={plugin} busy={running} onChange={()=>setChange(plugin)} />)}</Board>;

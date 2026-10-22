@@ -1,7 +1,7 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, GitCompare } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api, fileUrl } from '../../api.ts';
-import { BOARD_ROW, ButtonGroup, CopyButton, Modal, cn } from '../../ui.tsx';
+import { BOARD_ROW, ButtonGroup, CopyButton, EmptyState, Modal, cn } from '../../ui.tsx';
 
 interface FileDiff {
   path: string;
@@ -195,7 +195,12 @@ export function DiffTab({ goalId, baseBranch, branch, workspace }: { goalId: str
   const { files, cut } = useMemo(() => (raw ? parse(raw) : { files: [], cut: false }), [raw]);
 
   if (raw === null) return <div className="text-sm text-ink-faint">Loading diff…</div>;
-  if (!files.length) return <div className="text-sm text-ink-faint">No changes on {branch} relative to {baseBranch} yet.</div>;
+  if (!files.length)
+    return (
+      <EmptyState icon={GitCompare} title="No changes yet">
+        Nothing on <span className="mono text-ink-soft">{branch}</span> differs from <span className="mono text-ink-soft">{baseBranch}</span> yet: the tasks' work shows here as it lands on the goal's branch.
+      </EmptyState>
+    );
   const totals = files.reduce((a, f) => ({ add: a.add + f.add, del: a.del + f.del }), { add: 0, del: 0 });
   return (
     <div className="space-y-3">

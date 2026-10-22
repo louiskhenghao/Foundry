@@ -1,11 +1,11 @@
 import { cadenceLabel } from '@foundry/core/browser';
-import { Pencil, Play, Trash2 } from 'lucide-react';
+import { CalendarClock, Pencil, Play, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type ScheduleRow } from '../api.ts';
-import { BOARD_ROW, Button, ConfirmDialog, PageHeader, ago, cn, code } from '../ui.tsx';
+import { BOARD_ROW, Button, ConfirmDialog, EmptyState, PageHeader, ago, cn, code } from '../ui.tsx';
 import { STATE_INK, stateDot, statePlate, type Tone } from './agents/marks.ts';
-import { BOARD_PANEL, EmptyPanel, shortCwd } from './agents/rows.tsx';
+import { BOARD_PANEL, shortCwd } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 /** a schedule that approves its own Briefs: a trait, in the category green it had before themes */
@@ -87,7 +87,9 @@ export function SchedulesPage() {
       {rows === null ? (
         <div className="text-xs text-ink-faint">loading…</div>
       ) : rows.length === 0 ? (
-        <EmptyPanel title="No schedules yet.">Fill in the New goal form as usual, then press Schedule… instead of creating the goal.</EmptyPanel>
+        <EmptyState icon={CalendarClock} title="No schedules yet">
+          Fill in the New goal form as usual, then press Schedule… instead of creating the goal.
+        </EmptyState>
       ) : (
         // the page's title names the list, so its board has no heading of its own
         <div className={BOARD_PANEL}>
