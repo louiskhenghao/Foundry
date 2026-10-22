@@ -4,6 +4,7 @@ import { RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api, type AccountsInfo, type AgentProvider } from '../api.ts';
 import { SignInDialog } from '../components/SignInDialog.tsx';
+import { AccountPoolList } from './AccountPoolList.tsx';
 import { Button, Card, ConfirmDialog } from '../ui.tsx';
 
 export function AccountsPage() {
@@ -33,7 +34,7 @@ export function AccountsPage() {
   };
   return <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-5">
     <div className="flex items-start justify-between gap-4 flex-wrap">
-      <div className="max-w-2xl"><h1 className="text-xl font-semibold">Agent accounts</h1><p className="text-sm text-zinc-400 mt-2">Connect Claude Code, Codex and Antigravity independently. Choose the coding agent when creating a goal; it stays fixed for that goal.</p></div>
+      <div className="max-w-2xl"><h1 className="text-xl font-semibold">Agent accounts</h1><p className="text-sm text-zinc-400 mt-2">Connect Claude Code, Codex and Antigravity independently. Choose the coding agent when creating a goal; it stays fixed for that goal. Claude Code and Codex can hold several of your accounts: new sessions run on the current one.</p></div>
       <Button disabled={busy || refreshing} onClick={load}><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} aria-hidden="true" />Refresh status</Button>
     </div>
     <div className="min-h-5 text-xs" aria-live="polite">{error ? <p role="alert" className="text-rose-400">{error}</p> : <p className="text-zinc-500">{refreshing ? 'Checking native accounts…' : 'Account status is up to date.'}</p>}</div>
@@ -49,6 +50,8 @@ export function AccountsPage() {
           ? <p className="text-xs text-zinc-400 my-4">Antigravity signs in from a terminal: run <code className="text-zinc-200">agy</code> once (it opens the browser), then refresh. <code className="text-zinc-200">/logout</code> inside agy signs out.</p>
           : <div className="flex gap-2 my-4"><Button disabled={busy || refreshing || !account?.installed} onClick={() => status?.loggedIn ? setLogout(provider) : setLogin(provider)}>{status?.loggedIn ? 'Sign out' : `Sign in to ${name}`}</Button></div>}
         <p className="text-xs text-zinc-400 mb-3 min-h-4">{status?.error}</p>
+        {account?.pool && <AccountPoolList provider={provider} pool={account.pool} installed={account.installed} onChange={load} />}
+        {provider === 'agy' && <p className="text-xs text-zinc-500 mb-3">Antigravity holds one account: its CLI has no folder of its own to point at, and on macOS every agy sign-in shares one Keychain item.</p>}
         <dl className="text-xs leading-relaxed space-y-2 border-t border-zinc-800 pt-3">
           <div><dt className="text-zinc-500">Usage & limits</dt><dd>{(account?.capabilities.dollarCosts ?? provider === 'claude') ? 'Estimated cost, tokens and USD budgets' : provider === 'agy' ? 'Foundry tokens, time, attempts and concurrency; no account quota is read' : 'Native ChatGPT account quota, plus Foundry tokens, time, attempts and concurrency. USD cost is unavailable.'}</dd></div>
           <div><dt className="text-zinc-500">Extensions</dt><dd>{provider === 'agy' ? 'Antigravity reads the skills Foundry places in a project\'s .agents folder and the servers configured in agy itself; its skills, MCP servers and plugins are managed in agy.' : 'Select Claude or Codex in Extensions to manage its skills and MCP servers independently.'}</dd></div>

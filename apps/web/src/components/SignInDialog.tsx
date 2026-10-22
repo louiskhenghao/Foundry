@@ -4,8 +4,11 @@ import { createPortal } from 'react-dom';
 import { api, type LoginSession, type AgentProvider } from '../api.ts';
 import { Button, CopyButton, Input, cn, focusFirst } from '../ui.tsx';
 
-/** Runs `claude auth login` through the engine; the browser opens on this machine, the URL is shown too. */
-export function SignInDialog({ onClose, provider: selectedProvider }: { onClose: () => void; provider?: AgentProvider }) {
+/**
+ * Runs `claude auth login` through the engine; the browser opens on this machine, the URL is shown too. `add`: the
+ * sign-in of one more account, in a home of its own (ADR-0065), instead of this computer's own sign-in.
+ */
+export function SignInDialog({ onClose, provider: selectedProvider, add = false }: { onClose: () => void; provider?: AgentProvider; add?: boolean }) {
   const [provider, setProvider] = useState<AgentProvider | null>(selectedProvider ?? null);
   useEffect(() => { api.auth(false, selectedProvider).then((info) => setProvider(info.provider)).catch((e) => setErr(e.message)); }, []);
   const [email, setEmail] = useState('');
@@ -16,7 +19,7 @@ export function SignInDialog({ onClose, provider: selectedProvider }: { onClose:
 
   useEffect(() => {
     if (!session || session.done) return;
-    const t = setInterval(() => api.loginSession(provider ?? undefined).then((s) => s && setSession(s)).catch(() => {}), 1500);
+    const t = setInterval(() => (add && provider ? api.addAccountSession(provider) : api.loginSession(provider ?? undefined)).then((s) => s && setSession(s)).catch(() => {}), 1500);
     return () => clearInterval(t);
   }, [session?.id, session?.done]);
 
@@ -24,7 +27,7 @@ export function SignInDialog({ onClose, provider: selectedProvider }: { onClose:
     setSending(true);
     setErr(null);
     try {
-      setSession(await api.submitLoginCode(code, provider ?? undefined));
+      setSession(await (add && provider ? api.addAccountCode(provider, code) : api.submitLoginCode(code, provider ?? undefined)));
       setCode('');
     } catch (e: any) {
       setErr(e.message);
@@ -36,7 +39,8 @@ export function SignInDialog({ onClose, provider: selectedProvider }: { onClose:
   const start = async () => {
     setErr(null);
     try {
-      setSession(await api.startLogin({ email: email.trim() || undefined }, provider ?? undefined));
+      const body = { email: email.trim() || undefined };
+      setSession(await (add && provider ? api.addAccount(provider, body) : api.startLogin(body, provider ?? undefined)));
     } catch (e: any) {
       setErr(e.message);
     }
@@ -47,12 +51,13 @@ export function SignInDialog({ onClose, provider: selectedProvider }: { onClose:
     <div className="fixed inset-0 z-40 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
       <div className="w-full max-w-lg rounded-lg border border-zinc-800 bg-zinc-950 p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold">Sign in to {provider === 'codex' ? 'Codex' : 'Claude'}</h2>
+          <h2 className="text-base font-semibold">{add ? 'Add a' : 'Sign in to'} {provider === 'codex' ? 'Codex' : 'Claude'}{add ? ' account' : ''}</h2>
           <Button size="sm" variant="ghost" onClick={onClose}>
             <X size={14} />
           </Button>
         </div>
         {provider === 'codex' ? <p className="text-xs text-zinc-400">Sign in with ChatGPT: Foundry asks OpenAI for a one-time code, you enter it on OpenAI's device page and approve, and this window updates by itself. Nothing has to open on the computer running Foundry. Codex stores your credentials.</p> : <p className="text-xs text-zinc-400">Same flow as Claude Code: a browser window opens on this machine, you sign in, and this page updates by itself. When the engine runs where there is no browser (a container, a remote host), open the link yourself and paste the code it gives you. Foundry never sees your password or token — Claude Code stores the credential.</p>}
+        {add && <p className="text-xs text-zinc-400">Sign in with another {provider === 'codex' ? 'ChatGPT' : 'Claude'} subscription of yours. Foundry gives it a folder of its own: only its sign-in is separate, and skills, plugins, settings and session history are shared with this computer's sign-in. Signing in as someone already added changes nothing.</p>}
         {!session ? (
           <>
             {provider !== 'codex' && <><p className="text-xs text-zinc-400">Sign in with your Claude subscription (Pro or Max). Foundry does not use Anthropic Console API billing.</p>
@@ -108,7 +113,7 @@ export function SignInDialog({ onClose, provider: selectedProvider }: { onClose:
             {session.lines.length > 0 && <pre className="mono text-[11px] text-zinc-500 bg-zinc-900 border border-zinc-800 rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap">{session.lines.slice(-12).join('\n')}</pre>}
             <div className="flex justify-end gap-2">
               {!session.done && (
-                <Button size="sm" variant="ghost" onClick={() => api.cancelLogin(provider ?? undefined).then(onClose)}>
+                <Button size="sm" variant="ghost" onClick={() => (add && provider ? api.addAccountCancel(provider) : api.cancelLogin(provider ?? undefined)).then(onClose)}>
                   Cancel
                 </Button>
               )}

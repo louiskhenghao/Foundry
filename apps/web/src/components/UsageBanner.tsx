@@ -6,14 +6,24 @@ import { useLive } from '../store.ts';
 
 /**
  * Each backend pauses independently. A retry time is not a promise that the account limit resets. Resume now starts
- * sessions again at once; if the limit still holds, the next session pauses them again.
+ * sessions again at once; if the limit still holds, the next session pauses them again. With another account of the
+ * coding agent not limited, Switch and continue moves new sessions there and lifts the pause (ADR-0065).
  */
 export function UsagePausedBanner() {
   const version = useLive((s) => s.globalVersion);
   const [pauses, setPauses] = useState<Partial<Record<AgentProvider, string | null>>>({});
+  const [switchTo, setSwitchTo] = useState<Partial<Record<AgentProvider, string | null>>>({});
   useEffect(() => {
     let alive = true;
-    const load = () => api.health().then((h) => alive && setPauses(h.pausedUntilByProvider)).catch(() => {});
+    const load = () =>
+      api
+        .health()
+        .then((h) => {
+          if (!alive) return;
+          setPauses(h.pausedUntilByProvider);
+          setSwitchTo(h.switchToByProvider ?? {});
+        })
+        .catch(() => {});
     load();
     const i = setInterval(load, 30_000);
     return () => {
@@ -31,6 +41,14 @@ export function UsagePausedBanner() {
       .catch(() => {})
       .finally(() => setResuming(null));
   };
+  const switchAccount = (provider: AgentProvider) => {
+    setResuming(provider);
+    api
+      .switchUsageAccount(provider)
+      .then((r) => r.to && setPauses((p) => ({ ...p, [provider]: null })))
+      .catch(() => {})
+      .finally(() => setResuming(null));
+  };
   if (!active.length) return null;
   return (
     <div className="space-y-2" role="status">
@@ -38,6 +56,11 @@ export function UsagePausedBanner() {
         <div key={provider} className="rounded-md border border-amber-500/40 bg-amber-500/10 text-amber-200 text-sm px-3 py-2 flex items-center gap-2 flex-wrap">
           <span>⏸ {PROVIDER_LABEL[provider]} usage limit — new sessions paused. Automatic retry {retryAt(pauses[provider]!)}.</span>
           <span className="ml-auto flex items-center gap-3">
+            {switchTo[provider] && (
+              <button type="button" className="underline text-amber-100 disabled:opacity-50" disabled={resuming === provider} onClick={() => switchAccount(provider)} title="New sessions run on this account from now; the stopped session resumes there">
+                Switch to {switchTo[provider]} and continue
+              </button>
+            )}
             <button type="button" className="underline text-amber-100 disabled:opacity-50" disabled={resuming === provider} onClick={() => resume(provider)} title="Start sessions again now; if the limit still holds, the next session pauses them again">
               {resuming === provider ? 'Resuming…' : 'Resume now'}
             </button>
