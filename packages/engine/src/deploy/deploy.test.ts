@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal } from '@foundry/core';
@@ -27,13 +27,16 @@ function fakeCli(dir: string): string {
 host="$1"; shift
 printf '%s|%s|vercel=%s netlify=%s cloudflare=%s account=%s|%s\\n' "$host" "$*" "\${VERCEL_TOKEN:+set}" "\${NETLIFY_AUTH_TOKEN:+set}" "\${CLOUDFLARE_API_TOKEN:+set}" "$CLOUDFLARE_ACCOUNT_ID" "$(pwd)" >> "${join(dir, 'calls.log')}"
 if [ -f "${join(dir, 'FAIL_DEPLOY')}" ]; then echo "Error: the token $VERCEL_TOKEN was refused" >&2; exit 1; fi
+case "$*" in
+  *"--team nosuch"*) printf 'npm warn deprecated @opentelemetry/sdk-trace-node@2.12.0: Use @opentelemetry/sdk-trace package\\nnpm warn deprecated glob@8.1.0: Glob versions prior to v9 are no longer supported\\n ›   Error: Failed to create site: 404: Not Found\\n' >&2; exit 1 ;;
+esac
 case "$host" in
   vercel) echo "Vercel CLI 64.5.0"; echo "https://site-abc-preview.vercel.app" ;;
   netlify) echo '{"site_id":"s1","deploy_url":"https://d1--site.netlify.app","url":"https://site.netlify.app"}' ;;
   cloudflare)
     case "$*" in
       *"project create"*) if [ -f "${join(dir, 'PROJECT')}" ]; then echo "A project with this name already exists [code: 8000002]" >&2; exit 1; fi; touch "${join(dir, 'PROJECT')}"; echo "Successfully created the project" ;;
-      *) echo "✨ Deployment complete! Take a peek over at https://4f2a.site.pages.dev" ;;
+      *) if [ -f .wrangler/deploy/config.json ]; then echo 'There is a deploy configuration at ".wrangler/deploy/config.json".' >&2; exit 1; fi; echo "✨ Deployment complete! Take a peek over at https://4f2a.site.pages.dev" ;;
     esac ;;
 esac
 `,
@@ -102,7 +105,8 @@ describe('deploying a finished goal', () => {
   }, 60_000);
 
   test('Netlify uploads the folder as it is; Cloudflare Pages makes its project once and files a preview under the goal’s branch', async () => {
-    const { engine, goal } = await finishedGoal({ 'index.html': '<h1>studio</h1>' });
+    // Wrangler's own folder is ignored, as in the projects it sets up: the deploy folder's clean-up leaves it
+    const { engine, goal } = await finishedGoal({ 'index.html': '<h1>studio</h1>', '.gitignore': '.wrangler\n' });
     engine.deploy(goal.id, { provider: 'netlify', production: false });
     await waitFor(() => last(engine, goal.id)?.status === 'live');
     expect(last(engine, goal.id)!.url).toBe('https://d1--site.netlify.app');
@@ -112,14 +116,21 @@ describe('deploying a finished goal', () => {
     await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 2 && last(engine, goal.id)?.status === 'live');
     expect(last(engine, goal.id)!.url).toBe('https://4f2a.site.pages.dev');
     const cf = calls().filter((c) => c.startsWith('cloudflare|'));
-    expect(cf[0]).toMatch(/pages project create [a-z0-9-]+ --production-branch main\|.*cloudflare=set account=acc123/);
+    expect(cf[0]).toMatch(/pages project create [a-z0-9-]+ --production-branch main --force\|.*cloudflare=set account=acc123/);
     expect(cf[1]).toContain(`pages deploy . --project-name`);
     expect(cf[1]).toContain(`--branch ${goal.branch.replace(/[^A-Za-z0-9-]+/g, '-')}`);
     // again: the project exists, which is no failure
     engine.deploy(goal.id, { provider: 'cloudflare', production: true });
     await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 3 && last(engine, goal.id)?.status !== 'running');
-    expect(last(engine, goal.id)).toMatchObject({ status: 'live', production: true });
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', production: true, url: 'https://site.pages.dev' });
     expect(calls().at(-1)).toContain('--branch main');
+    // a redirect a Workers build left in the folder (Wrangler once handed new projects to Workers) is cleared first
+    const leftover = join(deployDir(engine, goal), '.wrangler', 'deploy');
+    mkdirSync(leftover, { recursive: true });
+    writeFileSync(join(leftover, 'config.json'), '{"configPath":"../../dist/wrangler.json"}');
+    engine.deploy(goal.id, { provider: 'cloudflare', production: false });
+    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 4 && last(engine, goal.id)?.status !== 'running');
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://4f2a.site.pages.dev' });
   }, 60_000);
 
   test('a failing host says why, its token blanked out', async () => {
@@ -129,6 +140,17 @@ describe('deploying a finished goal', () => {
     await waitFor(() => last(engine, goal.id)?.status === 'failed');
     expect(last(engine, goal.id)!.reason).toContain('deploy to Vercel failed (exit 1): Error: the token *** was refused');
     expect(JSON.stringify(engine.store.listByGoal(goal.id, 5000))).not.toContain('SECRET_TOKEN');
+  }, 60_000);
+
+  test('a Netlify team the token cannot reach is said first, past the npm warnings npx printed', async () => {
+    const { engine, goal } = await finishedGoal({ 'index.html': '<h1>studio</h1>' });
+    engine.updateSettings({ delivery: { netlifyTeam: 'nosuch' } });
+    engine.deploy(goal.id, { provider: 'netlify', production: true });
+    await waitFor(() => last(engine, goal.id)?.status === 'failed');
+    const reason = last(engine, goal.id)!.reason!;
+    expect(reason).toStartWith('deploy to Netlify failed (exit 1): Netlify has no team "nosuch" this token can reach: set Settings → Git & delivery → Netlify team');
+    expect(reason).toEndWith('(›   Error: Failed to create site: 404: Not Found)');
+    expect(reason).not.toContain('npm warn');
   }, 60_000);
 
   test('what is not deployed: a separate backend, a server-rendered app on Cloudflare, an unfinished goal, a host not set up', async () => {

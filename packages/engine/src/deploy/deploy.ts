@@ -16,7 +16,8 @@ import type { Engine } from '../engine.ts';
 import { exec, git } from '../git/git.ts';
 import { goalWorkspacePath } from '../workspace.ts';
 import { type Deployability, deployability } from './detect.ts';
-import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, configured, deploySteps, deployedUrl, projectName, redact } from './providers.ts';
+import { keepDeployFiles } from './keep-files.ts';
+import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, configured, deploySteps, deployedUrl, failureHint, lastWords, plain, projectName, redact, wentToProduction } from './providers.ts';
 import { runSmoke, smokeScripts, type SmokeTarget } from './smoke.ts';
 
 /** a goal is deployed once it is done: a failed or unfinished goal's branch is not a thing to publish */
@@ -145,6 +146,9 @@ async function run(engine: Engine, goal: Goal, dir: string, req: DeployRequest):
     const started = store.append({ type: 'deploy.started', goalId: goal.id, payload: { provider, production, ref, framework: d.app.framework, dir: d.app.dir } });
     for (const note of d.notes) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${note}` } });
     const cwd = join(dir, d.app.dir);
+    // a redirect to a Workers build's config, ignored by git so the checkout keeps it (Wrangler's hand-over of a new
+    // project to Workers leaves one); a build that makes it makes it again, and a stale one fails every Pages deploy
+    if (provider === 'cloudflare') rmSync(join(cwd, '.wrangler', 'deploy'), { recursive: true, force: true });
     const steps = deploySteps({
       provider,
       cwd,
@@ -170,16 +174,28 @@ async function run(engine: Engine, goal: Goal, dir: string, req: DeployRequest):
       }
       const t0 = Date.now();
       const r = await exec(step.argv, step.cwd, { timeoutMs: STEP_TIMEOUT_MS, env: step.env });
-      const out = `${r.stdout}\n${r.stderr}`.trim();
+      const out = plain(`${r.stdout}\n${r.stderr}`).trim();
       store.append({ type: 'deploy.command', goalId: goal.id, payload: { provider, label: step.label, command: redact(step.argv.join(' '), c), exitCode: r.code, durationMs: Date.now() - t0, outputTail: redact(out.slice(-3_000), c) } });
-      if (r.code !== 0 && !(step.okIf && step.okIf.test(out))) return fail(`${step.label} failed (exit ${r.code}): ${out.split('\n').filter(Boolean).slice(-4).join(' · ').slice(0, 600)}`);
-      last = r.stdout;
+      if (r.code !== 0 && !(step.okIf && step.okIf.test(out))) {
+        const hint = failureHint(provider, out, c);
+        return fail(`${step.label} failed (exit ${r.code}): ${hint ? `${hint} (${lastWords(out)})` : lastWords(out)}`);
+      }
+      last = plain(r.stdout);
     }
-    const url = deployedUrl(provider, last, production);
+    // a host may put the deploy elsewhere than asked: Vercel sends a new project's first deploy to production
+    const live = wentToProduction(provider, last, production);
+    const url = deployedUrl(provider, last, live);
     if (!url) return fail(`${PROVIDER_LABEL[provider]} finished but named no address: its output is in the activity`);
-    store.append({ type: 'deploy.finished', goalId: goal.id, payload: { provider, production, url } });
+    store.append({ type: 'deploy.finished', goalId: goal.id, payload: { provider, production: live, url } });
+    const moved = live && !production;
+    if (moved) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${PROVIDER_LABEL[provider]} put this deploy in production although a preview was asked for: a new project’s first deploy goes to production there; the next ones are previews` } });
+    // what the host's CLI added to the project goes to GitHub as the goal did, before a smoke writes its own files here
+    await keepDeployFiles(engine, getGoal(store.db, goal.id) ?? goal, dir, { provider, outputDirs: [join(d.app.dir, d.app.outputDir), join(d.app.dir, findOutput(cwd, d.app.outputDir))] });
     // the smoke (ADR-0058): the milestone scripts against the address, in this checkout; it records its own end
-    if (req.smoke ?? smokeByDefault(production)) await runSmoke(engine, goal, dir, { provider, production, url, deployedAt: started.ts });
+    if (!(req.smoke ?? smokeByDefault(production))) return;
+    // a smoke asked for a preview never writes into production
+    if (moved && smokeScripts(engine, goal.id).length) store.append({ type: 'deploy.smoke_finished', goalId: goal.id, payload: { provider, production: live, url, deployedAt: started.ts, status: 'skipped', detail: `not tried: ${PROVIDER_LABEL[provider]} put this deploy in production, and the smoke was asked for a preview (a script writes what it tries)`, scripts: [] } });
+    else await runSmoke(engine, goal, dir, { provider, production, url, deployedAt: started.ts });
   } catch (err) {
     fail(String((err as Error)?.message ?? err));
   }

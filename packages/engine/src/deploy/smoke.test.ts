@@ -10,6 +10,7 @@ import { Engine } from '../engine.ts';
 import { FakeRunner, makeRepo, sh, terminal, waitFor } from '../test-helpers.ts';
 import { screenshotsDir } from '../workspace.ts';
 import { deployDir } from './deploy.ts';
+import { addressProbe } from './smoke.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 const SCRIPT = 'e2e/milestones/home.spec.ts';
@@ -19,20 +20,34 @@ let repo: string;
 let bin: string;
 const engines: Engine[] = [];
 
-/** a stand-in for Vercel's CLI: prints the address the real one prints, fails when FAIL sits beside it */
+const FIRST = { url: 'https://site-abc-x2-team.vercel.app', productionUrl: 'https://site-abc.vercel.app' };
+/**
+ * a stand-in for Vercel's CLI: prints the address the real one prints, fails when FAIL sits beside it, and answers as
+ * for a new project's first deploy (which Vercel puts in production) when FIRST does
+ */
 function fakeCli(dir: string): string {
   const path = join(dir, 'fake-host');
-  writeFileSync(path, `#!/bin/sh\nif [ -f "${join(dir, 'FAIL')}" ]; then echo "Error: refused" >&2; exit 1; fi\necho "Vercel CLI 64.5.0"\necho "${URL}"\n`);
+  const first = JSON.stringify({ status: 'ok', deployment: { ...FIRST, target: 'production' } });
+  writeFileSync(path, `#!/bin/sh\nif [ -f "${join(dir, 'FAIL')}" ]; then echo "Error: refused" >&2; exit 1; fi\nif [ -f "${join(dir, 'FIRST')}" ]; then echo '${first}'; exit 0; fi\necho "Vercel CLI 64.5.0"\necho "${URL}"\n`);
   chmodSync(path, 0o755);
   return path;
 }
+
+const realProbe = addressProbe.fetch;
+/** what the deployed address answers the smoke's first look: the page itself unless a test says otherwise */
+let answer: () => Response;
+const probed: string[] = [];
 
 beforeEach(async () => {
   dataDir = mkdtempSync(join(tmpdir(), 'foundry-smoke-'));
   repo = await makeRepo();
   bin = fakeCli(mkdtempSync(join(tmpdir(), 'foundry-smoke-cli-')));
+  answer = () => new Response('<h1>studio</h1>');
+  probed.length = 0;
+  addressProbe.fetch = async (url) => (probed.push(url), answer());
 });
 afterEach(async () => {
+  addressProbe.fetch = realProbe;
   scriptDeps.current = undefined;
   for (const e of engines.splice(0)) await e.stop().catch(() => {});
   for (const p of [dataDir, repo, `${repo}-foundry`, join(bin, '..')]) rmSync(p, { recursive: true, force: true });
@@ -158,6 +173,44 @@ describe('the smoke after a deploy (ADR-0058)', () => {
     await waitFor(() => deployments(engine, goal.id).length === 2 && last(engine, goal.id)?.status === 'failed');
     expect(() => engine.smokeDeployment(goal.id, last(engine, goal.id)!.at)).toThrow(/failed: only a live address is tried/);
     expect(last(engine, goal.id)!.smoke).toBeUndefined();
+  }, 60_000);
+
+  test('an address behind a host’s login is not tried: the smoke says which setting asks for it, and no script runs', async () => {
+    const { engine, goal } = await finishedGoal();
+    const seen: Seen[] = [];
+    scriptDeps.current = fakeRun(passing, seen);
+    answer = () => new Response(null, { status: 302, headers: { location: `https://vercel.com/sso-api?url=${encodeURIComponent(URL)}` } });
+    engine.deploy(goal.id, { provider: 'vercel', production: false });
+    await waitFor(() => last(engine, goal.id)?.smoke?.status === 'fail');
+    expect(last(engine, goal.id)!.smoke!.detail).toStartWith('not tried: the address asks for a Vercel login: the project’s Deployment Protection is on');
+    expect(seen).toHaveLength(0);
+    expect(probed).toEqual([URL]);
+    expect(smokeEvents(engine, goal.id).map((e) => e.type)).toEqual(['deploy.smoke_finished']);
+
+    // a 401 (Netlify's visitor access answers so) is a login as well; once the person opens the address, Smoke again tries the scripts
+    answer = () => new Response('Login Redirect', { status: 401 });
+    engine.smokeDeployment(goal.id, last(engine, goal.id)!.at);
+    await waitFor(() => probed.length === 2 && !engine.deployInfo(goal.id).smoking);
+    expect(last(engine, goal.id)!.smoke!.detail).toContain('asks for a Vercel login');
+    answer = () => new Response('<h1>studio</h1>');
+    engine.smokeDeployment(goal.id, last(engine, goal.id)!.at);
+    await waitFor(() => last(engine, goal.id)?.smoke?.status === 'pass');
+    expect(seen).toHaveLength(1);
+  }, 60_000);
+
+  test('a new Vercel project’s first deploy, put in production whatever was asked, is recorded there and its preview smoke not run', async () => {
+    const { engine, goal } = await finishedGoal();
+    const seen: Seen[] = [];
+    scriptDeps.current = fakeRun(passing, seen);
+    writeFileSync(join(bin, '..', 'FIRST'), '');
+    engine.deploy(goal.id, { provider: 'vercel', production: false, smoke: true });
+    await waitFor(() => last(engine, goal.id)?.smoke?.status === 'skipped');
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', production: true, url: FIRST.productionUrl });
+    expect(last(engine, goal.id)!.smoke!.detail).toContain('Vercel put this deploy in production');
+    expect(seen).toHaveLength(0);
+    expect(probed).toEqual([]);
+    const notes = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'engine.note').map((e) => (e.payload as { message: string }).message);
+    expect(notes.some((m) => m.includes('a new project’s first deploy goes to production'))).toBe(true);
   }, 60_000);
 
   test('a goal without milestone scripts gets a skipped smoke with the reason, and no Smoke again', async () => {

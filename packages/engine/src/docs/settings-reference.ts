@@ -77,9 +77,9 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'delivery.commitAuthor': { section: 'Git & delivery', help: 'Who the engine\'s commits are written by: you-coauthor (your git identity — the repository\'s, else the global one, else your GitHub account via gh — with a Co-authored-by: Foundry trailer), you (your identity only) or foundry (foundry <foundry@local>; deploy integrations such as Vercel teams may refuse it). Applies to commits made from now on.' },
   'delivery.updateLocalBase': { section: 'Git & delivery', help: 'After a pull request merges, fast-forward your local base branch when it is safe (no uncommitted changes, no diverging commits), then remove the goal\'s progress folder, worktrees and local branches. Off: you pull yourself and delete the goal to tidy up.' },
   'delivery.vercelToken': { section: 'Git & delivery', help: 'A Vercel token for Deploy (a finished web app to Vercel). Kept by the engine only: never handed to a coding session.' },
-  'delivery.vercelScope': { section: 'Git & delivery', help: 'The Vercel team to deploy under; empty = the token’s own account.' },
+  'delivery.vercelScope': { section: 'Git & delivery', help: 'The slug of the Vercel team to deploy under (the part after vercel.com/); empty = the token’s own account.' },
   'delivery.netlifyToken': { section: 'Git & delivery', help: 'A Netlify personal access token for Deploy. Kept by the engine only.' },
-  'delivery.netlifyTeam': { section: 'Git & delivery', help: 'The Netlify team a new site is made in; empty = the token’s default team.' },
+  'delivery.netlifyTeam': { section: 'Git & delivery', help: 'The slug of the Netlify team a new site is made in (the part after app.netlify.com/teams/, not its name); empty = the token’s default team.' },
   'delivery.cloudflareToken': { section: 'Git & delivery', help: 'A Cloudflare API token (Cloudflare Pages: Edit) for Deploy. Kept by the engine only.' },
   'delivery.cloudflareAccountId': { section: 'Git & delivery', help: 'The Cloudflare account the Pages projects are in (with the token above).' },
   // Tools & keys

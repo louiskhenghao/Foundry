@@ -101,7 +101,9 @@ export function deploySteps(i: DeployPlanInput): DeployStep[] {
         if (i.install) steps.push(at('install dependencies', i.install));
         if (i.build) steps.push(at('build', i.build));
       }
-      steps.push(at('create the Pages project (once)', [...i.cli('cloudflare'), 'pages', 'project', 'create', i.name, '--production-branch', i.productionBranch], env, /already exists|8000002/i));
+      // --force makes a new project on Pages itself: without it Wrangler hands it to Workers, which rewrites the app's
+      // files and needs a Workers permission; a project that exists stays on Pages and is deployed to without it
+      steps.push(at('create the Pages project (once)', [...i.cli('cloudflare'), 'pages', 'project', 'create', i.name, '--production-branch', i.productionBranch, '--force'], env, /already exists|8000002/i));
       steps.push(at('deploy to Cloudflare Pages', [...i.cli('cloudflare'), 'pages', 'deploy', i.outputDir, '--project-name', i.name, '--branch', i.production ? i.productionBranch : i.branch, '--commit-dirty=true'], env));
       break;
     }
@@ -109,23 +111,45 @@ export function deploySteps(i: DeployPlanInput): DeployStep[] {
   return steps;
 }
 
-/** the address a deploy's output names: Netlify's JSON, else the last https address printed */
+/** the JSON object a CLI printed among its other lines, if any */
+function printedJson<T>(stdout: string): T | null {
+  const start = stdout.indexOf('{');
+  const end = stdout.lastIndexOf('}');
+  if (start < 0 || end <= start) return null;
+  try {
+    return JSON.parse(stdout.slice(start, end + 1)) as T;
+  } catch {
+    return null;
+  }
+}
+type VercelJson = { deployment?: { url?: string; productionUrl?: string | null; target?: string | null } };
+
+/** whether a deploy went to production: asked for, or put there by the host (Vercel does so with a new project's first deploy) */
+export function wentToProduction(p: DeployProvider, stdout: string, production: boolean): boolean {
+  return production || (p === 'vercel' && printedJson<VercelJson>(stdout)?.deployment?.target === 'production');
+}
+
+/** the address a deploy's output names: Netlify's or Vercel's JSON, else the last https address printed */
 export function deployedUrl(p: DeployProvider, stdout: string, production: boolean): string | null {
   if (p === 'netlify') {
-    const start = stdout.indexOf('{');
-    const end = stdout.lastIndexOf('}');
-    if (start >= 0 && end > start) {
-      try {
-        const j = JSON.parse(stdout.slice(start, end + 1)) as { deploy_url?: string; url?: string };
-        const url = production ? (j.url ?? j.deploy_url) : (j.deploy_url ?? j.url);
-        if (url) return url;
-      } catch {}
-    }
+    const j = printedJson<{ deploy_url?: string; url?: string }>(stdout);
+    const url = j && (production ? (j.url ?? j.deploy_url) : (j.deploy_url ?? j.url));
+    if (url) return url;
+  }
+  if (p === 'vercel') {
+    const d = printedJson<VercelJson>(stdout)?.deployment;
+    const url = d && (production ? (d.productionUrl ?? d.url) : d.url);
+    if (url) return url;
   }
   const urls = stdout.match(/https:\/\/[^\s"'<>)\]]+/g) ?? [];
   const hosted = urls.filter((u) => (p === 'vercel' ? /\.vercel\.app/.test(u) : p === 'netlify' ? /netlify\.app/.test(u) : /\.pages\.dev/.test(u)));
-  return (hosted.at(-1) ?? urls.at(-1) ?? null)?.replace(/[.,;]+$/, '') ?? null;
+  const url = (hosted.at(-1) ?? urls.at(-1) ?? null)?.replace(/[.,;]+$/, '') ?? null;
+  // Wrangler names the one deploy (<hash>.<project>.pages.dev); production's address is the project's own
+  return p === 'cloudflare' && production && url ? url.replace(/^https:\/\/[^./]+\.(?=[^./]+\.pages\.dev)/, 'https://') : url;
 }
+
+/** a CLI's text without its colours */
+export const plain = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, '');
 
 /** a host's project name for a repository: its folder's name, made safe, and a short tag of its path so two folders of the same name differ */
 export function projectName(repoPath: string, hash: string): string {
@@ -135,6 +159,26 @@ export function projectName(repoPath: string, hash: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 40);
   return `${base || 'site'}-${hash.slice(0, 6)}`;
+}
+
+/** the last lines of a command's output that say something: npm's own warnings (npx fetching the CLI) left out, so the host's error shows */
+export const lastWords = (out: string) =>
+  plain(out)
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !/^npm (warn|notice|WARN)\b/.test(l))
+    .slice(-4)
+    .join(' · ')
+    .slice(0, 600);
+
+/** what a host's error means for Foundry's settings, when the host's own words do not say it */
+export function failureHint(p: DeployProvider, out: string, c: DeployCredentials): string | null {
+  // Netlify answers a team slug the token cannot reach with a bare 404 when it creates the site
+  if (p === 'netlify' && c.netlifyTeam && /Failed to create site: 404/i.test(out))
+    return `Netlify has no team "${c.netlifyTeam}" this token can reach: set Settings → Git & delivery → Netlify team to the team's slug (the part after app.netlify.com/teams/), or leave it empty for the token's default team`;
+  if (p === 'vercel' && c.vercelScope && /specified scope does not exist/i.test(out))
+    return `Vercel has no team "${c.vercelScope}" this token can reach: set Settings → Git & delivery → Vercel team to the team's slug (the part after vercel.com/), or leave it empty for the token's own account`;
+  return null;
 }
 
 /** what a recorded command shows: the token values written out nowhere */
