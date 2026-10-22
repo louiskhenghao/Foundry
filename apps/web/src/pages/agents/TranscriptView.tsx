@@ -2,7 +2,7 @@ import type { AgentLogChunk, AgentLogItem, AgentStatus } from '@foundry/engine/a
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { api } from '../../api.ts';
 import { type FullText, FullTextDialog } from '../../components/FullTextDialog.tsx';
-import { cn } from '../../ui.tsx';
+import { Loading, cn } from '../../ui.tsx';
 
 const POLL_MS = 2500;
 
@@ -104,7 +104,7 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
     <>
       {/* prose in the reading face, code (tool calls, their results, commands) in mono; who speaks as a small plate */}
       <div ref={ref} className={cn('surface-card text-[13px] leading-6 bg-panel border border-line rounded-lg p-2 sm:p-3 overflow-auto max-h-[70vh] space-y-px', className)}>
-        {items.length === 0 && <div className="px-1.5 text-ink-faint">{error ? `log unavailable: ${error}` : status === null ? 'loading…' : 'no renderable output in this transcript…'}</div>}
+        {items.length === 0 && (!error && status === null ? <Loading size="card" label="Loading the conversation…" /> : <div className="px-1.5 text-ink-faint">{error ? `log unavailable: ${error}` : 'no renderable output in this transcript…'}</div>)}
         {error && items.length > 0 && <div className="px-1.5 text-bad-ink">Could not refresh this conversation: {error}</div>}
         {items.map((it, i) => {
           // one line per entry, like the live log; entries with more behind them are buttons that open the full text

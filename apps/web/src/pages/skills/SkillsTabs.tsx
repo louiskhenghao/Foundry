@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { api, type AgentProvider } from '../../api.ts';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ProviderSelector } from '../../components/ProviderSelector.tsx';
-import { Empty, PageHeader, Tabs } from '../../ui.tsx';
+import { Loading, PageHeader, Tabs } from '../../ui.tsx';
 import { CodexPluginsPanel } from './CodexPluginsPanel.tsx';
 import { McpPanel } from './McpPanel.tsx';
 import { SkillsPage } from './SkillsPage.tsx';
@@ -28,7 +28,7 @@ export function SkillsTabs() {
     return () => { alive = false; };
   }, [provider, params, hash, nav]);
   const tab = hash === '#mcp' ? 'mcp' : hash === '#plugins' && provider === 'codex' ? 'plugins' : 'skills';
-  if (!provider) return <Empty>Loading extensions…</Empty>;
+  if (!provider) return <Loading size="page" label="Loading extensions…" />;
   const go = (value: AgentProvider, section: string) => {
     const next = new URLSearchParams(params);
     next.set('provider', value);

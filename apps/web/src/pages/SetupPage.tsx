@@ -9,7 +9,7 @@ import { GitHubSignInDialog } from '../components/GitHubSignInDialog.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
 import { LiveLog } from './LiveLog.tsx';
 import { IconTitle } from './settings/sections.tsx';
-import { BOARD_ROW, Board, Button, CODES, Card, CopyButton, Empty, PageHeader, cn } from '../ui.tsx';
+import { BOARD_ROW, Board, Button, CODES, Card, CopyButton, Empty, Loading, PageHeader, cn } from '../ui.tsx';
 
 /** the required checks that fail when a sign-in is missing: signing in is yours to do, so they wait in yellow, not red */
 const SIGN_IN_CHECKS = ['claude-auth', 'codex-auth', 'agy-auth'];
@@ -72,7 +72,7 @@ export function SetupPage() {
     void baseApi.settings().then((view) => select(view.values.engine.provider)).catch(() => select('claude'));
     return () => { alive = false; };
   }, [provider, setParams]);
-  if (!provider) return <Empty>Loading setup…</Empty>;
+  if (!provider) return <Loading size="page" label="Loading setup…" />;
   return <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16 space-y-4">
     <PageHeader title="Setup" summary="Check the selected backend, sign in and install its recommended skills. Your project code is not changed." />
     <ProviderSelector value={provider} onChange={(id) => setParams((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} />
@@ -127,7 +127,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
     }
   };
 
-  if (!report) return <Empty>{msg ?? 'Checking your environment…'}</Empty>;
+  if (!report) return msg ? <Empty>{msg}</Empty> : <Loading label="Checking your environment…" />;
   const errors = report.checks.filter((c) => !c.ok && c.severity === 'error');
   const cadTools = report.checks.find((c) => c.id === 'cad-tools');
 

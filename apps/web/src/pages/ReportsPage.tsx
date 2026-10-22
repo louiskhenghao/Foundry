@@ -1,9 +1,10 @@
+import { ChartColumn, Gauge } from 'lucide-react';
 import type { Report, ReportEstimate, ReportFactor, ReportRepo } from '@foundry/engine/usage-types';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.ts';
 import { useLive } from '../store.ts';
-import { BOARD_HEAD, ButtonGroup, Card, Empty, PageHeader, cn, fmtUsd } from '../ui.tsx';
+import { BOARD_HEAD, ButtonGroup, Card, Empty, EmptyState, Loading, PageHeader, cn, fmtUsd } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { Kpi, SERIES } from './UsagePage.tsx';
 
@@ -101,7 +102,7 @@ export function ReportsPage() {
         actions={<ButtonGroup label="Window" value={win} onChange={setWin} options={WINDOWS} />}
       />
       {err && <div className="text-sm text-bad-ink">{err}</div>}
-      {report ? <ReportView report={report} /> : !err && <div className="text-sm text-ink-faint">Reading the records…</div>}
+      {report ? <ReportView report={report} /> : !err && <Loading label="Reading the records…" />}
     </div>
   );
 }
@@ -109,7 +110,12 @@ export function ReportsPage() {
 /** The report itself: the numbers at the top, the spend over time, the projects, the session kinds, the estimate misses. */
 export function ReportView({ report: r }: { report: Report }) {
   const t = r.totals;
-  if (!t.sessions && !t.goals.total) return <Empty>Nothing ran in this window. Goals count by when they were created, sessions by when they ran.</Empty>;
+  if (!t.sessions && !t.goals.total)
+    return (
+      <EmptyState icon={ChartColumn} title="Nothing ran in this window">
+        Goals count by when they were created, sessions by when they ran: pick a longer window above.
+      </EmptyState>
+    );
   const maxCost = Math.max(0, ...r.series.map((b) => b.costUsd));
   const maxSessions = Math.max(0, ...r.series.map((b) => b.sessions));
   const byCost = maxCost > 0;
@@ -156,7 +162,7 @@ export function ReportView({ report: r }: { report: Report }) {
             </div>
           </div>
         ) : (
-          <Empty>No sessions in the window.</Empty>
+          <EmptyState size="card" icon={ChartColumn} title="No sessions in the window" />
         )}
       </Card>
 
@@ -273,7 +279,9 @@ export function ReportView({ report: r }: { report: Report }) {
             ))}
           </ul>
         ) : (
-          <Empty>No finished goal with an estimate in the window.</Empty>
+          <EmptyState size="card" icon={Gauge} title="No finished goal with an estimate in the window">
+            A goal lands here once it finishes, set beside what its Brief estimated.
+          </EmptyState>
         )}
         <div className="text-xs text-ink-faint mt-3">Furthest from the Brief's estimate first, too much or too little. The medians above are what calibration corrects new estimates with.</div>
       </Card>

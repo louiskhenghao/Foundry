@@ -60,6 +60,8 @@ In Simple view the goal page shows:
 
 ## Expert view tabs
 
+The row of tabs stays at the top of the page while you scroll, so another tab is always one click away; the tab you switch to opens at its top.
+
 | Tab | What it shows |
 |---|---|
 | **Overview** | Where the goal stands, what needs you, the progress folder, the preview, acceptance checks. A number on the tab means something waits for you. |
@@ -333,7 +335,7 @@ Click a file to open its changes in a window: the code coloured by language, add
 
 The buttons above the list (**all**, **Claude Code**, **Codex**, each with its count in the last 24 hours) filter by coding agent, **live only** keeps the sessions working or waiting for input, and the search box matches titles, goal names, tasks, models, folders and session IDs. **expand all** and **collapse all** open or fold every card. On the right, **Overview** counts the sessions by state, by coding agent (Foundry's and yours) and by model; on a phone, **overview** shows it. The list refreshes every five seconds; external sessions remain read-only.
 
-A live count beside **Agents** in the top bar (a pulsing dot and a number) says how many sessions are working right now; it is gone while none is. **Agents** combines Foundry-owned sessions with recent native Claude Code and Codex history. Each row identifies its coding agent; retrieval is bounded, so this is not an inventory of every conversation ever created.
+A live count on the corner of **Agents** in the top bar (a blue number with a ring pulsing behind it) says how many sessions are working right now; it is gone while none is. **Agents** combines Foundry-owned sessions with recent native Claude Code and Codex history. Each row identifies its coding agent; retrieval is bounded, so this is not an inventory of every conversation ever created.
 
 - **Foundry agents**: sessions Foundry started for your goals, one card per goal. Each card's heading shows the goal, its coding agent, its project folder, how many sessions it has and how many are working; **Open goal →** goes to the goal page. Click a heading to collapse or expand the card. A card starts expanded while one of its sessions is working or idle (or when it is the only one); Foundry remembers your choice in this browser, and a search expands every card. A running session can be stopped with its red **Stop** button, after you confirm. A row names the task the session worked on, with a **work** or **merge** chip and its attempt number; **merge** sessions bring a branch up to date during integration or delivery.
 - **Your sessions**: sessions you opened yourself (in a terminal, in VS Code), one card per folder, folding the same way. Foundry only watches them, never touches them.

@@ -1,6 +1,6 @@
 import { reportsDollars } from '@foundry/core/browser';
 import { type ReactNode, useEffect, useState } from 'react';
-import { Ban, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, CornerDownRight, Eye, Folder, Link2, LoaderCircle, Play, Hand, X } from 'lucide-react';
+import { Ban, Check, ChevronDown, ChevronLeft, ChevronRight, Clock, CornerDownRight, Eye, Folder, Link2, LoaderCircle, Play, Hand, X, Plus, Target } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, type GoalRow } from '../api.ts';
 import { MiniRail, TaskSquares, countMarks, stageMarks } from '../components/progress.tsx';
@@ -11,7 +11,7 @@ import { ProviderBadge, shortCwd } from './agents/rows.tsx';
 import { boardOf, isFinished, needOf, type Need } from './goal-boards.ts';
 import { listEntries, type GoalChain, type ListEntry } from './goal-chains.ts';
 import { useLive } from '../store.ts';
-import { BOARD_HEAD, BOARD_ROW, Board, Button, Empty, PageHeader, ago, cn, fmtUsd, stateLabel, waited } from '../ui.tsx';
+import { BOARD_HEAD, BOARD_ROW, Board, Button, EmptyState, Loading, PageHeader, ago, buttonClass, cn, fmtUsd, stateLabel, waited } from '../ui.tsx';
 
 /** Trait chip (nature, pace, view mode): quiet, so the state and the signs carry the colour. */
 function Chip({ className, children, title }: { className?: string; children: ReactNode; title?: string }) {
@@ -300,12 +300,19 @@ export function GoalsPage() {
         }
       />
       {!goals ? (
-        <Empty>Loading…</Empty>
+        <Loading label="Loading goals…" />
       ) : goals.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line-strong px-6 py-14 text-center">
-          <p className="text-lg font-bold">No goals yet.</p>
-          <p className="mt-1 text-sm text-ink-faint">Press New goal in the top bar, say what you want done, and pick the project folder.</p>
-        </div>
+        <EmptyState
+          icon={Target}
+          title="No goals yet"
+          actions={
+            <Link to="/goals/new" className={buttonClass('primary', 'lg')}>
+              <Plus size={16} aria-hidden="true" /> New goal
+            </Link>
+          }
+        >
+          Say what you want done and pick the project folder: Foundry clarifies it into a Brief, then builds it while you watch from here.
+        </EmptyState>
       ) : (
         <>
           {signs.length > 0 && (
@@ -323,7 +330,13 @@ export function GoalsPage() {
           )}
 
           <Board id="working" icon={<Play size={14} aria-hidden="true" />} title="Working" count={working.length} note={working.length ? 'nothing needed from you here' : null} head={HEAD}>
-            {working.length ? items(working) : <li className="px-5 py-6 text-sm text-ink-faint">Nothing is under way.</li>}
+            {working.length ? items(working) : (
+              <li>
+                <EmptyState size="card" icon={Play} title="Nothing is under way">
+                  A goal shows here while Foundry clarifies, builds or reviews it.
+                </EmptyState>
+              </li>
+            )}
           </Board>
 
           {finished.length > 0 && (

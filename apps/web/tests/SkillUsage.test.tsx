@@ -11,7 +11,18 @@ const used = (goals: number): SkillUsage => ({ goals, sessions: goals + 2, lastU
 const unused: SkillUsage = { goals: 0, sessions: 0, lastUsedAt: null, unused: true };
 const usage = new Map<string, SkillUsage | null>([['/skills/tdd', used(4)], ['/skills/grill', unused], ['/skills/brainstorm', unused], ['/skills/learnings', null], ['/skills/diagnose', used(1)]]);
 const actions = { onUpdate: () => {}, onAdopt: () => {}, onTrashShadows: () => {}, onUninstall: () => {}, onView: () => {}, selected: new Set<string>(), onSelect: () => {} };
-const group = (skills: SkillSourceRow[], windowGoals = 7) => renderToStaticMarkup(<SourceGroup s={source(skills)} busy={false} updating={false} filter={() => true} a={actions} usage={usage} windowGoals={windowGoals} />);
+// opened, as a search opens every source with a match: a source starts closed, its skills hidden under its row
+const group = (skills: SkillSourceRow[], windowGoals = 7, expand = true) => renderToStaticMarkup(<SourceGroup s={source(skills)} busy={false} updating={false} filter={() => true} expand={expand} a={actions} usage={usage} windowGoals={windowGoals} />);
+
+describe('a source of skills', () => {
+  test('starts closed: its row says how many skills it has, the skills themselves stay hidden', () => {
+    const html = group([row('tdd'), row('diagnose')], 7, false);
+    expect(html).toContain('2 skills');
+    expect(html).not.toContain('used in 4 goals');
+    expect(html).toContain('aria-expanded="false"');
+  });
+  test('a search or a filter opens it', () => expect(group([row('tdd')])).toContain('aria-expanded="true"'));
+});
 
 describe('skill usage on a row', () => {
   test('a used row says in how many goals and when it was last invoked', () => {

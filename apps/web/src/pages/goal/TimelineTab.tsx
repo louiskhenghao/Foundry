@@ -1,10 +1,10 @@
 import type { GoalTimeline, SpanKind, TimelineRow, TimelineSpan } from '@foundry/core/browser';
-import { Minus, Plus } from 'lucide-react';
+import { ChartGantt, Minus, Plus } from 'lucide-react';
 import { type Dispatch, type MouseEvent, type PointerEvent, type ReactNode, type SetStateAction, type UIEvent, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Button, Card, chipClass, cn, fmtUsd } from '../../ui.tsx';
+import { Button, Card, EmptyState, Loading, chipClass, cn, fmtUsd } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
 /**
@@ -147,7 +147,13 @@ export function TimelineTab({ goalId, onOpenTask }: { goalId: string; onOpenTask
     const h = setTimeout(() => void api.timeline(goalId).then(setT, (e) => setErr(e.message)), 300);
     return () => clearTimeout(h);
   }, [goalId, version]);
-  if (!t) return <Card title="Timeline">{err ? <div className="text-sm text-bad-ink">{err}</div> : <div className="text-sm text-ink-faint">Loading…</div>}</Card>;
+  if (!t) return <Card title="Timeline">{err ? <div className="text-sm text-bad-ink">{err}</div> : <Loading size="card" label="Loading the timeline…" />}</Card>;
+  if (!t.rows.length)
+    return (
+      <EmptyState icon={ChartGantt} title="No sessions yet">
+        Each session of the goal shows here as a bar across the time it took, Clarify, the tasks and the reviews.
+      </EmptyState>
+    );
   return <TimelineView t={t} onOpenTask={onOpenTask} />;
 }
 

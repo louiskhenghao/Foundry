@@ -1,15 +1,15 @@
 import type { Learning, LearningKind, RepoLearnings } from '@foundry/core/browser';
 import { LEARNINGS_EVERYWHERE } from '@foundry/core/browser';
-import { Globe } from 'lucide-react';
+import { Globe, NotebookPen, SearchX } from 'lucide-react';
 import { ChevronDown, ChevronRight, Folder, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api.ts';
 import { useLive } from '../store.ts';
 import { useUnsaved } from '../unsaved.ts';
-import { BOARD_ROW, Board, Button, Empty, Field, Input, Modal, PageHeader, Select, Textarea, ago, chipClass, cn, code, focusFirst } from '../ui.tsx';
+import { BOARD_ROW, Board, Button, EmptyState, Field, Input, Loading, Modal, PageHeader, Select, Textarea, ago, chipClass, cn, code, focusFirst } from '../ui.tsx';
 import { categorySquare } from './agents/marks.ts';
-import { BOARD_PANEL, EmptyPanel, shortCwd } from './agents/rows.tsx';
+import { BOARD_PANEL, shortCwd } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 const KINDS: LearningKind[] = ['build', 'test', 'run', 'structure', 'convention', 'preference', 'pitfall'];
@@ -165,11 +165,15 @@ export function LearningsPage() {
           </div>
         )}
         {!shown ? (
-          <Empty>Loading…</Empty>
+          <Loading label="Loading Learnings…" />
         ) : shown.length === 0 ? (
-          <EmptyPanel title="No learnings for a folder yet.">They are written when a goal ends; a goal's page also links here to add your own.</EmptyPanel>
+          <EmptyState icon={NotebookPen} title="No learnings for a folder yet">
+            They are written when a goal ends; a goal's page also links here to add your own.
+          </EmptyState>
         ) : cards.length === 0 ? (
-          <EmptyPanel title="Nothing matches.">Pick all, or clear the search.</EmptyPanel>
+          <EmptyState icon={SearchX} title="Nothing matches">
+            Pick all, or clear the search.
+          </EmptyState>
         ) : (
           <Board id="project-folders" icon={<Folder size={14} aria-hidden="true" />} title="Project folders" count={cards.length}>
             {cards.map((r) => (

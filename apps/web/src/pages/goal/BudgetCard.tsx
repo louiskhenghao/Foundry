@@ -11,17 +11,32 @@ const share = (value: number, max: number | null) => (max ? (value / max) * 100 
  * A ruler under a figure: ticks across it (every fifth or eighth), the share used filled in ink (yellow past 70 %, red
  * past 90 %), and the estimate as a mark that stands above and below it.
  */
-function Ruler({ pct, ticks, est, label }: { pct: number; ticks: number; est?: number | null; label: string }) {
+function Ruler({ pct, ticks, est, label, className }: { pct: number; ticks: number; est?: number | null; label: string; className?: string }) {
   const step = `${100 / ticks}%`;
   return (
     <div
       role="img"
       aria-label={label}
-      className="relative mt-2 h-4 rounded-sm bg-sunken ring-1 ring-inset ring-line"
+      className={cn('relative h-4 rounded-sm bg-sunken ring-1 ring-inset ring-line', className ?? 'mt-2')}
       style={{ backgroundImage: `repeating-linear-gradient(90deg, transparent 0 calc(${step} - 1px), var(--color-line-strong) calc(${step} - 1px) ${step})` }}
     >
       <i className={cn('absolute inset-y-0 left-0 rounded-l-sm', pct > 90 ? 'bg-bad' : pct > 70 ? 'bg-you' : 'bg-ink')} style={{ width: `${Math.max(1, Math.min(100, pct))}%` }} />
       {est != null && <span aria-hidden="true" className="absolute -inset-y-[5px] -ml-[1.5px] w-[3px] rounded-[2px] bg-ink" style={{ left: `${Math.min(100, est)}%` }} />}
+    </div>
+  );
+}
+
+/**
+ * The estimate's label, a flag on a row of its own over the ruler: its pole meets the mark, on the side with more room.
+ * In the scale's row under the ruler it ran into the limit ("est. 240" over "300 min").
+ */
+function EstimateFlag({ pct, text }: { pct: number; text: string }) {
+  const at = Math.min(100, pct);
+  return (
+    <div className="mono relative mt-2 h-4 text-[11.5px] leading-4" aria-hidden="true">
+      <span className={cn('absolute top-0 whitespace-nowrap border-ink font-bold text-ink', at <= 50 ? '-ml-[1.5px] border-l-[3px] pl-1.5' : '-mr-[1.5px] border-r-[3px] pr-1.5')} style={at <= 50 ? { left: `${at}%` } : { right: `${100 - at}%` }}>
+        {text}
+      </span>
     </div>
   );
 }
@@ -79,15 +94,10 @@ export function BudgetCard({ d }: { d: GoalDetail }) {
           <Gauge label="Time" value={`${elapsed.toFixed(0)} min`} of={limit == null ? 'no limit' : `of ${limit}`}>
             {limit != null && (
               <>
-                <Ruler pct={share(elapsed, limit)!} ticks={8} est={est != null ? share(est, limit) : null} label={`${elapsed.toFixed(0)} of ${limit} minutes${est != null ? `, estimate ${est}` : ''}`} />
-                <div className="mono relative mt-1.5 flex justify-between text-[11.5px] text-ink-faint" aria-hidden="true">
+                {est != null && <EstimateFlag pct={share(est, limit)!} text={`est. ${est}`} />}
+                <Ruler pct={share(elapsed, limit)!} ticks={8} est={est != null ? share(est, limit) : null} label={`${elapsed.toFixed(0)} of ${limit} minutes${est != null ? `, estimate ${est}` : ''}`} className={est != null ? 'mt-1' : undefined} />
+                <div className="mono mt-1.5 flex justify-between text-[11.5px] text-ink-faint" aria-hidden="true">
                   <span>0</span>
-                  {est != null && est < limit && (
-                    // the estimate's label under its mark, kept clear of the two ends
-                    <span className="absolute top-0 -translate-x-1/2 font-bold text-ink" style={{ left: `${Math.min(88, Math.max(12, share(est, limit)!))}%` }}>
-                      est. {est}
-                    </span>
-                  )}
                   <span>{limit} min</span>
                 </div>
               </>

@@ -1,8 +1,8 @@
-import { ArrowLeft, ArrowUpRight, ChevronRight, Container, Cpu, Download, HeartHandshake, Package, Puzzle, Scale, Search, Workflow, type LucideIcon } from 'lucide-react';
+import { ArrowLeft, ArrowUpRight, ChevronRight, Container, Cpu, Download, HeartHandshake, Package, Puzzle, Scale, Search, SearchX, Workflow, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import noticesUrl from '../../../../THIRD-PARTY-NOTICES.txt?url';
-import { Input, PageHeader, buttonClass, cn, code } from '../ui.tsx';
+import { EmptyState, Input, PageHeader, buttonClass, cn, code } from '../ui.tsx';
 import data from './credits/credits.json';
 import { FEATURED, resolveFeatured, type Featured } from './credits/featured.ts';
 import type { Credits } from './credits/types.ts';
@@ -257,7 +257,11 @@ function Notices() {
             </div>
           </div>
         )}
-        {!tools.length && !licenses.length && <p className="py-8 text-center text-sm text-ink-faint">Nothing matches “{query.trim()}”.</p>}
+        {!tools.length && !licenses.length && (
+          <EmptyState icon={SearchX} title={<>Nothing matches “{query.trim()}”</>}>
+            Search by a project’s name or its license.
+          </EmptyState>
+        )}
       </div>
     </Section>
   );

@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';
 import { type FullText, FullTextDialog } from '../components/FullTextDialog.tsx';
 import { type StreamItem, useLive } from '../store.ts';
-import { CODES, cn } from '../ui.tsx';
+import { CODES, Loading, cn } from '../ui.tsx';
 
 /** each session role's category colour (ADR-0067), the hues they had before themes: the worker blue, the reviewer violet, the merger magenta */
 export const ROLE_INK: Record<string, string> = { worker: CODES[0].ink, reviewer: CODES[2].ink, merger: CODES[6].ink };
@@ -90,7 +90,7 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
       {/* a box inside the panel, ink on the inset grey in light and dark alike: what the agent said in ink, its tools in blue,
           failures in red, the rest quiet */}
       <div ref={ref} className={cn('mono text-[12px] leading-5 text-ink bg-sunken border border-line rounded-lg p-3 overflow-auto max-h-[420px]', className)}>
-        {items.length === 0 && <div className="text-ink-faint">{loaded ? 'no output recorded yet…' : 'loading…'}</div>}
+        {items.length === 0 && (loaded ? <div className="text-ink-faint">no output recorded yet…</div> : <Loading size="card" label="Loading the log…" className="font-sans" />)}
         {items.map((it, i) => {
           const ev = it.event;
           const tag = it.role && it.role !== 'worker' ? <span className={cn('shrink-0', ROLE_INK[it.role] ?? 'text-ink-soft')} title={`${it.role} session (shares this attempt's log)`}>[{it.role}]</span> : null;

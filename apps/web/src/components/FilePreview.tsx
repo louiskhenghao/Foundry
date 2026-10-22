@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import { api, fileKey, fileUrl, type FileInfo, type FileRef } from '../api.ts';
-import { CopyButton, buttonClass, cn } from '../ui.tsx';
+import { CopyButton, Loading, buttonClass, cn } from '../ui.tsx';
 import { JsonTree, parseJsonDoc } from './JsonTree.tsx';
 import { MarkdownPanel } from './Markdown.tsx';
 
@@ -62,7 +62,7 @@ function Body({ info, file, stage }: { info: FileInfo; file: FileRef; stage?: bo
         </a>
       </div>
     );
-  if (text === null) return <div className="text-xs text-ink-faint">loading…</div>;
+  if (text === null) return <Loading size="card" label="Loading the file…" />;
   const json = info.kind === 'json' ? parseJsonDoc(text) : undefined;
   if (json !== undefined) return <JsonTree value={json} />;
   if (info.kind === 'markdown') return <MarkdownPanel source={text} title={fmtSize(info.size)} local />;
@@ -198,7 +198,7 @@ export function FilePreviewHost() {
               {media ? (
                 <div className="space-y-2">
                   <div className="touch-pan-y select-none" {...swipe}>
-                    {info ? <Body info={info} file={file} stage={list.length > 1} /> : <div className={cn('flex items-center justify-center rounded-lg border border-line text-xs text-ink-faint', list.length > 1 ? MEDIA_STAGE : 'h-48')}>loading…</div>}
+                    {info ? <Body info={info} file={file} stage={list.length > 1} /> : <div className={cn('flex items-center justify-center rounded-lg border border-line', list.length > 1 ? MEDIA_STAGE : 'h-48')}><Loading size="inline" /></div>}
                   </div>
                   {list.length > 1 && at >= 0 && <StepBar index={at} count={list.length} onStep={step} />}
                 </div>
@@ -207,7 +207,7 @@ export function FilePreviewHost() {
               )}
             </>
           ) : (
-            <div className="text-xs text-ink-faint">loading…</div>
+            <Loading size="card" label="Loading…" />
           )}
         </div>
       </div>
