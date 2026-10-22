@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { chipClass, cn, navItemClass } from '../ui.tsx';
 
 /** One section of a page's menu. */
@@ -84,11 +84,12 @@ function useActiveSection(ids: string[]): { active: string | null; jump: (id: st
  * jump there; the one you are reading is marked, and each shows its colour and how it stands. Narrower screens get
  * SectionChipNav.
  */
-export function SectionSideNav({ items, label }: { items: NavSection[]; /** what the menu is, for a screen reader */ label: string }) {
+export function SectionSideNav({ items, label, lead }: { items: NavSection[]; /** what the menu is, for a screen reader */ label: string; /** a link above the sections, set off by a line (the Brief's way back to its goal) */ lead?: ReactNode }) {
   const { active, jump } = useActiveSection(items.map((i) => i.id));
   return (
     // pinned a little under the top of the page while the page scrolls beside it
     <nav aria-label={label} className="hidden lg:block sticky top-4 self-start max-h-[calc(100dvh-5.5rem)] overflow-auto py-1 space-y-0.5">
+      {lead && <div className="mb-2 border-b border-line pb-2">{lead}</div>}
       {items.map((i) => (
         <button key={i.id} type="button" onClick={() => jump(i.id)} aria-current={active === i.id ? 'location' : undefined} className={navItemClass(active === i.id)}>
           <span className="flex items-center gap-2">
@@ -106,7 +107,7 @@ export function SectionSideNav({ items, label }: { items: NavSection[]; /** what
  * The same sections as a row of chips stuck to the top of a narrow screen, scrolling sideways; the row slides by itself
  * to keep the marked chip in view. `inBar`: it rides in a sticky bar of the page's own (Settings' save bar).
  */
-export function SectionChipNav({ items, label, inBar = false }: { items: NavSection[]; label: string; inBar?: boolean }) {
+export function SectionChipNav({ items, label, inBar = false, lead }: { items: NavSection[]; label: string; inBar?: boolean; /** the row's first chip, before the sections */ lead?: ReactNode }) {
   const { active, jump } = useActiveSection(items.map((i) => i.id));
   const row = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -118,6 +119,7 @@ export function SectionChipNav({ items, label, inBar = false }: { items: NavSect
   return (
     // edge to edge on the screen, the sections scrolling beneath it on the page's own colour under a hairline
     <nav ref={row} aria-label={label} className={cn('lg:hidden -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 flex gap-1.5 overflow-x-auto whitespace-nowrap', inBar ? 'relative pt-2.5' : 'sticky top-0 z-20 py-2 bg-page border-b border-line')}>
+      {lead}
       {items.map((i) => (
         <button key={i.id} type="button" data-section={i.id} onClick={() => jump(i.id)} aria-current={active === i.id ? 'location' : undefined} className={cn(chipClass(active === i.id), 'shrink-0 inline-flex items-center gap-1.5')}>
           <Dot dot={i.dot} />

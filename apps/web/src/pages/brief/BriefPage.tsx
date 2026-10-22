@@ -254,9 +254,9 @@ export function BriefPage() {
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-6">
       <Header detail={detail} onView={() => setView(false)} beforeReclarify={dirty ? save : undefined} />
       <div className="grid lg:grid-cols-[12rem_minmax(0,1fr)] gap-x-8">
-        <BriefSideNav items={navItems} />
+        <BriefSideNav items={navItems} goalId={id} />
         <div className="min-w-0 space-y-4">
-          <BriefChipNav items={navItems} />
+          <BriefChipNav items={navItems} goalId={id} />
           {/* each card's "?" stays beside its title: a title that wraps never leaves it alone on a line */}
           <section id="brief-understanding" className={sec}>
             <Card title={<span className="flex items-start gap-1.5"><SectionTitle section="understanding">Understanding</SectionTitle><HelpLink to="approving-the-brief#understanding" className="mt-0.5 shrink-0" /></span>}>
