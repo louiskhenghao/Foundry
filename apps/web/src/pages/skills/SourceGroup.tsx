@@ -1,7 +1,7 @@
 import type { SkillSource, SkillSourceRow, SkillUsage } from '@foundry/engine/skills-types';
 import { ChevronDown, ChevronRight, ExternalLink, Eye, RefreshCw } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
-import { BOARD_ROW, Badge, Button, CopyButton, ago, cn } from '../../ui.tsx';
+import { BOARD_ROW, Badge, Button, CopyButton, ago, cn, useFolds } from '../../ui.tsx';
 import { categoryPlate, stateDot, type Tone } from '../agents/marks.ts';
 
 const MANAGER_LABEL: Record<SkillSource['manager'], string> = { 'foundry': 'Foundry', 'agents-cli': 'npx skills', plugin: 'Claude plugin', hand: 'hand-installed', project: 'project' };
@@ -35,12 +35,14 @@ export interface SourceGroupActions {
 }
 
 /**
- * One source of skills, as a row of its kind's board with its skills listed under it.
+ * One source of skills, as a row of its kind's board with its skills listed under it once opened: every source starts
+ * closed, so the page is a list of sources; a search or a filter (`expand`) opens every one with a match.
  * Desktop: one row — identity (label truncates) · state badge at a fixed x · actions column of fixed width.
  * Mobile: identity, then state + counts, then actions — all left-aligned, nothing floating.
  */
-export function SourceGroup({ s, busy, updating, running, filter, a, usage, windowGoals }: { s: SkillSource; busy: boolean; updating: boolean; /** "running…" link to the operation's tab in the operations dock */ running?: ReactNode; filter: (r: SkillSourceRow) => boolean; a: SourceGroupActions; /** per skill dir: how many recent goals invoked it (null for project rows) */ usage?: Map<string, SkillUsage | null>; /** how many goals that usage was counted over */ windowGoals?: number }) {
-  const [open, setOpen] = useState(s.skills.length <= 12);
+export function SourceGroup({ s, busy, updating, running, filter, expand = false, a, usage, windowGoals }: { s: SkillSource; busy: boolean; updating: boolean; /** "running…" link to the operation's tab in the operations dock */ running?: ReactNode; filter: (r: SkillSourceRow) => boolean; /** a search or a filter that picks skills is on */ expand?: boolean; a: SourceGroupActions; /** per skill dir: how many recent goals invoked it (null for project rows) */ usage?: Map<string, SkillUsage | null>; /** how many goals that usage was counted over */ windowGoals?: number }) {
+  const folds = useFolds(expand);
+  const open = folds.isOpen(s.id);
   const rows = s.skills.filter(filter);
   const counts = s.skills.reduce<Record<string, number>>((m, r) => ((m[r.status] = (m[r.status] ?? 0) + 1), m), {});
   const shadows = s.skills.filter((r) => r.actions.includes('trash-shadow')).map((r) => r.name);
@@ -134,7 +136,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a, usage, wind
         {/* row 1: identity gets the width — name truncates last; actions sit at the right edge */}
         <div className="flex items-center gap-2 min-w-0">
           {removable.length > 0 && <input type="checkbox" className="shrink-0" checked={allSelected} onChange={(e) => a.onSelect(removable, e.target.checked)} title="select all removable skills in this source" />}
-          <button className="flex items-center gap-2 min-w-0 flex-1 text-left" onClick={() => setOpen(!open)} title={open ? 'collapse' : 'expand'}>
+          <button className="flex items-center gap-2 min-w-0 flex-1 text-left" onClick={() => folds.toggle(s.id)} aria-expanded={open} title={open ? 'collapse' : 'expand'}>
             {open ? <ChevronDown size={14} className="text-ink-faint shrink-0" /> : <ChevronRight size={14} className="text-ink-faint shrink-0" />}
             {/* a wrapper hides it on a phone (the plate's own inline-flex would win over hidden); the row under it shows it there */}
             <span className="hidden sm:inline-flex shrink-0">{managerPlate}</span>

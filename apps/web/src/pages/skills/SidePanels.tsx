@@ -46,12 +46,12 @@ export function SidePanelTabs({ catalog, trash, runs, busy, opLink, onInstall, o
 }
 
 /**
- * The catalog, kept short: what is still missing leads each tier, what is already installed folds
- * into one line, and the whole optional tier starts collapsed.
+ * The catalog, kept short: every tier starts closed to its one line (how many skills, how many missing, Install them);
+ * opened, what is still missing leads and what is already installed folds into one line.
  */
 function CatalogBody({ catalog, busy, opLink, onInstall, onInstallTier, onInstallTool }: { catalog: CatalogEntryStatus[]; busy: Busy; opLink: OpLink; onInstall: (id: string, force: boolean) => void; onInstallTier: (tiers: SkillTier[]) => void; onInstallTool: (id: string) => void }) {
   const missing = catalog.filter((c) => !c.status.startsWith('installed'));
-  const [openTiers, setOpenTiers] = useState<Set<SkillTier>>(() => new Set(TIERS.filter((t) => t !== 'optional')));
+  const [openTiers, setOpenTiers] = useState<Set<SkillTier>>(() => new Set());
   const [showInstalled, setShowInstalled] = useState<Set<SkillTier>>(new Set());
   const toggle = (set: Set<SkillTier>, tier: SkillTier) => {
     const n = new Set(set);

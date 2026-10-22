@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Clock, X, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, Clock, X, type LucideIcon } from 'lucide-react';
 
 export const cn = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(' ');
 
@@ -325,6 +325,16 @@ export function PageHeader({ title, help, summary, actions, className }: { title
 /** a page's own title where it is not a PageHeader (a goal, a Brief, a session): the theme's display font, poster or compact */
 export const PAGE_TITLE = 'font-display text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-extrabold leading-[1.05] tracking-[-0.035em] break-words header-compact:text-xl header-compact:sm:text-2xl header-compact:font-bold header-compact:tracking-tight';
 
+/**
+ * Which of a page's folding groups are open (Board's `onToggle`, a source of skills): every one closed until `auto` (a
+ * search or a filter is on) opens them all, or you open or close one yourself; `auto` starting or ending hands them back.
+ */
+export function useFolds(auto = false): { isOpen: (key: string) => boolean; toggle: (key: string) => void } {
+  const [chosen, setChosen] = useState<Record<string, boolean>>({});
+  useEffect(() => setChosen({}), [auto]);
+  return { isOpen: (key) => chosen[key] ?? auto, toggle: (key) => setChosen((c) => ({ ...c, [key]: !(c[key] ?? auto) })) };
+}
+
 /** a board's row: hovering it tints it and raises a bar of ink at its left edge */
 export const BOARD_ROW = 'group relative transition-colors hover:bg-sunken before:absolute before:inset-y-0 before:left-0 before:w-1 before:origin-top before:scale-y-0 before:bg-ink before:transition-transform hover:before:scale-y-100';
 /** a board's row of column labels, when it has columns */
@@ -333,20 +343,36 @@ export const BOARD_HEAD = 'border-b border-line bg-sunken px-5 py-2.5 text-[11px
 /**
  * A board of rows (goals, sessions, ports…), as on the Goals page: a heading in capitals with its count and a note, then
  * the rows on a panel. `head` is an optional row of column labels (styled with BOARD_HEAD); rows are <li>s, with BOARD_ROW.
+ * `onToggle`: a board that folds, its heading a button that opens and closes it; closed, only the heading shows.
  */
-export function Board({ id, icon, title, count, note, head, children, className }: { id?: string; icon?: ReactNode; title: ReactNode; count?: ReactNode; note?: ReactNode; head?: ReactNode; children: ReactNode; className?: string }) {
+export function Board({ id, icon, title, count, note, head, children, className, open, onToggle }: { id?: string; icon?: ReactNode; title: ReactNode; count?: ReactNode; note?: ReactNode; head?: ReactNode; children: ReactNode; className?: string; open?: boolean; onToggle?: () => void }) {
+  const named = (
+    <>
+      {icon}
+      {title}
+      {count != null && <b className="mono text-[13px] tracking-normal">{count}</b>}
+    </>
+  );
+  const shown = !onToggle || open;
   return (
-    <section aria-labelledby={id} className={cn('mt-10 first:mt-0', className)}>
-      <h2 id={id} className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] font-extrabold caps text-ink">
-        {icon}
-        {title}
-        {count != null && <b className="mono text-[13px] tracking-normal">{count}</b>}
+    <section aria-labelledby={id} className={cn(shown ? 'mt-10' : 'mt-6', 'first:mt-0', className)}>
+      <h2 id={id} className={cn('flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] font-extrabold caps text-ink', shown && 'mb-3')}>
+        {onToggle ? (
+          <button type="button" onClick={onToggle} aria-expanded={!!open} className="inline-flex items-center gap-x-2.5 caps hover:text-ink-soft">
+            {open ? <ChevronDown size={14} className="text-ink-faint" aria-hidden="true" /> : <ChevronRight size={14} className="text-ink-faint" aria-hidden="true" />}
+            {named}
+          </button>
+        ) : (
+          named
+        )}
         {note && <span className="w-full sm:w-auto sm:ml-auto text-[13px] font-semibold no-caps text-ink-faint">{note}</span>}
       </h2>
-      <div className="overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)]">
-        {head}
-        <ul className="divide-y divide-line">{children}</ul>
-      </div>
+      {shown && (
+        <div className="overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)]">
+          {head}
+          <ul className="divide-y divide-line">{children}</ul>
+        </div>
+      )}
     </section>
   );
 }

@@ -1,11 +1,11 @@
 import type { EngineEvent } from '@foundry/core/browser';
 import { PROVIDER_LABEL } from '@foundry/core/browser';
-import type { InstalledSkill, SkillScope, SkillSourceRow, SkillTier, SkillUsage, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from '@foundry/engine/skills-types';
+import type { InstalledSkill, SkillScope, SkillSource, SkillSourceRow, SkillTier, SkillUsage, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from '@foundry/engine/skills-types';
 import { Blocks, FolderGit2, PackageCheck, Plug, RefreshCw, Search, SearchX, SquareTerminal, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { Board, Button, ConfirmDialog, Empty, EmptyState, Input, Modal, ago, chipClass, cn, code, useAffix } from '../../ui.tsx';
+import { Board, Button, ConfirmDialog, Empty, EmptyState, Input, Modal, ago, chipClass, cn, code, useAffix, useFolds } from '../../ui.tsx';
 import { categorySquare, notice } from '../agents/marks.ts';
 import { OpsDock } from './OpsDock.tsx';
 import { startOp, useRunningOp, useSkillOps } from './ops.ts';
@@ -62,6 +62,9 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
   const [q, setQ] = useState('');
   const [onlyOutdated, setOnlyOutdated] = useState(false);
   const [onlyUnused, setOnlyUnused] = useState(false);
+  // every group starts closed, the boards and the sources on them; a search or a filter that picks skills opens each one with a match
+  const expand = !!q.trim() || onlyOutdated || onlyUnused;
+  const folds = useFolds(expand);
   /** quick actions that are not operations (check for updates, trash shadows, restore): what each one is working on */
   const [pending, setPending] = useState<Set<string>>(new Set());
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err' | 'info'; text: string } | null>(null);
@@ -209,6 +212,8 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
   const note = usageNote(overview.installed, overview.usageWindow);
   const total = overview.installed.length;
   const updates = report.sources.filter((s) => s.updateAvailable === true).length;
+  /** sources of one kind with an update waiting: said on its board's heading, which stays in view when the board is closed */
+  const updatesIn = (m: SkillSource['manager']) => report.sources.filter((s) => s.manager === m && s.updateAvailable === true).length;
   const outdatedSkills = report.sources.flatMap((s) => s.skills).filter((r) => r.status === 'outdated').length;
   const counts = { all: total, user: overview.installed.filter((r) => r.scope === 'user').length, plugin: overview.installed.filter((r) => r.scope === 'plugin').length, project: overview.installed.filter((r) => r.scope === 'project').length };
   /** a row is busy while an operation on it runs; the link opens that operation's tab */
@@ -289,21 +294,22 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-6 gap-y-8 items-start">
         {/* each kind of source on a board of its own, as the Goals page's boards: a source is a row, its skills rows under it */}
         <div className="lg:col-span-2 min-w-0">
-          <SuiteReleases releases={releases} forecast={(id, to) => api.releaseForecast(id, to)} busy={(id) => !!runningOp(`release:${id}`)} running={(id) => opLink(`release:${id}`)} onMove={(v, to) => void moveRelease(v, to)} />
+          <SuiteReleases open={folds.isOpen('suites')} onToggle={() => folds.toggle('suites')} releases={releases} forecast={(id, to) => api.releaseForecast(id, to)} busy={(id) => !!runningOp(`release:${id}`)} running={(id) => opLink(`release:${id}`)} onMove={(v, to) => void moveRelease(v, to)} />
           {MANAGER_ORDER.filter((m) => report.sources.some((s) => s.manager === m && s.skills.some(filter))).map((m) => {
             const Icon = MANAGER_ICON[m];
             return (
-              <Board key={m} id={`skills-${m}`} icon={<Icon size={14} strokeWidth={2.25} className={code(MANAGER_CODE[m]).ink} aria-hidden="true" />} title={m === 'plugin' ? `${backend} plugins` : MANAGER_HEADING[m]} count={report.sources.filter((s) => s.manager === m).reduce((n, s) => n + s.skills.length, 0)}>
+              <Board key={m} id={`skills-${m}`} icon={<Icon size={14} strokeWidth={2.25} className={code(MANAGER_CODE[m]).ink} aria-hidden="true" />} title={m === 'plugin' ? `${backend} plugins` : MANAGER_HEADING[m]} count={report.sources.filter((s) => s.manager === m).reduce((n, s) => n + s.skills.length, 0)} open={folds.isOpen(m)} onToggle={() => folds.toggle(m)} note={updatesIn(m) ? <span className="font-bold text-you-ink">{updatesIn(m)} source{updatesIn(m) === 1 ? '' : 's'} with updates</span> : undefined}>
                 {report.sources
                   .filter((s) => s.manager === m)
                   .map((s) => (
-                    <SourceGroup key={s.id} s={s} busy={pending.has('shadows') || s.skills.some((r) => runningOp(r.name))} updating={report.updating === s.id || !!runningOp(s.id)} running={opLink(s.id) ?? s.skills.map((r) => opLink(r.name)).find(Boolean) ?? null} filter={filter} a={{ onUpdate: (names) => void updateSource(s.id, s.label, names), onAdopt: (names) => void adopt(names), onTrashShadows: trashShadows, onUninstallPlugin: provider === 'claude' ? (id) => void uninstallPlugin(id) : undefined, onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} usage={usageByDir} windowGoals={overview.usageWindow?.goals} />
+                    <SourceGroup key={s.id} s={s} busy={pending.has('shadows') || s.skills.some((r) => runningOp(r.name))} updating={report.updating === s.id || !!runningOp(s.id)} running={opLink(s.id) ?? s.skills.map((r) => opLink(r.name)).find(Boolean) ?? null} filter={filter} expand={expand} a={{ onUpdate: (names) => void updateSource(s.id, s.label, names), onAdopt: (names) => void adopt(names), onTrashShadows: trashShadows, onUninstallPlugin: provider === 'claude' ? (id) => void uninstallPlugin(id) : undefined, onUninstall: (names) => setConfirmNames(names), onView: openView, selected, onSelect: select }} usage={usageByDir} windowGoals={overview.usageWindow?.goals} />
                   ))}
               </Board>
             );
           })}
           {report.sources.every((s) => !s.skills.some(filter)) && (
-            <EmptyState icon={SearchX} title="Nothing matches">
+            // under the boards above it (the workflow suites stay), as far below as the next board would be
+            <EmptyState icon={SearchX} title="Nothing matches" className="mt-10 first:mt-0">
               No skill matches the search and the filters above.
             </EmptyState>
           )}

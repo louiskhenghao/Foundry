@@ -12,10 +12,10 @@ import { INSTALLED_AS, forecastLine, pinnedBy, releaseState, usedBy, workflowLos
  * with what it does with them — which it deprecates and which it adds, with the changelog between. A newer release that
  * drops a skill the workflow uses is announced on the row before anything is opened.
  */
-export function SuiteReleases({ releases, forecast, busy, running, onMove }: { releases: SuiteReleaseView[]; forecast: (id: string, to: string) => Promise<ReleaseForecast>; busy: (id: string) => boolean; running: (id: string) => ReactNode; onMove: (v: SuiteReleaseView, to: string) => void }) {
+export function SuiteReleases({ releases, forecast, busy, running, onMove, open, onToggle }: { releases: SuiteReleaseView[]; forecast: (id: string, to: string) => Promise<ReleaseForecast>; busy: (id: string) => boolean; running: (id: string) => ReactNode; onMove: (v: SuiteReleaseView, to: string) => void; /** the board folds (Board's open and onToggle) */ open?: boolean; onToggle?: () => void }) {
   if (!releases.length) return null;
   return (
-    <Board id="skills-suites" icon={<Milestone size={14} strokeWidth={2.25} aria-hidden="true" />} title="Workflow suites" count={releases.length} note="each at one release; a Move shows what it changes first">
+    <Board id="skills-suites" icon={<Milestone size={14} strokeWidth={2.25} aria-hidden="true" />} title="Workflow suites" count={releases.length} note="each at one release; a Move shows what it changes first" open={open} onToggle={onToggle}>
       {releases.map((v) => (
         <SuiteRow key={v.id} v={v} forecast={forecast} busy={busy(v.id)} running={running(v.id)} onMove={(to) => onMove(v, to)} />
       ))}
