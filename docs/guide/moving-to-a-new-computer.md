@@ -1,6 +1,6 @@
 # Moving to a new computer
 
-**Transfer** carries what one Foundry knows to another one, typically on a new computer: your settings, your keys and your goals. You export a file on the old computer and import it on the new one. Open it from the ⚙ menu at the right of the top bar: **Transfer — move to another computer**.
+**Transfer** carries what one Foundry knows to another one, typically on a new computer: your settings, your keys and your goals. You export a file on the old computer and import it on the new one. Open it from the ⚙ menu at the right of the top bar: **Transfer** ("Move to another computer" under it).
 
 ## Export
 
