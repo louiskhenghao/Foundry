@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { reportsDollars } from '@foundry/core';
 import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@foundry/core';
 import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
-import { LIMIT_TEXT, type RunResult } from '@foundry/runner';
+import { LIMIT_TEXT, resumeRefused, type RunResult } from '@foundry/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { buildAttemptPrompt, styleApplies, summarizeReport } from './attempt-prompt.ts';
 import type { CatchUp } from './catchup.ts';
@@ -11,6 +11,7 @@ import { resolveDiscipline } from './skills/workflow.ts';
 import { metaFor, workerModelFor } from './models/roles.ts';
 import { budgetStatus } from './budget.ts';
 import { renderUpstream } from './delegation.ts';
+import { handoffSection } from './handoff.ts';
 import { learningsForWorker } from './learnings.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { reviewTaskDiff } from './checks/reviewer.ts';
@@ -181,65 +182,82 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const style = brief && styleApplies(task.scenario) ? chosenStyle(brief) : null;
   // the real things the result depicts, with their pictures (outside the worktree: their folder is added to the session)
   const subjects = renderSubjects(config.dataDir, goal.id, brief, 'worker', task.scenario);
-  const prompt = resume ? resume.message : buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, style, subjects, baseMoved: opts.baseMoved ?? null });
+  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, style, subjects, baseMoved: opts.baseMoved ?? null });
+  const prompt = resume ? resume.message : freshPrompt(relevantContext, prevReport);
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection (continuations append)
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });
   if (resume) appendFileSync(attempt.transcriptPath!.replace(/\.jsonl$/, '.prompt.md'), `\n\n---\n# Continuation (${resume.reason})\n${prompt}\n`);
   else writeFileSync(attempt.transcriptPath!.replace(/\.jsonl$/, '.prompt.md'), prompt);
   const remaining = budgetStatus(goal).remainingUsd;
 
-  const handle = await engine.runner.run({
-    prompt,
-    cwd,
-    model,
-    meta: metaFor(goal.id, routed),
-    fallbackModel: model === 'opus' ? 'sonnet' : undefined,
-    maxTurns: config.attemptMaxTurns,
-    maxBudgetUsd: Math.max(0.05, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining)),
-    permissionMode: 'dontAsk',
-    ...engine.workerToolPolicy(goal),
-    appendSystemPromptFile: engine.roles.path('worker'),
-    settings: boundarySettings(config.hooksDir),
-    settingSources: config.settingSources,
-    addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : []), ...(subjects ? subjectsAddDirs(config.dataDir, goal.id, brief) : [])]),
-    timeoutMs: config.attemptTimeoutMs,
-    transcriptPath: attempt.transcriptPath!,
-    resumeSessionId: resume ? (attempt.sessionId ?? undefined) : undefined,
-    env: { FOUNDRY_ATTEMPT_ID: attempt.id, FOUNDRY_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) },
-    label: `attempt ${task.title} #${index}${resume ? ` (continuation ${attempt.continuations + 1})` : ''}`,
-  });
-  engine.registerInFlight(task.id, attempt.id, handle);
-  let hookSeen = false;
-  const segmentStart = new Date().toISOString();
-  let initModel: string | null = null;
-  let initSession: string | null = null;
-  try {
-    for await (const ev of handle.events) {
-      if (ev.kind === 'init') {
-        initModel = ev.model;
-        initSession = ev.sessionId;
-        store.append({ type: 'attempt.session', goalId: goal.id, payload: { attemptId: attempt.id, sessionId: ev.sessionId, model: ev.model, pid: handle.pid } });
+  /** one session of the attempt: run and stream it, book its cost and usage */
+  const session = async (text: string, resumeSessionId: string | undefined, label: string): Promise<RunResult> => {
+    const handle = await engine.runner.run({
+      prompt: text,
+      cwd,
+      model,
+      meta: metaFor(goal.id, routed),
+      fallbackModel: model === 'opus' ? 'sonnet' : undefined,
+      maxTurns: config.attemptMaxTurns,
+      maxBudgetUsd: Math.max(0.05, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining)),
+      permissionMode: 'dontAsk',
+      ...engine.workerToolPolicy(goal),
+      appendSystemPromptFile: engine.roles.path('worker'),
+      settings: boundarySettings(config.hooksDir),
+      settingSources: config.settingSources,
+      addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : []), ...(subjects ? subjectsAddDirs(config.dataDir, goal.id, brief) : [])]),
+      timeoutMs: config.attemptTimeoutMs,
+      transcriptPath: attempt.transcriptPath!,
+      resumeSessionId,
+      env: { FOUNDRY_ATTEMPT_ID: attempt.id, FOUNDRY_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) },
+      label,
+    });
+    engine.registerInFlight(task.id, attempt.id, handle);
+    let hookSeen = false;
+    const segmentStart = new Date().toISOString();
+    let initModel: string | null = null;
+    let initSession: string | null = null;
+    try {
+      for await (const ev of handle.events) {
+        if (ev.kind === 'init') {
+          initModel = ev.model;
+          initSession = ev.sessionId;
+          store.append({ type: 'attempt.session', goalId: goal.id, payload: { attemptId: attempt.id, sessionId: ev.sessionId, model: ev.model, pid: handle.pid } });
+        }
+        if (ev.kind === 'hook' && ev.name.startsWith('SessionStart')) hookSeen = true;
+        if (ev.kind === 'init' && !hookSeen) {
+          // fail closed: settings were silently ignored, the boundary guard is not active
+          store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `attempt ${attempt.id}: hook canary not observed before init — killing run (boundary guard inactive)` } });
+          handle.kill('killed_manual');
+        }
+        engine.broadcast({ goalId: goal.id, taskId: task.id, attemptId: attempt.id, event: ev, ts: new Date().toISOString() });
       }
-      if (ev.kind === 'hook' && ev.name.startsWith('SessionStart')) hookSeen = true;
-      if (ev.kind === 'init' && !hookSeen) {
-        // fail closed: settings were silently ignored, the boundary guard is not active
-        store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'error', message: `attempt ${attempt.id}: hook canary not observed before init — killing run (boundary guard inactive)` } });
-        handle.kill('killed_manual');
-      }
-      engine.broadcast({ goalId: goal.id, taskId: task.id, attemptId: attempt.id, event: ev, ts: new Date().toISOString() });
+    } finally {
+      engine.unregisterInFlight(task.id);
     }
-  } finally {
-    engine.unregisterInFlight(task.id);
+    const result = await handle.result;
+    store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: `attempt:${attempt.id}` } });
+    engine.recordSessionUsage(result, { goalId: goal.id, kind: 'attempt', model: attempt.model });
+    store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'worker', segment: (getAttempt(store.db, attempt.id) ?? attempt).sessions.filter((s) => s.role === 'worker').length, sessionId: initSession ?? attempt.sessionId, model: initModel ?? attempt.model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString(), costAvailable: result.costStatus !== 'unavailable' } } });
+    if (result.costStatus === 'unavailable' && reportsDollars(goal.provider)) {
+      store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `attempt ${attempt.id}: the session ended (${result.subtype}) before Claude Code reported its cost — ${result.numTurns} turn${result.numTurns === 1 ? '' : 's'} and its tokens are counted, the dollars are unknown and missing from the goal's total` } });
+    }
+    return result;
+  };
+  let result = await session(prompt, resume ? (attempt.sessionId ?? undefined) : undefined, `attempt ${task.title} #${index}${resume ? ` (continuation ${attempt.continuations + 1})` : ''}`);
+  if (resume && resumeRefused(result)) {
+    // the coding agent could not pick the session up (another account's home or signatures, a cleaned record): a new
+    // session takes over in the same workspace, told what the earlier one did (ADR-0065)
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `attempt ${attempt.id}: its session could not be resumed (${(result.errorMessage ?? result.subtype).slice(0, 160)}); a new session takes over with a handoff` } });
+    const why = resume.reason === 'usage_limit' ? 'stopped by a usage limit' : resume.reason === 'orphaned' ? 'interrupted by an engine restart' : `cut short: ${resume.reason.replace('_', ' ')}`;
+    const handoff = await handoffSection({ cwd, attemptBaseRef: attempt.baseRef, taskBaseRef, transcriptPath: attempt.transcriptPath, provider: goal.provider ?? 'claude', why });
+    const latest = prior.length ? getObservation(store.db, prior[prior.length - 1]!.id) : null;
+    const text = `${freshPrompt(await engine.context.locate(goal, task).catch(() => null), latest)}\n\n${handoff}`;
+    appendFileSync(attempt.transcriptPath!.replace(/\.jsonl$/, '.prompt.md'), `\n\n---\n# Handoff (the session could not be resumed)\n${text}\n`);
+    result = await session(text, undefined, `attempt ${task.title} #${index} (handoff)`);
   }
-  const result = await handle.result;
   // a session a usage limit stopped mid-work resumes (scheduler): it is neither reviewed nor judged done half-way
   const limited = cutByLimit(result);
-  store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: `attempt:${attempt.id}` } });
-  engine.recordSessionUsage(result, { goalId: goal.id, kind: 'attempt', model: attempt.model });
-  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'worker', segment: (getAttempt(store.db, attempt.id) ?? attempt).sessions.filter((s) => s.role === 'worker').length, sessionId: initSession ?? attempt.sessionId, model: initModel ?? attempt.model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString(), costAvailable: result.costStatus !== 'unavailable' } } });
-  if (result.costStatus === 'unavailable' && reportsDollars(goal.provider)) {
-    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `attempt ${attempt.id}: the session ended (${result.subtype}) before Claude Code reported its cost — ${result.numTurns} turn${result.numTurns === 1 ? '' : 's'} and its tokens are counted, the dollars are unknown and missing from the goal's total` } });
-  }
 
   const commit = await commitAll(cwd, taskCommitMessage(goal, task, { attempt: index }));
   if (commit.committed) store.append({ type: 'workspace.committed', goalId: goal.id, payload: { taskId: task.id, attemptId: attempt.id, ref: commit.ref } });

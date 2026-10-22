@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { LineSplitter, decodeLine } from './stream-codec.ts';
-import { classifyFailure } from './types.ts';
+import { classifyFailure, resumeRefused } from './types.ts';
 
 describe('failure classification', () => {
   test('model errors, rate limits, auth, other, success', () => {
@@ -24,6 +24,13 @@ describe('failure classification', () => {
     expect(classifyFailure(null, 'success')).toBeNull();
     expect(classifyFailure(null, 'error_max_turns')).toBe('other');
     expect(classifyFailure('The file model.ts could not be parsed')).toBe('other');
+  });
+  test('a resume the coding agent refused: the session is not there, or the API rejects its earlier turns', () => {
+    for (const said of ['No conversation found with session ID: 7c2e', 'No saved session found with ID 019a', 'thread 019a not found', 'messages.1.content.0: Invalid `signature` in `thinking` block', 'The encrypted content for item rs_1 could not be verified.']) {
+      expect(resumeRefused({ isError: true, errorMessage: said })).toBe(true);
+    }
+    expect(resumeRefused({ isError: false, errorMessage: 'No conversation found' })).toBe(false);
+    expect(resumeRefused({ isError: true, errorMessage: 'Tool execution failed: ENOENT' })).toBe(false);
   });
   test('result events carry failureClass', () => {
     const [ev] = decodeLine(JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['model: nope-9 not found'], session_id: 's' }));

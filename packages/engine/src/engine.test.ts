@@ -17,6 +17,8 @@ class FakeRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
   /** optional rate-limit info attached to every result */
   rateLimit: RunResult['rateLimit'] = null;
+  /** optional changes to one call's result (an error it ends with) */
+  patch: ((spec: RunSpec) => Partial<RunResult> | null) | null = null;
   private totals = new Map<string, number>();
   constructor(private behave: (spec: RunSpec, n: number) => void | Promise<void>) {}
   active() {
@@ -47,6 +49,7 @@ class FakeRunner implements ClaudeRunner {
       errorMessage: null,
       skillsUsed: [],
       toolsUsed: {},
+      ...this.patch?.(spec),
     };
     const events: RunnerEvent[] = [
       { kind: 'hook', name: 'SessionStart:startup', outcome: 'success' },
@@ -257,6 +260,28 @@ describe('Engine loop (fake runner)', () => {
     expect(work[1]!.prompt).toContain('usage limit');
     // the cut session was not reviewed: only the resumed one's work was
     expect(runner.calls.findIndex((c) => c.label?.startsWith('review'))).toBeGreaterThan(runner.calls.indexOf(work[1]!));
+  });
+
+  test('a session its coding agent cannot resume is taken over by a new one with a handoff', async () => {
+    const runner = new FakeRunner((spec, n) => {
+      runner.rateLimit = n === 1 ? { status: 'rejected', resetsAt: Math.floor(Date.now() / 1000) + 1, rateLimitType: 'five_hour', isUsingOverage: false, raw: {} } : null;
+      if (n === 1) writeFileSync(join(spec.cwd, 'half.txt'), 'started');
+      if (n === 3) writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
+    });
+    // the account the work moved to has no record of the session
+    runner.patch = (spec) => (spec.resumeSessionId ? { isError: true, subtype: 'error_during_execution', numTurns: 0, errorMessage: `No conversation found with session ID: ${spec.resumeSessionId}` } : null);
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'handed over', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    const work = runner.calls.filter((c) => c.label?.startsWith('attempt'));
+    expect(work).toHaveLength(3);
+    expect(work[1]!.resumeSessionId).toBe('fake-1');
+    expect(work[2]!.resumeSessionId).toBeUndefined();
+    expect(work[2]!.prompt).toContain('# Handoff');
+    expect(work[2]!.prompt).toContain('stopped by a usage limit');
+    expect(work[2]!.prompt).toContain('half.txt');
+    expect(listAttempts(engine.store.db, listTasks(engine.store.db, goal.id)[0]!.id)).toHaveLength(1);
   });
 
   test('event log replay reproduces the read models', async () => {

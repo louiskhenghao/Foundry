@@ -117,6 +117,15 @@ export type FailureClass = 'model_unavailable' | 'auth' | 'rate_limit' | 'other'
  */
 export const LIMIT_TEXT = /rate[ _-]?limit|usage[ _-]?limit|hit your [\w ]{0,20}limit|overloaded|too many requests|\b429\b|resource[ _-]?exhausted|quota (?:reached|exceeded|exhausted)|out of credits|spend cap|credits balance is too low/i;
 
+/**
+ * A resumed session its coding agent could not pick up: the conversation is not where it looks (another account's home,
+ * a cleaned record) or the API refused its earlier turns (another account's thinking signatures or encrypted reasoning).
+ */
+export const RESUME_REFUSED = /no conversation found|\b(session|thread|conversation)\b.{0,40}not found|could not resume|no saved session|invalid\W{0,3}signature|signature\W{0,3}in\W{0,3}thinking|encrypted content.{0,80}(could not|cannot) be (verified|decrypted)/i;
+export function resumeRefused(r: Pick<RunResult, 'isError' | 'errorMessage'>): boolean {
+  return r.isError && RESUME_REFUSED.test(r.errorMessage ?? '');
+}
+
 const MODEL_UNAVAILABLE = /(model|alias)[^.\n]{0,80}?(not found|does not exist|not supported|unsupported|deprecated|retired|invalid|unknown|no longer (available|supported)|not available)|(not found|does not exist|unknown|invalid|deprecated|unsupported)[^.\n]{0,40}?\bmodel\b|not_found_error[^.\n]{0,80}model/i;
 
 export function classifyFailure(errorMessage: string | null | undefined, subtype?: string): FailureClass | null {
