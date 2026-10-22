@@ -42,8 +42,8 @@ export interface ProposalItem {
   apply: (b: Brief) => Brief;
 }
 
-/** the Brief page section (and so the hue) each proposal section belongs to */
-const HUE_OF: Record<Section, BriefSection> = { understanding: 'understanding', areas: 'areas', tasks: 'plan', checks: 'acceptance', assumptions: 'assumptions', questions: 'questions' };
+/** the Brief page section (and so the icon and the colour) each proposal section belongs to */
+const PART_OF: Record<Section, BriefSection> = { understanding: 'understanding', areas: 'areas', tasks: 'plan', checks: 'acceptance', assumptions: 'assumptions', questions: 'questions' };
 
 /** items grouped by section, in the Brief page's order; empty sections left out */
 export function sectionsOf(items: ProposalItem[]): { section: Section; label: string; items: ProposalItem[] }[] {
@@ -174,10 +174,10 @@ export function proposalItems(p: DraftProposal): ProposalItem[] {
   return items;
 }
 
-/** what an item does, as a dot and a word: colour and text together, never colour alone */
-const OP: Record<ProposalItem['op'], { dot: string; text: string }> = { add: { dot: 'bg-emerald-400', text: 'new' }, drop: { dot: 'bg-rose-400', text: 'dropped' }, change: { dot: 'bg-sky-400', text: 'changed' }, fill: { dot: 'bg-violet-400', text: 'filled in' } };
+/** what an item does, as a dot and a word: colour and text together, never colour alone (added green, dropped red, changed blue) */
+const OP: Record<ProposalItem['op'], { dot: string; text: string }> = { add: { dot: 'bg-ok', text: 'new' }, drop: { dot: 'bg-bad', text: 'dropped' }, change: { dot: 'bg-work', text: 'changed' }, fill: { dot: 'bg-extra', text: 'filled in' } };
 const OpMark = ({ op }: { op: ProposalItem['op'] }) => (
-  <span className="inline-flex items-center gap-1.5 text-xs text-zinc-400 w-16 shrink-0">
+  <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-soft w-16 shrink-0">
     <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', OP[op].dot)} aria-hidden="true" />
     {OP[op].text}
   </span>
@@ -200,13 +200,13 @@ function Words({ segments, show }: { segments: DiffSegment[]; show: 'before' | '
         if (s.kind === 'same') return <span key={i}>{s.text}</span>;
         if (s.kind === 'del' && show !== 'after')
           return (
-            <del key={i} className="rounded-sm bg-rose-500/15 px-0.5 text-rose-300 line-through decoration-rose-400/70">
+            <del key={i} className="rounded-sm bg-bad/15 px-0.5 text-bad-ink line-through decoration-bad/70">
               {s.text}
             </del>
           );
         if (s.kind === 'add' && show !== 'before')
           return (
-            <ins key={i} className="rounded-sm bg-emerald-500/15 px-0.5 text-emerald-200 no-underline">
+            <ins key={i} className="rounded-sm bg-ok/15 px-0.5 text-ok-ink no-underline">
               {s.text}
             </ins>
           );
@@ -218,8 +218,8 @@ function Words({ segments, show }: { segments: DiffSegment[]; show: 'before' | '
 
 type ViewMode = 'inline' | 'split';
 
-const pane = 'rounded-md border border-zinc-800 surface-inset bg-zinc-950/60 px-3 py-2 text-sm leading-relaxed whitespace-pre-wrap break-words';
-const PaneLabel = ({ children }: { children: ReactNode }) => <div className="text-[11px] uppercase tracking-wide text-zinc-500 mb-1">{children}</div>;
+const pane = 'rounded-md border border-line bg-sunken px-3 py-2 text-sm leading-relaxed text-ink whitespace-pre-wrap break-words';
+const PaneLabel = ({ children }: { children: ReactNode }) => <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint mb-1">{children}</div>;
 
 /** one field in the item's window: inline marks in one flow, or the old and the new side by side */
 function FieldView({ f, mode }: { f: FieldChange; mode: ViewMode }) {
@@ -228,8 +228,8 @@ function FieldView({ f, mode }: { f: FieldChange; mode: ViewMode }) {
     const after = Array.isArray(f.after) ? f.after : [];
     const removed = before.filter((x) => !after.includes(x));
     const line = (x: string, tone: 'added' | 'removed' | 'kept') => (
-      <li key={`${tone}:${x}`} className={cn('flex gap-2 text-sm leading-relaxed', tone === 'removed' ? 'text-zinc-500 line-through' : tone === 'added' ? 'text-emerald-200' : 'text-zinc-200')}>
-        <span className="w-3 shrink-0 text-zinc-500" aria-hidden="true">
+      <li key={`${tone}:${x}`} className={cn('flex gap-2 text-sm leading-relaxed', tone === 'removed' ? 'text-ink-faint line-through' : tone === 'added' ? 'text-ok-ink' : 'text-ink')}>
+        <span className="w-3 shrink-0 text-ink-faint" aria-hidden="true">
           {tone === 'added' ? '+' : tone === 'removed' ? '–' : '•'}
         </span>
         <span className={cn(x.length <= 60 && 'mono text-xs leading-relaxed')}>{x}</span>
@@ -252,7 +252,7 @@ function FieldView({ f, mode }: { f: FieldChange; mode: ViewMode }) {
       <ul className="space-y-0.5">
         {after.map((x) => line(x, before.length && !before.includes(x) ? 'added' : 'kept'))}
         {removed.map((x) => line(x, 'removed'))}
-        {!after.length && !removed.length && <li className="text-sm text-zinc-500">none</li>}
+        {!after.length && !removed.length && <li className="text-sm text-ink-faint">none</li>}
       </ul>
     );
   }
@@ -261,13 +261,13 @@ function FieldView({ f, mode }: { f: FieldChange; mode: ViewMode }) {
   const mono = f.kind === 'command';
   const cls = cn(pane, mono && 'mono text-xs');
   if (!before || before === after) {
-    return <div className={cls}>{mono && after ? `$ ${after}` : after ?? <span className="text-zinc-500">none</span>}</div>;
+    return <div className={cls}>{mono && after ? `$ ${after}` : after ?? <span className="text-ink-faint">none</span>}</div>;
   }
   const segments = diffWords(before, after ?? '');
   if (mode === 'split')
     return (
       <div className="grid gap-2 md:grid-cols-2">
-        <div className={cn(cls, 'text-zinc-400')}>
+        <div className={cn(cls, 'text-ink-soft')}>
           <PaneLabel>Before</PaneLabel>
           {mono && '$ '}
           <Words segments={segments} show="before" />
@@ -307,20 +307,20 @@ function ItemDialog({ it, included, done, onInclude, onClose }: { it: ProposalIt
               ]}
             />
           )}
-          {it.op === 'drop' && <span className="text-sm text-zinc-400">This is removed from the Brief when applied.</span>}
+          {it.op === 'drop' && <span className="text-sm text-ink-soft">This is removed from the Brief when applied.</span>}
         </div>
         {it.fields.map((f, i) => (
           <div key={`${f.label}-${i}`} className="space-y-1">
-            <div className="text-xs font-medium text-zinc-300">{f.label}</div>
+            <div className="text-xs font-semibold text-ink-soft">{f.label}</div>
             <FieldView f={f} mode={mode} />
           </div>
         ))}
-        <div className="flex items-center gap-3 flex-wrap border-t border-zinc-800 pt-3">
+        <div className="flex items-center gap-3 flex-wrap border-t border-line pt-3">
           {done ? (
-            <span className="text-sm text-zinc-400">{done === 'applied' ? 'Applied to the Brief.' : 'Skipped.'}</span>
+            <span className="text-sm text-ink-soft">{done === 'applied' ? 'Applied to the Brief.' : 'Skipped.'}</span>
           ) : (
-            <label className="flex items-center gap-2 text-sm text-zinc-200 cursor-pointer min-h-11">
-              <input type="checkbox" className="size-4 accent-emerald-500" checked={included} onChange={(e) => onInclude(e.target.checked)} /> Include when applying
+            <label className="flex items-center gap-2 text-sm text-ink cursor-pointer min-h-11">
+              <input type="checkbox" className="size-4" checked={included} onChange={(e) => onInclude(e.target.checked)} /> Include when applying
             </label>
           )}
           <Button size="sm" className="ml-auto" onClick={onClose}>
@@ -359,14 +359,14 @@ export function DraftPanel({ proposal, onApply, onClose }: { proposal: DraftProp
   const open = openId ? items.find((it) => it.id === openId) : null;
   const doneOf = (id: string): 'applied' | 'skipped' | null => (applied ? (applied.has(id) ? 'applied' : 'skipped') : null);
   return (
-    <section className="rounded-md border border-zinc-800 surface-card bg-zinc-900/60" aria-label="Proposal">
-      <div className="flex items-center gap-3 flex-wrap px-3 sm:px-4 py-3 border-b border-zinc-800">
+    <section className="rounded-lg border border-line bg-panel" aria-label="Proposal">
+      <div className="flex items-center gap-3 flex-wrap px-3 sm:px-4 py-3 border-b border-line">
         <div className="min-w-0">
-          <div className="flex items-center gap-1.5 text-sm font-medium text-zinc-100">
-            <Sparkles size={14} className="text-emerald-300" aria-hidden="true" /> Proposal
+          <div className="flex items-center gap-2 text-[12.5px] font-extrabold caps text-ink">
+            <Sparkles size={14} aria-hidden="true" /> Proposal
           </div>
-          <div className="text-xs text-zinc-500">
-            {cost} · {items.length} change{items.length === 1 ? '' : 's'} · {applied ? `${applied.size} applied, ${items.length - applied.size} skipped` : `${picked.size} selected`}
+          <div className="mt-0.5 text-xs text-ink-faint">
+            <span className={cn(proposal.costAvailable !== false && 'mono')}>{cost}</span> · {items.length} change{items.length === 1 ? '' : 's'} · {applied ? `${applied.size} applied, ${items.length - applied.size} skipped` : `${picked.size} selected`}
           </div>
         </div>
         <div className="ml-auto flex items-center gap-2">
@@ -387,47 +387,48 @@ export function DraftPanel({ proposal, onApply, onClose }: { proposal: DraftProp
         </div>
       </div>
       {(proposal.rationale || applied) && (
-        <div className="px-3 sm:px-4 py-3 border-b border-zinc-800 space-y-2">
-          {proposal.rationale && <p className="text-sm text-zinc-300 leading-relaxed max-w-prose">{proposal.rationale}</p>}
+        <div className="px-3 sm:px-4 py-3 border-b border-line space-y-2">
+          {proposal.rationale && <p className="text-sm text-ink-soft leading-relaxed max-w-prose">{proposal.rationale}</p>}
           {applied && (
-            <p className="flex items-center gap-1.5 text-sm text-emerald-200" role="status">
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-ok-ink" role="status">
               <Check size={14} aria-hidden="true" /> {applied.size ? `${applied.size} change${applied.size === 1 ? '' : 's'} put into the Brief. Press Save edits to keep them.` : 'Nothing was applied.'}
             </p>
           )}
         </div>
       )}
-      {items.length === 0 && <div className="px-4 py-3 text-sm text-zinc-500">Nothing to change.</div>}
+      {items.length === 0 && <div className="px-4 py-3 text-sm text-ink-faint">Nothing to change.</div>}
       {groups.map((g) => {
-        const hue = SECTION_STYLE[HUE_OF[g.section]];
+        const { Icon, ink, bar } = SECTION_STYLE[PART_OF[g.section]];
         return (
         <div key={g.section} className="pb-1">
-          <div className={cn('flex items-center gap-1.5 px-3 sm:px-4 pt-3 pb-1.5 text-[11px] uppercase tracking-wide font-medium', hue.text)}>
-            <hue.Icon size={12} aria-hidden="true" /> {g.label} <span className="text-zinc-500 font-normal">· {g.items.length}</span>
+          <div className="flex items-center gap-1.5 px-3 sm:px-4 pt-3 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">
+            <Icon size={12} className={ink} aria-hidden="true" /> {g.label} <span className="mono tracking-normal">· {g.items.length}</span>
           </div>
+          {/* each row edged in its section's colour, the one the Brief page codes that section with; hovering one tints it */}
           <ul className="px-2 sm:px-3 space-y-0.5">
             {g.items.map((it) => {
               const done = doneOf(it.id);
               const on = picked.has(it.id);
               const dim = done === 'skipped' || (!done && !on);
               return (
-                <li key={it.id} className={cn('flex items-center gap-3 rounded-md border-l-2 pl-3 pr-2 min-h-11 hover:bg-zinc-800/40', hue.bar, dim && 'opacity-60')}>
+                <li key={it.id} className={cn('flex items-center gap-3 rounded-md border-l-[3px] pl-3 pr-2 min-h-11 transition-colors hover:bg-sunken', bar, dim && 'opacity-60')}>
                   {done ? (
-                    <span className={cn('w-4 shrink-0 text-center text-xs', done === 'applied' ? 'text-emerald-300' : 'text-zinc-500')} title={done}>
+                    <span className={cn('w-4 shrink-0 text-center text-xs', done === 'applied' ? 'text-ok-ink' : 'text-ink-faint')} title={done}>
                       {done === 'applied' ? <Check size={14} aria-label="applied" /> : <X size={14} aria-label="skipped" />}
                     </span>
                   ) : (
-                    <input type="checkbox" className="size-4 shrink-0 accent-emerald-500" checked={on} onChange={(e) => include(it.id, e.target.checked)} aria-label={`Include ${it.what}${it.title ? ` — ${it.title}` : ''}`} />
+                    <input type="checkbox" className="size-4 shrink-0" checked={on} onChange={(e) => include(it.id, e.target.checked)} aria-label={`Include ${it.what}${it.title ? ` — ${it.title}` : ''}`} />
                   )}
                   <button type="button" className="flex min-w-0 flex-1 items-center gap-3 py-2 text-left" onClick={() => setOpenId(it.id)} title="Open this change">
                     <OpMark op={it.op} />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm text-zinc-100">
-                        <span className="font-medium">{it.what}</span>
-                        {it.title && <span className="text-zinc-300"> · {it.title}</span>}
+                      <span className="block truncate text-sm text-ink">
+                        <span className="font-bold">{it.what}</span>
+                        {it.title && <span className="text-ink-soft"> · {it.title}</span>}
                       </span>
-                      <span className="block truncate text-xs text-zinc-500">{summaryOf(it)}</span>
+                      <span className="block truncate text-xs text-ink-faint">{summaryOf(it)}</span>
                     </span>
-                    <ChevronRight size={14} className="shrink-0 text-zinc-500" aria-hidden="true" />
+                    <ChevronRight size={14} className="shrink-0 text-ink-faint" aria-hidden="true" />
                   </button>
                 </li>
               );

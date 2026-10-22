@@ -1,11 +1,22 @@
 import type { SkillSource, SkillSourceRow, SkillUsage } from '@foundry/engine/skills-types';
 import { ChevronDown, ChevronRight, ExternalLink, Eye, RefreshCw } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
-import { Badge, Button, CopyButton, ago, cn } from '../../ui.tsx';
+import { BOARD_ROW, Badge, Button, CopyButton, ago, cn } from '../../ui.tsx';
+import { categoryPlate, stateDot, type Tone } from '../agents/marks.ts';
 
 const MANAGER_LABEL: Record<SkillSource['manager'], string> = { 'foundry': 'Foundry', 'agents-cli': 'npx skills', plugin: 'Claude plugin', hand: 'hand-installed', project: 'project' };
+/**
+ * Each kind of source in a category colour of its own (code(i)), on its board's icon and its rows' plates: Foundry's
+ * green, plugins violet, npx skills teal, what you put there by hand blue (as "yours" on the MCP tab), a project's fuchsia.
+ */
+export const MANAGER_CODE: Record<SkillSource['manager'], number> = { foundry: 1, plugin: 2, 'agents-cli': 5, hand: 0, project: 6 };
 const STATUS_LABEL: Record<SkillSourceRow['status'], string> = { 'up-to-date': 'up to date', outdated: 'outdated', unreleased: 'unreleased', modified: 'modified', unknown: 'unknown', broken: 'broken' };
-const DOT: Record<string, string> = { 'up-to-date': 'bg-emerald-400', outdated: 'bg-amber-400', unreleased: 'bg-violet-400', modified: 'bg-sky-400', broken: 'bg-rose-400', unknown: 'bg-zinc-600' };
+/**
+ * A status's dot, in the signal of its badge (the kit's Badge draws the plates): up to date green, broken red, outdated
+ * yellow because an update waits for you to press it, a copy that differs blue (information); changes not released yet
+ * and what could not be checked ask nothing of you: hollow.
+ */
+const STATUS_TONE: Record<SkillSourceRow['status'], Tone> = { 'up-to-date': 'ok', outdated: 'you', unreleased: 'none', modified: 'work', unknown: 'none', broken: 'bad' };
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) : null);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 /** the usage window in words: the goals actually counted, not the limit asked for */
@@ -24,7 +35,7 @@ export interface SourceGroupActions {
 }
 
 /**
- * One source of skills.
+ * One source of skills, as a row of its kind's board with its skills listed under it.
  * Desktop: one row — identity (label truncates) · state badge at a fixed x · actions column of fixed width.
  * Mobile: identity, then state + counts, then actions — all left-aligned, nothing floating.
  */
@@ -60,16 +71,21 @@ export function SourceGroup({ s, busy, updating, running, filter, a, usage, wind
     </Badge>
   );
   const countsEl = (
-    <div className="flex items-center gap-3 text-[10px] text-zinc-500 whitespace-nowrap">
+    <div className="flex items-center gap-3 text-[11px] text-ink-faint whitespace-nowrap">
       {(['outdated', 'unreleased', 'modified', 'up-to-date', 'unknown', 'broken'] as const)
         .filter((k) => counts[k])
         .map((k) => (
-          <span key={k}>
-            <span className={cn('inline-block h-1.5 w-1.5 rounded-full mr-1', DOT[k])} />
+          <span key={k} className="inline-flex items-center gap-1">
+            <span className={stateDot(STATUS_TONE[k])} />
             {counts[k]} {STATUS_LABEL[k]}
           </span>
         ))}
     </div>
+  );
+  const managerPlate = (
+    <span className={categoryPlate(MANAGER_CODE[s.manager])} title={s.manager}>
+      {MANAGER_LABEL[s.manager]}
+    </span>
   );
   const actions = (
     <>
@@ -113,86 +129,91 @@ export function SourceGroup({ s, busy, updating, running, filter, a, usage, wind
   const hasActions = canUpdate || adoptable.length > 0 || shadows.length > 0 || removable.length > 0 || pluginRemovable;
 
   return (
-    <section className={cn('rounded-lg border bg-zinc-900/60', s.updateAvailable ? 'border-amber-500/30' : 'border-zinc-800')}>
-      <header className="px-3 sm:px-4 py-2.5 space-y-1.5">
+    <li>
+      <header className={cn(BOARD_ROW, 'px-4 py-3 space-y-1.5')}>
         {/* row 1: identity gets the width — name truncates last; actions sit at the right edge */}
         <div className="flex items-center gap-2 min-w-0">
           {removable.length > 0 && <input type="checkbox" className="shrink-0" checked={allSelected} onChange={(e) => a.onSelect(removable, e.target.checked)} title="select all removable skills in this source" />}
           <button className="flex items-center gap-2 min-w-0 flex-1 text-left" onClick={() => setOpen(!open)} title={open ? 'collapse' : 'expand'}>
-            {open ? <ChevronDown size={14} className="text-zinc-500 shrink-0" /> : <ChevronRight size={14} className="text-zinc-500 shrink-0" />}
-            <Badge state={s.manager} className="shrink-0 hidden sm:inline-flex">
-              {MANAGER_LABEL[s.manager]}
-            </Badge>
-            <span className="text-sm font-semibold text-zinc-100 truncate">{s.label}</span>
+            {open ? <ChevronDown size={14} className="text-ink-faint shrink-0" /> : <ChevronRight size={14} className="text-ink-faint shrink-0" />}
+            {/* a wrapper hides it on a phone (the plate's own inline-flex would win over hidden); the row under it shows it there */}
+            <span className="hidden sm:inline-flex shrink-0">{managerPlate}</span>
+            <span className="text-[15px] font-bold text-ink truncate">{s.label}</span>
           </button>
           {s.homepage && (
-            <a href={s.homepage} target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-zinc-200 shrink-0" title={s.homepage}>
+            <a href={s.homepage} target="_blank" rel="noreferrer" className="text-ink-faint hover:text-ink shrink-0" title={s.homepage}>
               <ExternalLink size={12} />
             </a>
           )}
-          <div className="hidden sm:flex items-center gap-1.5 shrink-0">{hasActions ? actions : <span className="text-[11px] text-zinc-500 max-w-[16rem] truncate text-right" title={s.updater.hint ?? ''}>{s.updater.hint ?? (s.manager === 'project' ? 'edit in the repository' : 'no updater')}</span>}</div>
+          <div className="hidden sm:flex items-center gap-1.5 shrink-0">{hasActions ? actions : <span className="text-xs text-ink-faint max-w-[16rem] truncate text-right" title={s.updater.hint ?? ''}>{s.updater.hint ?? (s.manager === 'project' ? 'edit in the repository' : 'no updater')}</span>}</div>
         </div>
         {/* mobile: manager + state + counts, then actions */}
         <div className="sm:hidden flex items-center gap-2 flex-wrap">
-          <Badge state={s.manager}>{MANAGER_LABEL[s.manager]}</Badge>
+          {managerPlate}
           {stateBadge}
           {countsEl}
           {running && <span className="text-[11px]">{running}</span>}
         </div>
-        {(hasActions || s.updater.hint) && <div className="sm:hidden flex items-center gap-1.5 flex-wrap">{hasActions ? actions : <span className="text-[11px] text-zinc-500">{s.updater.hint}</span>}</div>}
+        {(hasActions || s.updater.hint) && <div className="sm:hidden flex items-center gap-1.5 flex-wrap">{hasActions ? actions : <span className="text-xs text-ink-faint">{s.updater.hint}</span>}</div>}
         {/* row 2 (desktop): all the status — state badge, metadata, per-skill counts */}
-        <div className="hidden sm:flex items-center gap-3 text-[11px] text-zinc-500 min-w-0 pl-6">
+        <div className="hidden sm:flex items-center gap-3 text-xs text-ink-faint min-w-0 pl-6">
           {stateBadge}
           <span className="truncate flex-1" title={meta.join(' · ')}>
             {meta.join(' · ')}
-            {s.error && <span className="text-rose-400"> · {s.error}</span>}
+            {s.error && <span className="text-bad-ink"> · {s.error}</span>}
           </span>
           <div className="shrink-0">{countsEl}</div>
           {/* an operation in progress sits with the status, not on a line of its own */}
           {running && <div className="shrink-0 text-[11px]">{running}</div>}
         </div>
         {/* mobile keeps the metadata on its own line */}
-        <div className="sm:hidden text-[11px] text-zinc-500 min-w-0">
+        <div className="sm:hidden text-xs text-ink-faint min-w-0">
           <span className="block truncate" title={meta.join(' · ')}>
             {meta.join(' · ')}
-            {s.error && <span className="text-rose-400"> · {s.error}</span>}
+            {s.error && <span className="text-bad-ink"> · {s.error}</span>}
           </span>
         </div>
       </header>
-      {unreleased && s.updater.hint && <div className="px-3 sm:px-4 pb-1 sm:pl-10 text-[11px] text-violet-300">{s.updater.hint}</div>}
+      {/* why the update waits (upstream changed, the version did not): nothing for you to do yet */}
+      {unreleased && s.updater.hint && <div className="px-4 pb-2 sm:pl-10 text-xs text-ink-soft">{s.updater.hint}</div>}
       {s.updater.command && open && canUpdate && (
-        <div className="px-3 sm:px-4 pb-1 sm:pl-10 text-[10px] text-zinc-600 mono truncate">
+        <div className="px-4 pb-2 sm:pl-10 text-[11px] text-ink-faint mono truncate">
           {s.updater.command.join(' ')} <CopyButton text={s.updater.command.join(' ')} />
         </div>
       )}
+      {/* the source's skills, a level down: indented on the inset colour, as a chain's goals are on the Goals page */}
       {open && (
-        <div className="border-t border-zinc-800">
-          {rows.map((r, i) => (
-            <Row key={r.invoke} r={r} usage={usage?.get(r.dir)} windowGoals={windowGoals ?? 0} odd={i % 2 === 1} busy={busy} selected={a.selected.has(r.name)} onSelect={(on) => a.onSelect([r.name], on)} onView={() => a.onView(r)} onAdopt={() => a.onAdopt([r.name])} onTrashShadow={() => a.onTrashShadows([r.name])} onUninstall={() => a.onUninstall([r.name])} onUpdate={canUpdate && s.updater.kind !== 'plugin' ? () => a.onUpdate([r.name]) : undefined} />
+        <ul className="border-t border-line divide-y divide-line bg-sunken/60">
+          {rows.map((r) => (
+            <Row key={r.invoke} r={r} usage={usage?.get(r.dir)} windowGoals={windowGoals ?? 0} busy={busy} selected={a.selected.has(r.name)} onSelect={(on) => a.onSelect([r.name], on)} onView={() => a.onView(r)} onAdopt={() => a.onAdopt([r.name])} onTrashShadow={() => a.onTrashShadows([r.name])} onUninstall={() => a.onUninstall([r.name])} onUpdate={canUpdate && s.updater.kind !== 'plugin' ? () => a.onUpdate([r.name]) : undefined} />
           ))}
-        </div>
+        </ul>
       )}
-    </section>
+    </li>
   );
 }
 
-/** One skill: checkbox · name + status · description · actions. Indented under the group, zebra striped. */
-function Row({ r, usage, windowGoals, odd, busy, selected, onSelect, onView, onAdopt, onTrashShadow, onUninstall, onUpdate }: { r: SkillSourceRow; usage?: SkillUsage | null; windowGoals: number; odd: boolean; busy: boolean; selected: boolean; onSelect: (on: boolean) => void; onView: () => void; onAdopt: () => void; onTrashShadow: () => void; onUninstall: () => void; onUpdate?: () => void }) {
+/**
+ * One skill, a row under its source: checkbox · name and status over its facts and its description · actions. The
+ * description stays under the name from a tablet up too, where a column of its own beside the name was squeezed to a
+ * few words; the actions keep a column of one width, so every status plate lines up.
+ */
+function Row({ r, usage, windowGoals, busy, selected, onSelect, onView, onAdopt, onTrashShadow, onUninstall, onUpdate }: { r: SkillSourceRow; usage?: SkillUsage | null; windowGoals: number; busy: boolean; selected: boolean; onSelect: (on: boolean) => void; onView: () => void; onAdopt: () => void; onTrashShadow: () => void; onUninstall: () => void; onUpdate?: () => void }) {
   const removable = r.actions.includes('uninstall');
   return (
-    <div className={cn('pl-3 sm:pl-6 pr-3 sm:pr-4 py-2 grid grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_17rem_minmax(0,1fr)_15rem] gap-x-3 gap-y-1 items-start text-xs ml-2 sm:ml-4 border-l-2 border-zinc-800/60', odd ? 'bg-zinc-900/50' : 'bg-transparent', selected && 'bg-emerald-500/5')}>
+    <li className={cn(BOARD_ROW, 'pl-5 sm:pl-10 pr-4 py-2.5 grid grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_minmax(0,1fr)_15rem] gap-x-3 gap-y-1 items-start text-xs', selected && 'bg-accent/[0.06]')}>
       <div className="pt-0.5 w-4">{removable ? <input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} /> : <span className="inline-block w-3" />}</div>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', DOT[r.status])} title={STATUS_LABEL[r.status]} />
-          <button className="mono text-zinc-100 truncate hover:underline text-left" title={`${r.invoke} — view`} onClick={onView}>
+          <span className={stateDot(STATUS_TONE[r.status])} title={STATUS_LABEL[r.status]} />
+          <button className="mono text-[13px] font-semibold text-ink truncate hover:underline text-left" title={`${r.invoke} — view`} onClick={onView}>
             {r.invoke}
           </button>
-          <Badge state={r.status} className="ml-auto w-[5.5rem] justify-center shrink-0">
+          <Badge state={r.status} className="ml-auto w-[6.5rem] justify-center shrink-0">
             {STATUS_LABEL[r.status]}
           </Badge>
         </div>
-        <div className="text-[10px] text-zinc-500 mt-0.5 pl-3.5 flex flex-wrap gap-x-2">
+        <div className="text-[11px] text-ink-faint mt-0.5 pl-4 flex flex-wrap gap-x-2">
           {r.local.installedAt && <span>installed {fmtDate(r.local.installedAt)}</span>}
           {r.upstream && (
             <span title={r.upstream.exact ? `upstream commit ${r.upstream.commit}` : 'history truncated — repo HEAD date'}>
@@ -200,8 +221,9 @@ function Row({ r, usage, windowGoals, odd, busy, selected, onSelect, onView, onA
               {r.upstream.exact ? '' : '*'}
             </span>
           )}
+          {/* a fact, not a request: a quiet chip */}
           {usage?.unused && (
-            <span className="rounded border border-amber-500/40 bg-amber-500/10 px-1 text-amber-300" title={`no session invoked it in ${lastGoals(windowGoals)}`}>
+            <span className="rounded-sm px-1 font-semibold text-ink-soft inset-ring inset-ring-line-strong" title={`no session invoked it in ${lastGoals(windowGoals)}`}>
               unused
             </span>
           )}
@@ -210,7 +232,7 @@ function Row({ r, usage, windowGoals, odd, busy, selected, onSelect, onView, onA
           {r.status === 'unreleased' && <span title="upstream changed this skill, but the plugin's version number did not go up, so the CLI will not install it yet">changed upstream, not released</span>}
           {r.match?.relation === 'differs' && <span>differs from upstream</span>}
           {r.shadowedBy && (
-            <span className="text-amber-300" title={`${r.invoke} hides ${r.shadowedBy}; both load, prompts use the plugin one`}>
+            <span className="text-you-ink" title={`${r.invoke} hides ${r.shadowedBy}; both load, prompts use the plugin one`}>
               shadows {r.shadowedBy}
             </span>
           )}
@@ -218,10 +240,10 @@ function Row({ r, usage, windowGoals, odd, busy, selected, onSelect, onView, onA
           {r.keptBecause && <span title={r.keptBecause}>can't uninstall here: {r.keptBecause}</span>}
         </div>
       </div>
-      <div className="col-start-2 md:col-start-3 text-zinc-400 line-clamp-2 min-w-0" title={r.description}>
-        {r.description || <span className="text-zinc-600">no description</span>}
+      <div className="col-start-2 pl-4 text-ink-soft line-clamp-2 min-w-0" title={r.description}>
+        {r.description || <span className="text-ink-faint">no description</span>}
       </div>
-      <div className="col-start-2 md:col-start-4 flex items-center gap-1.5 justify-start md:justify-end flex-wrap">
+      <div className="col-start-2 md:col-start-3 md:row-start-1 md:row-span-2 flex items-center gap-1.5 justify-start md:justify-end flex-wrap">
         <Button size="sm" variant="info" onClick={onView} title="open SKILL.md">
           <Eye size={12} /> View
         </Button>
@@ -246,6 +268,6 @@ function Row({ r, usage, windowGoals, odd, busy, selected, onSelect, onView, onA
           </Button>
         )}
       </div>
-    </div>
+    </li>
   );
 }

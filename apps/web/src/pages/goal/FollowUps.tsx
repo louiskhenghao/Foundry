@@ -1,5 +1,6 @@
 import { CornerDownRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { api, type GoalDetail, type GoalRow } from '../../api.ts';
 import { Badge, ConfirmDialog, Select } from '../../ui.tsx';
@@ -10,14 +11,15 @@ export function FollowLinks({ d }: { d: GoalDetail }) {
   const by = d.followUps?.followedBy ?? [];
   if (!f && !by.length) return null;
   return (
-    <div className="text-xs text-zinc-500 flex items-center gap-x-3 gap-y-1 mt-1.5 flex-wrap">
+    <div className="text-xs text-ink-faint flex items-center gap-x-3 gap-y-1 mt-1.5 flex-wrap">
       {f && (
         <span className="inline-flex items-center gap-1 min-w-0">
-          <CornerDownRight size={12} className="shrink-0" />
+          {/* a follow-up's colour, as the Goals page marks one: a kind of goal, not a state */}
+          <CornerDownRight size={12} className="shrink-0 text-code-1-ink" />
           {d.followUps?.followsExists ? (
             <>
               Follows:{' '}
-              <Link to={`/goals/${f.goalId}`} className="text-zinc-300 hover:underline truncate max-w-[18rem]" title={f.title}>
+              <Link to={`/goals/${f.goalId}`} className="font-semibold text-ink-soft hover:text-ink hover:underline truncate max-w-[18rem]" title={f.title}>
                 {f.title}
               </Link>
             </>
@@ -33,7 +35,7 @@ export function FollowLinks({ d }: { d: GoalDetail }) {
           Followed by:
           {by.map((g, i) => (
             <span key={g.id} className="inline-flex items-center">
-              <Link to={`/goals/${g.id}`} className="text-zinc-300 hover:underline truncate max-w-[14rem]" title={g.title}>
+              <Link to={`/goals/${g.id}`} className="font-semibold text-ink-soft hover:text-ink hover:underline truncate max-w-[14rem]" title={g.title}>
                 {g.title}
               </Link>
               {i < by.length - 1 && <span>,</span>}
@@ -57,7 +59,9 @@ export function MarkFollowUpDialog({ d, open, onClose }: { d: GoalDetail; open: 
   }, [open]);
   const earlier = (goals ?? []).filter((x) => x.id !== g.id && x.repoPath === g.repoPath && x.createdAt < g.createdAt);
   const chosen = earlier.find((x) => x.id === pick);
-  return (
+  // portalled to <body>, as the Restart dialog: among the goal page's spaced rows it took their bottom margin, and its
+  // backdrop stopped 20px short of the window's foot
+  return createPortal(
     <ConfirmDialog
       open={open}
       title="Mark as follow-up of…"
@@ -80,9 +84,9 @@ export function MarkFollowUpDialog({ d, open, onClose }: { d: GoalDetail; open: 
     >
       <p>Record that this goal continues an earlier goal of the same repository. Only the link is recorded: no code, branch or Brief changes.</p>
       {goals === null ? (
-        <p className="text-zinc-500">Loading…</p>
+        <p className="text-ink-faint">Loading…</p>
       ) : earlier.length === 0 ? (
-        <p className="text-zinc-500">No earlier goal on this repository.</p>
+        <p className="text-ink-faint">No earlier goal on this repository.</p>
       ) : (
         <>
           <Select aria-label="Earlier goal" className="w-full" value={pick} onChange={(e) => setPick(e.target.value)}>
@@ -95,12 +99,13 @@ export function MarkFollowUpDialog({ d, open, onClose }: { d: GoalDetail; open: 
           </Select>
           {chosen && (
             <div className="flex items-center gap-2">
-              <Badge state={chosen.state} /> <span className="text-zinc-400 truncate">{chosen.title}</span>
+              <Badge state={chosen.state} /> <span className="font-semibold text-ink truncate">{chosen.title}</span>
             </div>
           )}
         </>
       )}
-      {err && <p className="text-rose-400">{err}</p>}
-    </ConfirmDialog>
+      {err && <p className="text-bad-ink">{err}</p>}
+    </ConfirmDialog>,
+    document.body,
   );
 }

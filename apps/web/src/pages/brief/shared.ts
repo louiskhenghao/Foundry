@@ -1,21 +1,33 @@
 import type { Brief, BriefArea, BriefCheck, BriefTask } from '@foundry/core/browser';
 import { areaSlug } from '@foundry/core/browser';
-import { BookOpenText, Flag, Gavel, Image, LayoutGrid, Lightbulb, ListChecks, type LucideIcon, MessageCircleQuestion, Play, ShieldCheck, Wallet } from 'lucide-react';
+import { BookOpenText, Eye, Flag, Gavel, Image, LayoutGrid, Lightbulb, ListChecks, type LucideIcon, MessageCircleQuestion, Play, ScanSearch, ShieldCheck, Wallet } from 'lucide-react';
+import { code } from '../../ui.tsx';
 
-/** the parts of the Brief page, each with a hue of its own so the page reads at a glance (literal classes so Tailwind keeps them) */
-export type BriefSection = 'understanding' | 'questions' | 'subjects' | 'assumptions' | 'decisions' | 'areas' | 'plan' | 'acceptance' | 'run' | 'completion' | 'budget';
-export const SECTION_STYLE: Record<BriefSection, { Icon: LucideIcon; text: string; dot: string; bar: string }> = {
-  understanding: { Icon: BookOpenText, text: 'text-sky-300', dot: 'bg-sky-400', bar: 'border-sky-400/70' },
-  questions: { Icon: MessageCircleQuestion, text: 'text-orange-300', dot: 'bg-orange-400', bar: 'border-orange-400/70' },
-  subjects: { Icon: Image, text: 'text-fuchsia-300', dot: 'bg-fuchsia-400', bar: 'border-fuchsia-400/70' },
-  assumptions: { Icon: Lightbulb, text: 'text-violet-300', dot: 'bg-violet-400', bar: 'border-violet-400/70' },
-  decisions: { Icon: Gavel, text: 'text-emerald-300', dot: 'bg-emerald-400', bar: 'border-emerald-400/70' },
-  areas: { Icon: LayoutGrid, text: 'text-amber-300', dot: 'bg-amber-400', bar: 'border-amber-400/70' },
-  plan: { Icon: ListChecks, text: 'text-blue-300', dot: 'bg-blue-400', bar: 'border-blue-400/70' },
-  acceptance: { Icon: ShieldCheck, text: 'text-rose-300', dot: 'bg-rose-400', bar: 'border-rose-400/70' },
-  run: { Icon: Play, text: 'text-sky-300', dot: 'bg-sky-400', bar: 'border-sky-400/70' },
-  completion: { Icon: Flag, text: 'text-violet-300', dot: 'bg-violet-400', bar: 'border-violet-400/70' },
-  budget: { Icon: Wallet, text: 'text-emerald-300', dot: 'bg-emerald-400', bar: 'border-emerald-400/70' },
+/** a section's category colour (ADR-0067): its icon's ink, the dot before it in the side list, the edge of its group */
+const hue = (i: number) => {
+  const c = code(i);
+  return { ink: c.ink, dot: c.dot, bar: c.bar };
+};
+
+/**
+ * The parts of the Brief page, each with its icon and a category colour of its own, so the page reads at a glance: the
+ * hues the sections had before themes (understanding blue, decisions green, acceptance red…), in the theme's colours.
+ */
+export type BriefSection = 'understanding' | 'questions' | 'subjects' | 'assumptions' | 'decisions' | 'opinion' | 'areas' | 'plan' | 'acceptance' | 'reference' | 'run' | 'completion' | 'budget';
+export const SECTION_STYLE: Record<BriefSection, { Icon: LucideIcon; ink: string; dot: string; bar: string }> = {
+  understanding: { Icon: BookOpenText, ...hue(0) },
+  questions: { Icon: MessageCircleQuestion, ...hue(3) },
+  subjects: { Icon: Image, ...hue(6) },
+  assumptions: { Icon: Lightbulb, ...hue(2) },
+  decisions: { Icon: Gavel, ...hue(1) },
+  opinion: { Icon: Eye, ...hue(5) },
+  areas: { Icon: LayoutGrid, ...hue(7) },
+  plan: { Icon: ListChecks, ...hue(0) },
+  acceptance: { Icon: ShieldCheck, ...hue(4) },
+  reference: { Icon: ScanSearch, ...hue(5) },
+  run: { Icon: Play, ...hue(0) },
+  completion: { Icon: Flag, ...hue(2) },
+  budget: { Icon: Wallet, ...hue(1) },
 };
 /** the section a Brief page nav item (id "brief-<section>") belongs to */
 export const sectionOfNav = (id: string): BriefSection | null => (id.startsWith('brief-') && id.slice(6) in SECTION_STYLE ? (id.slice(6) as BriefSection) : null);
@@ -38,22 +50,18 @@ export function withPlan(local: Brief, planned: Brief): Brief {
 /** every kind a task may have; `goal` = a Delegated goal of its own does the step (the planner offers it only where the goal allows delegation) */
 export const TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'chore', 'goal'] as const;
 
-/** Stable colour per Area (by position), for chips and DAG dots. Literal classes so Tailwind keeps them. */
-const PALETTE = [
-  { chip: 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300', dot: '#34d399' },
-  { chip: 'border-sky-500/40 bg-sky-500/10 text-sky-300', dot: '#38bdf8' },
-  { chip: 'border-violet-500/40 bg-violet-500/10 text-violet-300', dot: '#a78bfa' },
-  { chip: 'border-amber-500/40 bg-amber-500/10 text-amber-300', dot: '#fbbf24' },
-  { chip: 'border-rose-500/40 bg-rose-500/10 text-rose-300', dot: '#fb7185' },
-  { chip: 'border-teal-500/40 bg-teal-500/10 text-teal-300', dot: '#2dd4bf' },
-  { chip: 'border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-300', dot: '#e879f9' },
-  { chip: 'border-lime-500/40 bg-lime-500/10 text-lime-300', dot: '#a3e635' },
-];
-export const UNASSIGNED_STYLE = { chip: 'border-zinc-700 bg-zinc-800/60 text-zinc-400', dot: '#71717a' };
+/** an Area's tag shape: a small chip, tinted in the Area's colour */
+const AREA_CHIP = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[11px] font-semibold leading-tight';
+/** each Area's category colour, by its place in the Brief: green, blue, violet, then on round the eight, as before themes */
+const AREA_CODES = [1, 0, 2, 3, 4, 5, 6, 7];
+export const UNASSIGNED_STYLE = { chip: `${AREA_CHIP} ring-1 ring-inset ring-line text-ink-faint`, dot: 'var(--color-line-strong)' };
 
+/** An Area's chip and its dot (a CSS colour, for DAG nodes and lists): a category colour of its own, never a signal. */
 export function areaStyle(brief: Pick<Brief, 'areas'>, key: string | null): { chip: string; dot: string } {
   const i = brief.areas.findIndex((a) => a.key === key);
-  return i < 0 ? UNASSIGNED_STYLE : PALETTE[i % PALETTE.length]!;
+  if (i < 0) return UNASSIGNED_STYLE;
+  const c = code(AREA_CODES[i % AREA_CODES.length]!);
+  return { chip: `${AREA_CHIP} ${c.chip}`, dot: c.css };
 }
 
 export function areaOf(brief: Pick<Brief, 'areas'>, key: string | null): BriefArea | null {

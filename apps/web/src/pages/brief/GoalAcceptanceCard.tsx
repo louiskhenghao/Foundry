@@ -15,7 +15,7 @@ export function GoalAcceptanceCard({ brief, editable, edit }: { brief: Brief; ed
   const add = (type: 'command' | 'reviewer', areaKey: string | null) => edit((b) => ({ ...b, checks: [...b.checks, newCheck(b, type, null, areaKey)] }));
   return (
     <Card
-      title={<><SectionTitle section="acceptance">{`Goal acceptance (${goalChecks.length})`}</SectionTitle><HelpLink to="approving-the-brief#goal-acceptance" className="ml-1.5" /></>}
+      title={<span className="flex items-start gap-1.5"><SectionTitle section="acceptance">{`Goal acceptance (${goalChecks.length})`}</SectionTitle><HelpLink to="approving-the-brief#goal-acceptance" className="mt-0.5 shrink-0" /></span>}
       actions={
         editable && (
           <Menu
@@ -35,20 +35,20 @@ export function GoalAcceptanceCard({ brief, editable, edit }: { brief: Brief; ed
         )
       }
     >
-      <p className="text-xs text-zinc-500 mb-3">
-        Verified on the merged result once every task is done. <Badge state="must" /> all pass → <b>done</b>; <Badge state="stretch" /> also pass → <b>over-delivered</b>. Per-task checks ({taskChecks}) are inside the task cards; a task check can be moved here and vice versa.
+      <p className="text-xs text-ink-faint mb-3">
+        Verified on the merged result once every task is done. <Badge state="must" /> all pass → <b className="text-ink-soft">done</b>; <Badge state="stretch" /> also pass → <b className="text-ink-soft">over-delivered</b>. Per-task checks (<span className="mono">{taskChecks}</span>) are inside the task cards; a task check can be moved here and vice versa.
       </p>
-      {goalChecks.length === 0 && <div className="text-xs text-zinc-500">No goal-level checks — the goal will be judged only by its tasks' checks and the Goal reviewer.</div>}
-      <div className="space-y-3">
+      {goalChecks.length === 0 && <div className="text-xs text-ink-faint">No goal-level checks — the goal will be judged only by its tasks' checks and the Goal reviewer.</div>}
+      <div className="space-y-4">
         {groups.map((g) => {
           const xs = inGroup(g.key);
           if (!xs.length && g.key !== null) return null;
           return (
             <div key={g.key ?? '_'}>
               {g.name && (
-                <div className="flex items-center gap-2 mb-1.5">
-                  {g.key && <span className="w-2 h-2 rounded-full" style={{ background: areaStyle(brief, g.key).dot }} />}
-                  <span className={cn('text-[11px] uppercase tracking-wide', g.key ? 'text-zinc-300' : 'text-zinc-500')}>{g.name}</span>
+                <div className="flex items-center gap-2 mb-2">
+                  {g.key && <span className="w-2 h-2 rounded-full shrink-0" style={{ background: areaStyle(brief, g.key).dot }} aria-hidden="true" />}
+                  <span className={cn('text-[11px] font-extrabold uppercase tracking-[0.08em]', g.key ? 'text-ink-soft' : 'text-ink-faint')}>{g.name}</span>
                 </div>
               )}
               <div className="space-y-1.5">

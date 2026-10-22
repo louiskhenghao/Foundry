@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { create } from 'zustand';
 import { api, fileKey, fileUrl, type FileInfo, type FileRef } from '../api.ts';
-import { CopyButton, cn } from '../ui.tsx';
+import { CopyButton, buttonClass, cn } from '../ui.tsx';
 import { JsonTree, parseJsonDoc } from './JsonTree.tsx';
 import { MarkdownPanel } from './Markdown.tsx';
 
@@ -44,24 +44,25 @@ function Body({ info, file, stage }: { info: FileInfo; file: FileRef; stage?: bo
 
   if (info.kind === 'image')
     return (
-      <div className={cn('flex items-center justify-center rounded-md border border-zinc-800 bg-[repeating-conic-gradient(#8881_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-2', stage && MEDIA_STAGE)}>
+      // a checkerboard in the theme's faint ink behind the picture, so a transparent one shows its edges
+      <div className={cn('flex items-center justify-center rounded-lg border border-line bg-[image:repeating-conic-gradient(color-mix(in_srgb,var(--color-ink-faint)_16%,transparent)_0_25%,transparent_0_50%)] bg-[length:16px_16px] p-2', stage && MEDIA_STAGE)}>
         <img src={url} alt={info.name} className={stage ? 'max-h-full max-w-full object-contain' : 'max-h-[70vh] max-w-full object-contain'} />
       </div>
     );
-  if (info.kind === 'pdf') return <iframe src={url} title={info.name} className="w-full h-[72vh] rounded-md border border-zinc-800 bg-white" />;
-  if (info.kind === 'video') return <video src={url} controls className={cn('w-full rounded-md bg-black', stage ? MEDIA_STAGE : 'max-h-[72vh]')} />;
+  if (info.kind === 'pdf') return <iframe src={url} title={info.name} className="w-full h-[72vh] rounded-lg border border-line bg-white" />;
+  if (info.kind === 'video') return <video src={url} controls className={cn('w-full rounded-lg bg-black', stage ? MEDIA_STAGE : 'max-h-[72vh]')} />;
   if (info.kind === 'audio') return <audio src={url} controls className="w-full" />;
   if (!textual || info.size > TEXT_LIMIT)
     return (
-      <div className="flex flex-col items-center gap-3 py-10 text-sm text-zinc-400">
-        <FileWarning size={28} className="text-zinc-500" />
+      <div className="flex flex-col items-center gap-3 py-10 text-sm text-ink-soft">
+        <FileWarning size={28} className="text-ink-faint" />
         {textual ? `Too large to show here (${fmtSize(info.size)}).` : 'No preview for this kind of file.'}
-        <a href={`${url}&download=1`} className="inline-flex items-center gap-1 rounded border border-zinc-700 px-2.5 py-1 text-xs text-zinc-200 hover:border-zinc-500">
+        <a href={`${url}&download=1`} className={buttonClass('default', 'sm')}>
           <Download size={12} /> Download
         </a>
       </div>
     );
-  if (text === null) return <div className="text-xs text-zinc-500">loading…</div>;
+  if (text === null) return <div className="text-xs text-ink-faint">loading…</div>;
   const json = info.kind === 'json' ? parseJsonDoc(text) : undefined;
   if (json !== undefined) return <JsonTree value={json} />;
   if (info.kind === 'markdown') return <MarkdownPanel source={text} title={fmtSize(info.size)} local />;
@@ -83,14 +84,14 @@ export function CodeView({ text, name, className }: { text: string; name: string
   }, [text, name]);
   const lines = text.split('\n');
   return (
-    <div className={cn('surface-card rounded-md border border-zinc-800 bg-zinc-950/60 overflow-auto', className ?? 'max-h-[70vh]')}>
+    <div className={cn('rounded-lg border border-line bg-sunken overflow-auto', className ?? 'max-h-[70vh]')}>
       <table className="mono text-xs leading-5">
         <tbody>
           {lines.map((l, i) => (
             <tr key={i}>
-              <td className="select-none pr-3 pl-3 text-right align-top text-zinc-600">{i + 1}</td>
+              <td className="select-none pr-3 pl-3 text-right align-top text-ink-faint">{i + 1}</td>
               {/* highlight.js escapes the source; its output is only span tags */}
-              {html?.[i] != null ? <td className="hl pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-zinc-300" dangerouslySetInnerHTML={{ __html: html[i] || ' ' }} /> : <td className="pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-zinc-300">{l || ' '}</td>}
+              {html?.[i] != null ? <td className="hl pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-ink" dangerouslySetInnerHTML={{ __html: html[i] || ' ' }} /> : <td className="pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-ink">{l || ' '}</td>}
             </tr>
           ))}
         </tbody>
@@ -150,52 +151,54 @@ export function FilePreviewHost() {
   const name = shown.split('/').pop();
   return createPortal(
     <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
-      <div className="w-full sm:max-w-5xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[94vh] rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl flex flex-col">
-        <header className="flex items-center gap-2 px-4 py-2.5 border-b border-zinc-800 min-w-0">
+      <div className="w-full sm:max-w-5xl max-h-[calc(100dvh-1.5rem)] sm:max-h-[94vh] rounded-xl border border-line bg-panel shadow-2xl flex flex-col">
+        <header className="flex items-center gap-2 px-4 py-3 border-b border-line min-w-0">
           <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-semibold text-zinc-100 truncate">{name}</h3>
-            <div className="mono text-[10px] text-zinc-500 truncate" title={shown}>
+            <h3 className="text-sm font-bold text-ink truncate">{name}</h3>
+            <div className="mono text-[11px] text-ink-faint truncate" title={shown}>
               {shown}
               {info ? ` · ${fmtSize(info.size)}` : ''}
             </div>
           </div>
           {list.length > 1 && at >= 0 && !media && (
-            <span className="flex items-center gap-0.5 text-[11px] text-zinc-500 shrink-0">
-              <button type="button" className="rounded p-1 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-30" disabled={at === 0} onClick={() => step(-1)} aria-label="previous file" title="Previous file (←)">
+            <span className="flex items-center gap-0.5 mono text-[11px] text-ink-faint shrink-0">
+              <button type="button" className="rounded-md p-1 text-ink-soft hover:bg-sunken hover:text-ink disabled:opacity-30" disabled={at === 0} onClick={() => step(-1)} aria-label="previous file" title="Previous file (←)">
                 <ChevronLeft size={14} />
               </button>
               {at + 1} / {list.length}
-              <button type="button" className="rounded p-1 hover:bg-zinc-800 hover:text-zinc-100 disabled:opacity-30" disabled={at === list.length - 1} onClick={() => step(1)} aria-label="next file" title="Next file (→)">
+              <button type="button" className="rounded-md p-1 text-ink-soft hover:bg-sunken hover:text-ink disabled:opacity-30" disabled={at === list.length - 1} onClick={() => step(1)} aria-label="next file" title="Next file (→)">
                 <ChevronRight size={14} />
               </button>
             </span>
           )}
           <CopyButton text={info?.path ?? shown} />
           {info && (
+            // 32px links on a phone, as its buttons are
             <>
-              <a href={fileUrl(file)} target="_blank" rel="noreferrer" className="text-zinc-400 hover:text-zinc-100" title="Open in a new tab">
+              <a href={fileUrl(file)} target="_blank" rel="noreferrer" className="shrink-0 rounded-md p-[9px] sm:p-1 text-ink-soft hover:bg-sunken hover:text-ink" title="Open in a new tab">
                 <ExternalLink size={14} />
               </a>
-              <a href={`${fileUrl(file)}&download=1`} className="text-zinc-400 hover:text-zinc-100" title="Download">
+              <a href={`${fileUrl(file)}&download=1`} className="shrink-0 rounded-md p-[9px] sm:p-1 text-ink-soft hover:bg-sunken hover:text-ink" title="Download">
                 <Download size={14} />
               </a>
             </>
           )}
-          <button className="text-zinc-400 hover:text-zinc-100 text-lg leading-none px-1" onClick={close} aria-label="close">
+          <button className="rounded-md px-1.5 text-lg leading-none text-ink-faint hover:bg-sunken hover:text-ink" onClick={close} aria-label="close">
             ×
           </button>
         </header>
         <div className="p-4 overflow-auto">
           {err ? (
-            <div className="text-sm text-rose-400">{err}</div>
+            <div className="text-sm text-bad-ink">{err}</div>
           ) : info || (media && last) ? (
             <>
-              {last?.commit && <div className="mb-2 text-xs text-amber-300/90">From the task's commit <span className="mono">{last.commit.slice(0, 7)}</span> — the version the task made. Its folders were removed after the work was delivered.</div>}
-              {last?.landed && <div className="mb-2 text-xs text-amber-300/90">The task's own folder was removed when it merged; this is the file as it is now in the progress folder.</div>}
+              {/* where this copy of the file comes from, on a quiet strip above it */}
+              {last?.commit && <div className="mb-3 rounded-md bg-sunken px-3 py-2 text-xs text-ink-soft">From the task's commit <span className="mono text-ink">{last.commit.slice(0, 7)}</span> — the version the task made. Its folders were removed after the work was delivered.</div>}
+              {last?.landed && <div className="mb-3 rounded-md bg-sunken px-3 py-2 text-xs text-ink-soft">The task's own folder was removed when it merged; this is the file as it is now in the progress folder.</div>}
               {media ? (
                 <div className="space-y-2">
                   <div className="touch-pan-y select-none" {...swipe}>
-                    {info ? <Body info={info} file={file} stage={list.length > 1} /> : <div className={cn('flex items-center justify-center rounded-md border border-zinc-800 text-xs text-zinc-500', list.length > 1 ? MEDIA_STAGE : 'h-48')}>loading…</div>}
+                    {info ? <Body info={info} file={file} stage={list.length > 1} /> : <div className={cn('flex items-center justify-center rounded-lg border border-line text-xs text-ink-faint', list.length > 1 ? MEDIA_STAGE : 'h-48')}>loading…</div>}
                   </div>
                   {list.length > 1 && at >= 0 && <StepBar index={at} count={list.length} onStep={step} />}
                 </div>
@@ -204,7 +207,7 @@ export function FilePreviewHost() {
               )}
             </>
           ) : (
-            <div className="text-xs text-zinc-500">loading…</div>
+            <div className="text-xs text-ink-faint">loading…</div>
           )}
         </div>
       </div>

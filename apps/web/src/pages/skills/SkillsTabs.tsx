@@ -3,7 +3,7 @@ import { useEffect } from 'react';
 import { api, type AgentProvider } from '../../api.ts';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { ProviderSelector } from '../../components/ProviderSelector.tsx';
-import { Empty, Tabs } from '../../ui.tsx';
+import { Empty, PageHeader, Tabs } from '../../ui.tsx';
 import { CodexPluginsPanel } from './CodexPluginsPanel.tsx';
 import { McpPanel } from './McpPanel.tsx';
 import { SkillsPage } from './SkillsPage.tsx';
@@ -36,8 +36,9 @@ export function SkillsTabs() {
   };
   return (
     <>
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-3 space-y-3">
-        <ProviderSelector value={provider} onChange={(id) => go(id, tab)} />
+      {/* the page's head as the top bar names it, with the coding agent whose extensions it shows; its tabs under it */}
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9">
+        <PageHeader title="Extensions" actions={<ProviderSelector value={provider} onChange={(id) => go(id, tab)} />} />
         <Tabs
           tabs={[
             { id: 'skills' as const, label: 'Skills' },
@@ -57,9 +58,9 @@ export function SkillsTabs() {
 function AgyMcpNote() {
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
-      <div className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4 text-sm text-zinc-300 space-y-2">
+      <div className="rounded-lg border border-line bg-panel p-4 text-sm text-ink space-y-2">
         <p>Antigravity keeps its MCP servers itself, and Foundry neither lists nor changes them.</p>
-        <p className="text-xs text-zinc-400">Add one with <span className="mono text-zinc-200">agy mcp add</span> and list them with <span className="mono text-zinc-200">agy mcp list</span>, in a terminal on this computer.</p>
+        <p className="text-xs text-ink-soft">Add one with <span className="mono font-semibold text-ink">agy mcp add</span> and list them with <span className="mono font-semibold text-ink">agy mcp list</span>, in a terminal on this computer.</p>
       </div>
     </div>
   );

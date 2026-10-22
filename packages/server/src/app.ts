@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openFile, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
@@ -11,6 +11,7 @@ import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode,
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
+import { copyTheme, deleteTheme, importTheme, renameTheme, themeFileText, listThemes, prepareThemesDir, themesDir } from './themes.ts';
 import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
 import { channelTranscript, readHistory, readTranscriptEvent } from './transcripts.ts';
 import { z } from 'zod';
@@ -1554,6 +1555,56 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
   });
   app.post('/api/settings/reset', (c) => c.json(engine.resetSettings()));
+  // ---- themes (ADR-0066): the built-in ones and the JSON files in the data folder's themes/ ----
+  const themes = () => listThemes(themesDir(engine.config.dataDir));
+  app.get('/api/themes', (c) => c.json(themes()));
+  // a copy of a theme to edit by hand: the file is written, the person opens it in their editor
+  app.post('/api/themes', async (c) => {
+    const body = z.object({ from: z.string().min(1), name: z.string().max(40).optional() }).parse(await c.req.json());
+    const from = themes().themes.find((t) => t.id === body.from);
+    if (!from) throw new HttpError(404, { error: `no theme ${body.from}` });
+    return c.json(copyTheme(themesDir(engine.config.dataDir), from, body.name), 201);
+  });
+  /** a theme of the person's own, by id: a built-in theme has no file to change */
+  const ownTheme = (id: string) => {
+    const t = themes().themes.find((x) => x.id === id && !x.builtIn && x.file);
+    if (!t) throw new HttpError(404, { error: `no theme of your own called ${id}` });
+    return t;
+  };
+  // a theme of your own renamed (its file follows the name), deleted, or its file to keep or pass on
+  app.patch('/api/themes/:id', async (c) => {
+    const { name } = z.object({ name: z.string().trim().min(1).max(40) }).parse(await c.req.json());
+    return c.json(renameTheme(themesDir(engine.config.dataDir), ownTheme(c.req.param('id')), name));
+  });
+  app.delete('/api/themes/:id', (c) => {
+    deleteTheme(ownTheme(c.req.param('id')));
+    return c.json({ ok: true });
+  });
+  app.get('/api/themes/:id/file', (c) => {
+    const t = ownTheme(c.req.param('id'));
+    return c.body(themeFileText(t), 200, { 'content-type': 'application/json; charset=utf-8', 'content-disposition': `attachment; filename="${t.id}.json"` });
+  });
+  // a theme file from elsewhere, checked as the folder's own files are
+  app.post('/api/themes/import', async (c) => {
+    const body = z.object({ file: z.string().max(200), text: z.string() }).parse(await c.req.json());
+    const made = importTheme(themesDir(engine.config.dataDir), body.file, body.text);
+    if ('error' in made) throw new HttpError(400, { error: made.error });
+    return c.json(made, 201);
+  });
+  // the themes folder, or with `theme` one theme of the person's own as its file (in an editor only); never another path
+  app.post('/api/themes/open', async (c) => {
+    const { target, theme } = z.object({ target: z.string(), theme: z.string().optional() }).parse(await c.req.json());
+    const dir = prepareThemesDir(themesDir(engine.config.dataDir));
+    const file = theme ? themes().themes.find((t) => t.id === theme && !t.builtIn)?.file : undefined;
+    if (theme && !file) throw new HttpError(404, { error: `no theme file for ${theme}` });
+    const path = file ?? dir;
+    try {
+      return c.json({ ok: true, path, command: (await (file ? openFile(target as OpenTargetId, file) : openPath(target as OpenTargetId, dir))).command });
+    } catch (e) {
+      if (e instanceof OpenError) throw new HttpError(e.code === 'unknown-target' ? 404 : 400, { error: e.message, code: e.code, path });
+      throw e;
+    }
+  });
   // ---------- Learnings (ADR-0040): what Foundry knows about each project folder ----------
   // ---- schedules (ADR-0054): goals that run on their own ----
   const scheduleError = (e: unknown) => {

@@ -12,12 +12,13 @@ export interface MoreItem {
 }
 
 /** "⋯" overflow menu for secondary actions. */
-export function MoreMenu({ items, size = 'sm', label }: { items: MoreItem[]; size?: 'sm' | 'md'; label?: string }) {
+export function MoreMenu({ items, size = 'sm', label }: { items: MoreItem[]; size?: 'sm' | 'md' | 'lg'; label?: string }) {
   return (
     <Menu
       width="w-52"
       trigger={({ open, toggle }) => (
-        <Button size={size} onClick={toggle} className={cn(open && 'bg-zinc-700')} title={label ?? 'More actions'} aria-label={label ?? 'More actions'}>
+        // open, it is ringed in the accent (a ring, so it never fights the button's own fill and border)
+        <Button size={size} onClick={toggle} className={cn(open && 'ring-1 ring-accent')} title={label ?? 'More actions'} aria-label={label ?? 'More actions'}>
           <MoreHorizontal size={14} />
           {label && <span>{label}</span>}
         </Button>

@@ -1,8 +1,9 @@
 import type { McpCatalogStatus, McpHealth, McpKey, McpServerRow } from '@foundry/engine/mcp-types';
-import { ExternalLink, RefreshCw, Stethoscope } from 'lucide-react';
+import { ExternalLink, HardDrive, RefreshCw, Server, Stethoscope } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider, type McpCustomServer, type McpView } from '../../api.ts';
-import { Badge, Button, Card, ConfirmDialog, Empty, Input, Select, cn } from '../../ui.tsx';
+import { BOARD_ROW, Board, Badge, Button, Card, ConfirmDialog, Empty, Input, Select, cn } from '../../ui.tsx';
+import { STATE_INK, categoryPlate, notice, statePlate, type Tone } from '../agents/marks.ts';
 import { HelpLink } from '../HelpPage.tsx';
 import { McpConnectDialog } from './McpConnectDialog.tsx';
 import { OpsDock } from './OpsDock.tsx';
@@ -10,7 +11,10 @@ import { startOp, useRunningOp, useSkillOps } from './ops.ts';
 import { BottomDock } from './SkillsPage.tsx';
 
 const SOURCE_LABEL: Record<McpServerRow['source'], string> = { user: 'yours', plugin: 'plugin', connector: 'claude.ai' };
-const HEALTH_STATE: Record<McpHealth['status'], string> = { connected: 'pass', failed: 'fail', 'needs-auth': 'warn', pending: 'pending', unknown: 'pending' };
+/** where a server is configured, a category colour each: yours blue (as hand-installed skills), a plugin's violet (as on the Skills tab), claude.ai's lime */
+const SOURCE_CODE: Record<McpServerRow['source'], number> = { user: 0, plugin: 2, connector: 7 };
+/** a server's health: connected green, still starting blue, failed red, a sign-in yellow (yours to do), unknown hollow */
+const HEALTH_TONE: Record<McpHealth['status'], Tone> = { connected: 'ok', failed: 'bad', 'needs-auth': 'you', pending: 'work', unknown: 'none' };
 
 /** Native MCP servers for the selected backend, allowed goal access and installation controls. */
 export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) {
@@ -74,38 +78,40 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
 
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-lg font-semibold flex items-center gap-2">
+      {/* the tab's own head, in the capitals of a section */}
+      <div className="flex items-center gap-x-3 gap-y-2 flex-wrap">
+        <h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink">
+          <Server size={14} aria-hidden="true" />
           MCP servers <HelpLink to="settings#mcp-servers" />
-        </h1>
-        <span className="text-xs text-zinc-500">tools {backend} can call beyond files and the shell</span>
+        </h2>
+        <span className="text-[13px] font-semibold text-ink-faint">tools {backend} can call beyond files and the shell</span>
         <Button size="sm" className="ml-auto" disabled={checking} onClick={check} title={provider === 'codex' ? 'Checks real server connectivity through the native Codex app-server' : 'Runs claude mcp list: starts or connects to every server'}>
           <Stethoscope size={13} className={cn(checking && 'animate-pulse')} /> {checking ? 'Checking…' : 'Check'}
         </Button>
       </div>
-      <p className="text-xs text-zinc-500 -mt-2">
-        Goals run without asking you, so they only use the servers switched to <span className="text-zinc-300">Allowed in goals</span>, and only in the sessions that do the work (never in Clarify or reviews). Servers installed here go to your {backend} user configuration and also work in its CLI. Only the selected backend is changed.
+      <p className="text-[13px] leading-relaxed text-ink-faint max-w-[80ch] -mt-1">
+        Goals run without asking you, so they only use the servers switched to <span className="font-semibold text-ink-soft">Allowed in goals</span>, and only in the sessions that do the work (never in Clarify or reviews). Servers installed here go to your {backend} user configuration and also work in its CLI. Only the selected backend is changed.
       </p>
-      {err && <div className="rounded-md border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-xs text-rose-200">{err}</div>}
+      {err && <div className={cn(notice('bad'), 'px-3 py-2 text-xs text-bad-ink')}>{err}</div>}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-3">
-          <Card title="On this computer">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-6 gap-y-8 items-start">
+        <div className="lg:col-span-2 min-w-0 space-y-4">
+          {/* the servers on a board, a row each, as the Goals page's goals */}
+          <Board id="mcp-servers" icon={<HardDrive size={14} aria-hidden="true" />} title="On this computer" count={view.servers.length}>
             {view.servers.length === 0 ? (
-              <div className="text-xs text-zinc-500">No MCP servers yet. Install one from the recommendations, or add your own below.</div>
+              <li className="px-5 py-6 text-sm text-ink-faint">No MCP servers yet. Install one from the recommendations, or add your own below.</li>
             ) : (
-              <div className="divide-y divide-zinc-800">
-                {view.servers.map((s) => (
-                  <ServerRow key={`${s.source}:${s.plugin ?? ''}:${s.name}`} s={s} health={healthOf(s)} running={!!runningOp(`mcp:${s.name}`)} onAllow={(on) => allow(s, on)} onRemove={() => setRemoving(s.name)} onConnect={() => setConnecting(s.name)} keys={view.catalog.find((c) => c.entry.id === s.catalogId)?.entry.keys ?? []} onChangeKey={(k) => s.catalogId && void install({ catalogId: s.catalogId }, s.name, k, true)} />
-                ))}
-              </div>
+              view.servers.map((s) => (
+                <ServerRow key={`${s.source}:${s.plugin ?? ''}:${s.name}`} s={s} health={healthOf(s)} running={!!runningOp(`mcp:${s.name}`)} onAllow={(on) => allow(s, on)} onRemove={() => setRemoving(s.name)} onConnect={() => setConnecting(s.name)} keys={view.catalog.find((c) => c.entry.id === s.catalogId)?.entry.keys ?? []} onChangeKey={(k) => s.catalogId && void install({ catalogId: s.catalogId }, s.name, k, true)} />
+              ))
             )}
-          </Card>
+          </Board>
           <CustomForm provider={provider} onAdd={(c, keys) => void install({ custom: c }, c.name, keys)} running={(n) => !!runningOp(`mcp:${n}`)} installed={(n) => view.servers.some((s) => s.source === 'user' && s.name === n)} />
         </div>
-        <Card title="Recommended by Foundry">
-          <p className="text-[11px] text-zinc-500 mb-3">Curated in catalog/mcp.json. Installed from here, a server is allowed in goals right away.</p>
-          {missing.length === 0 && <div className="text-xs text-zinc-500">All installed.</div>}
+        {/* level with the board's panel, under its heading, on a wide screen */}
+        <Card title="Recommended by Foundry" className="lg:mt-[31px]">
+          <p className="text-xs text-ink-faint mb-3">Curated in catalog/mcp.json. Installed from here, a server is allowed in goals right away.</p>
+          {missing.length === 0 && <div className="text-xs text-ink-faint">All installed.</div>}
           <div className="space-y-2">
             {missing.map((c) => (
               <CatalogCard key={c.entry.id} provider={provider} c={c} others={view.catalog.filter((o) => o.entry.pack && o.entry.pack === c.entry.pack && o.entry.id !== c.entry.id)} running={!!runningOp(`mcp:${c.entry.name}`)} onInstall={(keys) => void install({ catalogId: c.entry.id }, c.entry.name, keys)} />
@@ -135,7 +141,7 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
           setRemoving(null);
         }}
       >
-        <p className="text-sm text-zinc-300">It is removed from your {backend} user configuration, so it also disappears from that CLI. Its saved key, if it had one, goes with it.</p>
+        <p className="text-sm text-ink-soft">It is removed from your {backend} user configuration, so it also disappears from that CLI. Its saved key, if it had one, goes with it.</p>
       </ConfirmDialog>
       <BottomDock>
         <OpsDock />
@@ -151,21 +157,22 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect, keys, onC
   const needsAuth = health?.status === 'needs-auth';
   const risky = s.source === 'connector' || (s.source === 'user' && !s.catalogId);
   return (
-    <div className="py-2.5 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3">
+    <li className={cn(BOARD_ROW, 'px-4 md:px-5 py-3 flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3')}>
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="mono text-sm text-zinc-100">{s.name}</span>
-          <span className="text-[10px] uppercase rounded bg-zinc-800 text-zinc-400 px-1">{SOURCE_LABEL[s.source]}</span>
-          {s.transport && <span className="text-[10px] text-zinc-500">{s.transport}</span>}
+          <span className="mono text-sm font-bold text-ink">{s.name}</span>
+          <span className={categoryPlate(SOURCE_CODE[s.source])}>{SOURCE_LABEL[s.source]}</span>
+          {s.transport && <span className="mono text-[11px] text-ink-faint">{s.transport}</span>}
           {health && (
-            <span title={health.detail}>
-              <Badge state={HEALTH_STATE[health.status]}>{health.status.replace('-', ' ')}</Badge>
+            <span className={statePlate(HEALTH_TONE[health.status])} title={health.detail}>
+              {health.status.replace('-', ' ')}
             </span>
           )}
-          {running && <span className="text-[11px] text-sky-300">working…</span>}
+          {running && <span className="text-[11px] font-semibold text-work-ink">working…</span>}
         </div>
-        {health && health.status !== 'connected' && <div className="text-[11px] text-amber-300/90">{health.detail}{needsAuth ? ' — press Set up to connect it' : ''}</div>}
-        <div className="mono text-[11px] text-zinc-500 truncate" title={s.target ?? undefined}>
+        {/* what the check said, in the health's colour: signing in is yours to do (yellow), a server that fails is red */}
+        {health && health.status !== 'connected' && <div className={cn('text-xs', STATE_INK[HEALTH_TONE[health.status]])}>{health.detail}{needsAuth ? ' — press Set up to connect it' : ''}</div>}
+        <div className="mono text-[11px] text-ink-faint truncate" title={s.target ?? undefined}>
           {s.source === 'plugin' ? `from plugin ${s.plugin}` : s.source === 'connector' ? 'connected in your claude.ai account' : s.target}
         </div>
         {newKeys !== null && (
@@ -196,7 +203,7 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect, keys, onC
             {needsAuth ? 'Set up' : s.source === 'connector' ? 'Connect' : 'Sign in'}
           </Button>
         )}
-        <label className="flex items-center gap-1.5 text-xs text-zinc-300 shrink-0 cursor-pointer" title={risky && !s.allowed ? 'Goals will call its tools without asking you' : 'Worker sessions may use its tools'}>
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft shrink-0 cursor-pointer" title={risky && !s.allowed ? 'Goals will call its tools without asking you' : 'Worker sessions may use its tools'}>
           <input type="checkbox" checked={s.allowed} onChange={(e) => onAllow(e.target.checked)} /> Allowed in goals
         </label>
         {keys.length > 0 && newKeys === null && (
@@ -209,12 +216,12 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect, keys, onC
             Remove
           </Button>
         ) : (
-          <span className="text-[11px] text-zinc-600 shrink-0 w-16 text-right" title={s.source === 'plugin' ? 'removed with its plugin, on the Skills tab' : 'managed in your claude.ai settings'}>
+          <span className="text-[11px] text-ink-faint shrink-0 w-16 text-right" title={s.source === 'plugin' ? 'removed with its plugin, on the Skills tab' : 'managed in your claude.ai settings'}>
             {s.source === 'plugin' ? 'with plugin' : 'on claude.ai'}
           </span>
         )}
       </div>
-    </div>
+    </li>
   );
 }
 
@@ -228,40 +235,40 @@ function CatalogCard({ provider, c, others, running, onInstall }: { provider: Ag
   const start = () => (e.disclaimer ? setConfirming(true) : onInstall(keys));
   const otherInstalled = others.find((o) => o.installed);
   return (
-    <div className="rounded-md border border-zinc-800 bg-zinc-950/50 p-2.5 space-y-1.5">
+    <div className="rounded-md border border-line bg-sunken p-3 space-y-1.5">
       <div className="flex items-center gap-2">
         <Badge state={e.tier} />
-        <span className="mono text-sm text-zinc-100 flex-1 truncate">{e.name}</span>
+        <span className="mono text-sm font-semibold text-ink flex-1 truncate">{e.name}</span>
         {e.homepage && (
-          <a href={e.homepage} target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-zinc-200" title={e.homepage}>
+          <a href={e.homepage} target="_blank" rel="noreferrer" className="text-ink-faint hover:text-ink" title={e.homepage}>
             <ExternalLink size={12} />
           </a>
         )}
       </div>
-      <div className="text-[11px] text-zinc-400">{e.summary}</div>
-      <div className="text-[11px] text-zinc-500">{e.why}</div>
+      <div className="text-xs text-ink-soft">{e.summary}</div>
+      <div className="text-xs text-ink-faint">{e.why}</div>
       <div className="flex flex-wrap gap-1">
         {e.suits.map((s) => (
-          <span key={s} className="text-[10px] rounded border border-zinc-800 px-1 text-zinc-400">
+          <span key={s} className="rounded-sm px-1 text-[10.5px] font-semibold text-ink-soft inset-ring inset-ring-line-strong">
             {s}
           </span>
         ))}
-        {others.length > 0 && <span className="text-[10px] text-zinc-500">· or {others.map((o) => o.entry.name).join(', ')}: one is enough</span>}
+        {others.length > 0 && <span className="text-[11px] text-ink-faint">· or {others.map((o) => o.entry.name).join(', ')}: one is enough</span>}
       </div>
-      {otherInstalled && <div className="text-[11px] text-emerald-300/80">{otherInstalled.entry.name} is already installed for this.</div>}
+      {otherInstalled && <div className="text-xs text-ok-ink">{otherInstalled.entry.name} is already installed for this.</div>}
       {e.keys.length > 0 && open && (
         <div className="space-y-1.5">
           {e.keys.map((k) => (
             <div key={k.name}>
               <Input type="password" autoComplete="off" placeholder={`${k.label} (${k.name})`} value={keys[k.name] ?? ''} onChange={(ev) => setKeys({ ...keys, [k.name]: ev.target.value })} />
               {k.url && (
-                <a className="text-[10px] text-zinc-500 underline" href={k.url} target="_blank" rel="noreferrer">
+                <a className="text-[11px] text-ink-faint underline hover:text-ink" href={k.url} target="_blank" rel="noreferrer">
                   get a key
                 </a>
               )}
             </div>
           ))}
-          <div className="text-[10px] text-zinc-500">Stored by {provider === 'codex' ? 'Codex' : 'Claude Code'} with the server, not in Foundry settings.</div>
+          <div className="text-[11px] text-ink-faint">Stored by {provider === 'codex' ? 'Codex' : 'Claude Code'} with the server, not in Foundry settings.</div>
         </div>
       )}
       <Button size="sm" variant={e.tier === 'recommended' ? 'primary' : 'default'} disabled={running || (open && !ready)} onClick={() => (e.keys.length && !open ? setOpen(true) : start())}>
@@ -278,8 +285,8 @@ function CatalogCard({ provider, c, others, running, onInstall }: { provider: Ag
             onInstall(keys);
           }}
         >
-          <p className="text-sm text-zinc-300 whitespace-pre-wrap">{e.disclaimer}</p>
-          {e.denyTools.length > 0 && <p className="text-xs text-zinc-500">{e.denyTools.length} of its tools run or change things (the target app, a debugger, a connected device); Foundry's sessions cannot use them unless you open them in Settings → Skills.</p>}
+          <p className="text-sm text-ink-soft whitespace-pre-wrap">{e.disclaimer}</p>
+          {e.denyTools.length > 0 && <p className="text-xs text-ink-faint">{e.denyTools.length} of its tools run or change things (the target app, a debugger, a connected device); Foundry's sessions cannot use them unless you open them in Settings → Skills.</p>}
         </ConfirmDialog>
       )}
     </div>
@@ -316,7 +323,7 @@ function CustomForm({ provider, onAdd, running, installed }: { provider: AgentPr
   };
   if (!open)
     return (
-      <button type="button" className="text-xs text-zinc-400 underline decoration-dotted" onClick={() => setOpen(true)}>
+      <button type="button" className="text-xs font-semibold text-ink-soft underline decoration-dotted hover:text-ink" onClick={() => setOpen(true)}>
         + add your own server
       </button>
     );
@@ -333,12 +340,12 @@ function CustomForm({ provider, onAdd, running, installed }: { provider: AgentPr
       </div>
       {type === 'stdio' ? (
         <>
-          <textarea aria-label="environment" className="mt-2 w-full mono text-xs bg-zinc-950 border border-zinc-800 rounded-md px-2 py-1.5 [-webkit-text-security:disc] focus:[-webkit-text-security:none]" rows={2} autoComplete="off" spellCheck={false} placeholder="environment, one per line: API_KEY=…" value={env} onChange={(e) => setEnv(e.target.value)} />
-          {!envOk && <div className="text-[11px] text-rose-400">Each line is NAME=value, with NAME in capitals.</div>}
-          <p className="text-[11px] text-zinc-500 mt-1">Added at user scope and off in goals until you switch it on. Keys are stored with the server in {provider === 'codex' ? 'Codex' : 'Claude Code'} configuration.</p>
+          <textarea aria-label="environment" className="mt-2 w-full mono text-xs bg-panel border border-line-strong rounded-md px-2 py-1.5 text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent [-webkit-text-security:disc] focus:[-webkit-text-security:none]" rows={2} autoComplete="off" spellCheck={false} placeholder="environment, one per line: API_KEY=…" value={env} onChange={(e) => setEnv(e.target.value)} />
+          {!envOk && <div className="text-xs text-bad-ink">Each line is NAME=value, with NAME in capitals.</div>}
+          <p className="text-xs text-ink-faint mt-1">Added at user scope and off in goals until you switch it on. Keys are stored with the server in {provider === 'codex' ? 'Codex' : 'Claude Code'} configuration.</p>
         </>
       ) : (
-        <p className="text-[11px] text-zinc-500 mt-2">Added at user scope and off in goals until you switch it on. If it needs an account, press <span className="text-zinc-300">Sign in</span> on its row once it is added.</p>
+        <p className="text-xs text-ink-faint mt-2">Added at user scope and off in goals until you switch it on. If it needs an account, press <span className="font-semibold text-ink-soft">Sign in</span> on its row once it is added.</p>
       )}
       <div className="flex items-center gap-2 mt-2">
         <Button size="sm" variant="primary" disabled={!valid || busy} onClick={add}>
@@ -347,7 +354,7 @@ function CustomForm({ provider, onAdd, running, installed }: { provider: AgentPr
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
           Cancel
         </Button>
-        {sent && !busy && !installed(sent) && <span className="text-[11px] text-rose-300">Not added — see the log in Operations below; the form keeps what you typed.</span>}
+        {sent && !busy && !installed(sent) && <span className="text-xs text-bad-ink">Not added — see the log in Operations below; the form keeps what you typed.</span>}
       </div>
     </Card>
   );

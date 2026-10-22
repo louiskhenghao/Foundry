@@ -34,19 +34,20 @@ export const FINAL_WALK = 'final';
 /** what a recording proved: older recordings carry no status, so it is read from what they hold */
 export const evidenceStatus = (e: Evidence): 'pass' | 'fail' | 'unverified' => e.status ?? (e.mock ? 'unverified' : e.shots.length || e.video ? 'pass' : 'fail');
 
+/** how a milestone's recording went: green when it was shown, red when it failed, blue while it records, quiet otherwise (fake data is not the person's to act on, so not yellow) */
 const STATUS: Record<'pass' | 'fail' | 'unverified' | 'running' | 'none', { label: string; className: string }> = {
-  pass: { label: 'shown', className: 'bg-emerald-500/15 text-emerald-300 border-emerald-700/50' },
-  unverified: { label: 'unverified · fake data', className: 'bg-amber-500/15 text-amber-300 border-amber-700/50' },
-  fail: { label: 'failed', className: 'bg-rose-500/15 text-rose-300 border-rose-700/50' },
-  running: { label: 'recording…', className: 'bg-sky-500/15 text-sky-300 border-sky-700/50' },
-  none: { label: 'not reached yet', className: 'bg-zinc-800 text-zinc-400 border-zinc-700' },
+  pass: { label: 'shown', className: 'bg-ok/10 text-ok-ink ring-ok/30' },
+  unverified: { label: 'unverified · fake data', className: 'text-ink ring-line-strong' },
+  fail: { label: 'failed', className: 'bg-bad/10 text-bad-ink ring-bad/40' },
+  running: { label: 'recording…', className: 'bg-work/10 text-work-ink ring-work/30' },
+  none: { label: 'not reached yet', className: 'text-ink-faint ring-line-strong' },
 };
 
 /** `files`: a milestone of files, which is collected, not recorded */
 function StatusChip({ status, files = false }: { status: keyof typeof STATUS; files?: boolean }) {
   const s = STATUS[status];
   return (
-    <span className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide', s.className)}>
+    <span className={cn('inline-flex items-center gap-1 whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset', s.className)}>
       {status === 'running' && <Loader2 size={10} className="animate-spin" />}
       {status === 'running' && files ? 'collecting…' : s.label}
     </span>
@@ -88,8 +89,8 @@ function OutputBlock({ goalId, item }: { goalId: string; item: Item }) {
   }, [goalId, item.file]);
   return (
     <div className="min-w-0">
-      <div className="text-[10px] text-zinc-500 truncate mb-0.5">{item.caption}</div>
-      <pre className="surface-inset mono text-[11px] text-zinc-300 bg-zinc-900 border border-zinc-800 rounded p-2 max-h-48 overflow-auto whitespace-pre">{text ?? '…'}</pre>
+      <div className="text-[11px] text-ink-faint truncate mb-1">{item.caption}</div>
+      <pre className="mono text-[11px] text-ink-soft bg-sunken border border-line rounded-md p-2 max-h-48 overflow-auto whitespace-pre">{text ?? '…'}</pre>
     </div>
   );
 }
@@ -115,14 +116,14 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
   const fit = files ? 'object-contain' : 'object-cover object-top';
   return (
     <div className="space-y-1.5">
-      <div className="text-[11px] text-zinc-500">
+      <div className="text-[11px] text-ink-faint">
         {files ? 'What the task produced' : 'What Foundry saw'}
         {evidence.summary ? `${files ? ' · ' : ': '}${evidence.summary}` : ''}
       </div>
       {files && (evidence.files ?? []).length > 0 && (
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
           {evidence.files!.map((f) => (
-            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-300 hover:underline mono" title={`${f}: opens or downloads in a new tab`}>
+            <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 max-sm:min-h-8 font-semibold text-work-ink hover:underline mono" title={`${f}: opens or downloads in a new tab`}>
               <FileDown size={11} /> {f}
             </a>
           ))}
@@ -132,15 +133,15 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
         <div className="flex flex-wrap items-center gap-3 text-[11px]">
           {evidence.script && (
             taskId ? (
-              <a href={fileUrl({ goal: goalId, task: taskId, rel: evidence.script })} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-300 hover:underline mono" title="The Playwright script that recorded this milestone (opens in a new tab)">
+              <a href={fileUrl({ goal: goalId, task: taskId, rel: evidence.script })} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 max-sm:min-h-8 font-semibold text-work-ink hover:underline mono" title="The Playwright script that recorded this milestone (opens in a new tab)">
                 <FileCode2 size={11} /> {evidence.script}
               </a>
             ) : (
-              <span className="inline-flex items-center gap-1 text-zinc-400 mono"><FileCode2 size={11} /> {evidence.script}</span>
+              <span className="inline-flex items-center gap-1 text-ink-soft mono"><FileCode2 size={11} /> {evidence.script}</span>
             )
           )}
           {evidence.log && (
-            <a href={api.screenshotUrl(goalId, evidence.log)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-300 hover:underline" title="What the script runner printed (opens in a new tab)">
+            <a href={api.screenshotUrl(goalId, evidence.log)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 max-sm:min-h-8 font-semibold text-work-ink hover:underline" title="What the script runner printed (opens in a new tab)">
               <ScrollText size={11} /> runner log
             </a>
           )}
@@ -154,12 +155,13 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
             const open = () => (why === 'unplayable' ? void window.open(api.screenshotUrl(goalId, m.file), '_blank', 'noreferrer') : setShown(i));
             return (
             <button key={m.file} type="button" onClick={open} disabled={why === 'gone'} title={m.caption} className="min-w-0 text-left group disabled:cursor-default">
-              <span className={cn('relative block aspect-video overflow-hidden rounded border border-zinc-700', why !== 'gone' && 'group-hover:border-zinc-500', files ? 'bg-zinc-950' : 'bg-black')}>
+              {/* media sit on black (a picture of files on the inset grey); a tile is outlined, and darkens its outline under the pointer */}
+              <span className={cn('relative block aspect-video overflow-hidden rounded-md border border-line-strong', why !== 'gone' && 'group-hover:border-ink-soft', files || why ? 'bg-sunken' : 'bg-black')}>
                 {why === 'gone' ? (
-                  <span className="flex h-full w-full items-center justify-center px-2 text-center text-[10px] text-zinc-500">not on this computer</span>
+                  <span className="flex h-full w-full items-center justify-center px-2 text-center text-[11px] text-ink-faint">not on this computer</span>
                 ) : why ? (
                   // a click opens it: shown as the link it is, not as the dead tile above
-                  <span className="flex h-full w-full items-center justify-center gap-1 px-2 text-center text-[10px] text-sky-300">
+                  <span className="flex h-full w-full items-center justify-center gap-1 px-2 text-center text-[11px] font-semibold text-work-ink">
                     <ExternalLink size={10} className="shrink-0" /> can't be shown here · open the file
                   </span>
                 ) : m.kind === 'video' ? (
@@ -167,7 +169,8 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
                     {/* the first frame as the tile's picture */}
                     <video src={`${api.screenshotUrl(goalId, m.file)}#t=0.1`} muted preload="metadata" playsInline onError={() => failed(m.file)} className={cn('h-full w-full pointer-events-none', fit)} />
                     <span className="absolute inset-0 flex items-center justify-center">
-                      <span className="rounded-full bg-black/60 p-2 text-zinc-100">
+                      {/* white on a dark disc over the picture, whatever the theme */}
+                      <span className="rounded-full bg-black/60 p-2 text-white">
                         <Play size={14} fill="currentColor" />
                       </span>
                     </span>
@@ -177,7 +180,7 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
                 )}
               </span>
               {/* a file's caption keeps its folder and name, where a long path would lose the view that tells two apart */}
-              <span className="block text-[10px] text-zinc-500 truncate mt-0.5">{files ? m.caption.split('/').slice(-2).join('/') : m.caption}</span>
+              <span className="block text-[11px] text-ink-faint truncate mt-1">{files ? m.caption.split('/').slice(-2).join('/') : m.caption}</span>
             </button>
             );
           })}
@@ -190,8 +193,8 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
           ))}
         </div>
       )}
-      {status === 'unverified' && <div className="text-[11px] text-amber-300/90">Shown with fake data only: it does not count as reached. Rerun it once the real app can start.</div>}
-      {evidence.error && <div className={cn('text-[11px] whitespace-pre-wrap', status === 'fail' ? 'text-rose-300/90' : 'text-amber-300/90')}>{evidence.error}</div>}
+      {status === 'unverified' && <div className="text-[11px] font-semibold text-ink">Shown with fake data only: it does not count as reached. Rerun it once the real app can start.</div>}
+      {evidence.error && <div className={cn('text-[11px] whitespace-pre-wrap', status === 'fail' ? 'text-bad-ink' : 'text-ink-soft')}>{evidence.error}</div>}
       {shown !== null && items[shown] && (
         <MediaLightbox
           items={items.map((m) => ({ kind: m.kind, src: api.screenshotUrl(goalId, m.file), caption: m.caption || (m.kind === 'video' ? 'Walkthrough video' : 'Screenshot') }))}
@@ -204,7 +207,7 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
             const file = items.find((m) => api.screenshotUrl(goalId, m.file) === it.src)!.file;
             const why = broken.get(file);
             return why === 'gone' ? 'Not on this computer' : why ? (
-              <a href={it.src} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">
+              <a href={it.src} target="_blank" rel="noreferrer" className="font-semibold text-work-ink hover:underline">
                 This browser cannot show it: open the file
               </a>
             ) : null;
@@ -224,14 +227,15 @@ export function likenessOf(d: Pick<GoalDetail, 'milestoneEvents'>, taskId: strin
   return e ? (e.payload as Likeness) : null;
 }
 
-const scoreClass = (n: number) => (n >= 8 ? 'bg-emerald-500/15 text-emerald-300' : n >= 6 ? 'bg-amber-500/15 text-amber-300' : 'bg-rose-500/15 text-rose-300');
+/** a likeness score's plate: green from 8, quiet from 6, red below (a middling score asks nothing of you, so it is not yellow) */
+const scoreClass = (n: number) => (n >= 8 ? 'bg-ok/10 text-ok-ink ring-ok/30' : n >= 6 ? 'text-ink ring-line-strong' : 'bg-bad/10 text-bad-ink ring-bad/40');
 
 /** the lowest score a review gave a Subject it saw, for the milestone's row */
 export function LikenessChip({ look }: { look: Likeness | null }) {
   const scores = (look?.verdict?.subjects ?? []).filter((v) => v.shown && v.score != null).map((v) => v.score!);
   if (!scores.length) return null;
   const low = Math.min(...scores);
-  return <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] tabular-nums', scoreClass(low))} title="How much it looks like the Subjects' pictures (the lowest Subject)">likeness {low}/10</span>;
+  return <span className={cn('rounded-sm px-1.5 py-0.5 text-[11px] font-semibold mono ring-1 ring-inset', scoreClass(low))} title="How much it looks like the Subjects' pictures (the lowest Subject)">likeness {low}/10</span>;
 }
 
 /**
@@ -240,28 +244,30 @@ export function LikenessChip({ look }: { look: Likeness | null }) {
  */
 export function LikenessView({ goalId, look, subjects, running, fixTitle }: { goalId: string; look: Likeness | null; subjects: BriefSubject[]; running: boolean; fixTitle: string | null }) {
   const [viewing, setViewing] = useState<{ key: string; index: number } | null>(null);
-  if (!look) return running ? <div className="text-[11px] text-zinc-500 flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Comparing with the pictures…</div> : null;
-  if (look.status === 'failed' || !look.verdict) return <div className="text-[11px] text-amber-300/90">The likeness review gave no verdict{look.detail ? `: ${look.detail}` : ''}.</div>;
+  // a review under way: the review colour
+  if (!look) return running ? <div className="text-[11px] text-extra-ink flex items-center gap-1.5"><Loader2 size={11} className="animate-spin" /> Comparing with the pictures…</div> : null;
+  if (look.status === 'failed' || !look.verdict) return <div className="text-[11px] text-ink-soft">The likeness review gave no verdict{look.detail ? `: ${look.detail}` : ''}.</div>;
   return (
-    <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-2.5 space-y-2.5">
-      <div className="text-[11px] text-zinc-400">
-        <span className="font-medium text-zinc-200">Likeness to the pictures</span>
+    // rounded-md: the guide's screenshot script finds this box by it
+    <div className="rounded-md border border-line bg-sunken p-3 space-y-3">
+      <div className="text-[11px] text-ink-soft">
+        <span className="font-extrabold caps text-ink">Likeness to the pictures</span>
         {look.verdict.summary ? ` · ${look.verdict.summary}` : ''}
       </div>
       {look.verdict.subjects.map((v) => {
         const s = subjects.find((x) => x.key === v.key);
         const diffs = [...v.differences].sort((a, b) => Number(b.major) - Number(a.major));
         return (
-          <div key={v.key} className="space-y-1">
+          <div key={v.key} className="space-y-1.5">
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-medium text-zinc-200">{s?.name ?? v.key}</span>
-              {v.shown && v.score != null ? <span className={cn('rounded-full px-1.5 py-0.5 text-[10px] tabular-nums', scoreClass(v.score))}>{v.score}/10</span> : <span className="text-[10px] text-zinc-500">not in these shots</span>}
+              <span className="font-bold text-ink">{s?.name ?? v.key}</span>
+              {v.shown && v.score != null ? <span className={cn('rounded-sm px-1.5 py-0.5 text-[11px] font-semibold mono ring-1 ring-inset', scoreClass(v.score))}>{v.score}/10</span> : <span className="text-[11px] text-ink-faint">not in these shots</span>}
             </div>
             {v.shown && (s?.pictures.length ?? 0) > 0 && (
               <div className="flex gap-1.5 overflow-x-auto">
                 {s!.pictures.slice(0, 6).map((p, i) => (
                   <button key={p.file} type="button" onClick={() => setViewing({ key: v.key, index: i })} title={p.caption || 'a picture of it'} className="shrink-0">
-                    <img src={api.subjectPictureUrl(goalId, p.file)} alt={p.caption || s!.name} loading="lazy" className="h-12 w-16 object-cover rounded border border-zinc-800 hover:border-zinc-500" />
+                    <img src={api.subjectPictureUrl(goalId, p.file)} alt={p.caption || s!.name} loading="lazy" className="h-12 w-16 object-cover rounded-md border border-line hover:border-line-strong" />
                   </button>
                 ))}
               </div>
@@ -269,18 +275,18 @@ export function LikenessView({ goalId, look, subjects, running, fixTitle }: { go
             {diffs.length > 0 && (
               <ul className="text-[11px] space-y-0.5">
                 {diffs.map((d, i) => (
-                  <li key={i} className={cn('flex gap-1.5', d.major ? 'text-rose-300/90' : 'text-zinc-400')}>
+                  <li key={i} className={cn('flex gap-1.5', d.major ? 'text-bad-ink' : 'text-ink-soft')}>
                     <span className="shrink-0">{d.major ? '●' : '○'}</span>
                     <span>{d.what}</span>
                   </li>
                 ))}
               </ul>
             )}
-            {v.matches.length > 0 && <div className="text-[11px] text-emerald-300/80">Matches: {v.matches.join('; ')}</div>}
+            {v.matches.length > 0 && <div className="text-[11px] text-ok-ink">Matches: {v.matches.join('; ')}</div>}
           </div>
         );
       })}
-      {fixTitle && <div className="text-[11px] text-sky-300/90">Foundry added “{fixTitle}” for the major differences; the milestone is recorded and compared again once it lands.</div>}
+      {fixTitle && <div className="text-[11px] text-work-ink">Foundry added “{fixTitle}” for the major differences; the milestone is recorded and compared again once it lands.</div>}
       {viewing && (() => {
         const s = subjects.find((x) => x.key === viewing.key);
         return s ? <MediaLightbox items={subjectLightbox(goalId, s)} index={viewing.index} onIndex={(index) => setViewing({ ...viewing, index })} onClose={() => setViewing(null)} title={s.name} /> : null;
@@ -373,7 +379,12 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
   const finalRunning = runs.has(FINAL_WALK);
   return (
     <Card
-      title={`Milestones (${reached}/${milestones.length} shown)`}
+      // the count turns green once every milestone was shown
+      title={
+        <>
+          Milestones (<span className={cn(reached === milestones.length && 'text-ok-ink')}>{reached}/{milestones.length} shown</span>)
+        </>
+      }
       actions={
         landed.length > 0 && (
           <Button size="sm" variant="info" disabled={landed.every((m) => runs.has(m.task.id))} onClick={() => void rerun(FINAL_WALK)} title="Record every milestone that landed again: scripts run, walkthroughs replay, milestones of files collect their files again">
@@ -382,46 +393,52 @@ export function MilestonesCard({ d }: { d: GoalDetail }) {
         )
       }
     >
-      {err && <div className="mb-2 text-[11px] text-rose-300">{err}</div>}
+      {err && <div className="mb-2 text-[11px] text-bad-ink">{err}</div>}
       {(finalWalk || finalRunning) && (
-        <div className="mb-2 flex items-center gap-2 rounded-md border border-zinc-800 bg-zinc-900/40 px-2.5 py-1.5 text-xs">
-          <span className="font-medium text-zinc-200">Final walkthrough</span>
+        // what it says wraps under the name on a narrow screen rather than being cut
+        <div className="mb-3 flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-line bg-sunken px-3 py-2 text-xs">
+          <span className="font-bold text-ink">Final walkthrough</span>
           <StatusChip status={finalRunning ? 'running' : finalWalk!.passed ? 'pass' : 'fail'} />
-          <span className="text-[11px] text-zinc-500 truncate">
+          <span className="min-w-0 text-[11px] text-ink-faint">
             {finalRunning ? 'every feature’s script runs once more on the finished branch' : finalWalk!.passed ? `every script passed · ${ago(finalWalk!.at)}` : `${finalWalk!.failed.length} script${finalWalk!.failed.length > 1 ? 's' : ''} failed · ${ago(finalWalk!.at)}`}
           </span>
         </div>
       )}
-      <ul className="text-xs divide-y divide-zinc-800/70">
+      <ul className="text-xs divide-y divide-line">
         {milestones.map(({ task, visits: vs, rec }) => {
           const last = vs.at(-1);
           const expanded = open.has(task.id);
           const running = runs.has(task.id);
           const files = showsFiles(task);
           const status = running ? 'running' : rec ? evidenceStatus(rec.evidence) : 'none';
+          // the goal is paused at this milestone right now: the look waits for you
+          const waiting = g.state === 'awaiting_feedback' && g.checkpoint?.taskId === task.id;
           return (
-            <li key={task.id} className="py-2 first:pt-0 last:pb-0">
-              <div className="flex items-start gap-2">
-                <button type="button" disabled={!rec} onClick={() => toggle(task.id)} className="min-w-0 flex-1 flex items-start gap-2 text-left enabled:hover:text-zinc-50" aria-expanded={rec ? expanded : undefined}>
-                  <span className="mt-0.5 shrink-0">{!last ? <Eye size={13} className="text-zinc-600" /> : last.paused ? <Eye size={13} className="text-amber-300" /> : <FastForward size={13} className="text-sky-300" />}</span>
+            <li key={task.id} className="py-2.5 first:pt-0 last:pb-0">
+              {/* on a phone the row keeps the whole width and Rerun goes under it, in line with its words */}
+              <div className="flex flex-wrap items-start gap-x-2 gap-y-1.5">
+                <button type="button" disabled={!rec} onClick={() => toggle(task.id)} className="group min-w-0 grow basis-full sm:basis-0 flex items-start gap-2 text-left" aria-expanded={rec ? expanded : undefined}>
+                  {/* the look that waits for you now in yellow, a past one in ink, a milestone it went past quiet, one not reached yet faint */}
+                  <span className="mt-0.5 shrink-0">{!last ? <Eye size={13} className="text-ink-faint" /> : last.paused ? <Eye size={13} className={waiting ? 'text-you-ink' : 'text-ink'} /> : <FastForward size={13} className="text-ink-soft" />}</span>
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-zinc-200 font-medium">{task.title}</span>
+                      <span className="text-[13px] font-bold text-ink group-enabled:group-hover:underline underline-offset-[3px]">{task.title}</span>
                       <StatusChip status={status} files={files} />
                       {rec && <LikenessChip look={likenessOf(d, task.id, rec.at)} />}
                     </span>
-                    <span className="block text-zinc-500 truncate">{task.milestone}</span>
-                    <span className="block text-[11px] text-zinc-500">
+                    {/* whole on a phone (no pointer to hover for the rest), one line beside Rerun on a wider screen */}
+                    <span className="block text-ink-soft sm:truncate" title={task.milestone ?? undefined}>{task.milestone}</span>
+                    <span className="block text-[11px] text-ink-faint">
                       {!last ? (task.state === 'done' ? 'landed' : 'not reached yet') : `${ago(last.at)} · ${last.paused ? (last.recheck ? 'second look' : 'paused for a look') : task.milestoneScript ? 'recorded, the goal went on' : 'went on (Have a look off)'}`}
                       {rec && rec.at !== last?.at && <span> · {files ? 'collected' : 'recorded'} {ago(rec.at)}{rec.evidence.final ? ' (final walkthrough)' : ''}</span>}
-                      {last?.outcome?.action === 'continue' && <span className="inline-flex items-center gap-0.5 text-emerald-300/90"> · <CheckCircle2 size={10} /> continued</span>}
-                      {last?.outcome?.action === 'feedback' && <span className="inline-flex items-center gap-0.5 text-sky-300/90"> · <MessageSquare size={10} /> feedback: {last.outcome.feedback?.slice(0, 80)}</span>}
+                      {last?.outcome?.action === 'continue' && <span className="inline-flex items-center gap-0.5 text-ok-ink"> · <CheckCircle2 size={10} /> continued</span>}
+                      {last?.outcome?.action === 'feedback' && <span className="inline-flex items-center gap-0.5 text-work-ink"> · <MessageSquare size={10} /> feedback: {last.outcome.feedback?.slice(0, 80)}</span>}
                     </span>
                   </span>
-                  {rec && <ChevronRight size={13} className={cn('mt-0.5 shrink-0 text-zinc-500 transition-transform', expanded && 'rotate-90')} />}
+                  {rec && <ChevronRight size={13} className={cn('mt-0.5 shrink-0 text-ink-faint transition-transform', expanded && 'rotate-90')} />}
                 </button>
                 {task.state === 'done' && (
-                  <Button size="sm" variant="info" className="shrink-0" disabled={running} onClick={() => void rerun(task.id)} title={task.milestoneScript ? `Run ${task.milestoneScript} again and record what it shows` : files ? "Show the task's files again (snapshots, images, video)" : 'Replay the walkthrough recorded last time in the preview'}>
+                  <Button size="sm" variant="info" className="shrink-0 ml-5 sm:ml-0" disabled={running} onClick={() => void rerun(task.id)} title={task.milestoneScript ? `Run ${task.milestoneScript} again and record what it shows` : files ? "Show the task's files again (snapshots, images, video)" : 'Replay the walkthrough recorded last time in the preview'}>
                     <RotateCcw size={12} /> Rerun
                   </Button>
                 )}

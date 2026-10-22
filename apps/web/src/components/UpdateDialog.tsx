@@ -24,7 +24,9 @@ export function UpdatePill() {
   if (!status?.updateAvailable) return null;
   return (
     <>
-      <button onClick={() => setOpen(true)} className="flex h-8 sm:h-7 items-center gap-1.5 rounded-md border border-sky-500/40 text-sky-300 px-2 text-[11px] mono" title={`Foundry ${status.latest} is available — you run ${status.current}`}>
+      {/* news, not a request: the work (information) colour, in the top bar's own palette. A phone's bar has no room for
+          it; there the ⚙ button's dot says a newer version is out, and its menu leads to About & updates */}
+      <button onClick={() => setOpen(true)} className="hidden sm:flex h-8 sm:h-7 items-center gap-1.5 rounded-md border border-work/50 text-work-ink px-2 text-[11px] font-bold mono hover:bg-band-hover" title={`Foundry ${status.latest} is available — you run ${status.current}`}>
         <ArrowUpCircle size={12} />
         <span className="whitespace-nowrap">{status.latest}</span>
       </button>
@@ -73,15 +75,16 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
   return createPortal(
     <Modal open={open} title={`Update to ${status.latest ?? '…'}`} onClose={phase === 'running' ? () => {} : onClose} wide>
       <div className="space-y-3 text-sm">
-        <p className="text-xs text-zinc-400">
-          You run <span className="mono text-zinc-200">{status.current}</span> ({cap.mode} install) — <span className="mono text-zinc-200">{status.latest}</span> is available.
+        <p className="text-xs text-ink-soft">
+          {/* the newer version is news, in the information blue the top bar's pill shows it in */}
+          You run <span className="mono font-bold text-ink">{status.current}</span> ({cap.mode} install) — <span className="mono font-bold text-work-ink">{status.latest}</span> is available.
         </p>
         {status.changelog.length > 0 && (
-          <div className="max-h-56 overflow-auto rounded-md border border-zinc-800 bg-zinc-900/40 p-3 space-y-3">
+          <div className="max-h-56 overflow-auto rounded-md border border-line bg-sunken p-3 space-y-3">
             {status.changelog.map((c) => (
               <div key={c.version}>
-                <div className="text-xs font-semibold text-zinc-200 mono">{c.version}</div>
-                <div className="text-[11px] text-zinc-400 whitespace-pre-wrap mt-1">{c.notes || '(no notes)'}</div>
+                <div className="text-xs font-bold text-ink mono">{c.version}</div>
+                <div className="text-xs text-ink-soft whitespace-pre-wrap mt-1">{c.notes || '(no notes)'}</div>
               </div>
             ))}
           </div>
@@ -89,17 +92,17 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
         {cap.canSelfUpdate ? (
           phase === 'idle' ? (
             <div className="space-y-2">
-              <p className="text-[11px] text-zinc-500">
+              <p className="text-xs text-ink-faint">
                 {cap.mode === 'docker'
                   ? 'The watchtower sidecar pulls the new image and restarts this container; the page reconnects by itself.'
                   : 'Runs git pull, installs and rebuilds, then restarts the server; any failure rolls back and changes nothing.'}{' '}
                 New sessions stop first and active agents finish before the restart.
               </p>
-              <label className="flex items-center gap-2 text-[11px] text-zinc-400 cursor-pointer">
-                <input type="checkbox" className="accent-amber-500" checked={force} onChange={(e) => setForce(e.target.checked)} />
+              <label className="flex items-center gap-2 text-xs text-ink-soft cursor-pointer">
+                <input type="checkbox" checked={force} onChange={(e) => setForce(e.target.checked)} />
                 Update immediately without waiting — interrupts running agents
               </label>
-              {err && <div className="text-[11px] text-rose-300">✘ {err}</div>}
+              {err && <div className="text-xs text-bad-ink">✘ {err}</div>}
               <div className="flex justify-end gap-2">
                 <Button size="sm" variant="ghost" onClick={onClose}>
                   Not now
@@ -112,7 +115,8 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
           ) : (
             <div className="space-y-2">
               <LiveLog attemptId="self-update" className="max-h-56" />
-              <p className={cn('text-[11px]', phase === 'failed' ? 'text-rose-300' : 'text-zinc-500')}>
+              {/* the update at work in blue, a failed one in red */}
+              <p className={cn('text-xs font-semibold', phase === 'failed' ? 'text-bad-ink' : 'text-work-ink')}>
                 {phase === 'failed' ? 'The update did not go through — it was rolled back and the old version is running. See the log above.' : 'Updating… the server restarts at the end and this page reloads by itself.'}
               </p>
               {phase === 'failed' && (
@@ -126,15 +130,15 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
           )
         ) : (
           <div className="space-y-2">
-            <p className="text-[11px] text-zinc-500">
+            <p className="text-xs text-ink-faint">
               {cap.mode === 'docker'
                 ? 'This container has no watchtower sidecar, so it cannot replace itself — run these on the host (the newest docker-compose.yml adds the sidecar for one-click updates):'
                 : 'This install cannot update itself — run these in the Foundry directory, then restart:'}
             </p>
-            <div className="rounded-md border border-zinc-800 bg-zinc-900/40 p-3 space-y-1">
+            <div className="rounded-md border border-line bg-sunken p-3 space-y-1">
               {cap.guided.map((cmd) => (
-                <div key={cmd} className="flex items-center gap-2 text-[12px] mono text-zinc-200">
-                  <span className="text-zinc-500">$</span> {cmd} <CopyButton text={cmd} />
+                <div key={cmd} className="flex items-center gap-2 text-[12px] mono text-ink [overflow-wrap:anywhere]">
+                  <span className="text-ink-faint">$</span> {cmd} <CopyButton text={cmd} />
                 </div>
               ))}
             </div>

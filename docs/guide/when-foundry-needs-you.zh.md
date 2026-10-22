@@ -10,7 +10,7 @@ goal 运行时你看到的其它信息都属正常，不需要你做什么。本
 
 ## Foundry 停下来的八种原因
 
-每一种都是一张卡片。卡片标题写明是什么停了下来，带着各自的图标和颜色（出错是橙色，问题或限额是琥珀色，要你看一眼的里程碑是蓝色），下面一句白话说明；不在任务里显示时，还会写明是哪个 goal、哪个任务。接着是详情，再下面是你的回答要带上的内容（提示和额外尝试次数，或者新的限额）。按钮在卡片底部：左边是 AI 帮忙，右边是你的回答，主要的那个在最右边。回答之后，底部会写明选了什么。
+每一种都是一张卡片，卡片顶部是一条黄色横条，和所有等你处理的事一样：表示停下原因的图标、用大字写明是什么停了下来、已经等了多久，以及一句白话说明；不在任务里显示时，还会写明是哪个 goal、哪个任务。接着是详情，再下面是你的回答要带上的内容（提示和额外尝试次数，或者新的限额）。按钮在卡片底部：左边是 AI 帮忙，右边是你的回答，主要的那个在最右边。回答之后，底部会写明选了什么。
 
 ### 某一部分做不完
 
@@ -120,7 +120,7 @@ Brief 出来之前，goal 页面可能显示 **Round N — K questions**。这�
 | 工作完成后出现 `[reviewer] …` | 任务审查员在检查改动。 |
 | `[reviewer] ✗ Output does not match required schema …` | 审查员的结论格式不对，会重新发送。无害。 |
 | `■ success · $0.420 · 7 turns — …` | 会话结束了。破折号后面是 worker 最后说的话；点这一行可以看全文。 |
-| `■ error_max_turns`、`■ error_max_budget_usd`、`■ killed_timeout`（琥珀色） | 会话碰到了上限。在任务的 worker 会话里，这一行以 *the engine resumes this session* 结尾：Foundry 会给它新的额度续接，最多两次，然后才开新的尝试。`error_max_budget_usd` 指的是**每个会话的 Claude 费用上限**（Settings → Models & limits），不是 goal 的预算：goal 预算设成不限，单个会话到了这个上限还是会停。 |
+| `■ error_max_turns`、`■ error_max_budget_usd`、`■ killed_timeout`（加粗） | 会话碰到了上限。在任务的 worker 会话里，这一行以 *the engine resumes this session* 结尾：Foundry 会给它新的额度续接，最多两次，然后才开新的尝试。`error_max_budget_usd` 指的是**每个会话的 Claude 费用上限**（Settings → Models & limits），不是 goal 的预算：goal 预算设成不限，单个会话到了这个上限还是会停。 |
 | `⏳ rate limit rejected` | 会话所用账号达到用量上限。Foundry 暂停该编码智能体并稍后重试，或者转到它的下一个账号继续（[多个账号](./costs-and-usage.zh.md#多个账号)），另一个编码智能体仍可继续；重试时间不保证额度已经恢复。之后这个任务会续接原来的会话，不占重试次数。 |
 | `⏱ sub-agent still working · 3m 30s` | 一个助手会话还在忙。这一行在更新时，日志长时间没动静是正常的。 |
 | `[claude-code:unrecognized_model] …` | 你的 Claude Code 比你选的模型旧。会话照常工作；更新 Claude Code 就不会再出现。 |

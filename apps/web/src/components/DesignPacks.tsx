@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiForProvider, type PacksView } from '../api.ts';
 import { LiveLog } from '../pages/LiveLog.tsx';
 import { KeyMissing } from './KeyMissing.tsx';
-import { Button, CopyButton, cn } from '../ui.tsx';
+import { Button, CopyButton, choiceClass, cn } from '../ui.tsx';
 
 /**
  * One mutually exclusive skill pack (design / image / video): pick an option (Settings
@@ -26,7 +26,7 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design', provid
       if (poll.current) clearInterval(poll.current);
     };
   }, []);
-  if (!packs) return <div className="text-xs text-zinc-500">{msg ?? `checking ${pack} skills…`}</div>;
+  if (!packs) return <div className="text-xs text-ink-faint">{msg ?? `checking ${pack} skills…`}</div>;
   const choose = async (id: string) => {
     setBusy(id);
     setMsg(null);
@@ -76,31 +76,35 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design', provid
           const ready = o.entries.length > 0 && missing.length === 0;
           const manualOnly = missing.length > 0 && missing.every((e) => e.sourceType === 'cli' || e.sourceType === 'manual');
           return (
-            <div key={o.id} className={cn('rounded-md border p-2.5 flex flex-col gap-1.5', chosen ? 'border-emerald-500 bg-emerald-500/5' : 'border-zinc-800')}>
+            <div key={o.id} className={cn('rounded-lg border p-2.5 flex flex-col gap-1.5', choiceClass(chosen))}>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => choose(o.id)} disabled={busy !== null} className="flex items-center gap-2 text-left min-w-0 flex-1">
-                  <span className={cn('h-3.5 w-3.5 rounded-full border shrink-0', chosen ? 'border-emerald-400 bg-emerald-400' : 'border-zinc-600')} />
-                  <span className="text-sm text-zinc-100 truncate">{o.label}</span>
+                  {/* a radio's dot in the accent */}
+                  <span className={cn('h-3.5 w-3.5 rounded-full border shrink-0', chosen ? 'border-accent bg-accent shadow-[inset_0_0_0_2.5px_var(--color-panel)]' : 'border-line-strong')} />
+                  {/* the name wraps on a phone rather than losing its end */}
+                  <span className="min-w-0 text-sm font-bold text-ink">{o.label}</span>
                 </button>
                 {o.id !== 'none' && (
-                  // no catalog entry for this backend: nothing to install here, which is not "0 missing"
-                  <span className={cn('text-[10px] uppercase tracking-wide rounded px-1.5 py-0.5 border', installing === o.id ? 'text-sky-300 border-sky-500/40' : ready ? 'text-emerald-300 border-emerald-500/40' : !o.entries.length ? 'text-zinc-400 border-zinc-700' : 'text-amber-300 border-amber-500/40')} title={!o.entries.length ? 'This option has nothing to install for the selected coding agent' : undefined}>
+                  // no catalog entry for this backend: nothing to install here, which is not "0 missing"; a quiet plate, green
+                  // only once installed, blue while it installs (what is missing waits for no one: the Install button is the call)
+                  <span className={cn('whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset', installing === o.id ? 'text-work-ink ring-work/50' : ready ? 'bg-ok/10 text-ok-ink ring-ok/50' : !o.entries.length ? 'text-ink-faint ring-line' : 'text-ink-soft ring-line-strong')} title={!o.entries.length ? 'This option has nothing to install for the selected coding agent' : undefined}>
                     {installing === o.id ? 'installing…' : ready ? 'installed' : !o.entries.length ? 'not for this agent' : `${missing.length} missing`}
                   </span>
                 )}
                 {o.homepage && (
-                  <a href={o.homepage} target="_blank" rel="noreferrer" className="text-zinc-500 hover:text-zinc-200" title={o.homepage}>
+                  <a href={o.homepage} target="_blank" rel="noreferrer" className="grid h-8 w-8 sm:h-auto sm:w-auto shrink-0 place-items-center text-ink-faint hover:text-ink" title={o.homepage}>
                     <ExternalLink size={12} />
                   </a>
                 )}
               </div>
-              <div className="text-[11px] text-zinc-500 leading-snug">{o.summary}</div>
+              <div className="text-xs text-ink-faint leading-snug">{o.summary}</div>
               {o.entries.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {o.entries.map((e) => (
-                    <span key={e.id} className="inline-flex items-center gap-1 rounded border border-zinc-800 bg-zinc-950/50 px-1.5 py-0.5 text-[11px]" title={e.detail}>
-                      <span className={cn('h-1.5 w-1.5 rounded-full', e.status === 'installed' || e.status === 'installed-via-plugin' ? 'bg-emerald-400' : e.status === 'installed-unmanaged' ? 'bg-amber-400' : 'bg-zinc-600')} />
-                      <span className="mono text-zinc-300">{e.invoke}</span>
+                    <span key={e.id} className="inline-flex items-center gap-1 rounded-sm bg-sunken px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-line" title={e.detail}>
+                      {/* installed: solid green · a loose copy (installed, not by Foundry): hollow green · missing: hollow grey */}
+                      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', e.status === 'installed' || e.status === 'installed-via-plugin' ? 'bg-ok' : e.status === 'installed-unmanaged' ? 'ring-1 ring-inset ring-ok' : 'ring-1 ring-inset ring-line-strong')} />
+                      <span className="mono text-ink-soft">{e.invoke}</span>
                     </span>
                   ))}
                 </div>
@@ -119,22 +123,23 @@ export function DesignPacks({ onInstallStarted, compact, pack = 'design', provid
               )}
               {installing === o.id && (
                 <div className="space-y-1">
-                  <div className="text-[11px] text-sky-300 flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse" /> installing — live log below; this card updates itself when the skills land
+                  <div className="text-[11px] text-work-ink flex items-center gap-1.5">
+                    {/* work under way: the flowing hatch, in the blue of work (an inset-ring: ring-inset would take the theme's colour named inset) */}
+                    <span className="h-2.5 w-2.5 shrink-0 rounded-[2px] hatch text-work inset-ring inset-ring-work" /> installing — live log below; this card updates itself when the skills land
                   </div>
                   <LiveLog attemptId="tool-install" className="max-h-40" />
                 </div>
               )}
               {manualOnly && missing[0]!.manual && (
-                <div className="text-[11px] text-zinc-400">
-                  run yourself: <span className="mono text-zinc-200">{missing[0]!.manual.command}</span> <CopyButton text={missing[0]!.manual.command} />
+                <div className="text-[11px] text-ink-soft">
+                  run yourself: <span className="mono text-ink">{missing[0]!.manual.command}</span> <CopyButton text={missing[0]!.manual.command} />
                 </div>
               )}
             </div>
           );
         })}
       </div>
-      {msg && <div className="text-xs text-zinc-300 whitespace-pre-wrap">{msg}</div>}
+      {msg && <div className="text-xs text-ink-soft whitespace-pre-wrap">{msg}</div>}
     </div>
   );
 }

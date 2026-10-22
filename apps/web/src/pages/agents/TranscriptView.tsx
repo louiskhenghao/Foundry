@@ -39,6 +39,13 @@ function fullOf(it: AgentLogItem, resultFor: Map<string, ToolResult>): FullText 
 const oneLine = (s: string) => s.slice(0, 400).replace(/\s+/g, ' ');
 
 /**
+ * who speaks, as a small plate before the line: you in solid ink; a tool call or a command outlined, in mono, each kind
+ * of line in a category colour of its own (tool calls blue, commands violet, as before themes; a failed call red)
+ */
+const ROLE = 'shrink-0 rounded-sm px-1.5 py-px text-[11px] font-bold uppercase tracking-[0.08em] leading-4';
+const TOOL = 'shrink-0 max-w-[45%] truncate rounded-sm px-1.5 py-px mono text-[11px] font-semibold leading-4 inset-ring-1';
+
+/**
  * Parsed conversation view for a session Foundry did not spawn (or a Task subagent), fed by
  * incremental byte-offset polling of the transcript — only while this component is mounted.
  */
@@ -95,36 +102,56 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
 
   return (
     <>
-      <div ref={ref} className={cn('surface-card mono text-[12px] leading-5 bg-zinc-950 border border-zinc-800 rounded-md p-3 overflow-auto max-h-[70vh] space-y-0.5', className)}>
-        {items.length === 0 && <div className="text-zinc-600">{error ? `log unavailable: ${error}` : status === null ? 'loading…' : 'no renderable output in this transcript…'}</div>}
-        {error && items.length > 0 && <div className="text-amber-300">Could not refresh this conversation: {error}</div>}
+      {/* prose in the reading face, code (tool calls, their results, commands) in mono; who speaks as a small plate */}
+      <div ref={ref} className={cn('surface-card text-[13px] leading-6 bg-panel border border-line rounded-lg p-2 sm:p-3 overflow-auto max-h-[70vh] space-y-px', className)}>
+        {items.length === 0 && <div className="px-1.5 text-ink-faint">{error ? `log unavailable: ${error}` : status === null ? 'loading…' : 'no renderable output in this transcript…'}</div>}
+        {error && items.length > 0 && <div className="px-1.5 text-bad-ink">Could not refresh this conversation: {error}</div>}
         {items.map((it, i) => {
           // one line per entry, like the live log; entries with more behind them are buttons that open the full text
-          const line = (cls: string, node: ReactNode) => {
+          const line = (cls: string, node: ReactNode, plate?: ReactNode) => {
             const full = fullOf(it, resultFor);
             const body = <span className="min-w-0 flex-1 truncate">{node}</span>;
-            if (!full) return <div key={i} className={cn('flex gap-1.5 min-w-0', cls)}>{body}</div>;
+            if (!full) return <div key={i} className={cn('flex items-center gap-2 min-w-0 rounded-md px-1.5', cls)}>{plate}{body}</div>;
             return (
-              <button key={i} type="button" onClick={() => setOpen(i)} title="Show the full message" className={cn('log-row flex gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 cursor-pointer', cls)}>
+              <button key={i} type="button" onClick={() => setOpen(i)} title="Show the full message" className={cn('log-row flex items-center gap-2 min-w-0 w-full text-left rounded-md px-1.5 hover:bg-line/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent cursor-pointer', cls)}>
+                {plate}
                 {body}
               </button>
             );
           };
-          if (it.kind === 'user') return line('text-zinc-100 surface-inset bg-zinc-900 border border-zinc-800 px-2 py-0.5 my-1', <><span className="text-[10px] uppercase tracking-wide text-zinc-500 mr-1.5">you</span>{oneLine(it.text)}</>);
-          if (it.kind === 'command') return line('text-violet-300', <>/{it.name} {it.args && <span className="text-zinc-400">{oneLine(it.args)}</span>}</>);
-          if (it.kind === 'notice') return line('text-zinc-600 italic', oneLine(it.text));
-          if (it.kind === 'assistant') return line('text-zinc-200', oneLine(it.text));
-          if (it.kind === 'thinking') return line('text-zinc-600 italic', oneLine(it.text));
+          if (it.kind === 'user') return line('my-1 py-1 bg-sunken font-medium text-ink', oneLine(it.text), <span className={cn(ROLE, 'bg-ink text-on-ink')}>you</span>);
+          if (it.kind === 'command') return line('mono text-[12px] text-ink-soft', it.args && oneLine(it.args), <span className={cn(TOOL, 'inset-ring-code-3/55 text-code-3-ink')}>/{it.name}</span>);
+          if (it.kind === 'notice') return line('italic text-ink-faint', oneLine(it.text));
+          if (it.kind === 'assistant') return line('text-ink', oneLine(it.text));
+          if (it.kind === 'thinking') return line('italic text-ink-faint', oneLine(it.text));
           if (it.kind === 'tool_use') {
             const result = it.id ? resultFor.get(it.id) : undefined;
-            return line('text-sky-400', <>{result?.isError && <span className="text-rose-400">✗ </span>}⚙ {it.name} <span className="text-zinc-500">{oneLine(it.input)}</span></>);
+            const plate = (
+              <>
+                {result?.isError && <span className="shrink-0 font-bold text-bad-ink">✗</span>}
+                <span className={cn(TOOL, result?.isError ? 'inset-ring-bad/60 text-bad-ink' : 'inset-ring-code-1/55 text-code-1-ink')}>⚙ {it.name}</span>
+              </>
+            );
+            return line('mono text-[12px] text-ink-faint', oneLine(it.input), plate);
           }
           // a result whose call is on the page is shown with that call
-          if (it.kind === 'tool_result') return it.forId && called.has(it.forId) ? null : line(it.isError ? 'text-rose-400' : 'text-zinc-500', <>{it.isError ? '✗ ' : '↳ '}{oneLine(it.content)}</>);
-          if (it.kind === 'compact') return line('text-amber-400/80 border-t border-amber-500/20 pt-1 mt-1', <>⇅ context compacted · {Math.round(it.preTokens / 1000)}k → {Math.round(it.postTokens / 1000)}k tokens</>);
+          if (it.kind === 'tool_result') return it.forId && called.has(it.forId) ? null : line(cn('mono text-[12px]', it.isError ? 'text-bad-ink' : 'text-ink-faint'), <>{it.isError ? '✗ ' : '↳ '}{oneLine(it.content)}</>);
+          // where the context was compacted: a dashed rule and its words in a category colour of their own (amber before themes)
+          if (it.kind === 'compact') return line('mono text-[12px] text-code-4-ink border-t border-dashed border-code-4/60 rounded-none pt-1 mt-1.5', <>⇅ context compacted · {Math.round(it.preTokens / 1000)}k → {Math.round(it.postTokens / 1000)}k tokens</>);
           return null;
         })}
-        {status && status !== 'finished' && <div className={cn('text-zinc-500', status !== 'unknown' && 'animate-pulse')}>{status === 'unknown' ? 'Live process state unknown · checking for new history periodically' : `● ${status === 'busy' ? 'working…' : 'waiting for input…'}`}</div>}
+        {status && status !== 'finished' && (
+          <div className="px-1.5 pt-1 text-ink-faint">
+            {status === 'unknown' ? (
+              'Live process state unknown · checking for new history periodically'
+            ) : (
+              <>
+                {/* still working: the dot pulses in the work colour; waiting for input is no signal */}
+                <span className={cn(status === 'busy' ? 'text-work animate-pulse' : 'text-ink-faint')}>●</span> <span className={cn(status === 'busy' && 'font-semibold text-work-ink')}>{status === 'busy' ? 'working…' : 'waiting for input…'}</span>
+              </>
+            )}
+          </div>
+        )}
       </div>
       <FullTextDialog value={open !== null && items[open] ? fullOf(items[open]!, resultFor) : null} onClose={() => setOpen(null)} />
     </>

@@ -1,14 +1,15 @@
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
 import type { AgentSessionRow, AgentsList } from '@foundry/engine/agents-types';
-import { ChevronDown, ChevronRight, CornerDownRight, Folder, Search, Square } from 'lucide-react';
+import { Bot, ChevronDown, ChevronRight, CornerDownRight, Folder, Search, Square, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type AgentProvider, type GoalRow } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { ago, Badge, Button, Card, cn, ConfirmDialog, Empty, Input, Page, useAffix } from '../../ui.tsx';
+import { ago, BOARD_ROW, Board, Button, Card, chipClass, cn, code, ConfirmDialog, Empty, Input, Page, PageHeader, useAffix } from '../../ui.tsx';
 import { ContextGauge } from './ContextGauge.tsx';
+import { categoryPlate, categorySquare } from './marks.ts';
 import { SessionDetail, SubagentStatus } from './SessionDetail.tsx';
-import { AttemptChip, ProviderBadge, ranFor, SourceBadge, StatusDot, shortCwd, shortModel } from './rows.tsx';
+import { AttemptChip, EmptyPanel, FIGURE_LABEL, ProviderBadge, ranFor, SourceBadge, StatusDot, shortCwd, shortModel, traitChip } from './rows.tsx';
 
 /** Foundry agent sessions, grouped by goal, and external native sessions; outside sessions are only observed. */
 export function AgentsPage() {
@@ -57,7 +58,8 @@ export function AgentsPage() {
       });
   };
 
-  const warnings = <>{error && <div role="alert" className="text-xs text-rose-300 mb-3">{error}</div>}{list?.warnings?.map((warning, index) => <div key={index} className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-200 mb-3">{warning}</div>)}</>;
+  // a history that could not be read is said quietly: nothing waits for the person here
+  const warnings = <>{error && <div role="alert" className="text-xs text-bad-ink mb-3">{error}</div>}{list?.warnings?.map((warning, index) => <div key={index} className="rounded-md border border-line bg-panel px-3 py-2 text-xs text-ink-soft mb-3">{warning}</div>)}</>;
   if (selId) {
     return (
       <Page width="lg">
@@ -103,61 +105,71 @@ export function AgentsPage() {
   const sum = list?.summary;
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-4">
-      <div className="flex items-center gap-3 flex-wrap">
-        <h1 className="text-lg font-semibold text-zinc-100">Agents</h1>
-        {sum && (
-          <span className="text-xs text-zinc-500">
-            <span className={cn(sum.busy ? 'text-emerald-300' : 'text-zinc-500')}>{sum.busy} working</span> · {sum.idle} idle · {sum.finished} finished{(sum.unknown ?? 0) > 0 && <> · {sum.unknown} unknown</>} (24h)
-          </span>
-        )}
-        <span className="ml-auto text-[11px] text-zinc-500">refreshes every 5 s</span>
-      </div>
-      <p className="text-xs text-zinc-500 -mt-2">Every coding agent, together: the sessions Foundry runs for your goals, and the ones you opened yourself, from the last 24 hours. Foundry's can be stopped here; yours are read-only, and an external Codex session's live state is unknown.</p>
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16 space-y-4">
+      <PageHeader
+        title="Agents"
+        summary={
+          <>
+            {sum && (
+              <span className="block">
+                {/* the sessions at work lead, in the work colour with the running hatch; every count in mono */}
+                <span className={cn(sum.busy > 0 && 'font-bold text-work-ink')}>
+                  {sum.busy > 0 && <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-[2px] align-[-1px] hatch text-work inset-ring-1 inset-ring-work" aria-hidden="true" />}
+                  <span className="mono">{sum.busy}</span> working
+                </span>{' '}
+                · <span className="mono">{sum.idle}</span> idle · <span className="mono">{sum.finished}</span> finished{(sum.unknown ?? 0) > 0 && <> · <span className="mono">{sum.unknown}</span> unknown</>} (24h)
+              </span>
+            )}
+            <span className="block mt-1">Every coding agent, together: the sessions Foundry runs for your goals, and the ones you opened yourself, from the last 24 hours. Foundry's can be stopped here; yours are read-only, and an external Codex session's live state is unknown.</span>
+          </>
+        }
+        actions={<span className="text-xs text-ink-faint">refreshes every 5 s</span>}
+      />
 
       <div className="flex items-center gap-2 flex-wrap">
         {(['all', ...AGENT_PROVIDERS] as const).map((p) => (
-          <button key={p} onClick={() => setProvider(p)} className={cn('rounded-md border px-2 py-1 text-xs', provider === p ? 'border-emerald-500 text-emerald-300' : 'border-zinc-800 text-zinc-400')}>
-            {p === 'all' ? 'all' : PROVIDER_LABEL[p]} <span className="text-zinc-600">{list ? counts[p] : ''}</span>
+          <button key={p} onClick={() => setProvider(p)} className={chipClass(provider === p)}>
+            {p === 'all' ? 'all' : PROVIDER_LABEL[p]} <span className="mono opacity-60">{list ? counts[p] : ''}</span>
           </button>
         ))}
-        <label className="flex items-center gap-1 text-xs text-zinc-400" title="working or waiting for input">
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft" title="working or waiting for input">
           <input type="checkbox" checked={liveOnly} onChange={(e) => setLiveOnly(e.target.checked)} /> live only
         </label>
         <div className="relative flex-1 min-w-[160px] max-w-xs">
-          <Search size={13} className="absolute left-2 top-2 text-zinc-500" aria-hidden="true" />
+          <Search size={13} className="absolute left-2 top-2 text-ink-faint" aria-hidden="true" />
           <Input type="search" className="pl-7 py-1 text-xs" placeholder="search sessions, goals, tasks, models, folders" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search sessions" />
         </div>
         {all.length > 1 && (
-          <span className="flex items-center gap-2 text-xs text-zinc-500">
-            <button type="button" className="hover:text-zinc-200" onClick={() => setAll(false)}>expand all</button>
-            <span className="text-zinc-700">·</span>
-            <button type="button" className="hover:text-zinc-200" onClick={() => setAll(true)}>collapse all</button>
+          <span className="flex items-center gap-2 text-xs text-ink-faint">
+            <button type="button" className="hover:text-ink" onClick={() => setAll(false)}>expand all</button>
+            <span className="text-line-strong">·</span>
+            <button type="button" className="hover:text-ink" onClick={() => setAll(true)}>collapse all</button>
           </span>
         )}
-        <button className="lg:hidden text-xs underline text-zinc-400" onClick={() => setShowSide(!showSide)}>
+        <button className="lg:hidden text-xs font-semibold underline underline-offset-2 text-ink-soft hover:text-ink" onClick={() => setShowSide(!showSide)}>
           {showSide ? 'hide overview' : 'overview'}
         </button>
       </div>
       {warnings}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-3">
-          {list && <div className="text-xs text-zinc-500" aria-live="polite">Showing {matching.length} of {sessions.length} sessions</div>}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-2 min-w-0">
+          {list && <div className="mb-4 text-xs text-ink-faint" aria-live="polite">Showing {matching.length} of {sessions.length} sessions</div>}
           {!list && <Empty>{error ? 'Session list unavailable; retrying…' : 'Loading…'}</Empty>}
-          {list && matching.length === 0 && <Empty>{sessions.length === 0 ? 'No agent sessions in the last 24 hours.' : 'No sessions match. Pick all, untick live only, or clear the search.'}</Empty>}
-          {goalGroups.length > 0 && (
-            <div className="space-y-2">
-              <SectionLabel label="Foundry agents" count={goalGroups.reduce((n, g) => n + g.rows.length, 0)} />
-              {goalGroups.map((g) => <GroupCard key={g.id} g={g} open={isOpen(g)} onToggle={() => toggle(g)} onOpen={openSession} onKill={kill} />)}
-            </div>
-          )}
-          {folderGroups.length > 0 && (
-            <div className="space-y-2">
-              <SectionLabel label="Your sessions" count={folderGroups.reduce((n, g) => n + g.rows.length, 0)} />
-              {folderGroups.map((g) => <GroupCard key={g.id} g={g} open={isOpen(g)} onToggle={() => toggle(g)} onOpen={openSession} onKill={kill} />)}
-            </div>
-          )}
+          {list && matching.length === 0 && (sessions.length === 0 ? <EmptyPanel title="No agent sessions in the last 24 hours." /> : <EmptyPanel title="No sessions match.">Pick all, untick live only, or clear the search.</EmptyPanel>)}
+          {/* the boards in a box of their own, so the first sits right under the line above */}
+          <div>
+            {goalGroups.length > 0 && (
+              <Board id="foundry-agents" icon={<Bot size={14} strokeWidth={2.25} className={code(ORIGIN_CODE.goal).ink} aria-hidden="true" />} title="Foundry agents" count={goalGroups.reduce((n, g) => n + g.rows.length, 0)}>
+                {goalGroups.map((g) => <GroupCard key={g.id} g={g} open={isOpen(g)} onToggle={() => toggle(g)} onOpen={openSession} onKill={kill} />)}
+              </Board>
+            )}
+            {folderGroups.length > 0 && (
+              <Board id="your-sessions" icon={<User size={14} strokeWidth={2.25} className={code(ORIGIN_CODE.folder).ink} aria-hidden="true" />} title="Your sessions" count={folderGroups.reduce((n, g) => n + g.rows.length, 0)}>
+                {folderGroups.map((g) => <GroupCard key={g.id} g={g} open={isOpen(g)} onToggle={() => toggle(g)} onOpen={openSession} onKill={kill} />)}
+              </Board>
+            )}
+          </div>
         </div>
         <div ref={affix.ref} className={cn(showSide ? 'block' : 'hidden lg:block', affix.className)}>{list && <Overview sessions={sessions} />}</div>
       </div>
@@ -178,20 +190,16 @@ function readCollapsed(): Record<string, boolean> {
   try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '{}'); } catch { return {}; }
 }
 
-/** one card: a goal's sessions (Foundry's), or the sessions the person opened in one folder */
+/** one group of sessions, a row of its board: a goal's (Foundry's), or the ones the person opened in one folder */
 type SessionGroup = { id: string; kind: 'goal' | 'folder'; title: string | null; goal: GoalRow | null; dir: string | null; rows: AgentSessionRow[] };
+/** whose sessions, a category colour each, on the board's icon and the rows' plates: Foundry's green, yours blue (as elsewhere) */
+const ORIGIN_CODE: Record<SessionGroup['kind'], number> = { goal: 1, folder: 0 };
 
-function SectionLabel({ label, count }: { label: string; count: number }) {
-  return (
-    <div className="flex items-center gap-2 pt-1">
-      <span className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</span>
-      <span className="text-[10px] text-zinc-600">{count}</span>
-      <span className="flex-1 h-px bg-zinc-800/70" />
-    </div>
-  );
-}
-
-/** a goal's or a folder's sessions: header (fold, badge, name, coding agent, counts, folder), rows zebra striped under it */
+/**
+ * A goal's or a folder's sessions as one row of its board: fold, plate, name and coding agent, then the folder and the
+ * counts (the working ones in the work colour); open, its sessions are listed under it, indented. On a phone the
+ * coding agents go under the name rather than squeeze it to a few letters.
+ */
 function GroupCard({ g, open, onToggle, onOpen, onKill }: { g: SessionGroup; open: boolean; onToggle: () => void; onOpen: (sessionId: string, agentId?: string) => void; onKill: (row: AgentSessionRow) => void }) {
   const busy = g.rows.filter((r) => r.status === 'busy').length;
   const idle = g.rows.filter((r) => r.status === 'idle').length;
@@ -199,30 +207,31 @@ function GroupCard({ g, open, onToggle, onOpen, onKill }: { g: SessionGroup; ope
   const panel = `agents-${g.id || 'none'}`;
   const providers = [...new Set(g.rows.map((r) => r.provider))];
   return (
-    <section className="rounded-lg border border-zinc-800 bg-zinc-900/60">
-      <header className="px-3 sm:px-4 py-2.5 space-y-1">
-        <div className="flex items-center gap-2 min-w-0">
-          <button className="flex items-center gap-2 min-w-0 flex-1 text-left focus-visible:outline-2 focus-visible:outline-emerald-500 rounded" aria-expanded={open} aria-controls={panel} onClick={onToggle} title={open ? 'collapse' : 'expand'}>
-            {open ? <ChevronDown size={14} className="text-zinc-500 shrink-0" /> : <ChevronRight size={14} className="text-zinc-500 shrink-0" />}
-            <Badge state={g.kind === 'goal' ? 'foundry' : 'user'} className="shrink-0">{g.kind === 'goal' ? 'Foundry' : 'Yours'}</Badge>
-            <span className="text-sm font-semibold text-zinc-100 truncate">{g.title ?? (g.kind === 'goal' ? 'Goal no longer exists' : 'No folder')}</span>
+    <li>
+      <div className={cn(BOARD_ROW, 'px-4 md:px-5 py-3.5')}>
+        <div className="flex items-center gap-2.5 min-w-0">
+          {/* the fold button covers the row, as a goal's title link covers its row */}
+          <button className="flex flex-wrap sm:flex-nowrap items-center gap-x-2.5 gap-y-1.5 min-w-0 flex-1 text-left rounded after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-accent" aria-expanded={open} aria-controls={panel} onClick={onToggle} title={open ? 'collapse' : 'expand'}>
+            {open ? <ChevronDown size={14} className="text-ink-faint shrink-0" /> : <ChevronRight size={14} className="text-ink-faint shrink-0" />}
+            <span className={cn(categoryPlate(ORIGIN_CODE[g.kind]), 'shrink-0')}>{g.kind === 'goal' ? 'Foundry' : 'Yours'}</span>
+            <span className="min-w-0 grow basis-40 sm:grow-0 sm:basis-auto text-[15px] font-bold leading-snug text-ink break-words line-clamp-2 sm:line-clamp-1 group-hover:underline decoration-2 underline-offset-[3px]">{g.title ?? (g.kind === 'goal' ? 'Goal no longer exists' : 'No folder')}</span>
             {providers.map((p) => <ProviderBadge key={p ?? 'none'} provider={p} />)}
           </button>
-          {g.goal && <Link to={`/goals/${g.id}`} className="shrink-0 text-[11px] text-zinc-500 hover:text-emerald-300" aria-label="Open goal"><span className="hidden sm:inline">Open goal </span>→</Link>}
-          <span className="hidden sm:inline shrink-0 text-[11px] text-zinc-500 whitespace-nowrap">
-            {g.rows.length} session{g.rows.length === 1 ? '' : 's'}
-            {busy > 0 && <span className="text-emerald-400"> · {busy} working</span>}
-            {idle > 0 && <> · {idle} idle</>}
-            {last && <> · {ago(last)}</>}
+          {g.goal && <Link to={`/goals/${g.id}`} className="relative z-10 shrink-0 py-2 -my-2 px-1.5 -mx-1.5 text-xs font-semibold text-ink-soft hover:text-ink hover:underline underline-offset-2" aria-label="Open goal"><span className="hidden sm:inline">Open goal </span>→</Link>}
+        </div>
+        {/* from sm up the folder gives way to the counts; a phone puts the counts on a line of their own */}
+        <div className="mt-1.5 flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-1 pl-6 text-xs text-ink-faint min-w-0">
+          {g.dir && <span className="flex items-center gap-1.5 min-w-0 max-w-full"><Folder size={12} className="shrink-0" aria-hidden="true" /><span className="mono truncate" title={g.dir}>{shortCwd(g.dir)}</span></span>}
+          <span className="sm:ml-auto shrink-0 whitespace-nowrap">
+            <span className="mono">{g.rows.length}</span> session{g.rows.length === 1 ? '' : 's'}
+            {busy > 0 && <> · <b className="font-bold text-work-ink"><span className="mono">{busy}</span> working</b></>}
+            {idle > 0 && <> · <span className="mono">{idle}</span> idle</>}
+            {last && <> · <span className="mono">{ago(last)}</span></>}
           </span>
         </div>
-        <div className="flex items-center gap-2 text-[11px] text-zinc-500 min-w-0 pl-6">
-          {g.dir && <span className="flex items-center gap-1.5 min-w-0"><Folder size={11} className="shrink-0" aria-hidden="true" /><span className="mono truncate" title={g.dir}>{shortCwd(g.dir)}</span></span>}
-          <span className="sm:hidden whitespace-nowrap">{g.rows.length} session{g.rows.length === 1 ? '' : 's'}{busy > 0 && <span className="text-emerald-400"> · {busy} working</span>}</span>
-        </div>
-      </header>
-      {open && <div id={panel} className="border-t border-zinc-800 pb-1"><SessionList rows={g.rows} inGoal={g.kind === 'goal'} onOpen={onOpen} onKill={onKill} /></div>}
-    </section>
+      </div>
+      {open && <div id={panel} className="border-t border-line bg-sunken/60"><SessionList rows={g.rows} inGoal={g.kind === 'goal'} onOpen={onOpen} onKill={onKill} /></div>}
+    </li>
   );
 }
 
@@ -245,40 +254,47 @@ function Overview({ sessions }: { sessions: AgentSessionRow[] }) {
   const models = by((s) => (s.model ? shortModel(s.model) : null)).slice(0, 6);
   return (
     <Card title="Overview">
-      <div className="text-xs space-y-3">
-        <ul className="space-y-1.5">
+      <div className="text-xs space-y-4">
+        {/* each state's mark beside its name, so the panel is also the key to the rows' marks */}
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
           {states.map((st) => (
-            <li key={st.status} className="flex items-center gap-2">
-              <StatusDot status={st.status} />
-              <span className="text-zinc-300">{st.label}</span>
-              <span className="ml-auto mono text-zinc-400 tabular-nums">{sessions.filter((s) => s.status === st.status).length}</span>
-            </li>
+            <div key={st.status} className="min-w-0">
+              <dt className={cn(FIGURE_LABEL, 'flex items-center gap-1.5 leading-tight')}>
+                <StatusDot status={st.status} />
+                {st.label}
+              </dt>
+              <dd className="mt-1 text-2xl font-bold mono text-ink tabular-nums leading-none">{sessions.filter((s) => s.status === st.status).length}</dd>
+            </div>
           ))}
-        </ul>
-        <ul className="space-y-1.5 border-t border-zinc-800 pt-3">
+        </dl>
+        <ul className="space-y-2 border-t border-line pt-3">
           {by((s) => s.provider).map(([p, n]) => (
             <li key={p} className="flex items-center gap-2">
               <ProviderBadge provider={p} />
-              <span className="ml-auto mono text-zinc-400 tabular-nums">{n}</span>
+              <span className="ml-auto mono text-sm font-bold text-ink tabular-nums">{n}</span>
             </li>
           ))}
           <li className="flex items-center gap-2">
-            <span className="text-zinc-500">Foundry · yours</span>
-            <span className="ml-auto mono text-zinc-400 tabular-nums">{sessions.filter((s) => s.source === 'foundry').length} · {sessions.filter((s) => s.source === 'external').length}</span>
+            <span className={cn(FIGURE_LABEL, 'inline-flex items-center gap-1.5')}>
+              <i className={categorySquare(ORIGIN_CODE.goal)} aria-hidden="true" />
+              Foundry · <i className={categorySquare(ORIGIN_CODE.folder)} aria-hidden="true" />
+              yours
+            </span>
+            <span className="ml-auto mono text-sm font-bold text-ink tabular-nums">{sessions.filter((s) => s.source === 'foundry').length} · {sessions.filter((s) => s.source === 'external').length}</span>
           </li>
         </ul>
         {models.length > 0 && (
-          <div className="border-t border-zinc-800 pt-3 space-y-1.5">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500">Models</div>
+          <div className="border-t border-line pt-3 space-y-2">
+            <div className={FIGURE_LABEL}>Models</div>
             {models.map(([m, n]) => (
               <div key={m} className="flex items-center gap-2">
-                <span className="mono text-zinc-300 truncate">{m}</span>
-                <span className="ml-auto mono text-zinc-400 tabular-nums">{n}</span>
+                <span className="mono text-ink-soft truncate">{m}</span>
+                <span className="ml-auto mono text-sm font-bold text-ink tabular-nums">{n}</span>
               </div>
             ))}
           </div>
         )}
-        <p className="text-[11px] text-zinc-500 border-t border-zinc-800 pt-3">Click a session to read it. The last 24 hours; the list refreshes by itself.</p>
+        <p className="text-xs text-ink-faint border-t border-line pt-3">Click a session to read it. The last 24 hours; the list refreshes by itself.</p>
       </div>
     </Card>
   );
@@ -303,22 +319,22 @@ function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSess
       return next;
     });
   return (
-    <ul className="divide-y divide-zinc-800/70">
-      {rows.map((s, i) => (
-        <li key={s.sessionId} className={cn('ml-2 sm:ml-4 border-l-2 border-zinc-800/60 pl-2 sm:pl-3 pr-2 sm:pr-3', i % 2 === 1 && 'bg-zinc-900/50')}>
-          <div role="button" tabIndex={0} onClick={() => onOpen(s.sessionId)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(s.sessionId); }} className={cn(ROW, 'py-2.5 cursor-pointer hover:bg-zinc-900/50 focus-visible:outline-2 focus-visible:outline-emerald-500 rounded')}>
-            <span className="pt-1.5"><StatusDot status={s.status} /></span>
+    <ul className="divide-y divide-line">
+      {rows.map((s) => (
+        <li key={s.sessionId}>
+          <div role="button" tabIndex={0} onClick={() => onOpen(s.sessionId)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(s.sessionId); }} className={cn(ROW, 'py-3 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent')}>
+            <span className="pt-1"><StatusDot status={s.status} /></span>
             <div className="min-w-0">
-              <div className="text-sm text-zinc-100 truncate" title={s.foundry ? (s.title ?? undefined) : s.sessionId}>{title(s)}</div>
-              <div className="mt-1 flex items-center gap-2 min-w-0 text-[11px] text-zinc-500">
+              <div className="text-sm font-bold text-ink truncate group-hover:underline decoration-2 underline-offset-[3px]" title={s.foundry ? (s.title ?? undefined) : s.sessionId}>{title(s)}</div>
+              <div className="mt-1 flex items-center gap-2 min-w-0 text-xs text-ink-faint">
                 {s.foundry ? <AttemptChip kind={s.foundry.kind} attempt={s.foundry.attempt} /> : null}
                 {s.foundry && s.foundry.taskTitle && s.title && s.title.replace(/^#+\s*/, '') !== s.foundry.taskTitle && <span className="truncate" title={s.title}>{s.title.replace(/^#+\s*/, '')}</span>}
-                {!s.foundry && s.cwd && <span className="mono truncate" title={s.cwd}>{shortCwd(s.cwd)}{s.gitBranch ? <span className="text-zinc-600"> · {s.gitBranch}</span> : null}</span>}
-                {s.status === 'unknown' && <span className="text-sky-400 whitespace-nowrap">status unknown</span>}
+                {!s.foundry && s.cwd && <span className="mono truncate" title={s.cwd}>{shortCwd(s.cwd)}{s.gitBranch ? <span className="text-ink-soft"> · {s.gitBranch}</span> : null}</span>}
+                {s.status === 'unknown' && <span className="text-ink-soft whitespace-nowrap">status unknown</span>}
                 {s.subagents.length > 0 && (
                   <button
                     type="button"
-                    className="inline-flex items-center gap-0.5 shrink-0 rounded border border-zinc-700 px-1.5 py-px text-[10px] text-zinc-400 hover:text-zinc-100 hover:border-zinc-500"
+                    className="inline-flex items-center gap-0.5 shrink-0 rounded-sm px-1.5 py-px text-[11px] font-semibold text-ink-soft inset-ring-1 inset-ring-line-strong hover:text-ink hover:inset-ring-ink-faint"
                     aria-expanded={subsOpen(s)}
                     title={subsOpen(s) ? 'Fold its helper agents' : 'Show its helper agents'}
                     onClick={(e) => { e.stopPropagation(); toggleSubs(s); }}
@@ -326,21 +342,21 @@ function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSess
                   >
                     {subsOpen(s) ? <ChevronDown size={11} aria-hidden="true" /> : <ChevronRight size={11} aria-hidden="true" />}
                     {s.subagents.length} subagent{s.subagents.length === 1 ? '' : 's'}
-                    {s.subagents.some((a) => a.status === 'running') && <span className="text-emerald-400"> · running</span>}
+                    {s.subagents.some((a) => a.status === 'running') && <span className="font-bold text-work-ink"> · running</span>}
                   </button>
                 )}
               </div>
             </div>
-            <div className="min-w-0 space-y-1">
+            <div className={CELL}>
               <div className="flex items-center gap-1.5 min-w-0">
                 {!inGoal && <ProviderBadge provider={s.provider} compact />}
-                <span className="mono text-xs text-zinc-300 truncate">{s.model ? shortModel(s.model) : '—'}</span>
+                <span className="mono text-xs text-ink-soft truncate">{s.model ? shortModel(s.model) : '—'}</span>
               </div>
               <ContextGauge used={s.contextUsedTokens} window={s.contextWindowTokens} />
             </div>
-            <div className="text-xs text-zinc-500 space-y-1 sm:text-right">
-              <div className="whitespace-nowrap" title={s.startedAt ? `started ${ago(s.startedAt)}` : undefined}>{s.lastActivityAt ? ago(s.lastActivityAt) : '—'}</div>
-              <div className="flex sm:justify-end">{s.source === 'external' ? <SourceBadge row={s} /> : <span className="text-[11px] whitespace-nowrap">{ranFor(s.startedAt, s.endedAt ?? s.lastActivityAt) ?? ''}</span>}</div>
+            <div className={cn(CELL, 'text-xs text-ink-faint sm:text-right')}>
+              <div className="mono whitespace-nowrap" title={s.startedAt ? `started ${ago(s.startedAt)}` : undefined}>{s.lastActivityAt ? ago(s.lastActivityAt) : '—'}</div>
+              <div className="flex sm:justify-end">{s.source === 'external' ? <SourceBadge row={s} /> : <span className="mono text-[11px] whitespace-nowrap">{ranFor(s.startedAt, s.endedAt ?? s.lastActivityAt) ?? ''}</span>}</div>
             </div>
             <div className="flex justify-start sm:justify-end">
               {s.source === 'foundry' && s.foundry?.killable && (
@@ -354,20 +370,20 @@ function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSess
             <ul className="pb-2">
               {s.subagents.map((a) => (
                 <li key={a.agentId}>
-                  <div role="button" tabIndex={0} onClick={() => onOpen(s.sessionId, a.agentId)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(s.sessionId, a.agentId); }} className={cn(ROW, 'py-1.5 cursor-pointer hover:bg-zinc-900/50 focus-visible:outline-2 focus-visible:outline-emerald-500 rounded')}>
+                  <div role="button" tabIndex={0} onClick={() => onOpen(s.sessionId, a.agentId)} onKeyDown={(e) => { if (e.key === 'Enter') onOpen(s.sessionId, a.agentId); }} className={cn(ROW, 'py-2 cursor-pointer focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent')}>
                     <span />
-                    <div className="flex items-start gap-1.5 min-w-0 pl-3 border-l border-zinc-800">
-                      <CornerDownRight size={12} className="shrink-0 mt-0.5 text-zinc-600" aria-hidden="true" />
+                    <div className="flex items-start gap-1.5 min-w-0 pl-3 border-l-2 border-line">
+                      <CornerDownRight size={12} className="shrink-0 mt-1 text-ink-faint" aria-hidden="true" />
                       <div className="min-w-0">
-                        <div className="text-xs text-zinc-300 truncate" title={a.description}>{a.description || a.agentType}</div>
-                        <div className="mt-0.5 flex items-center gap-2 text-[11px]"><span className="rounded border border-zinc-700 px-1 py-px text-[10px] text-zinc-400">{a.agentType}</span><SubagentStatus status={a.status} /></div>
+                        <div className="text-[13px] font-semibold text-ink-soft truncate group-hover:underline underline-offset-2" title={a.description}>{a.description || a.agentType}</div>
+                        <div className="mt-1 flex items-center gap-2 text-[11px]"><span className={traitChip()}>{a.agentType}</span><SubagentStatus status={a.status} /></div>
                       </div>
                     </div>
-                    <div className="min-w-0 space-y-1">
-                      <span className="mono text-[11px] text-zinc-400 truncate block">{a.model ? shortModel(a.model) : ''}</span>
+                    <div className={CELL}>
+                      <span className="mono text-[11px] text-ink-soft truncate block">{a.model ? shortModel(a.model) : ''}</span>
                       <ContextGauge used={a.contextUsedTokens ?? null} window={a.contextWindowTokens ?? null} />
                     </div>
-                    <div className="text-[11px] text-zinc-500 space-y-1 sm:text-right">
+                    <div className={cn(CELL, 'mono text-[11px] text-ink-faint sm:text-right')}>
                       <div className="whitespace-nowrap">{a.lastActivityAt ? ago(a.lastActivityAt) : ''}</div>
                       <div className="whitespace-nowrap">{ranFor(a.startedAt, a.lastActivityAt) ?? ''}</div>
                     </div>
@@ -383,5 +399,10 @@ function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSess
   );
 }
 
-/** one grid for sessions and their subagents, so the columns line up; phones stack it */
-const ROW = 'grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_minmax(0,1fr)_12rem_7rem_4.5rem] gap-x-3 gap-y-1.5 items-start px-1 [&>*:nth-child(n+3)]:col-start-2 sm:[&>*:nth-child(n+3)]:col-start-auto';
+/**
+ * One grid for sessions and their subagents, so the columns line up; phones stack it. Rows of a board, indented under
+ * their group's row; a subagent indents further inside its own cell.
+ */
+const ROW = cn(BOARD_ROW, 'grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_minmax(0,1fr)_10rem_6rem_4.5rem] gap-x-3 gap-y-1.5 items-start pl-8 sm:pl-10 pr-4 md:pr-5 [&>*:nth-child(n+3)]:col-start-2 sm:[&>*:nth-child(n+3)]:col-start-auto');
+/** a row's model and its times: two lines in a column of their own from sm up, one line each on a phone, where they stack */
+const CELL = 'min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1 sm:block sm:space-y-1.5';

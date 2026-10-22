@@ -1,7 +1,7 @@
 import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeliveryRevert, InterviewQuestion, MergeMethod } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 import type { IssueRead } from './pages/new-goal-issue.ts';
-import type { Calibration, GoalRecipe, Schedule, ScheduleCadence } from '@foundry/core/browser';
+import type { Calibration, GoalRecipe, Schedule, ScheduleCadence, ThemeEntry, ThemeProblem } from '@foundry/core/browser';
 
 /** a Schedule as the Schedules page lists it (ADR-0054): with its next run and the goal of its last run */
 export type ScheduleRow = Schedule & { nextRunAt: string | null; lastGoal: { id: string; title: string; state: GoalState } | null };
@@ -377,6 +377,8 @@ export type GoalRow = Goal & { budget: BudgetStatus; taskCounts: Record<string, 
 export interface OpenTarget {
   id: 'vscode' | 'cursor' | 'zed' | 'windsurf' | 'finder' | 'terminal' | 'iterm' | 'warp';
   label: string;
+  /** what it opens: an editor folders and files, a file manager or a terminal folders */
+  kind: 'editor' | 'files' | 'terminal';
   available: boolean;
   via: string | null;
 }
@@ -615,6 +617,17 @@ export function apiForProvider(provider?: AgentProvider) {
     }),
   addLink: (url: string, opts: { goalId?: string; name?: string; note?: string } = {}) => req<{ attachments: Attachment[] }>(opts.goalId ? `/api/goals/${opts.goalId}/attachments` : '/api/uploads', { method: 'POST', body: JSON.stringify({ url, name: opts.name, note: opts.note }) }).then((r) => r.attachments[0]!),
   openTargets: () => req<{ targets: OpenTarget[] }>('/api/open/targets').then((r) => r.targets),
+  // themes (ADR-0066): the built-in ones and the files in the data folder's themes/
+  themes: () => req<{ dir: string; themes: ThemeEntry[]; problems: ThemeProblem[] }>('/api/themes'),
+  copyTheme: (from: string, name?: string) => req<ThemeEntry>('/api/themes', { method: 'POST', body: JSON.stringify({ from, name }) }),
+  /** a theme of your own: renamed (its id follows the name), deleted, or the address its file is saved from */
+  renameTheme: (id: string, name: string) => req<ThemeEntry>(`/api/themes/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteTheme: (id: string) => req<{ ok: true }>(`/api/themes/${id}`, { method: 'DELETE' }),
+  themeFileUrl: (id: string) => `/api/themes/${id}/file`,
+  /** a theme file from elsewhere: its name and its text */
+  importTheme: (file: string, text: string) => req<ThemeEntry>('/api/themes/import', { method: 'POST', body: JSON.stringify({ file, text }) }),
+  /** the themes folder, or with `theme` that theme's own file (in an editor) */
+  openThemes: (target: OpenTarget['id'], theme?: string) => req<{ ok: true; path: string; command: string[] }>('/api/themes/open', { method: 'POST', body: JSON.stringify({ target, theme }) }),
   openGoal: (goalId: string, target: OpenTarget['id'], which: 'repo' | 'workspace' | `task:${string}` | `resolve:${string}`) => req<{ ok: true; path: string; command: string[] }>(`/api/goals/${goalId}/open`, { method: 'POST', body: JSON.stringify({ target, which }) }),
   stagedAttachment: (attId: string) => req<Attachment>(`/api/uploads/${attId}`),
   reconvertAttachment: (goalId: string, attId: string) => req<{ markdown: Attachment['markdown'] }>(`/api/goals/${goalId}/attachments/${attId}/convert`, { method: 'POST' }),

@@ -139,7 +139,7 @@ export function ModelPresetsSection({ draft, set, known, reloadModels }: { draft
         status={sync?.at ? `last synced ${ago(sync.at)}${sync.cliVersion ? ` · Claude Code ${sync.cliVersion}` : ''} · ${sync.found} ids` : 'not synced yet'}
         aside={
           <label className="flex items-center gap-1 cursor-pointer">
-            <input type="checkbox" className="accent-emerald-500" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> show all versions
+            <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> show all versions
           </label>
         }
         message={syncMsg}
@@ -156,7 +156,7 @@ export function ModelPresetsSection({ draft, set, known, reloadModels }: { draft
         }}
       />
 
-      <div id="model-preset-editor" className="scroll-mt-16 space-y-3 border-t border-zinc-800 pt-4">
+      <div id="model-preset-editor" className="scroll-mt-16 space-y-3 border-t border-line pt-4">
         <PresetChips options={options} editing={editing} onSelect={setEditing} onNew={duplicate} />
         <PresetDetails
           label={current.label}
@@ -180,11 +180,11 @@ export function ModelPresetsSection({ draft, set, known, reloadModels }: { draft
             );
           })}
         </div>
-        <p className="text-[11px] text-zinc-500">Changes apply after Save, to new goals and to goals in flight at their next session. The last attempt of a task (budget ≥ 2) and every retry you grant run on the Complex-task model.</p>
+        <p className="text-[11px] text-ink-faint">Changes apply after Save, to new goals and to goals in flight at their next session. The last attempt of a task (budget ≥ 2) and every retry you grant run on the Complex-task model.</p>
       </div>
 
       <ConfirmDialog open={!!confirmDelete} title={`Delete preset "${confirmDelete ? presets[confirmDelete.id]?.label : ''}"?`} danger confirmLabel="Delete" onClose={() => setConfirmDelete(null)} onConfirm={doDelete}>
-        <p className="text-sm text-zinc-300">{confirmDelete?.goals ? `${confirmDelete.goals} goal(s) in flight use it; they continue on their goal type's preset from their next session.` : 'No goal in flight uses it.'} Goal types that pick it switch to their default preset. Takes effect when you Save.</p>
+        <p className="text-sm text-ink-soft">{confirmDelete?.goals ? `${confirmDelete.goals} goal(s) in flight use it; they continue on their goal type's preset from their next session.` : 'No goal in flight uses it.'} Goal types that pick it switch to their default preset. Takes effect when you Save.</p>
       </ConfirmDialog>
     </div>
   );

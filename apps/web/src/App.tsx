@@ -1,5 +1,5 @@
 import { AccountsPage } from './pages/AccountsPage.tsx';
-import { ArrowLeftRight, ArrowUpCircle, BarChart3, Bot, Inbox, ListTodo, LogOut, Menu, Moon, Network, NotebookPen, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
+import { ArrowLeftRight, ArrowUpCircle, BarChart3, Bot, Inbox, ListTodo, LogOut, Menu, Moon, Network, NotebookPen, Palette, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
 import { HelpPage } from './pages/HelpPage.tsx';
 import { TransferPage } from './pages/TransferPage.tsx';
 import { PortsPage } from './pages/PortsPage.tsx';
@@ -27,6 +27,7 @@ import { LoginPage } from './pages/LoginPage.tsx';
 import { ReportsPage } from './pages/ReportsPage.tsx';
 import { UsagePage, UsagePill } from './pages/UsagePage.tsx';
 import { useLive } from './store.ts';
+import { setMode, useLayout, useTheme } from './theme.ts';
 import { Button, Menu as DropMenu, MenuItem, cn } from './ui.tsx';
 
 // the credits carry ~270 KB of license texts: loaded when the page is opened, not with the app
@@ -58,40 +59,89 @@ export function App() {
       .catch(() => {});
   }, []);
 
-  const link = ({ isActive }: { isActive: boolean }) => cn('flex items-center gap-2 px-3 py-2 lg:py-1.5 rounded-md text-sm', isActive ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900');
-  // between lg and xl the header only fits the icons; the dropdown (below lg) always shows labels
-  const label = 'lg:hidden xl:inline';
+  // in the bar: the chosen page's name in full ink with a bar under it; in the phone menu: a filled row
+  const link = ({ isActive }: { isActive: boolean }) =>
+    cn(
+      'relative flex items-center gap-2 px-3 py-2.5 lg:py-0 lg:h-full rounded-md lg:rounded-none text-sm lg:text-[14.5px] font-semibold transition-colors',
+      'lg:after:absolute lg:after:inset-x-2.5 lg:after:bottom-0 lg:after:h-[3px] lg:after:rounded-t-[3px]',
+      isActive ? 'bg-band-hover lg:bg-transparent text-band-ink lg:after:bg-band-ink' : 'text-band-ink-soft hover:text-band-ink',
+    );
+  // in a side column (a theme whose navigation is `side`): a row, the chosen one filled with a bar at its left edge
+  const sideLink = ({ isActive }: { isActive: boolean }) =>
+    cn('relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-semibold transition-colors', isActive ? 'bg-band-hover text-band-ink shadow-[inset_3px_0_0_var(--color-band-ink)]' : 'text-band-ink-soft hover:bg-band-hover hover:text-band-ink');
+  const side = useLayout().nav === 'side';
   // how many agent sessions are working: a count on the Agents icon, like the Inbox's
   const agents = useAgentsSummary();
   const busy = agents?.busy ?? 0;
-  const links = (
+  // `label`: between lg and xl the top bar only fits the icons; the phone menu and a side column always show the names
+  const navLinks = (cls: typeof link, label: string) => (
     <>
-      <NavLink to="/" end className={link} title="Goals">
+      <NavLink to="/" end className={cls} title="Goals">
         <ListTodo size={15} /> <span className={label}>Goals</span>
       </NavLink>
-      <NavLink to="/agents" className={(p) => cn(link(p), 'relative')} title={busy ? `Agents: ${busy} session${busy === 1 ? '' : 's'} working · ${agents?.idle ?? 0} idle` : 'Agents'} aria-label={busy ? `Agents, ${busy} working` : 'Agents'}>
+      <NavLink to="/agents" className={cls} title={busy ? `Agents: ${busy} session${busy === 1 ? '' : 's'} working · ${agents?.idle ?? 0} idle` : 'Agents'} aria-label={busy ? `Agents, ${busy} working` : 'Agents'}>
         <Bot size={15} aria-hidden="true" />
         <span className={label}>Agents</span>
-        {/* the count sits on the whole item's corner, over the word when it shows and over the icon when it does not */}
-        {busy > 0 && <span className="absolute -top-1 -right-1 min-w-3.5 h-3.5 rounded-full bg-rose-500 px-1 text-[9px] font-bold leading-[0.875rem] text-center text-white ring-2 ring-zinc-950">{busy > 99 ? '99+' : busy}</span>}
+        {/* how many sessions are working, live: a pulsing dot and the count, outlined so it never reads as an alarm */}
+        {busy > 0 && (
+          <span className="mono inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] font-bold leading-none text-band-ink ring-1 ring-inset ring-band-line">
+            <i className="h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-pulse" aria-hidden="true" />
+            {busy > 99 ? '99+' : busy}
+          </span>
+        )}
       </NavLink>
-      <NavLink to="/skills" className={link} title="Extensions: skills and MCP servers">
+      <NavLink to="/skills" className={cls} title="Extensions: skills and MCP servers">
         <Puzzle size={15} /> <span className={label}>Extensions</span>
       </NavLink>
     </>
   );
+  const links = navLinks(link, 'lg:hidden xl:inline');
   return (
-    <div className="h-full flex flex-col">
-      <header className="surface-card relative flex items-center gap-2 md:gap-4 px-3 md:px-4 h-12 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-20">
-        <button className="lg:hidden p-1.5 -ml-1 rounded text-zinc-300 hover:bg-zinc-900" aria-label="menu" onClick={() => setMenu(!menu)}>
+    <div className={cn('h-full flex', side ? 'flex-row' : 'flex-col')}>
+      {side && (
+        // a theme whose navigation is `side`: from 1280px a column down the left holds what the top bar would, so the
+        // page beside it keeps the 1024px the pages are laid out for; narrower screens keep the top bar
+        <aside className="theme-band hidden xl:flex w-64 shrink-0 flex-col overflow-y-auto border-r border-band-line bg-band text-band-ink">
+          <NavLink to="/" className="flex h-16 shrink-0 items-center gap-2.5 px-5 font-display text-lg font-extrabold tracking-tight text-band-ink">
+            <Logo />
+            Foundry
+          </NavLink>
+          <Link to="/goals/new" className="mx-3 flex" title="Start a new goal">
+            <Button variant="primary" className="w-full justify-center">
+              <Plus size={15} /> New goal
+            </Button>
+          </Link>
+          <nav aria-label="Main" className="mt-5 flex flex-col gap-0.5 px-3">
+            {navLinks(sideLink, '')}
+            <NavLink to="/inbox" className={sideLink} title={open > 0 ? `Inbox: ${open} waiting for you` : 'Inbox'}>
+              <Inbox size={15} /> Inbox
+              {open > 0 && <span className="mono ml-auto min-w-[1.25rem] rounded-[5px] bg-you px-1.5 text-center text-[11px] font-bold leading-5 text-on-you">{open > 99 ? '99+' : open}</span>}
+            </NavLink>
+          </nav>
+          <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-band-line px-3 py-3 text-xs text-band-ink-soft">
+            <UpdatePill />
+            <UsagePill />
+            <AccountMenu />
+            <span className="ml-auto">
+              <AppMenu setupBad={setupBad} connected={connected} />
+            </span>
+          </div>
+        </aside>
+      )}
+      {/* min-h-0: without it this column grows to its content, the page scrolls instead of <main>, and every side
+          panel that stays in view (Settings, Ports, the Brief…) scrolls away with the rest */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      {/* the top bar is a band in the theme's band colours (theme-band): Wayfinding's is graphite in both modes */}
+      <header className={cn('theme-band relative flex items-center gap-2 md:gap-4 px-3 md:px-5 h-14 border-b border-band-line bg-band text-band-ink sticky top-0 z-20', side && 'xl:hidden')}>
+        <button className="lg:hidden p-1.5 -ml-1 rounded text-band-ink-soft hover:text-band-ink hover:bg-band-hover" aria-label="menu" onClick={() => setMenu(!menu)}>
           {menu ? <X size={18} /> : <Menu size={18} />}
         </button>
-        <NavLink to="/" className="font-semibold tracking-tight text-zinc-100 flex items-center gap-2">
-          <img src="/favicon.svg" alt="" className="h-6 w-6" />
+        <NavLink to="/" className="flex shrink-0 items-center gap-2.5 text-lg font-extrabold tracking-tight text-band-ink lg:mr-3">
+          <Logo />
           Foundry
         </NavLink>
-        <nav className="hidden lg:flex items-center gap-1">{links}</nav>
-        <div className="ml-auto flex items-center gap-2 md:gap-3 text-xs text-zinc-500 min-w-0">
+        <nav className="hidden lg:flex items-stretch self-stretch gap-0.5">{links}</nav>
+        <div className="ml-auto flex items-center gap-2 md:gap-3 text-xs text-band-ink-soft min-w-0">
           {/* the one action that starts work lives here, not in the nav, so a narrow header keeps it */}
           {/* every control in this row is one height: 32px on a phone (where buttons get a 32px touch height), 28px above */}
           <Link to="/goals/new" className="shrink-0 flex">
@@ -100,9 +150,10 @@ export function App() {
             </Button>
           </Link>
           {/* the Inbox beside it: what waits for the person, on every screen width, its count on the icon */}
-          <NavLink to="/inbox" title={open > 0 ? `Inbox: ${open} waiting for you` : 'Inbox'} aria-label={open > 0 ? `Inbox, ${open} waiting for you` : 'Inbox'} className={({ isActive }) => cn('relative flex h-8 w-8 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-md border', isActive ? 'border-emerald-500/60 text-emerald-300' : 'border-zinc-700 text-zinc-300 hover:bg-zinc-900')}>
+          <NavLink to="/inbox" title={open > 0 ? `Inbox: ${open} waiting for you` : 'Inbox'} aria-label={open > 0 ? `Inbox, ${open} waiting for you` : 'Inbox'} className={({ isActive }) => cn('relative flex h-8 w-8 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-md border', isActive ? 'border-band-ink text-band-ink' : 'border-band-line text-band-ink-soft hover:text-band-ink hover:bg-band-hover')}>
             <Inbox size={15} />
-            {open > 0 && <span className="absolute -top-1.5 -right-1.5 min-w-4 h-4 rounded-full bg-orange-500 px-1 text-[10px] font-bold leading-4 text-center text-zinc-950">{open > 99 ? '99+' : open}</span>}
+            {/* what waits for you is the one thing in signal yellow */}
+            {open > 0 && <span className="mono absolute -top-2 -right-2 min-w-[1.125rem] h-[1.125rem] rounded-[5px] bg-you px-1 text-[11px] font-bold leading-[1.125rem] text-center text-on-you">{open > 99 ? '99+' : open}</span>}
           </NavLink>
           <UpdatePill />
           <UsagePill />
@@ -110,13 +161,15 @@ export function App() {
           <AppMenu setupBad={setupBad} connected={connected} />
         </div>
         {menu && (
-          <nav className="lg:hidden absolute left-0 right-0 top-12 border-b border-zinc-800 bg-zinc-950 p-2 flex flex-col gap-0.5 shadow-xl" onClick={() => setMenu(false)}>
+          <nav className="lg:hidden absolute left-0 right-0 top-14 border-b border-band-line bg-band p-2 flex flex-col gap-0.5 shadow-xl" onClick={() => setMenu(false)}>
             {links}
           </nav>
         )}
       </header>
       <BuildWatch connected={connected} />
-      <main className="flex-1 overflow-auto">
+      {/* relative: what is positioned inside the pages (a hidden input, a radio's peer) belongs to this scroller, not to the
+          window, which it would otherwise make taller than the screen (the whole app then scrolled past a page's end) */}
+      <main className="relative flex-1 overflow-auto">
         <Routes>
           <Route path="/" element={<GoalsPage />} />
           <Route path="/goals/new" element={<NewGoalPage />} />
@@ -148,6 +201,7 @@ export function App() {
           />
         </Routes>
       </main>
+      </div>
       <FilePreviewHost />
     </div>
   );
@@ -173,15 +227,8 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
     const i = setInterval(load, 5 * 60_000);
     return () => (clearTimeout(t), clearInterval(i));
   }, []);
-  const [light, setLight] = useState(() => document.documentElement.classList.contains('light'));
-  const toggleTheme = () => {
-    const next = !light;
-    setLight(next);
-    document.documentElement.classList.toggle('light', next);
-    try {
-      localStorage.setItem('foundry.theme', next ? 'light' : 'dark');
-    } catch {}
-  };
+  const light = useTheme((s) => s.light);
+  const toggleTheme = () => setMode(light ? 'dark' : 'light');
   const here = ['/settings', '/setup', '/transfer', '/ports', '/learnings', '/schedules', '/reports', '/help', '/credits'].some((p) => loc.pathname.startsWith(p));
   const go = (close: () => void, to: string) => {
     close();
@@ -191,9 +238,9 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
     <DropMenu
       width="w-64"
       trigger={({ open, toggle }) => (
-        <button onClick={toggle} className={cn('relative h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900', (open || here) && 'bg-zinc-900 text-zinc-100')} title="Settings, setup, help and theme" aria-label="Settings, setup, help and theme">
+        <button onClick={toggle} className={cn('relative h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded-md text-band-ink-soft hover:text-band-ink hover:bg-band-hover', (open || here) && 'bg-band-hover text-band-ink')} title="Settings, setup, help and theme" aria-label="Settings, setup, help and theme">
           <Settings2 size={16} />
-          {(setupBad || !connected || update?.updateAvailable) && <span className="absolute top-0.5 right-0.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-zinc-950" />}
+          {(setupBad || !connected || update?.updateAvailable) && <span className={cn('absolute top-0.5 right-0.5 h-2 w-2 rounded-full ring-2 ring-band', setupBad || !connected ? 'bg-bad' : 'bg-work')} />}
         </button>
       )}
     >
@@ -204,7 +251,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
           </MenuItem>
           <MenuItem icon={<Wrench size={13} />} onClick={() => go(close, '/setup')}>
             <span className="flex items-center gap-2">
-              Setup {setupBad && <span className="text-[10px] text-rose-400">incomplete</span>}
+              Setup {setupBad && <span className="text-[10px] text-bad-ink">incomplete</span>}
             </span>
           </MenuItem>
           <MenuItem icon={<ArrowLeftRight size={13} />} hint="Move to another computer" onClick={() => go(close, '/transfer')}>
@@ -230,21 +277,24 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
               Sign out ({me.person.name})
             </MenuItem>
           )}
-          <div className="my-1 border-t border-zinc-800" />
+          <div className="my-1 border-t border-line" />
           <MenuItem icon={light ? <Moon size={13} /> : <Sun size={13} />} onClick={toggleTheme}>
             {light ? 'Dark mode' : 'Light mode'}
           </MenuItem>
-          <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-zinc-500">
-            <Radio size={12} className={connected ? 'text-emerald-400' : 'text-rose-400'} />
+          <MenuItem icon={<Palette size={13} />} hint="Themes, and how to make your own" onClick={() => go(close, '/settings#appearance')}>
+            Appearance
+          </MenuItem>
+          <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-ink-faint">
+            <Radio size={12} className={connected ? 'text-ok-ink' : 'text-bad-ink'} />
             {connected ? 'Live — updates arrive as they happen' : 'Reconnecting…'}
           </div>
-          <div className="my-1 border-t border-zinc-800" />
-          <MenuItem icon={<ArrowUpCircle size={13} className={update?.updateAvailable ? 'text-sky-300' : undefined} />} onClick={() => go(close, '/settings#about')} title="About & updates">
+          <div className="my-1 border-t border-line" />
+          <MenuItem icon={<ArrowUpCircle size={13} className={update?.updateAvailable ? 'text-work-ink' : undefined} />} onClick={() => go(close, '/settings#about')} title="About & updates">
             <span className="flex items-center gap-2">
               Foundry <span className="mono">{update?.current ?? '…'}</span>
               {update?.updateAvailable && (
-                <span className="flex items-center gap-1 text-[10px] text-rose-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-rose-500" /> {update.latest} available
+                <span className="flex items-center gap-1 text-[10px] text-work-ink">
+                  <span className="h-1.5 w-1.5 rounded-full bg-work" /> {update.latest} available
                 </span>
               )}
             </span>
@@ -252,5 +302,21 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
         </>
       )}
     </DropMenu>
+  );
+}
+
+/** Foundry's mark in the theme's colours: a tile of the main button's colour with the F in the text drawn on it. */
+function Logo() {
+  return (
+    <svg viewBox="0 0 1024 1024" className="h-7 w-7 shrink-0" aria-hidden="true">
+      <rect width="1024" height="1024" rx="224" className="fill-accent" />
+      <g className="fill-on-accent stroke-on-accent">
+        <path d="M387 299H675M387 299V751M387 537H615" strokeWidth="96" strokeLinecap="round" fill="none" />
+        <circle cx="387" cy="299" r="118" stroke="none" />
+        <rect x="595" y="219" width="160" height="160" rx="40" stroke="none" />
+        <rect x="541" y="463" width="148" height="148" rx="37" stroke="none" />
+        <rect x="295" y="659" width="184" height="184" rx="46" stroke="none" />
+      </g>
+    </svg>
   );
 }

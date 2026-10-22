@@ -2,7 +2,10 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';
 import { type FullText, FullTextDialog } from '../components/FullTextDialog.tsx';
 import { type StreamItem, useLive } from '../store.ts';
-import { cn } from '../ui.tsx';
+import { CODES, cn } from '../ui.tsx';
+
+/** each session role's category colour (ADR-0067), the hues they had before themes: the worker blue, the reviewer violet, the merger magenta */
+export const ROLE_INK: Record<string, string> = { worker: CODES[0].ink, reviewer: CODES[2].ink, merger: CODES[6].ink };
 
 /** The full content of a stream event for the dialog; null when the line already says everything. */
 function fullOf(ev: any, items: StreamItem[]): Omit<FullText, 'note' | 'loading'> | null {
@@ -84,11 +87,13 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
 
   return (
     <>
-      <div ref={ref} className={cn('mono text-[12px] leading-5 bg-zinc-950 border border-zinc-800 rounded-md p-3 overflow-auto max-h-[420px]', className)}>
-        {items.length === 0 && <div className="text-zinc-600">{loaded ? 'no output recorded yet…' : 'loading…'}</div>}
+      {/* a box inside the panel, ink on the inset grey in light and dark alike: what the agent said in ink, its tools in blue,
+          failures in red, the rest quiet */}
+      <div ref={ref} className={cn('mono text-[12px] leading-5 text-ink bg-sunken border border-line rounded-lg p-3 overflow-auto max-h-[420px]', className)}>
+        {items.length === 0 && <div className="text-ink-faint">{loaded ? 'no output recorded yet…' : 'loading…'}</div>}
         {items.map((it, i) => {
           const ev = it.event;
-          const tag = it.role && it.role !== 'worker' ? <span className="text-violet-400/80 shrink-0" title={`${it.role} session (shares this attempt's log)`}>[{it.role}]</span> : null;
+          const tag = it.role && it.role !== 'worker' ? <span className={cn('shrink-0', ROLE_INK[it.role] ?? 'text-ink-soft')} title={`${it.role} session (shares this attempt's log)`}>[{it.role}]</span> : null;
           // one line per entry; entries with more behind them are buttons that open the full text
           const line = (cls: string, node: ReactNode) => {
             const body = (
@@ -99,36 +104,38 @@ export function LiveLog({ attemptId, className }: { attemptId: string; className
             );
             if (!hasFull(ev)) return <div key={i} className={cn('flex gap-1.5 min-w-0', cls)}>{body}</div>;
             return (
-              <button key={i} type="button" onClick={() => show(ev)} title="Show the full message" className={cn('log-row flex gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-zinc-900 focus-visible:outline focus-visible:outline-1 focus-visible:outline-zinc-500 cursor-pointer', cls)}>
+              // its line in the middle of the 32px a phone gives a button
+              <button key={i} type="button" onClick={() => show(ev)} title="Show the full message" className={cn('log-row flex items-center gap-1.5 min-w-0 w-full text-left rounded-sm hover:bg-panel focus-visible:outline focus-visible:outline-1 focus-visible:outline-accent cursor-pointer', cls)}>
                 {body}
               </button>
             );
           };
           const oneLine = (s: string) => s.slice(0, 400).replace(/\s+/g, ' ');
-          if (ev.kind === 'text') return line('text-zinc-200', oneLine(ev.text));
-          if (ev.kind === 'thinking') return line('text-zinc-600 italic', oneLine(ev.text));
-          if (ev.kind === 'tool_use') return line('text-sky-400', <>⚙ {ev.name} <span className="text-zinc-500">{JSON.stringify(ev.input)?.slice(0, 400)}</span></>);
-          if (ev.kind === 'tool_result') return line(ev.isError ? 'text-rose-400' : 'text-zinc-500', <>{ev.isError ? '✗ ' : '↳ '}{ev.isError && /does not match required schema/.test(ev.content) ? <span className="text-zinc-500">the model will resend it in the right shape; harmless — </span> : null}{oneLine(ev.content)}</>);
-          if (ev.kind === 'init') return line('text-emerald-500', <>● {it.role && it.role !== 'worker' ? `${it.role} ` : ''}session {ev.sessionId.slice(0, 8)} · {ev.model}</>);
+          if (ev.kind === 'text') return line('text-ink', oneLine(ev.text));
+          if (ev.kind === 'thinking') return line('text-ink-faint italic', oneLine(ev.text));
+          if (ev.kind === 'tool_use') return line('text-work-ink', <>⚙ {ev.name} <span className="text-ink-faint">{JSON.stringify(ev.input)?.slice(0, 400)}</span></>);
+          if (ev.kind === 'tool_result') return line(ev.isError ? 'text-bad-ink' : 'text-ink-faint', <>{ev.isError ? '✗ ' : '↳ '}{ev.isError && /does not match required schema/.test(ev.content) ? <span className="text-ink-faint">the model will resend it in the right shape; harmless — </span> : null}{oneLine(ev.content)}</>);
+          if (ev.kind === 'init') return line('font-bold text-ink', <>● {it.role && it.role !== 'worker' ? `${it.role} ` : ''}session {ev.sessionId.slice(0, 8)} · {ev.model}</>);
           if (ev.kind === 'result') {
             const r = ev.result;
             const said = r.finalText ?? r.errorMessage;
-            // a session cut by its own cap is not a failure of the work: amber, and what happens next said for the log it is in
+            // a session cut by its own cap is not a failure of the work: ink in bold, not red, and what happens next said for
+            // the log it is in; one that ended in an error is red
             const cut = r.subtype === 'error_max_turns' || r.subtype === 'error_max_budget_usd';
             const next = cut && resumes(attemptId, it.role) ? ' — the engine resumes this session (continuation)' : '';
             const cap = r.subtype === 'error_max_budget_usd' ? " · the cost cap per session (Settings → Models & limits), not the goal's budget" : '';
-            return line(r.subtype === 'success' ? 'text-emerald-400' : 'text-amber-400', <>■ {r.subtype} · {r.costStatus === 'unavailable' ? 'cost unavailable' : `$${r.costUsd.toFixed(3)}`} · {r.costStatus === 'unavailable' ? 'turn count unavailable' : `${r.numTurns} turns`}{cap}{next}{said ? <span className="text-zinc-300"> — {oneLine(said)}</span> : null}</>);
+            return line(r.subtype === 'success' ? 'font-bold text-ok-ink' : cut ? 'font-bold text-ink' : 'font-bold text-bad-ink', <>■ {r.subtype} · {r.costStatus === 'unavailable' ? 'cost unavailable' : `$${r.costUsd.toFixed(3)}`} · {r.costStatus === 'unavailable' ? 'turn count unavailable' : `${r.numTurns} turns`}{cap}{next}{said ? <span className="font-normal text-ink-soft"> — {oneLine(said)}</span> : null}</>);
           }
           if (ev.kind === 'progress') {
             // one line per running tool, kept current: consecutive heartbeats of the same call replace each other
             const next = items[i + 1]?.event;
             if (next?.kind === 'progress' && next.toolUseId === ev.toolUseId) return null;
             const s = Math.round(ev.elapsedSeconds);
-            return line('text-zinc-500', <>⏱ {ev.tool === 'Agent' ? 'sub-agent' : ev.tool} still working · {s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`}</>);
+            return line('text-ink-faint', <>⏱ {ev.tool === 'Agent' ? 'sub-agent' : ev.tool} still working · {s >= 60 ? `${Math.floor(s / 60)}m ${s % 60}s` : `${s}s`}</>);
           }
           if (ev.kind === 'hook') return null;
-          if (ev.kind === 'rate_limit' && ev.info.status !== 'allowed') return line('text-amber-400', <>⏳ rate limit {ev.info.status}</>);
-          if (ev.kind === 'stderr') return line('text-rose-300/70', oneLine(ev.text));
+          if (ev.kind === 'rate_limit' && ev.info.status !== 'allowed') return line('font-bold text-ink', <>⏳ rate limit {ev.info.status}</>);
+          if (ev.kind === 'stderr') return line('text-bad-ink/80', oneLine(ev.text));
           return null;
         })}
       </div>

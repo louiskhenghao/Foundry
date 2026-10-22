@@ -3,12 +3,13 @@ import { ExternalLink, Loader2, Rocket } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type DeployHost, type DeployInfo, type GoalDetail } from '../../api.ts';
-import { Button, Card, ConfirmDialog, ago, cn } from '../../ui.tsx';
+import { Button, Card, ConfirmDialog, ago, choiceClass, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SmokeView } from './DeploySmoke.tsx';
 
 const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of pages, uploaded as it is', built: 'built into files', ssr: 'rendered on the host’s servers' };
-const STATUS: Record<Deployment['status'], string> = { running: 'text-sky-300 border-sky-800', live: 'text-emerald-300 border-emerald-800', failed: 'text-rose-300 border-rose-800' };
+/** a deploy's state as a small plate: blue while it runs, green once live, red when it failed */
+const STATUS: Record<Deployment['status'], string> = { running: 'bg-work/10 text-work-ink ring-work/30', live: 'bg-ok/10 text-ok-ink ring-ok/30', failed: 'bg-bad/10 text-bad-ink ring-bad/40' };
 
 /** the host chosen at first: the one this goal last deployed to, while it is set up and takes the app; else the first that is */
 export function defaultHost(providers: DeployInfo['providers'], deployments: Deployment[]): DeployHost | null {
@@ -86,17 +87,17 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   return (
     <Card id="deploy" className="scroll-mt-16" title={<span className="flex items-center gap-1.5"><Rocket size={13} /> Deploy<HelpLink to="getting-the-result#deploy" className="ml-0.5" /></span>}>
       {!info ? (
-        <div className="text-xs text-zinc-500">{err ?? 'Reading the project…'}</div>
+        <div className="text-xs text-ink-faint">{err ?? 'Reading the project…'}</div>
       ) : !info.app.ok ? (
-        <div className="text-xs text-zinc-400">Not deployed: {info.app.reason}</div>
+        <div className="text-xs text-ink-soft">Not deployed: {info.app.reason}</div>
       ) : (
         <div className="space-y-3 text-xs">
-          <div className="text-zinc-300">
+          <div className="text-[13px] font-semibold text-ink">
             {info.app.app.framework}
-            {info.app.app.dir && <span className="mono text-zinc-500"> · {info.app.app.dir}</span>} <span className="text-zinc-500">— {KIND[info.app.app.kind]}</span>
+            {info.app.app.dir && <span className="mono font-normal text-ink-faint"> · {info.app.app.dir}</span>} <span className="font-normal text-ink-faint">— {KIND[info.app.app.kind]}</span>
           </div>
           {info.app.notes.map((n) => (
-            <div key={n} className="text-[11px] text-amber-300/90">{n}</div>
+            <div key={n} className="text-[11px] font-semibold text-ink-soft">{n}</div>
           ))}
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Host">
             {info.providers.map((p) => {
@@ -110,7 +111,8 @@ export function DeployCard({ d }: { d: GoalDetail }) {
                   disabled={!usable}
                   onClick={() => setProvider(p.id)}
                   title={p.refused ?? (p.configured ? undefined : 'Add its token in Settings → Git & delivery')}
-                  className={cn('rounded border px-2.5 py-1', provider === p.id ? 'border-emerald-600 text-emerald-200 bg-emerald-950/40' : 'border-zinc-700 text-zinc-300', !usable && 'opacity-40 cursor-not-allowed')}
+                  // a host as a card among others: the chosen one outlined in the accent
+                  className={cn('rounded-md border px-2.5 py-1 font-semibold text-ink', choiceClass(provider === p.id), !usable && 'opacity-40 cursor-not-allowed')}
                 >
                   {p.label}
                 </button>
@@ -118,26 +120,26 @@ export function DeployCard({ d }: { d: GoalDetail }) {
             })}
           </div>
           {!info.providers.some((p) => p.configured) && (
-            <div className="text-[11px] text-zinc-500">
-              No host is set up yet: add a token in <Link to="/settings#git" className="text-zinc-300 hover:underline">Settings → Git &amp; delivery</Link>.
+            <div className="text-[11px] text-ink-faint">
+              No host is set up yet: add a token in <Link to="/settings#git" className="font-semibold text-ink-soft hover:text-ink hover:underline">Settings → Git &amp; delivery</Link>.
             </div>
           )}
-          <label className="flex items-center gap-2 text-zinc-300">
-            <input type="checkbox" className="accent-emerald-500" checked={production} onChange={(e) => setProduction(e.target.checked)} />
-            Production <span className="text-zinc-500">(otherwise a preview address)</span>
+          <label className="flex items-center gap-2 text-ink">
+            <input type="checkbox" checked={production} onChange={(e) => setProduction(e.target.checked)} />
+            Production <span className="text-ink-faint">(otherwise a preview address)</span>
           </label>
-          <label className={cn('flex items-center gap-2', scripts ? 'text-zinc-300' : 'text-zinc-500')} title={scripts ? 'The scripts run against the deployed address once it is live, with no server of their own; what they show is kept here' : undefined}>
-            <input type="checkbox" className="accent-emerald-500" checked={smoke && scripts > 0} disabled={!scripts} onChange={(e) => setSmoke(e.target.checked)} />
+          <label className={cn('flex items-center gap-2', scripts ? 'text-ink' : 'text-ink-faint')} title={scripts ? 'The scripts run against the deployed address once it is live, with no server of their own; what they show is kept here' : undefined}>
+            <input type="checkbox" checked={smoke && scripts > 0} disabled={!scripts} onChange={(e) => setSmoke(e.target.checked)} />
             Try the milestone scripts against it afterwards{' '}
-            <span className="text-zinc-500">{scripts ? `(${scripts} script${scripts === 1 ? '' : 's'}; off for production by default, since a script writes what it tries)` : '(the goal has no milestone scripts)'}</span>
+            <span className="text-ink-faint">{scripts ? `(${scripts} script${scripts === 1 ? '' : 's'}; off for production by default, since a script writes what it tries)` : '(the goal has no milestone scripts)'}</span>
           </label>
           {chosen && !chosen.refused && info.plan.length > 0 && (
-            <div>
-              <div className="text-[11px] text-zinc-500 mb-1">The exact commands, in a checkout of this goal's commit — nothing else runs:</div>
+            <div className="rounded-lg border border-line bg-sunken p-3">
+              <div className="text-[11px] text-ink-faint mb-1.5">The exact commands, in a checkout of this goal's commit — nothing else runs:</div>
               <ol className="space-y-0.5">
                 {info.plan.map((s, i) => (
-                  <li key={i} className="mono text-[11px] text-zinc-400 break-all">
-                    <span className="text-zinc-600">{i + 1}.</span> {s.command}
+                  <li key={i} className="mono text-[11px] text-ink break-all">
+                    <span className="text-ink-faint">{i + 1}.</span> {s.command}
                   </li>
                 ))}
               </ol>
@@ -147,26 +149,26 @@ export function DeployCard({ d }: { d: GoalDetail }) {
             <Button size="sm" variant="primary" disabled={!chosen || !!chosen.refused || !chosen.configured || busy || running} onClick={() => (production ? setConfirm(true) : void run())}>
               {running ? <Loader2 size={12} className="animate-spin" /> : <Rocket size={12} />} {running ? 'Deploying…' : production ? `Deploy to ${chosen?.label ?? 'a host'} production` : `Deploy a preview to ${chosen?.label ?? 'a host'}`}
             </Button>
-            {err && <span className="text-rose-300">{err}</span>}
+            {err && <span className="text-bad-ink">{err}</span>}
           </div>
         </div>
       )}
       {deployments.length > 0 && (
-        <ul className="mt-3 space-y-1.5 border-t border-zinc-800 pt-2">
+        <ul className="mt-4 space-y-2 border-t border-line pt-3">
           {[...deployments].reverse().map((x, i) => (
             <li key={i} className="text-xs min-w-0">
               <div className="flex items-center gap-2 min-w-0">
-                <span className={cn('shrink-0 rounded border px-1.5 py-px text-[10px]', STATUS[x.status])}>{x.status}</span>
-                <span className="shrink-0 text-zinc-300">{info?.providers.find((p) => p.id === x.provider)?.label ?? x.provider}</span>
-                <span className="shrink-0 text-zinc-500">{x.production ? 'production' : 'preview'}</span>
+                <span className={cn('shrink-0 rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.08em] ring-1 ring-inset', STATUS[x.status])}>{x.status}</span>
+                <span className="shrink-0 font-semibold text-ink">{info?.providers.find((p) => p.id === x.provider)?.label ?? x.provider}</span>
+                <span className="shrink-0 text-ink-faint">{x.production ? 'production' : 'preview'}</span>
                 {x.url ? (
-                  <a href={x.url} target="_blank" rel="noreferrer" className="mono truncate text-sky-300 hover:underline inline-flex items-center gap-1">
+                  <a href={x.url} target="_blank" rel="noreferrer" className="mono truncate text-work-ink hover:underline inline-flex items-center gap-1 max-sm:min-h-8">
                     {x.url} <ExternalLink size={11} />
                   </a>
                 ) : x.reason ? (
-                  <span className="truncate text-rose-300/90" title={x.reason}>{x.reason}</span>
+                  <span className="truncate text-bad-ink" title={x.reason}>{x.reason}</span>
                 ) : null}
-                <span className="ml-auto shrink-0 text-zinc-500">{ago(x.endedAt ?? x.at)}</span>
+                <span className="mono ml-auto shrink-0 text-ink-faint">{ago(x.endedAt ?? x.at)}</span>
               </div>
               <SmokeView goalId={g.id} deployment={x} scripts={scripts} busy={busy || !!info?.smoking || running} onAgain={() => void again(x.at)} />
             </li>
@@ -174,17 +176,17 @@ export function DeployCard({ d }: { d: GoalDetail }) {
         </ul>
       )}
       {commands.length > 0 && (
-        <details className="mt-2">
-          <summary className="text-[11px] text-zinc-500 cursor-pointer">{commands.length} deploy command{commands.length === 1 ? '' : 's'} — their output</summary>
-          <ul className="mt-1 space-y-1">
+        <details className="mt-3">
+          <summary className="text-[11px] font-semibold text-ink-faint hover:text-ink cursor-pointer">{commands.length} deploy command{commands.length === 1 ? '' : 's'} — their output</summary>
+          <ul className="mt-1.5 space-y-1">
             {commands.map((e) => {
               const p = e.payload as { label: string; command: string; exitCode: number | null; outputTail: string };
               return (
                 <li key={e.id}>
-                  <div className="mono text-[11px] text-zinc-400 break-all">
-                    <span className={p.exitCode === 0 ? 'text-emerald-400' : 'text-rose-400'}>{p.exitCode === 0 ? '✓' : `✗ ${p.exitCode}`}</span> {p.command}
+                  <div className="mono text-[11px] text-ink-soft break-all">
+                    <span className={p.exitCode === 0 ? 'text-ok-ink' : 'text-bad-ink'}>{p.exitCode === 0 ? '✓' : `✗ ${p.exitCode}`}</span> {p.command}
                   </div>
-                  {p.outputTail && <pre className="text-[10px] whitespace-pre-wrap text-zinc-500 bg-zinc-950 rounded p-1.5 max-h-40 overflow-auto">{p.outputTail}</pre>}
+                  {p.outputTail && <pre className="mono text-[11px] whitespace-pre-wrap text-ink-faint bg-sunken border border-line rounded-md p-2 max-h-40 overflow-auto">{p.outputTail}</pre>}
                 </li>
               );
             })}

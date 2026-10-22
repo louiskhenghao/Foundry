@@ -11,18 +11,32 @@ Codex 任务的 **Codex models** 卡片展示创建时保存的角色模型、�
 
 Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会在你的电脑上继续。本页讲解 goal 页面，方便你想看的时候跟上进度。
 
-![任务运行中的 goal 页面：费用和时间计量、阶段时间线和任务图](images/goal-running.png)
+![Goals 页面：等你处理的事以黄色指示牌挂在顶部，正在进行的 goal 排在下方的信息板上](images/goals.png)
+
+## Goals 页面
+
+**Goals** 是第一个页面，按每个 goal 需要你做什么来排列。
+
+- **Needs you**：每个在等你的 goal 都以一块黄色指示牌挂在顶部，等得最久的在前。牌上最大的字就是要做的事：**Review brief**、**Answer questions**、**Have a look**、**Open Inbox** 或 **See why**，点指示牌就过去。动作下面是 goal 的标题、已经等了多久、一句话说明需要什么，以及它的编码智能体、任务、费用和用时。
+- **Working**：Foundry 正在做、不需要你的 goal。每行显示标题、编码智能体和项目文件夹；goal 的五个阶段（Clarify、Brief、Run、Review、Deliver）画成一排斜切的小段，下面写着状态；任务画成小方块；费用和用时对比上限；以及最近一次变化的时间。
+- **Finished**：已完成、超额完成、失败和已取消的 goal，最新的在前，默认每页 10 个。可在信息板下方改为每页 20 或 50 个（这个浏览器会记住）。页码记在地址栏里。
+
+方块和小段在 Foundry 各处的意思都一样：绿色是完成，流动的蓝色斜纹是进行中，黄色是在等你，红色是失败，空心是还没开始。一个 goal 和它的后续 goal 在信息板上是一个条目（见 [接着做后续 goal](./getting-the-result.zh.md#continue-with-a-follow-up)），委派 goal 折叠在主 goal 下面（见 [Delegated goals](#delegated-goals)）。
+
+![任务运行中的 goal 页面：状态、标题和基本信息，费用和时间计量，五个阶段，以及任务图](images/goal-running.png)
 
 ## goal 页面一览
 
-从 **Goals**（顶栏上的列表）打开一个 goal。页面顶部有：
+从 **Goals**（第一个页面，顶栏上也有）打开一个 goal。页面顶部有：
 
-- 标题、状态标记（比如 **running**、**have a look**、**reviewing**、**done**）；goal 以 fast 模式运行时还有一个 **fast** 标签。
-- 项目文件夹（**copy** 复制它的路径）、goal 的编码智能体（**Claude Code** 或 **Codex**）和分支：goal 起步的分支 → goal 自己的分支。**Goals** 列表也在每个项目路径旁显示同样的编码智能体。列表的每一行把相关信息叠在一起：标题、编码智能体和文件夹；状态和任务数；费用和时间对比上限；最近更新和创建日期。默认每页显示 10 个 goal，最新创建的在前，底部显示总数和页码；可在那里改为每页 20 或 50 个（这个浏览器会记住）。页码记在地址栏里。
-- **time** 显示已用分钟数对比时间上限；Claude 还显示 **cost** 对比美元预算。后面的琥珀色圆点表示有会话在 Claude Code 回报费用之前就结束了（超时、被终止、崩溃）：鼠标停在上面，或在手机上点它，就能看到有几个、大约花了多少。这个估算（≈）按同一个模型在已回报费用的会话里的单价计算它们的 token；它不计入总数，也不占用预算。它们的轮数和 token 照常统计，美元数绝不记为 $0。Codex 美元费用不可用。
+- goal 的状态牌，用它的信号色：Foundry 在干活时是蓝色（**running**；澄清时是浅蓝），审查时（**reviewing**）是紫色，完成（**done**）后是绿色，等你时是黄色（**approve brief**、**have a look**、**blocked**），失败时是红色（**failed**）。旁边写着完成或正在运行的任务数，以及 Foundry 已经工作了多久。
+- 标题，以及标题下面的基本信息：项目文件夹（**copy** 复制它的路径）、分支（goal 起步的分支 → goal 自己的分支）、编码智能体（**Claude Code**、**Codex** 或 **Antigravity**）、workflow 套件、goal 以 fast 模式运行时的 **pace fast**，以及交付方式。
+- **time** 显示已用分钟数对比时间上限；Claude 还显示 **cost** 对比美元预算。后面的黄色圆点表示有会话在 Claude Code 回报费用之前就结束了（超时、被终止、崩溃）：鼠标停在上面，或在手机上点它，就能看到有几个、大约花了多少。这个估算（≈）按同一个模型在已回报费用的会话里的单价计算它们的 token；它不计入总数，也不占用预算。它们的轮数和 token 照常统计，美元数绝不记为 $0。Codex 美元费用不可用。
 - **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)），或者用 **VS Code (web)** 打开：浏览器标签里的 VS Code，经 Tailscale 在手机上也能打开。第一次使用时启动（先在 [Settings → Tools & keys](./settings.zh.md#tools--keys) 装一次），只在这台电脑上运行，闲置两小时后停止。它的登录页要输入密码，菜单里会显示这个密码并带复制按钮；浏览器会记住它。编码智能体写过的文件夹会以受限模式打开，直到你选择信任它。在里面的修改是真实修改：goal 运行时，菜单会提醒你在它的文件夹里改动可能和编码智能体的冲突，并被带进它们的下一个提交。
 - 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
 - **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal**、**Delete goal…**，视情况出现。
+
+页面顶部下方横排着五个阶段：**Clarify**、**Brief**、**Run**、**Review** 和 **Deliver**。完成的阶段带一圈墨色边框，勾在一个绿色的小方块上；当前阶段加粗描边（Foundry 正在做时是蓝色），上方标着 **Now**；等你时变成黄色并标 **You**，失败时变成红色并标 **Failed**。在手机或小平板上，阶段是一排细长的色段，完成的是绿色，下面一行写着当前阶段的名字和说明；Ledger 和 Classic 把它们画成一条带编号的步骤线。每个阶段用几个字说明情况，比如“approved”“3 of 4 tasks”“a pull request”。goal 运行时，Run 阶段上有一条它的任务进度条。在 Expert view 里，点一个阶段就打开显示它工作内容的地方：Clarify 和 Review 打开 Activity 标签，Brief 打开 Brief 页面，Run 打开 Tasks 标签，Deliver 打开 Delivery 标签。
 
 再往下，卡片只在需要时出现：goal 等你查看时的里程碑卡片，Foundry 提问时的访谈，以及最终审查运行时带实时日志的 **Goal review…**。
 
@@ -49,7 +63,7 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 | 标签 | 显示什么 |
 |---|---|
 | **Overview** | goal 进行到哪了、什么需要你、进度文件夹、预览、验收检查。标签上有数字表示有事等你。 |
-| **Tasks** | 任务图和每个任务的状态。显示 **done/total · N running**。 |
+| **Tasks** | 任务的依赖图，或者任务列表。显示 **done/total · N running**。 |
 | **Timeline** | 每一步什么时候进行、花了多久，goal 和它的 delegated goal 画在同一条时间轴上。 |
 | **Activity** | 发生过的所有事，最新的在前。 |
 | **Diff** | 相对 goal 起点的全部改动。 |
@@ -57,12 +71,11 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 
 ## Overview
 
-![已完成 goal 的 Overview 标签：时间线各阶段全部完成、四个 pull request 已合并、goal 描述、进度文件夹，以及全部通过的验收检查](images/goal-overview.png)
+![已完成 goal 的 Overview 标签：Brief、goal 描述、最终审查的结论、进度文件夹，以及全部通过的验收检查](images/goal-overview.png)
 
 从上到下：
 
-- **时间线**：**Clarify → Brief → Run → Review → Done**（或 **Over-delivered**）；goal 要推送或开 pull request 时还有 **Deliver · mode**。当前阶段会闪动。点一个阶段，就跳到显示它工作内容的地方。
-- **Brief**：时间线下方的一行，比如 **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**。点它打开 Brief 页面，Understanding 和 Clarifier 写的其它内容都在那里。
+- **Brief**：一行，比如 **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**。点它打开 Brief 页面，Understanding 和 Clarifier 写的其它内容都在那里。
 - **What needs you**：和 Inbox 里一样的卡片，带按钮。
 - **goal**：你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它。
 - **Goal review**：最终审查运行后，紧跟在 goal 下面：一行显示结论（**passed**、**over-delivered** 或 **failed**）和审查员意见的开头；点 **reviewer notes** 展开全文，**Open full** 图标会在更大的窗口里打开。
@@ -79,9 +92,13 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 
 ## Tasks
 
-**Tasks** 标签把计划画成一张图。每张卡片是一个任务，显示状态、已用的尝试次数和允许的次数（比如 2/3），这个任务到目前为止所有尝试加起来的费用、它的难度（**simple**、**standard** 或 **complex**，由它决定用预设里的哪个模型），以及最近一次尝试用的模型。箭头表示哪个任务在等哪个。在手机上，这张图会变成列表。
+**Tasks** 标签有两种方式显示计划，用标签右上角的 **Graph | List** 切换；这个浏览器会记住你的选择，所有 goal 都用它。
+
+**Graph** 把计划画成一张图。每张卡片是一个任务，显示状态、已用的尝试次数和允许的次数（比如 2/3），这个任务到目前为止所有尝试加起来的费用、它的难度（**simple**、**standard** 或 **complex**，由它决定用预设里的哪个模型），以及最近一次尝试用的模型。箭头表示哪个任务在等哪个。在手机上，这张图会变成按步骤分组的列表。
 
 ![Tasks 标签：计划画成一张图，一个任务已完成，两个并排（其中一个仍在运行），一个在等它们两个](images/goal-tasks.png)
+
+**List** 每个任务一行，按计划的顺序编号为 **T1**、**T2**……每行有任务的方块（见 [Goals 页面](#goals-页面)）、标题、状态、尝试次数和模型、它在等的任务（**after T1, T2**）、它在 **Work**、**Review**、**Merge** 三步中走到哪一步（审查打回过一次时显示 **Review ↺1**），以及用时和费用。点一行就打开这个任务，和点图里的卡片一样。
 
 ### 任务状态
 
@@ -165,7 +182,7 @@ Overview 标签上 **Workspace & preview** 卡片的顶部写着 worker 提交�
 
 一个仓库里可能有几个要一起运行的应用，比如网站、管理后台和 API。Foundry 会从 `package.json` 的 workspaces 里找到它们，或者由 Brief 在 **How to run it** 下列出。这时卡片每个应用一行，第一个排在最上面：
 
-- 一个圆点（绿色：已响应，黄色：启动中，红色：上次运行失败，灰色：已停止）、应用的名字和它所在的文件夹；
+- 一个小方块（实心：已响应，斜纹：启动中，红色：上次运行失败，空心：已停止）、应用的名字和它所在的文件夹；
 - 运行时显示 **Open**，以及它自己的 **Start** 或 **Stop**；
 - **▸ output** 显示这个应用打印的内容。
 
@@ -188,7 +205,7 @@ Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任
 
 卡片顶部写着运行的是哪个分支、在哪里运行。goal 还在进行时，预览运行的是 goal 自己的那份仓库（它的进度文件夹，在 goal 的分支上），并标着 **not your checkout**，所以你看到的是 goal 做的成果，而不是你自己文件夹里的内容。**copy** 复制那个文件夹的路径。
 
-goal 完成后，分支变成一个下拉菜单，下面一行说明选中的分支是什么（goal 的文件夹、带有合并成果的基础分支……），可以选 goal 分支、基础分支（比如 `main`）或你自己的其他本地分支；要换分支，先停掉预览。合并后 Foundry 会清理 goal 的文件夹并删除它的分支，这时预览改为运行基础分支（合并后的成果就在那里），并有一行琥珀色提示说明。
+goal 完成后，分支变成一个下拉菜单，下面一行说明选中的分支是什么（goal 的文件夹、带有合并成果的基础分支……），可以选 goal 分支、基础分支（比如 `main`）或你自己的其他本地分支；要换分支，先停掉预览。合并后 Foundry 会清理 goal 的文件夹并删除它的分支，这时预览改为运行基础分支（合并后的成果就在那里），并有一行加粗的提示说明。
 
 分支旁边还有第二个菜单，选择 goal 分支以外的分支在哪里运行：
 
@@ -202,7 +219,7 @@ Foundry 绝不会为了预览去切换、重置或拉取你的 checkout。改任
 
 ### When it fails
 
-如果某个 app 自己停了，卡片会显示 **The last run failed**、原因（比如 `exited with code 1`）以及它最后打印的几行（比如错误信息），不用打开输出就能看到。如果它在运行但 90 秒内没有响应，会有一行琥珀色提示：可能还在启动，也可能它的命令没用 Foundry 分配的端口（在 Brief 的 **How to run it** 里用 `{port}` 就能解决）。安装依赖失败也会显示出来。如果是因为端口被占用（`EADDRINUSE`）而停下，卡片会写出是谁占着那个端口，能释放时附带 **Stop & release**，并有一个指向[端口](./ports.zh.md)的链接。
+如果某个 app 自己停了，卡片会显示 **The last run failed**、原因（比如 `exited with code 1`）以及它最后打印的几行（比如错误信息），不用打开输出就能看到。如果它在运行但 90 秒内没有响应，会有一行加粗的提示：可能还在启动，也可能它的命令没用 Foundry 分配的端口（在 Brief 的 **How to run it** 里用 `{port}` 就能解决）。安装依赖失败也会显示出来。如果是因为端口被占用（`EADDRINUSE`）而停下，卡片会写出是谁占着那个端口，能释放时附带 **Stop & release**，并有一个指向[端口](./ports.zh.md)的链接。
 
 ### Environment
 
@@ -250,10 +267,10 @@ goal 暂停时，它的状态标记显示 **have a look**，Inbox 显示 **Have 
 卡片显示：
 
 - 要看什么，按 Brief 里写的。
-- **What Foundry saw**：预览的录屏和截图，让你不用自己启动任何东西就能看到。卡片刚打开时会显示 **Recording a walkthrough of the preview…**：一个小模型根据要看的内容和页面上的控件规划几个步骤（点击、填入示例数据、打开页面；绝不登录、付款或删除），由一个隐藏的浏览器照着操作，录下视频，并在值得看的地方截图。做不了的步骤会跳过；规划不出来时，保留一张页面截图，并有一行琥珀色提示说明原因。它和 self-check 一样需要 Playwright 的 Chromium。
+- **What Foundry saw**：预览的录屏和截图，让你不用自己启动任何东西就能看到。卡片刚打开时会显示 **Recording a walkthrough of the preview…**：一个小模型根据要看的内容和页面上的控件规划几个步骤（点击、填入示例数据、打开页面；绝不登录、付款或删除），由一个隐藏的浏览器照着操作，录下视频，并在值得看的地方截图。做不了的步骤会跳过；规划不出来时，保留一张页面截图，并有一行加粗的提示说明原因。它和 self-check 一样需要 Playwright 的 Chromium。
   - 有多个应用时，录制打开的是文件夹里装着这个任务文件的那个应用。
   - 应用启动前，如果 Docker 已安装但没在运行（Docker Desktop、OrbStack、Rancher Desktop 或 colima），Foundry 会把它打开；应用的示例 env 文件要求、但只有你的 checkout 里的 env 文件才有的变量，会从那里取过来。
-  - 错误页面的截图（HTTP 错误、"could not be found" 页面、空白页）看不到里程碑的内容：会被剔除，琥珀色提示会说剔除了几张。
+  - 错误页面的截图（HTTP 错误、"could not be found" 页面、空白页）看不到里程碑的内容：会被剔除，加粗的提示会说剔除了几张。
   - 应用没有响应，或者只显示错误页面时，Foundry 会用这个应用的 mock 命令、带着假数据再录一遍：**How to run it** 里的 **Mock command**，或者应用 `package.json` 里的 `dev:mock`、`start:mock` 或 `mock` 脚本。这时摘要以 *With mock data* 开头，里程碑显示 **unverified · fake data**：不算已展示。负责没有脚本的里程碑界面的 worker，在应用需要后端、Docker 或密钥才能运行时，会被要求加上这样一个脚本。
 - 预览，已经在启动，带 **Open preview**。
 - **What the self-check saw**：自检开着时的最新截图。
@@ -278,7 +295,7 @@ goal 还在运行时，如果审查发现这类明显差异，Foundry 会添加�
 
 **Where the time went** 先写 goal 从开始到结束（或到现在）一共多久、其中有多少时间在等你，以及交付花了多久。下面是按类别统计的会话时间（**Work**、**Reviews**、**Clarify**、**Landing**、**Other sessions**）。会话会同时进行，所以加起来可能比 goal 本身还长。**The longest steps** 列出最长的等待、会话和 delegated goal。
 
-下面的图里，第一行是 goal 本身，显示它的各个阶段：Clarify、等你、运行、goal 审查和交付。接着一行是 Foundry 自己的会话（Clarify、规划器、各种审查、文档），然后每个任务一行：每次尝试、它的审查和落地。delegated goal 排在它负责的那个任务下面，有自己的几行。等你的时间用斜纹表示，还在进行的步骤有绿色描边。把鼠标停在一段上，可以看到它的时长和费用。
+下面的图里，第一行是 goal 本身，显示它的各个阶段：Clarify、等你、运行、goal 审查和交付。接着一行是 Foundry 自己的会话（Clarify、规划器、各种审查、文档），然后每个任务一行：每次尝试、它的审查和落地。delegated goal 排在它负责的那个任务下面，有自己的几行。等你的时间用黄色斜纹表示，还在进行的步骤带流动的斜纹。把鼠标停在一段上，可以看到它的时长和费用。
 
 跑了好几个小时的 goal，步骤依然清楚：什么都没在跑的一段（没有会话、没有等你、没有 delegated goal）会折叠成一小段斜纹空隙，标出它持续了多久，例如 **⋯ 2h 40m**，其余部分保持原来的比例。图表像甘特图：各行的名称固定在左边，右边的图表可以左右滑动。它会把整个 goal 放进可用的宽度里，除非这样步骤会细得看不清（goal 很长，或在手机上）；这时它保持看得清的比例并可以滑动，下面有一条滑轨，以缩小的方式显示整个 goal，并框出正在看的那一段：拖动框，或点滑轨上任何地方，就会滑到那里。颜色说明旁边的 **+** 和 **−** 用来放大、缩小，**fit** 重新显示整个 goal。
 
@@ -314,7 +331,7 @@ goal 相对起点改过的每个文件，以及各自新增和删除了多少行
 
 ![Claude Code 和 Codex 会话（演示数据）](images/agents.png)
 
-顶栏 **Agents** 图标上的红色数字是此刻正在工作的会话数；没有在跑的时候就不显示。
+顶栏 **Agents** 旁边的实时计数（一个跳动的点和数字）是此刻正在工作的会话数；没有在跑的时候就不显示。
 
 列表上方的按钮（**all**、**Claude Code**、**Codex**，各带近 24 小时的会话数）按编码智能体筛选，**live only** 只保留正在工作或等待输入的会话，搜索框匹配标题、目标名称、任务、模型、文件夹和会话 ID。**expand all** 和 **collapse all** 展开或收起所有卡片。右侧的 **Overview** 按状态、编码智能体（Foundry 的和你的）和模型统计会话；在手机上点 **overview** 查看。列表每五秒刷新一次，外部会话仍只读。
 

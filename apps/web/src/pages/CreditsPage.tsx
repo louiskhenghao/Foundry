@@ -2,7 +2,7 @@ import { ArrowLeft, ArrowUpRight, ChevronRight, Container, Cpu, Download, HeartH
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import noticesUrl from '../../../../THIRD-PARTY-NOTICES.txt?url';
-import { Input, Page, buttonClass, cn } from '../ui.tsx';
+import { Input, PageHeader, buttonClass, cn, code } from '../ui.tsx';
 import data from './credits/credits.json';
 import { FEATURED, resolveFeatured, type Featured } from './credits/featured.ts';
 import type { Credits } from './credits/types.ts';
@@ -16,33 +16,42 @@ const linkLabel = (url: string) => {
 };
 const bare = (version: string | null) => version?.replace(/^v/, '') ?? null;
 
-type Tone = 'emerald' | 'violet' | 'sky' | 'amber';
-/** each section's accent: its icon tile and stat, the line along its cards' top edge, their hover border */
-const TONE: Record<Tone, { tile: string; text: string; line: string; hover: string }> = {
-  emerald: { tile: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/30', text: 'text-emerald-300', line: 'via-emerald-400/70', hover: 'hover:border-emerald-500/50' },
-  violet: { tile: 'bg-violet-500/15 text-violet-300 ring-violet-500/30', text: 'text-violet-300', line: 'via-violet-400/70', hover: 'hover:border-violet-500/50' },
-  sky: { tile: 'bg-sky-500/15 text-sky-300 ring-sky-500/30', text: 'text-sky-300', line: 'via-sky-400/70', hover: 'hover:border-sky-500/50' },
-  amber: { tile: 'bg-amber-500/15 text-amber-300 ring-amber-500/30', text: 'text-amber-300', line: 'via-amber-400/70', hover: 'hover:border-amber-500/50' },
-};
-const LOOK: Record<string, { tone: Tone; icon: LucideIcon }> = {
-  Runtime: { tone: 'emerald', icon: Cpu },
-  'Agents & workflow': { tone: 'violet', icon: Workflow },
+type Hue = ReturnType<typeof code>;
+/**
+ * Each part of the page in a category colour of its own (ADR-0067), the hues it had before themes: what Foundry runs on
+ * in green, the agents and workflow in violet, the Extensions catalog in blue, the license notices in orange. A count at
+ * the top takes the colour of the part that shows most of what it counts: the npm packages Foundry runs on, the image's
+ * tools the agents use, the Extensions projects.
+ */
+const RUNTIME = code(1);
+const AGENTS = code(2);
+const CATALOG = code(0);
+const NOTICES = code(3);
+
+/** each featured section's mark beside its name, and its colour */
+const LOOK: Record<string, { icon: LucideIcon; hue: Hue }> = {
+  Runtime: { icon: Cpu, hue: RUNTIME },
+  'Agents & workflow': { icon: Workflow, hue: AGENTS },
 };
 
-/** a license's colour by family: one hue per license, warm for copyleft */
-const LICENSE_TONES: [RegExp, { tag: string; dot: string }][] = [
-  [/^MIT$/, { tag: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300', dot: 'bg-emerald-400' }],
-  [/^ISC$/, { tag: 'border-teal-500/30 bg-teal-500/10 text-teal-300', dot: 'bg-teal-400' }],
-  [/Apache/, { tag: 'border-sky-500/30 bg-sky-500/10 text-sky-300', dot: 'bg-sky-400' }],
-  [/^BSD/, { tag: 'border-amber-500/30 bg-amber-500/10 text-amber-300', dot: 'bg-amber-400' }],
-  [/^PSF/, { tag: 'border-blue-500/30 bg-blue-500/10 text-blue-300', dot: 'bg-blue-400' }],
-  [/GPL/, { tag: 'border-rose-500/30 bg-rose-500/10 text-rose-300', dot: 'bg-rose-400' }],
-  [/Public domain/, { tag: 'border-violet-500/30 bg-violet-500/10 text-violet-300', dot: 'bg-violet-400' }],
+/**
+ * A license's colour by family, as before themes: one category colour per family, warm for copyleft (GPL rose, OFL
+ * magenta), never a signal: a license is a fact about a project, not how it stands. Anything else stays a quiet outline.
+ */
+const LICENSE_HUES: [RegExp, Hue][] = [
+  [/^MIT$/, code(1)],
+  [/^ISC$/, code(5)],
+  [/Apache/, code(0)],
+  [/^BSD/, code(3)],
+  [/^PSF/, code(7)],
+  [/GPL/, code(4)],
+  [/Public domain/, code(2)],
+  [/^OFL/, code(6)],
 ];
-const licenseTone = (license: string) => LICENSE_TONES.find(([re]) => re.test(license))?.[1] ?? { tag: 'border-zinc-700/80 text-zinc-400', dot: 'bg-zinc-500' };
+const licenseHue = (license: string): Hue | null => LICENSE_HUES.find(([re]) => re.test(license))?.[1] ?? null;
 
-/** the hero's light: emerald from the top left, violet from the top right, a little sky from below */
-const HERO_GLOW = 'radial-gradient(60% 90% at 0% 0%, rgb(16 185 129 / 0.16), transparent 70%), radial-gradient(55% 90% at 100% 0%, rgb(139 92 246 / 0.16), transparent 70%), radial-gradient(50% 60% at 50% 120%, rgb(14 165 233 / 0.10), transparent 70%)';
+/** a panel as every page draws one: white (graphite in the dark) on the page, a hairline round it, the theme's lift */
+const PANEL = 'rounded-lg border border-line bg-panel shadow-[var(--surface-shadow)]';
 
 /**
  * Open source credits: the projects Foundry is built on and the license notices of everything its Docker image ships
@@ -56,48 +65,50 @@ export function CreditsPage() {
   const tools = credits.tools.filter((t) => t.text).length;
   const catalog = credits.catalog.filter((p) => !p.featured);
   return (
-    <Page className="pb-16">
-      <header className="pt-1 sm:pt-4">
-        <Link to="/settings#about" className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300">
-          <ArrowLeft size={12} /> About & updates
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16">
+      <nav aria-label="Breadcrumb" className="mb-5 text-sm">
+        <Link to="/settings#about" className="-my-1.5 inline-flex items-center gap-1.5 py-1.5 font-bold text-ink hover:underline underline-offset-[3px]">
+          <ArrowLeft size={14} aria-hidden="true" /> About & updates
         </Link>
-        <div className="surface-card mt-4 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40 px-5 py-8 sm:px-10 sm:py-10" style={{ backgroundImage: HERO_GLOW }}>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-medium text-rose-300">
-            <HeartHandshake size={12} /> With thanks
+      </nav>
+      <PageHeader
+        title="Open source credits"
+        summary="Foundry is built on the work of open-source maintainers and contributors. These are the projects it runs on, the agents and workflows it brings to your goals, and the license of everything it ships."
+        actions={
+          // the thanks in the rose it had before themes: warmth, not a signal
+          <span className={cn('inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] font-extrabold caps leading-none', code(4).chip)}>
+            <HeartHandshake size={14} aria-hidden="true" /> With thanks
           </span>
-          <h1 className="mt-4 w-fit bg-linear-to-r from-emerald-300 via-sky-300 to-violet-300 bg-clip-text pb-1 text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">Open source credits</h1>
-          <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-300">
-            Foundry is built on the work of open-source maintainers and contributors. These are the projects it runs on, the agents and workflows it brings to your goals, and the license of everything it ships.
-          </p>
-          <dl className="mt-8 grid max-w-2xl grid-cols-3 gap-2 sm:gap-3">
-            <Stat value={credits.packages.length} label="npm packages" icon={Package} tone="emerald" />
-            <Stat value={tools} label="tools in the image" icon={Container} tone="sky" />
-            <Stat value={credits.catalog.length} label="Extensions projects" icon={Puzzle} tone="violet" />
-          </dl>
-        </div>
-      </header>
+        }
+      />
+      {/* the counts as figure tiles, as on Usage and Reports, each in the colour of the part that shows what it counts */}
+      <dl className="grid max-w-2xl grid-cols-3 gap-2 sm:gap-3">
+        <Stat value={credits.packages.length} label="npm packages" icon={Package} hue={RUNTIME} />
+        <Stat value={tools} label="tools in the image" icon={Container} hue={AGENTS} />
+        <Stat value={credits.catalog.length} label="Extensions projects" icon={Puzzle} hue={CATALOG} />
+      </dl>
 
       {FEATURED.map((group) => {
-        const look = LOOK[group.title] ?? { tone: 'emerald', icon: Cpu };
+        const look = LOOK[group.title] ?? { icon: Cpu, hue: RUNTIME };
         return (
-          <Section key={group.title} title={group.title} blurb={group.blurb} tone={look.tone} icon={look.icon}>
+          <Section key={group.title} title={group.title} count={group.items.length} blurb={group.blurb} icon={look.icon} hue={look.hue}>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {group.items.map((item) => (
-                <FeaturedCard key={item.name} item={item} tone={look.tone} />
+                <FeaturedCard key={item.name} item={item} hue={look.hue} />
               ))}
             </div>
           </Section>
         );
       })}
 
-      <Section title="From the Extensions catalog" blurb="Open-source skills, tools and MCP servers a goal can install from Extensions." tone="sky" icon={Puzzle}>
+      <Section title="From the Extensions catalog" count={catalog.length} blurb="Open-source skills, tools and MCP servers a goal can install from Extensions." icon={Puzzle} hue={CATALOG}>
         <ul className="grid gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
           {catalog.map((p) => (
-            <li key={p.project} className="flex min-w-0 items-center justify-between gap-3 border-b border-zinc-800/70 py-2.5">
-              <a href={p.url} target="_blank" rel="noreferrer" className="min-w-0 truncate text-[13px] text-zinc-200 hover:text-sky-300 hover:underline">
+            <li key={p.project} className="flex min-w-0 items-center justify-between gap-3 border-b border-line py-2.5">
+              <a href={p.url} target="_blank" rel="noreferrer" title={p.name} className="-my-1.5 min-w-0 truncate py-1.5 text-[13px] font-semibold text-ink hover:underline underline-offset-2">
                 {p.name}
               </a>
-              <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] text-zinc-500">
+              <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[11px] text-ink-faint">
                 {p.kinds.join(' · ')} <LicenseTag license={p.license} />
               </span>
             </li>
@@ -106,32 +117,41 @@ export function CreditsPage() {
       </Section>
 
       <Notices />
-    </Page>
-  );
-}
-
-function Stat({ value, label, icon: Icon, tone }: { value: number; label: string; icon: LucideIcon; tone: Tone }) {
-  return (
-    <div className="surface-inset rounded-xl border border-zinc-800 bg-zinc-950/40 px-3 py-3 sm:px-4">
-      <Icon size={15} className={TONE[tone].text} />
-      <dd className={cn('mt-2 text-xl font-semibold tabular-nums tracking-tight sm:text-2xl', TONE[tone].text)}>{value}</dd>
-      <dt className="mt-0.5 text-[11px] leading-snug text-zinc-400">{label}</dt>
     </div>
   );
 }
 
-function Section({ id, title, blurb, tone, icon: Icon, aside, children }: { id?: string; title: string; blurb: ReactNode; tone: Tone; icon: LucideIcon; aside?: ReactNode; children: ReactNode }) {
+/** a count as a figure tile: what it counts in small capitals, the figure large under it; its mark and figure in its colour */
+function Stat({ value, label, icon: Icon, hue }: { value: number; label: string; icon: LucideIcon; hue: Hue }) {
   return (
-    <section id={id} className="scroll-mt-16 space-y-4 pt-8">
-      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3 border-b border-zinc-800 pb-3">
-        <div className="flex min-w-0 max-w-2xl items-start gap-3">
-          <span className={cn('mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ring-1', TONE[tone].tile)}>
-            <Icon size={16} />
-          </span>
-          <div className="min-w-0">
-            <h2 className="text-base font-semibold tracking-tight text-zinc-100">{title}</h2>
-            <p className="mt-0.5 text-[13px] leading-relaxed text-zinc-500">{blurb}</p>
-          </div>
+    <div className={cn(PANEL, 'flex flex-col justify-between gap-2 px-3 py-3 sm:px-4')}>
+      <dt className="flex items-start gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] leading-tight text-ink-faint">
+        {/* a phone's third of the row has room for the words alone */}
+        <Icon size={13} className={cn('mt-px hidden shrink-0 sm:block', hue.ink)} aria-hidden="true" />
+        {label}
+      </dt>
+      <dd className={cn('mono text-2xl font-bold leading-none', hue.ink)}>{value}</dd>
+    </div>
+  );
+}
+
+/**
+ * A section of the page, headed as the Goals page's boards are: its mark on a tile in the section's colour, its name in
+ * capitals, its count, a line on it.
+ */
+function Section({ id, title, count, blurb, icon: Icon, hue, aside, children }: { id?: string; title: string; count?: number; blurb: ReactNode; icon: LucideIcon; hue: Hue; aside?: ReactNode; children: ReactNode }) {
+  return (
+    <section id={id} className="scroll-mt-16 space-y-4 pt-12">
+      <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+        <div className="min-w-0 max-w-2xl">
+          <h2 className="flex items-center gap-2.5 text-[12.5px] font-extrabold caps text-ink">
+            <span className={cn('grid h-7 w-7 shrink-0 place-items-center rounded-md', hue.chip)} aria-hidden="true">
+              <Icon size={15} strokeWidth={2.25} />
+            </span>
+            {title}
+            {count != null && <b className="mono text-[13px] tracking-normal">{count}</b>}
+          </h2>
+          <p className="mt-2 text-[13px] leading-relaxed text-ink-faint">{blurb}</p>
         </div>
         {aside}
       </div>
@@ -140,22 +160,24 @@ function Section({ id, title, blurb, tone, icon: Icon, aside, children }: { id?:
   );
 }
 
-const LicenseTag = ({ license }: { license: string }) => <span className={cn('mono shrink-0 whitespace-nowrap rounded border px-1.5 py-px text-[10px]', licenseTone(license).tag)}>{license}</span>;
+/** a license as a tag tinted in its family's colour (see LICENSE_HUES); one of no known family as a quiet outline */
+const LicenseTag = ({ license }: { license: string }) => <span className={cn('mono shrink-0 whitespace-nowrap rounded-sm px-1.5 py-px text-[11px]', licenseHue(license)?.chip ?? 'text-ink-soft inset-ring inset-ring-line-strong')}>{license}</span>;
 
-function FeaturedCard({ item, tone }: { item: Featured; tone: Tone }) {
+function FeaturedCard({ item, hue }: { item: Featured; hue: Hue }) {
   const card = resolveFeatured(item, credits);
   if (!card) return null;
   return (
-    <a href={card.url} target="_blank" rel="noreferrer" className={cn('surface-card group relative flex flex-col overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/60 p-4 transition-colors', TONE[tone].hover)}>
-      <span aria-hidden className={cn('absolute inset-x-0 top-0 h-px bg-linear-to-r from-transparent to-transparent opacity-70 transition-opacity group-hover:opacity-100', TONE[tone].line)} />
+    <a href={card.url} target="_blank" rel="noreferrer" className={cn(PANEL, 'group relative flex flex-col overflow-hidden p-4 pt-5 transition-colors hover:border-line-strong')}>
+      {/* the section's colour along the card's top edge, like a line on a map */}
+      <span aria-hidden="true" className={cn('absolute inset-x-0 top-0 h-[3px]', hue.dot)} />
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-[15px] font-semibold tracking-tight text-zinc-100">{item.name}</h3>
+        <h3 className="min-w-0 break-words text-[15px] font-bold tracking-tight text-ink group-hover:underline underline-offset-2">{item.name}</h3>
         <LicenseTag license={card.license} />
       </div>
-      <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-zinc-400">{item.use}</p>
-      <div className="mt-4 flex items-center justify-between gap-3 text-[11px] text-zinc-500">
-        <span className={cn('mono opacity-80', TONE[tone].text)}>{bare(card.version)}</span>
-        <span className="flex min-w-0 items-center gap-1 transition-colors group-hover:text-zinc-300">
+      <p className="mt-1.5 flex-1 text-[13px] leading-relaxed text-ink-soft">{item.use}</p>
+      <div className="mt-4 flex items-center justify-between gap-3 text-[11px] text-ink-faint">
+        <span className={cn('mono text-xs font-bold', hue.ink)}>{bare(card.version)}</span>
+        <span className="flex min-w-0 items-center gap-1 transition-colors group-hover:text-ink" title={linkLabel(card.url)}>
           <span className="truncate">{linkLabel(card.url)}</span>
           <ArrowUpRight size={12} className="shrink-0" />
         </span>
@@ -192,13 +214,13 @@ function Notices() {
     <Section
       id="licenses"
       title="License notices"
-      tone="amber"
       icon={Scale}
+      hue={NOTICES}
       blurb={<>Everything Foundry's Docker image ships, with the copyright and license text each asks to be passed on. The image carries the same notices in THIRD-PARTY-NOTICES.txt.</>}
       aside={
         <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
           <label className="relative min-w-0 flex-1 sm:w-60 sm:flex-none">
-            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+            <Search size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-ink-faint" />
             <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search by name" aria-label="Search packages and tools" className="pl-8" />
           </label>
           <a href={noticesUrl} download="THIRD-PARTY-NOTICES.txt" className={buttonClass('default')}>
@@ -209,23 +231,24 @@ function Notices() {
     >
       <div className="space-y-6">
         {tools.length > 0 && (
-          <Group title="Tools in the Docker image" marker={<Container size={14} className="text-sky-300" />} count={tools.length} unit="tool" open={!!q || open.has('tools')} onToggle={() => toggle('tools')}>
+          // the tools' mark in the colour of their count at the top
+          <Group title="Tools in the Docker image" marker={<Container size={14} className={AGENTS.ink} />} count={tools.length} unit="tool" open={!!q || open.has('tools')} onToggle={() => toggle('tools')}>
             {tools.map((r) => (
               <NoticeRow key={r.key} row={r} showLicense />
             ))}
             {footnotes.map((t) => (
-              <li key={t.id} className="px-4 py-3 text-xs leading-relaxed text-zinc-500">
-                <span className="font-medium text-zinc-300">{t.name}.</span> {t.note}
+              <li key={t.id} className="px-4 py-3 text-xs leading-relaxed text-ink-faint">
+                <span className="font-semibold text-ink-soft">{t.name}.</span> {t.note}
               </li>
             ))}
           </Group>
         )}
         {licenses.length > 0 && (
           <div>
-            <h3 className="mb-2 text-[11px] font-medium uppercase tracking-[0.12em] text-zinc-500">npm packages, by license</h3>
+            <h3 className="mb-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">npm packages, by license</h3>
             <div className="space-y-2">
               {licenses.map((g) => (
-                <Group key={g.license} title={g.license} marker={<span className={cn('h-2 w-2 rounded-full', licenseTone(g.license).dot)} />} count={g.rows.length} unit="package" open={!!q || open.has(g.license)} onToggle={() => toggle(g.license)}>
+                <Group key={g.license} title={g.license} marker={<span className={cn('h-2.5 w-2.5 rounded-[2px]', licenseHue(g.license)?.dot ?? 'bg-line-strong')} />} count={g.rows.length} unit="package" open={!!q || open.has(g.license)} onToggle={() => toggle(g.license)}>
                   {g.rows.map((r) => (
                     <NoticeRow key={r.key} row={r} showLicense={false} />
                   ))}
@@ -234,7 +257,7 @@ function Notices() {
             </div>
           </div>
         )}
-        {!tools.length && !licenses.length && <p className="py-8 text-center text-sm text-zinc-500">Nothing matches “{query.trim()}”.</p>}
+        {!tools.length && !licenses.length && <p className="py-8 text-center text-sm text-ink-faint">Nothing matches “{query.trim()}”.</p>}
       </div>
     </Section>
   );
@@ -242,16 +265,16 @@ function Notices() {
 
 function Group({ title, marker, count, unit, open, onToggle, children }: { title: string; marker: ReactNode; count: number; unit: string; open: boolean; onToggle: () => void; children: ReactNode }) {
   return (
-    <div className="surface-card overflow-hidden rounded-lg border border-zinc-800 bg-zinc-900/60">
-      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-2.5 px-4 py-3 text-left hover:bg-zinc-800/40">
-        <ChevronRight size={14} className={cn('shrink-0 text-zinc-500 transition-transform', open && 'rotate-90')} />
+    <div className={cn(PANEL, 'overflow-hidden')}>
+      <button type="button" onClick={onToggle} aria-expanded={open} className="flex w-full items-center gap-2.5 px-4 py-3 text-left transition-colors hover:bg-sunken">
+        <ChevronRight size={14} className={cn('shrink-0 text-ink-faint transition-transform', open && 'rotate-90')} />
         <span className="flex w-4 shrink-0 justify-center">{marker}</span>
-        <span className="text-sm font-medium text-zinc-200">{title}</span>
-        <span className="ml-auto text-xs tabular-nums text-zinc-500">
+        <span className="text-sm font-bold text-ink">{title}</span>
+        <span className="ml-auto mono text-xs text-ink-faint">
           {count} {count === 1 ? unit : `${unit}s`}
         </span>
       </button>
-      {open && <ul className="divide-y divide-zinc-800/70 border-t border-zinc-800">{children}</ul>}
+      {open && <ul className="divide-y divide-line border-t border-line">{children}</ul>}
     </div>
   );
 }
@@ -260,19 +283,22 @@ function NoticeRow({ row, showLicense }: { row: Row; showLicense: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <li>
-      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-zinc-800/40">
-        <span className="min-w-0 truncate text-[13px] text-zinc-200 sm:w-56 sm:shrink-0">{row.name}</span>
-        <span className="mono shrink-0 text-[11px] text-zinc-500 sm:w-20">{bare(row.version)}</span>
-        <span className="hidden min-w-0 flex-1 truncate text-[11px] text-zinc-500 sm:block">{row.copyright?.split('\n')[0]}</span>
+      {/* a phone puts the copyright on a line of its own under the name, instead of leaving it out */}
+      <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-x-3 gap-y-0.5 px-4 py-2 text-left transition-colors hover:bg-sunken sm:flex-nowrap">
+        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-ink sm:w-56 sm:flex-none" title={row.name}>{row.name}</span>
+        <span className="mono shrink-0 text-[11px] text-ink-faint sm:w-20">{bare(row.version)}</span>
+        <span className={cn('order-last min-w-0 basis-full truncate text-[11px] text-ink-faint sm:order-none sm:block sm:flex-1', !row.copyright && 'hidden')} title={row.copyright?.split('\n')[0]}>
+          {row.copyright?.split('\n')[0]}
+        </span>
         {showLicense && <LicenseTag license={row.license} />}
-        <ChevronRight size={13} className={cn('ml-auto shrink-0 text-zinc-600 transition-transform sm:ml-0', open && 'rotate-90')} />
+        <ChevronRight size={13} className={cn('shrink-0 text-ink-faint transition-transform', open && 'rotate-90')} />
       </button>
       {open && (
         <div className="space-y-3 px-4 pb-4 pt-1">
-          <a href={row.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] text-zinc-400 hover:text-zinc-200">
+          <a href={row.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[11px] text-ink-soft hover:text-ink">
             {row.url.replace(/^https:\/\//, '')} <ArrowUpRight size={11} />
           </a>
-          {row.note && <p className="max-w-3xl text-xs leading-relaxed text-zinc-400">{row.note}</p>}
+          {row.note && <p className="max-w-3xl text-xs leading-relaxed text-ink-soft">{row.note}</p>}
           {row.text && <LicenseText text={credits.texts[row.text]!} />}
           {row.notice && <LicenseText label="NOTICE" text={credits.texts[row.notice]!} />}
         </div>
@@ -283,7 +309,7 @@ function NoticeRow({ row, showLicense }: { row: Row; showLicense: boolean }) {
 
 const LicenseText = ({ text, label }: { text: string; label?: string }) => (
   <div>
-    {label && <div className="mb-1 text-[10px] font-medium uppercase tracking-[0.12em] text-zinc-500">{label}</div>}
-    <pre className="surface-inset mono max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md border border-zinc-800 bg-zinc-950/60 p-3 text-[11px] leading-relaxed text-zinc-300">{text}</pre>
+    {label && <div className="mb-1 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">{label}</div>}
+    <pre className="mono max-h-80 overflow-auto whitespace-pre-wrap break-words rounded-md border border-line bg-sunken p-3 text-[11px] leading-relaxed text-ink-soft">{text}</pre>
   </div>
 );

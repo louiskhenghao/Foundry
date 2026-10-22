@@ -1,7 +1,7 @@
 import { MODEL_NATURES, NATURE_LABEL, type ModelNature } from '@foundry/core/browser';
-import { Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
+import { CodeXml, FileText, Image as ImageIcon, Plus, RefreshCw, RotateCcw, Trash2, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Badge, Button, Field, Input, Select, cn } from '../../ui.tsx';
+import { Button, Field, Input, Select, chipClass, cn, code } from '../../ui.tsx';
 
 /**
  * The building blocks both coding agents' Models panels share, so they read the same: a sync row, one card per goal
@@ -11,21 +11,39 @@ import { Badge, Button, Field, Input, Select, cn } from '../../ui.tsx';
 
 export const NATURE_HINT: Record<ModelNature, string> = { code: 'software and CAD goals, and goals not yet classified', docs: 'documents and cited research reports', media: 'image and video goals' };
 
+/** each goal type's icon and category colour, as the New goal page draws its kinds of goal: code blue, documents green, images magenta */
+const NATURE_STYLE: Record<ModelNature, { Icon: LucideIcon; ink: string; dot: string }> = {
+  code: { Icon: CodeXml, ink: code(0).ink, dot: code(0).dot },
+  docs: { Icon: FileText, ink: code(1).ink, dot: code(1).dot },
+  media: { Icon: ImageIcon, ink: code(6).ink, dot: code(6).dot },
+};
+const NatureIcon = ({ nature }: { nature: ModelNature }) => {
+  const { Icon, ink } = NATURE_STYLE[nature];
+  return <Icon size={15} strokeWidth={2.25} className={cn('shrink-0', ink)} aria-hidden="true" />;
+};
+
+/**
+ * how a preset stands against the one Foundry ships (modified, a newer default out) as a plate in the information blue,
+ * as the role's • and an edited skill's "modified" are: news about it, nothing that waits for you
+ */
+const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] bg-work/10 text-work-ink ring-1 ring-inset ring-work/45';
+
 export function SectionTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('text-sm text-zinc-200', className)}>{children}</div>;
+  return <div className={cn('text-sm font-bold text-ink', className)}>{children}</div>;
 }
 
 /** "Sync models", what the last sync found, an optional control on the right and the result of the last run. */
 export function SyncRow({ syncing, onSync, title, status, aside, help, message }: { syncing: boolean; onSync: () => void; title?: string; status: string; aside?: ReactNode; help?: ReactNode; message?: string | null }) {
   return (
-    <div className="flex items-center gap-2 flex-wrap text-xs text-zinc-400">
+    <div className="flex items-center gap-2 flex-wrap text-xs text-ink-soft">
       <Button size="sm" onClick={onSync} disabled={syncing} title={title}>
         <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} /> {syncing ? 'Syncing…' : 'Sync models'}
       </Button>
       <span>{status}</span>
       {aside && <span className="ml-auto">{aside}</span>}
-      {help && <p className="w-full text-[11px] text-zinc-500">{help}</p>}
-      {message && <p role="status" className="w-full text-[11px] text-zinc-500">{message}</p>}
+      {help && <p className="w-full text-[11px] text-ink-faint">{help}</p>}
+      {/* how the last sync went, in its signal colour: failed red, models found green */}
+      {message && <p role="status" className={cn('w-full text-[11px] font-semibold', /^(✘|Sync failed|Unable)/.test(message) ? 'text-bad-ink' : 'text-ok-ink')}>{message}</p>}
     </div>
   );
 }
@@ -39,10 +57,15 @@ export function GoalTypePresets({ picks, options, onPick, summary, onEdit, selec
     <div className="space-y-3">
       <SectionTitle>Preset per goal type</SectionTitle>
       {MODEL_NATURES.map((n) => (
-        <div key={n} className="rounded border border-zinc-800 p-3 space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-zinc-100 text-sm w-40">{NATURE_LABEL[n]}</span>
-            <span className="w-48">
+        <div key={n} className="rounded-lg border border-line bg-sunken p-3 space-y-2">
+          {/* on a phone: the goal type with Edit preset beside it, the dropdown full width under them, then what the type
+              covers; from sm on, one line in the order of the markup */}
+          <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 text-ink text-sm font-bold sm:w-40">
+              <NatureIcon nature={n} />
+              {NATURE_LABEL[n]}
+            </span>
+            <span className="order-3 w-full sm:order-none sm:w-48">
               <Select className="text-xs py-1" aria-label={selectLabel?.(n) ?? `${NATURE_LABEL[n]} preset`} value={picks[n]} onChange={(e) => onPick(n, e.target.value)}>
                 {options.map((o) => (
                   <option key={o.id} value={o.id}>
@@ -52,16 +75,16 @@ export function GoalTypePresets({ picks, options, onPick, summary, onEdit, selec
                 ))}
               </Select>
             </span>
-            <span className="text-[11px] text-zinc-500">{NATURE_HINT[n]}</span>
-            <Button size="sm" variant="ghost" className="ml-auto" onClick={() => onEdit(n)}>
+            <span className="order-4 w-full text-[11px] text-ink-faint sm:order-none sm:w-auto">{NATURE_HINT[n]}</span>
+            <Button size="sm" variant="ghost" className="order-2 ml-auto sm:order-none" onClick={() => onEdit(n)}>
               Edit preset
             </Button>
           </div>
           <div className={cn('grid gap-x-4 gap-y-0.5 text-[11px]', summaryColumns)}>
             {summary(n).map((r) => (
               <div key={r.role} className={cn('flex justify-between gap-2 min-w-0', r.rare && 'opacity-40')}>
-                <span className="text-zinc-500 truncate">{r.label}</span>
-                <span className="mono text-zinc-300 truncate" title={r.value}>{r.value}</span>
+                <span className="text-ink-faint truncate">{r.label}</span>
+                <span className="mono text-ink truncate" title={r.value}>{r.value}</span>
               </div>
             ))}
           </div>
@@ -77,7 +100,7 @@ export function PresetChips({ options, editing, onSelect, onNew }: { options: Pr
     <div className="flex items-center gap-2 flex-wrap">
       <SectionTitle className="mr-2">Presets</SectionTitle>
       {options.map((o) => (
-        <button key={o.id} type="button" aria-pressed={editing === o.id} onClick={() => onSelect(o.id)} className={cn('rounded-full border px-2.5 py-0.5 text-xs', editing === o.id ? 'border-emerald-500 bg-emerald-500/10 text-emerald-200' : 'border-zinc-700 text-zinc-300 hover:border-zinc-500')}>
+        <button key={o.id} type="button" aria-pressed={editing === o.id} onClick={() => onSelect(o.id)} className={chipClass(editing === o.id)}>
           {o.label}
           {o.modified ? ' •' : ''}
         </button>
@@ -104,10 +127,10 @@ export function PresetDetails({ label, description, own, status, onLabel, onDesc
         </>
       ) : (
         <div className="flex-1 min-w-[12rem] space-y-1">
-          <div className="text-zinc-100 text-sm flex items-center gap-2 flex-wrap">
-            {label} {status.modified && <Badge state="blocked">modified</Badge>} {status.newerDefault && <Badge state="awaiting_brief_approval">newer default available</Badge>}
+          <div className="text-ink text-sm font-bold flex items-center gap-2 flex-wrap">
+            {label} {status.modified && <span className={TAG}>modified</span>} {status.newerDefault && <span className={TAG}>newer default available</span>}
           </div>
-          <p className="text-xs text-zinc-400">{description}</p>
+          <p className="text-xs text-ink-soft">{description}</p>
         </div>
       )}
       {(status.modified || own) && (
@@ -129,11 +152,16 @@ export function PresetDetails({ label, description, own, status, onLabel, onDesc
   );
 }
 
+/**
+ * which goal type's table the editor shows, as a segmented control (ButtonGroup's look): the one shown filled with the
+ * accent; each type's colour as a square before its name, which reads on the accent fill as on the panel
+ */
 export function NatureTabs({ value, onChange }: { value: ModelNature; onChange: (n: ModelNature) => void }) {
   return (
-    <div className="flex flex-wrap gap-1">
+    <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-md bg-panel p-0.5 text-xs ring-1 ring-inset ring-line-strong">
       {MODEL_NATURES.map((n) => (
-        <button key={n} type="button" aria-pressed={value === n} onClick={() => onChange(n)} className={cn('rounded px-2.5 py-1 text-xs border', value === n ? 'border-zinc-500 bg-zinc-800 text-zinc-100' : 'border-transparent text-zinc-400 hover:text-zinc-200')}>
+        <button key={n} type="button" aria-pressed={value === n} onClick={() => onChange(n)} className={cn('grow inline-flex items-center justify-center gap-1.5 rounded-sm px-2.5 py-1 font-semibold whitespace-nowrap', value === n ? 'bg-accent text-on-accent' : 'text-ink-soft hover:bg-sunken hover:text-ink')}>
+          <span className={cn('h-2 w-2 shrink-0 rounded-[2px]', NATURE_STYLE[n].dot)} aria-hidden="true" />
           {NATURE_LABEL[n]}
         </button>
       ))}
@@ -146,11 +174,11 @@ export function RoleRow({ label, help, nature, rare, shipped, children }: { labe
   return (
     <div className={cn('flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-2', rare && 'opacity-50')}>
       <div className="sm:w-40 shrink-0 sm:pt-1">
-        <div className="text-xs text-zinc-200">
+        <div className="text-xs font-semibold text-ink">
           {label}
-          {shipped != null && <span className="text-amber-300" title={`shipped: ${shipped}`}> •</span>}
+          {shipped != null && <span className="text-work-ink" title={`shipped: ${shipped}`}> •</span>}
         </div>
-        <div className="text-[10px] text-zinc-500 leading-snug">{rare ? `rarely used for ${NATURE_LABEL[nature].toLowerCase()} · ` : ''}{help}</div>
+        <div className="text-[11px] text-ink-faint leading-snug">{rare ? `rarely used for ${NATURE_LABEL[nature].toLowerCase()} · ` : ''}{help}</div>
       </div>
       <div className="flex-1 min-w-0">{children}</div>
     </div>
@@ -161,9 +189,9 @@ export function RoleRow({ label, help, nature, rare, shipped, children }: { labe
 export function FieldGroup({ label, help, children, className }: { label: ReactNode; help?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <div role="group" aria-label={typeof label === 'string' ? label : undefined} className={cn('min-w-0', className)}>
-      <span className="block text-xs text-zinc-300 mb-1">{label}</span>
+      <span className="block text-xs font-semibold text-ink-soft mb-1">{label}</span>
       {children}
-      {help && <span className="block text-[11px] text-zinc-500 mt-1 leading-snug">{help}</span>}
+      {help && <span className="block text-[11px] text-ink-faint mt-1 leading-snug">{help}</span>}
     </div>
   );
 }

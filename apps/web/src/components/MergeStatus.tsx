@@ -28,7 +28,8 @@ export function MergeStatus({ goal, className }: { goal: Goal; className?: strin
     }
   };
   return (
-    <div className={cn('rounded-md border border-zinc-800 bg-zinc-950/40 p-2.5 space-y-1.5 text-xs', className)}>
+    // a box inside the card it sits in (the Delivery tab's, the Simple view's Result)
+    <div className={cn('rounded-md border border-line bg-sunken p-3 space-y-2 text-xs', className)}>
       {merged ? (
         <Line ok label={`Merged into ${base} on GitHub`} />
       ) : closed.length ? (
@@ -66,19 +67,23 @@ export function MergeStatus({ goal, className }: { goal: Goal; className?: strin
           }
         />
       )}
-      {err && <div className="text-rose-300">{err}</div>}
+      {err && <div className="text-bad-ink">{err}</div>}
     </div>
   );
 }
 
+/**
+ * one line: done in green; not done yet in yellow when its button is yours to press, in red when nothing is left to do
+ * (a pull request closed without merging); still waiting, hollow and quiet
+ */
 function Line({ ok, bad, label, detail, action }: { ok?: boolean; bad?: boolean; label: string; detail?: string; action?: ReactNode }) {
   const Icon = ok ? CheckCircle2 : bad ? XCircle : CircleDashed;
   return (
     <div className="flex items-start gap-2">
-      <Icon size={14} className={cn('mt-0.5 shrink-0', ok ? 'text-emerald-400' : bad ? 'text-amber-400' : 'text-zinc-500')} />
+      <Icon size={14} className={cn('mt-0.5 shrink-0', ok ? 'text-ok-ink' : bad ? (action ? 'text-you-ink' : 'text-bad-ink') : 'text-ink-faint')} />
       <div className="min-w-0 flex-1">
-        <div className="text-zinc-200">{label}</div>
-        {detail && <div className="text-[11px] text-zinc-500 break-words">{detail}</div>}
+        <div className="font-semibold text-ink">{label}</div>
+        {detail && <div className="text-[11px] text-ink-faint break-words">{detail}</div>}
       </div>
       {action}
     </div>

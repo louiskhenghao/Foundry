@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api, fileUrl } from '../../api.ts';
-import { ButtonGroup, CopyButton, Modal, cn } from '../../ui.tsx';
+import { BOARD_ROW, ButtonGroup, CopyButton, Modal, cn } from '../../ui.tsx';
 
 interface FileDiff {
   path: string;
@@ -82,7 +82,7 @@ function useHighlight(lines: string[], name: string): string[] | null {
   return done?.key === key ? done.html : null;
 }
 
-const TINT: Record<Row['kind'], string> = { add: 'bg-emerald-500/10', del: 'bg-rose-500/10', ctx: '', hunk: 'bg-sky-500/5' };
+const TINT: Record<Row['kind'], string> = { add: 'bg-ok/10', del: 'bg-bad/10', ctx: '', hunk: 'bg-work/5' };
 const MARK: Record<Row['kind'], string> = { add: '+', del: '−', ctx: ' ', hunk: '' };
 
 function Code({ rows, name }: { rows: Row[]; name: string }) {
@@ -90,24 +90,24 @@ function Code({ rows, name }: { rows: Row[]; name: string }) {
   const html = useHighlight(code.map((r) => r.text), name);
   let i = -1;
   return (
-    <div className="surface-card rounded-md border border-zinc-800 bg-zinc-950/60 overflow-auto max-h-[70vh]">
+    <div className="rounded-lg border border-line bg-sunken overflow-auto max-h-[70vh]">
       <table className="mono text-xs leading-5 w-full">
         <tbody>
           {rows.map((r, k) => {
             if (r.kind === 'hunk')
               return (
                 <tr key={k} className={TINT.hunk}>
-                  <td colSpan={4} className="px-3 text-sky-400/80 whitespace-pre">{r.text}</td>
+                  <td colSpan={4} className="px-3 text-work-ink whitespace-pre">{r.text}</td>
                 </tr>
               );
             i++;
             const h = html?.[i];
             return (
               <tr key={k} className={TINT[r.kind]}>
-                <td className="select-none pl-3 pr-2 text-right align-top text-zinc-600 w-0">{r.old ?? ''}</td>
-                <td className="select-none pr-2 text-right align-top text-zinc-600 w-0">{r.new ?? ''}</td>
-                <td className={cn('select-none pr-2 align-top w-0', r.kind === 'add' ? 'text-emerald-400' : 'text-rose-400')}>{MARK[r.kind]}</td>
-                {h != null ? <td className="hl pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-zinc-300" dangerouslySetInnerHTML={{ __html: h || ' ' }} /> : <td className="pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-zinc-300">{r.text || ' '}</td>}
+                <td className="select-none pl-3 pr-2 text-right align-top text-ink-faint w-0">{r.old ?? ''}</td>
+                <td className="select-none pr-2 text-right align-top text-ink-faint w-0">{r.new ?? ''}</td>
+                <td className={cn('select-none pr-2 align-top w-0 font-bold', r.kind === 'add' ? 'text-ok-ink' : 'text-bad-ink')}>{MARK[r.kind]}</td>
+                {h != null ? <td className="hl pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-ink" dangerouslySetInnerHTML={{ __html: h || ' ' }} /> : <td className="pr-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-ink">{r.text || ' '}</td>}
               </tr>
             );
           })}
@@ -136,10 +136,10 @@ function WholeFile({ path, rows }: { path: string; rows: Row[] }) {
   }, [path]);
   const added = useMemo(() => new Set(rows.filter((r) => r.kind === 'add').map((r) => r.new)), [rows]);
   const text = got?.path === path ? got.text : null;
-  if (text === null) return <div className="text-xs text-zinc-500">loading…</div>;
-  if (text === 'missing') return <div className="text-xs text-zinc-500">The file is not in the goal's folder (deleted, or the folder was cleaned up).</div>;
-  if (text === 'binary') return <div className="text-xs text-zinc-500">A binary file: nothing to show as text.</div>;
-  if (!text) return <div className="text-xs text-zinc-500">The file is empty.</div>;
+  if (text === null) return <div className="text-xs text-ink-faint">loading…</div>;
+  if (text === 'missing') return <div className="text-xs text-ink-faint">The file is not in the goal's folder (deleted, or the folder was cleaned up).</div>;
+  if (text === 'binary') return <div className="text-xs text-ink-faint">A binary file: nothing to show as text.</div>;
+  if (!text) return <div className="text-xs text-ink-faint">The file is empty.</div>;
   // a final newline ends the last line; it does not start another
   const whole: Row[] = text.replace(/\n$/, '').split('\n').map((l, k) => ({ kind: added.has(k + 1) ? 'add' : 'ctx', old: null, new: k + 1, text: l }));
   return <Code rows={whole} name={path} />;
@@ -166,21 +166,21 @@ function DiffDialog({ files, index, workspace, onIndex, onClose }: { files: File
     <Modal open wide onClose={onClose} title={<span className="mono">{f.path}</span>}>
       <div className="space-y-2">
         <div className="flex items-center gap-2 flex-wrap text-xs">
-          <span className="text-emerald-400">+{f.add}</span>
-          <span className="text-rose-400">−{f.del}</span>
+          <span className="mono font-bold text-ok-ink">+{f.add}</span>
+          <span className="mono font-bold text-bad-ink">−{f.del}</span>
           <CopyButton text={f.path} />
           {workspace && !deleted && <ButtonGroup label="Show" value={mode} onChange={setMode} options={[{ id: 'changes', label: 'Changes' }, { id: 'file', label: 'Whole file' }]} />}
-          <span className="ml-auto flex items-center gap-1 text-zinc-500">
-            <button type="button" className="rounded p-1 hover:bg-zinc-800 disabled:opacity-30" disabled={index === 0} onClick={() => onIndex(index - 1)} aria-label="previous file" title="Previous file (←)">
+          <span className="ml-auto flex items-center gap-1 mono text-ink-faint">
+            <button type="button" className="rounded-md p-1 text-ink-soft hover:text-ink hover:bg-sunken disabled:opacity-30" disabled={index === 0} onClick={() => onIndex(index - 1)} aria-label="previous file" title="Previous file (←)">
               <ChevronLeft size={14} />
             </button>
             {index + 1} / {files.length}
-            <button type="button" className="rounded p-1 hover:bg-zinc-800 disabled:opacity-30" disabled={index === files.length - 1} onClick={() => onIndex(index + 1)} aria-label="next file" title="Next file (→)">
+            <button type="button" className="rounded-md p-1 text-ink-soft hover:text-ink hover:bg-sunken disabled:opacity-30" disabled={index === files.length - 1} onClick={() => onIndex(index + 1)} aria-label="next file" title="Next file (→)">
               <ChevronRight size={14} />
             </button>
           </span>
         </div>
-        {mode === 'file' && workspace && !deleted ? <WholeFile path={`${workspace}/${f.path}`} rows={rows} /> : rows.length ? <Code rows={rows} name={f.path} /> : <div className="text-xs text-zinc-500">No line changes (a rename, a mode change or a binary file).</div>}
+        {mode === 'file' && workspace && !deleted ? <WholeFile path={`${workspace}/${f.path}`} rows={rows} /> : rows.length ? <Code rows={rows} name={f.path} /> : <div className="text-xs text-ink-faint">No line changes (a rename, a mode change or a binary file).</div>}
       </div>
     </Modal>
   );
@@ -194,31 +194,40 @@ export function DiffTab({ goalId, baseBranch, branch, workspace }: { goalId: str
   }, [goalId]);
   const { files, cut } = useMemo(() => (raw ? parse(raw) : { files: [], cut: false }), [raw]);
 
-  if (raw === null) return <div className="text-sm text-zinc-500">Loading diff…</div>;
-  if (!files.length) return <div className="text-sm text-zinc-500">No changes on {branch} relative to {baseBranch} yet.</div>;
+  if (raw === null) return <div className="text-sm text-ink-faint">Loading diff…</div>;
+  if (!files.length) return <div className="text-sm text-ink-faint">No changes on {branch} relative to {baseBranch} yet.</div>;
   const totals = files.reduce((a, f) => ({ add: a.add + f.add, del: a.del + f.del }), { add: 0, del: 0 });
   return (
-    <div className="space-y-2">
-      <div className="text-xs text-zinc-400 flex gap-3">
-        <span>
-          {files.length} file{files.length === 1 ? '' : 's'}
+    <div className="space-y-3">
+      <div className="text-xs text-ink-soft flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <span className="font-semibold">
+          <span className="mono">{files.length}</span> file{files.length === 1 ? '' : 's'}
         </span>
-        <span className="text-emerald-400">+{totals.add}</span>
-        <span className="text-rose-400">−{totals.del}</span>
-        <span className="mono text-zinc-600">
+        <span className="mono font-bold text-ok-ink">+{totals.add}</span>
+        <span className="mono font-bold text-bad-ink">−{totals.del}</span>
+        <span className="mono text-ink-faint break-all">
           {baseBranch}…{branch}
         </span>
       </div>
-      <div className="surface-card rounded-md border border-zinc-800 divide-y divide-zinc-800 overflow-hidden">
-        {files.map((f, i) => (
-          <button key={f.path} type="button" onClick={() => setShown(i)} className="diff-file-head w-full flex items-center gap-3 px-3 py-1.5 bg-zinc-900/70 text-xs text-left hover:bg-zinc-800/70" title="Show this file's changes">
-            <span className="mono text-zinc-100 flex-1 truncate">{f.path}</span>
-            <span className="text-emerald-400">+{f.add}</span>
-            <span className="text-rose-400">−{f.del}</span>
-          </button>
-        ))}
-      </div>
-      {cut && <div className="text-xs text-amber-400/80">The diff is too long to show whole: it stops partway, so the last file is cut short and later files are missing.</div>}
+      {/* the files on a board: the folder quiet, the file's name in bold, what it added and removed */}
+      <ul className="overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)] divide-y divide-line">
+        {files.map((f, i) => {
+          const name = f.path.lastIndexOf('/') + 1;
+          return (
+            <li key={f.path} className={BOARD_ROW}>
+              <button type="button" onClick={() => setShown(i)} className="w-full flex items-center gap-3 px-4 py-2.5 text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent" title="Show this file's changes">
+                <span className="mono text-[13px] flex-1 min-w-0 truncate">
+                  <span className="text-ink-faint">{f.path.slice(0, name)}</span>
+                  <span className="font-bold text-ink">{f.path.slice(name)}</span>
+                </span>
+                <span className={cn('mono text-xs font-bold w-10 text-right', f.add ? 'text-ok-ink' : 'text-ink-faint')}>+{f.add}</span>
+                <span className={cn('mono text-xs font-bold w-10 text-right', f.del ? 'text-bad-ink' : 'text-ink-faint')}>−{f.del}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {cut && <div className="rounded-lg border border-line bg-sunken px-3 py-2 text-xs text-ink-soft">The diff is too long to show whole: it stops partway, so the last file is cut short and later files are missing.</div>}
       {shown !== null && files[shown] && <DiffDialog files={files} index={shown} workspace={workspace} onIndex={setShown} onClose={() => setShown(null)} />}
     </div>
   );

@@ -28,11 +28,15 @@ export function conflictRegions(lines: string[]): Region[] {
   });
 }
 
+/**
+ * A region's tint, in the theme's colours as the page's legend says them: ours (what has landed) green, theirs (what comes
+ * in) blue, the common ancestor grey, and the markers yellow — they wait for you to remove them.
+ */
 const TINT: Record<Exclude<Region, null>, string> = {
-  marker: 'bg-orange-500/20 text-orange-200',
-  ours: 'bg-emerald-500/10',
-  base: 'bg-zinc-500/10',
-  theirs: 'bg-sky-500/10',
+  marker: 'bg-you/25',
+  ours: 'bg-ok/10',
+  base: 'bg-ink-faint/10',
+  theirs: 'bg-work/10',
 };
 
 /** px per line: the editor and its colours must stay on the same grid */
@@ -65,9 +69,10 @@ export function CodeEditor({ value, onChange, name, className }: { value: string
   const area = useRef<HTMLTextAreaElement>(null);
   const style = { height: count * LINE + 16, minWidth: `calc(${longest + 4}ch + 1.5rem)` };
   return (
-    <div className={cn('surface-card rounded-md border border-zinc-800 bg-zinc-950/60 overflow-auto', className ?? 'max-h-[60vh]')} onClick={() => area.current?.focus()}>
+    // a box inside the page's panel; the line numbers stay put on the inset colour while the code scrolls sideways
+    <div className={cn('rounded-md border border-line bg-sunken overflow-auto', className ?? 'max-h-[60vh]')} onClick={() => area.current?.focus()}>
       <div className="flex mono text-xs" style={{ lineHeight: `${LINE}px` }}>
-        <div className="select-none py-2 pl-3 pr-3 text-right text-zinc-600 sticky left-0 bg-zinc-950/90 z-10" aria-hidden="true">
+        <div className="select-none py-2 pl-3 pr-3 text-right text-ink-faint sticky left-0 bg-sunken border-r border-line z-10" aria-hidden="true">
           {Array.from({ length: count }, (_, i) => (
             <div key={i}>{i + 1}</div>
           ))}
@@ -79,18 +84,18 @@ export function CodeEditor({ value, onChange, name, className }: { value: string
               const r = regions[i] ?? null;
               const cls = cn('pl-2 whitespace-pre', r ? TINT[r] : null);
               return r === 'marker' || html?.[i] == null ? (
-                <div key={i} className={cn(cls, 'text-zinc-300')}>
+                <div key={i} className={cn(cls, 'text-ink')}>
                   {l || ' '}
                 </div>
               ) : (
                 // highlight.js escapes the source; its output is only span tags
-                <div key={i} className={cn(cls, 'hl text-zinc-300')} dangerouslySetInnerHTML={{ __html: html[i] || ' ' }} />
+                <div key={i} className={cn(cls, 'hl text-ink')} dangerouslySetInnerHTML={{ __html: html[i] || ' ' }} />
               );
             })}
           </div>
           <textarea
             ref={area}
-            className="absolute inset-0 w-full h-full resize-none overflow-hidden bg-transparent py-2 pl-2 pr-3 whitespace-pre text-transparent caret-zinc-100 outline-none selection:bg-sky-500/30"
+            className="absolute inset-0 w-full h-full resize-none overflow-hidden bg-transparent py-2 pl-2 pr-3 whitespace-pre text-transparent caret-ink outline-none selection:bg-work/30"
             style={{ lineHeight: `${LINE}px` }}
             spellCheck={false}
             wrap="off"

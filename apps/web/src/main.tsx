@@ -1,10 +1,16 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
+import '@fontsource-variable/atkinson-hyperlegible-next';
+import '@fontsource-variable/atkinson-hyperlegible-mono';
+// Ledger's titles: Fraunces with its optical sizes (a theme that does not use it never downloads it)
+import '@fontsource-variable/fraunces/opsz.css';
 import { App } from './App.tsx';
 import './index.css';
 import { connectWs } from './store.ts';
+import { initTheme } from './theme.ts';
 
+initTheme();
 connectWs();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

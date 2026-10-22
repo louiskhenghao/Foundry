@@ -9,37 +9,20 @@ import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { Badge, Card, cn } from '../../ui.tsx';
 import { EscalationCard } from '../InboxPage.tsx';
+import { BudgetCard } from './BudgetCard.tsx';
 import { CodexModelsCard } from './CodexModelsCard.tsx';
 import { CheckDialog } from './CheckDialog.tsx';
-import { CompletionCard } from './CompletionCard.tsx';
+import { CHECK_RESULT, CheckSquare, CompletionCard } from './CompletionCard.tsx';
 import { MilestonesCard } from './MilestoneEvidence.tsx';
 import { ProjectSkillsCard } from './ProjectSkillsCard.tsx';
 
-const STAGES = ['clarifying', 'awaiting_brief_approval', 'running', 'goal_review', 'done'] as const;
-const STAGE_LABEL: Record<string, string> = { clarifying: 'Clarify', awaiting_brief_approval: 'Brief', running: 'Run', goal_review: 'Review', done: 'Done' };
-/** where each stage pill takes you: the page or tab that shows that stage's work */
-const STAGE_LINK: Record<string, (goalId: string) => string> = {
-  clarifying: (id) => `/goals/${id}#activity`,
-  awaiting_brief_approval: (id) => `/goals/${id}/brief`,
-  running: (id) => `/goals/${id}#tasks`,
-  goal_review: (id) => `/goals/${id}#activity`,
-  done: (id) => `/goals/${id}#delivery`,
-};
-const STAGE_LINK_HINT: Record<string, string> = {
-  clarifying: 'open the Activity tab (Clarify session log)',
-  awaiting_brief_approval: 'open the Brief page',
-  running: 'open the Tasks tab',
-  goal_review: 'open the Activity tab (review sessions)',
-  done: 'open the Delivery tab',
-};
+/** a label inside a card, in small capitals */
+const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em]';
 
 export function OverviewTab({ d }: { d: GoalDetail }) {
   const g = d.goal;
-  const open = d.escalations.filter((e) => e.state === 'open');
-  const reached = new Set(d.events.filter((e) => e.type === 'goal.state_changed').map((e) => (e.payload as any).to as string));
-  const terminalOk = g.state === 'done' || g.state === 'over_delivered';
-  const stageIdx = (s: string) => STAGES.indexOf(s as any);
-  const currentIdx = g.state === 'blocked' ? stageIdx(g.stateBeforeBlock ?? 'running') : terminalOk ? STAGES.length - 1 : stageIdx(g.state);
+  // paused at a milestone, the Have a look card above the tabs is that milestone: it is not repeated here
+  const open = d.escalations.filter((e) => e.state === 'open' && !(g.state === 'awaiting_feedback' && e.trigger === 'milestone'));
   const review = [...d.events].reverse().find((e) => e.type === 'review.goal.finished')?.payload as any;
   // goal-level checks: the goal review's own run (no attempt) is the verdict; a merge attempt's run in a scratch worktree is
   // context, not the state of the goal — it stays visible only until a review has run
@@ -55,81 +38,49 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
 
   return (
     <div className="space-y-4">
-      {/* timeline */}
-      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-        {STAGES.map((s, i) => {
-          const done = i < currentIdx || (i === currentIdx && terminalOk) || reached.has(s) && i < currentIdx;
-          const active = i === currentIdx && !terminalOk;
-          return (
-            <div key={s} className="flex items-center gap-1.5 sm:gap-2 sm:flex-1 min-w-0">
-              <Link
-                to={STAGE_LINK[s]!(g.id)}
-                title={STAGE_LINK_HINT[s]}
-                className={cn('flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs sm:flex-1 whitespace-nowrap', done ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-300 hover:border-emerald-400/70' : active ? 'border-blue-500/50 bg-blue-500/5 text-blue-300 hover:border-blue-400/80' : 'border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300')}
-              >
-                <span className={cn('h-2 w-2 rounded-full shrink-0', done ? 'bg-emerald-400' : active ? 'bg-blue-400 animate-pulse' : 'bg-zinc-700')} />
-                {s === 'done' && g.state === 'over_delivered' ? 'Over-delivered' : STAGE_LABEL[s]}
-              </Link>
-              {i < STAGES.length - 1 && <div className={cn('h-px w-2 sm:w-3', done ? 'bg-emerald-500/40' : 'bg-zinc-800')} />}
-            </div>
-          );
-        })}
-        {g.delivery.policy.mode !== 'local' && (
-          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
-            <div className={cn('h-px w-2 sm:w-3', terminalOk ? 'bg-emerald-500/40' : 'bg-zinc-800')} />
-            <Link to={`/goals/${g.id}#delivery`} className={cn('flex items-center gap-2 rounded-md border px-2 sm:px-2.5 py-1.5 text-xs whitespace-nowrap', g.delivery.status === 'delivered' ? 'border-emerald-500/40 bg-emerald-500/5 text-emerald-300 hover:border-emerald-400/70' : g.delivery.status === 'running' ? 'border-blue-500/50 bg-blue-500/5 text-blue-300 hover:border-blue-400/80' : g.delivery.status === 'failed' ? 'border-rose-500/40 bg-rose-500/5 text-rose-300 hover:border-rose-400/70' : 'border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300')} title={g.delivery.status === 'idle' ? `Delivery (${g.delivery.policy.mode}) starts automatically once the goal is done` : `Delivery ${g.delivery.status}`}>
-              <span className={cn('h-2 w-2 rounded-full shrink-0', g.delivery.status === 'delivered' ? 'bg-emerald-400' : g.delivery.status === 'running' ? 'bg-blue-400 animate-pulse' : g.delivery.status === 'failed' ? 'bg-rose-400' : 'bg-zinc-700')} />
-              Deliver · {g.delivery.policy.mode}
-              {g.delivery.prs.length > 0 && (
-                <span className="text-zinc-500">
-                  · {g.delivery.prs.length} PR{g.delivery.prs.length === 1 ? '' : 's'}
-                  {g.delivery.prs.some((p) => p.state === 'merged') ? ` · ${g.delivery.prs.filter((p) => p.state === 'merged').length} merged` : ''}
-                </span>
-              )}
-            </Link>
-          </div>
-        )}
-        {(g.state === 'failed' || g.state === 'cancelled' || g.state === 'blocked') && <Badge state={g.state} className="ml-2" />}
-      </div>
-
       <BriefStrip d={d} />
 
       {open.length > 0 && (
         <div className="space-y-2">
+          {/* with the goal's and the task's titles, as the Inbox has them: the card names where it belongs */}
           {open.map((e) => (
-            <EscalationCard key={e.id} e={e} />
+            <EscalationCard key={e.id} e={{ ...e, goalTitle: g.title, taskTitle: d.tasks.find((t) => t.id === e.taskId)?.title ?? null }} />
           ))}
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
+          {/* on a phone and a tablet, what it spent and how long it worked come first, not after the whole column */}
+          <div className="lg:hidden">
+            <BudgetCard d={d} />
+          </div>
           <MarkdownPanel title="goal" source={g.prompt} maxHeight={240} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
           {/* the verdict on the goal, next to the goal itself */}
           {review && <GoalReview review={review} />}
           {/* right under the goal, as on the New goal form: the description and what came with it */}
           <Card title={`Attachments${g.attachments.length ? ` (${g.attachments.length})` : ''}`}>
             <AttachmentInput items={g.attachments} goalId={g.id} onChange={() => {}} />
-            <p className="text-[11px] text-zinc-500 mt-2">Attachments are handed to every new session of this goal (Clarify, workers, goal review) as read-only references.</p>
+            <p className="text-[11px] text-ink-faint mt-2">Attachments are handed to every new session of this goal (Clarify, workers, goal review) as read-only references.</p>
           </Card>
           <CodexModelsCard goal={g} />
           {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} goal={g} />}
           {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <MilestonesCard d={d} />}
           {d.events.some((e) => e.type === 'goal.models_changed') && (
             <Card title="Model fallback">
-              <div className="text-xs text-zinc-400 space-y-1">
+              <div className="text-xs text-ink-soft space-y-1">
                 {d.events
                   .filter((e) => e.type === 'goal.models_changed')
                   .map((e, i) => {
                     const p = e.payload as any;
                     return (
                       <div key={i}>
-                        <span className="mono text-zinc-200">{p.from}</span> was unavailable → {p.tier ? `${p.tier} sessions now use ` : 'this goal now uses '}
-                        <span className="mono text-zinc-200">{p.to}</span> <span className="text-zinc-600">({p.reason})</span>
+                        <span className="mono text-ink">{p.from}</span> was unavailable → {p.tier ? `${p.tier} sessions now use ` : 'this goal now uses '}
+                        <span className="mono text-ink">{p.to}</span> <span className="text-ink-faint">({p.reason})</span>
                       </div>
                     );
                   })}
-                <div className="text-[11px] text-zinc-500">
+                <div className="text-[11px] text-ink-faint">
                   {g.provider === 'agy' ? 'Model' : 'Preset'}: <span className="mono">{g.provider === 'codex' ? g.codexPreset?.label ?? 'Legacy single model' : g.provider === 'agy' ? `${g.models.worker} (every role)` : g.modelPreset ?? 'Settings default for this goal type'}</span>
                   {Object.keys(g.modelSubstitutions ?? {}).length > 0 && (
                     <>
@@ -149,33 +100,46 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           <CompletionCard d={d} />
         </div>
         <div className="space-y-4">
+          {/* the right column reads as the Wayfinding sample has it: what the goal has used, then how it stands */}
+          <div className="hidden lg:block">
+            <BudgetCard d={d} />
+          </div>
           <Card title="Acceptance">
+            {/* a checklist: per tier its count (green once every check passes, red while one fails), then each check's
+                square, its name and how it stands, in the signal colours */}
             {[
               ['must', must],
               ['stretch', stretch],
-            ].map(([tier, list]) => (
-              <div key={tier as string} className="mb-3">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Badge state={tier as string} />
-                  <span className="text-[11px] text-zinc-500">
-                    {(list as typeof must).filter((c) => latestResult(c.id)?.status === 'pass').length}/{(list as typeof must).length} passing
-                  </span>
-                </div>
-                {(list as typeof must).length === 0 && <div className="text-xs text-zinc-600">none</div>}
-                {(list as typeof must).map((c) => {
-                  const r = latestResult(c.id);
-                  return (
-                    <button key={c.id} type="button" onClick={() => setOpenCheck(c.id)} className="w-full flex items-center gap-2 text-xs py-0.5 text-left rounded hover:bg-zinc-800/50" title="Show what it checks, its output and every run">
-                      {r ? <Badge state={r.status} /> : <span className="text-zinc-600 text-[10px] w-10 text-center">—</span>}
-                      <span className="truncate flex-1" title={c.name}>
-                        {c.name}
-                      </span>
-                      <span className="text-[10px] text-zinc-600 truncate max-w-[80px]">{taskName(c.taskId)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ))}
+            ].map(([tier, list]) => {
+              const checks = list as typeof must;
+              const passing = checks.filter((c) => latestResult(c.id)?.status === 'pass').length;
+              const failing = checks.some((c) => CHECK_RESULT[latestResult(c.id)?.status ?? 'none'].mark === 'bad');
+              return (
+                <section key={tier as string} className="mb-5">
+                  <div className="flex items-baseline gap-2 mb-2">
+                    <h4 className={cn(LABEL, 'text-ink')}>{tier as string}</h4>
+                    <span className={cn('ml-auto text-[11px]', checks.length && passing === checks.length ? 'font-semibold text-ok-ink' : failing ? 'font-semibold text-bad-ink' : 'text-ink-faint')}>
+                      <span className={cn('mono font-bold', !(checks.length && passing === checks.length) && !failing && 'text-ink-soft')}>{passing}/{checks.length}</span> passing
+                    </span>
+                  </div>
+                  {checks.length === 0 && <div className="text-xs text-ink-faint">none</div>}
+                  {checks.map((c) => {
+                    const r = latestResult(c.id);
+                    const res = CHECK_RESULT[r?.status ?? 'none'];
+                    return (
+                      <button key={c.id} type="button" onClick={() => setOpenCheck(c.id)} className="-mx-1.5 w-[calc(100%+0.75rem)] flex items-center gap-2.5 rounded-md px-1.5 py-1.5 text-left text-[13px] transition-colors hover:bg-sunken focus-visible:outline-2 focus-visible:outline-accent" title="Show what it checks, its output and every run">
+                        <CheckSquare mark={res.mark} />
+                        <span className="min-w-0 flex-1 truncate font-semibold text-ink" title={c.name}>
+                          {c.name}
+                        </span>
+                        <span className="text-[11px] text-ink-faint truncate max-w-[80px]" title={taskName(c.taskId)}>{taskName(c.taskId)}</span>
+                        <span className={cn('mono text-[11px] shrink-0 w-[3.25rem] text-right', res.tone)}>{res.word}</span>
+                      </button>
+                    );
+                  })}
+                </section>
+              );
+            })}
             {shownCheck && <CheckDialog goalId={g.id} check={shownCheck} results={d.checkResults} taskName={taskName(shownCheck.taskId)} initial={latestResult(shownCheck.id)} onClose={() => setOpenCheck(null)} />}
             {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <SelfCheckSection d={d} />}
             {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && d.tasks.some((t) => t.milestone) && <MilestonePauseSection d={d} />}
@@ -192,13 +156,13 @@ function PonytailSection({ d }: { d: GoalDetail }) {
   const g = d.goal;
   const [err, setErr] = useState<string | null>(null);
   return (
-    <div className="border-t border-zinc-800 pt-3 space-y-1.5">
+    <div className="border-t border-line pt-3 mt-3 space-y-1.5">
       <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" className="accent-emerald-500" checked={(g.workflow.ponytail ?? 'on') === 'on'} onChange={(e) => api.setPonytail(g.id, e.target.checked).catch((x) => setErr(x.body?.error ?? x.message))} />
-        <span className="text-xs text-zinc-200">Ponytail: the smallest change that fully solves the task</span>
+        <input type="checkbox" checked={(g.workflow.ponytail ?? 'on') === 'on'} onChange={(e) => api.setPonytail(g.id, e.target.checked).catch((x) => setErr(x.body?.error ?? x.message))} />
+        <span className="text-[13px] font-semibold text-ink">Ponytail: the smallest change that fully solves the task</span>
       </label>
-      <p className="text-[11px] text-zinc-500">On: workers reuse what exists before writing new code and ponytail-review reviews; TDD still decides how tests are written. Applies from the next session.</p>
-      {err && <div className="text-[11px] text-rose-300">{err}</div>}
+      <p className="text-[11px] text-ink-faint">On: workers reuse what exists before writing new code and ponytail-review reviews; TDD still decides how tests are written. Applies from the next session.</p>
+      {err && <div className="text-[11px] text-bad-ink">{err}</div>}
     </div>
   );
 }
@@ -208,13 +172,13 @@ function MilestonePauseSection({ d }: { d: GoalDetail }) {
   const g = d.goal;
   const [err, setErr] = useState<string | null>(null);
   return (
-    <div className="border-t border-zinc-800 pt-3 space-y-1.5">
+    <div className="border-t border-line pt-3 mt-3 space-y-1.5">
       <label className="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" className="accent-emerald-500" checked={g.milestonePause ?? true} onChange={(e) => api.setMilestonePause(g.id, e.target.checked).catch((x) => setErr(x.body?.error ?? x.message))} />
-        <span className="text-xs text-zinc-200">Have a look: pause at milestones</span>
+        <input type="checkbox" checked={g.milestonePause ?? true} onChange={(e) => api.setMilestonePause(g.id, e.target.checked).catch((x) => setErr(x.body?.error ?? x.message))} />
+        <span className="text-[13px] font-semibold text-ink">Have a look: pause at milestones</span>
       </label>
-      <p className="text-[11px] text-zinc-500">On: the goal pauses for the final walkthrough, and when a milestone without a script lands. Off: it goes on, and what each milestone shows is sent to your notification channels. Applies from the next milestone.</p>
-      {err && <div className="text-[11px] text-rose-300">{err}</div>}
+      <p className="text-[11px] text-ink-faint">On: the goal pauses for the final walkthrough, and when a milestone without a script lands. Off: it goes on, and what each milestone shows is sent to your notification channels. Applies from the next milestone.</p>
+      {err && <div className="text-[11px] text-bad-ink">{err}</div>}
     </div>
   );
 }
@@ -240,22 +204,22 @@ function SelfCheckSection({ d }: { d: GoalDetail }) {
   };
   const task = last?.taskId ? d.tasks.find((t) => t.id === last.taskId)?.title : null;
   return (
-    <div className="border-t border-zinc-800 pt-3 space-y-1.5">
+    <div className="border-t border-line pt-3 space-y-1.5">
       <label className="flex items-center gap-2 cursor-pointer" title="Needs Playwright's Chromium (Settings → Preview & self-check)">
-        <input type="checkbox" className="accent-emerald-500" checked={g.selfCheck} onChange={(e) => toggle(e.target.checked)} />
-        <span className="text-xs text-zinc-200">Self-check after each task</span>
+        <input type="checkbox" checked={g.selfCheck} onChange={(e) => toggle(e.target.checked)} />
+        <span className="text-[13px] font-semibold text-ink">Self-check after each task</span>
       </label>
-      <p className="text-[11px] text-zinc-500">A smoke test after each task lands: opens the preview's first page in a headless browser, takes a screenshot, and fails on console, page or network errors, which then get fixed. No AI, so no tokens; it costs the seconds the preview takes to start. Unlike Have a look, it never shows you anything or pauses.</p>
+      <p className="text-[11px] text-ink-faint">A smoke test after each task lands: opens the preview's first page in a headless browser, takes a screenshot, and fails on console, page or network errors, which then get fixed. No AI, so no tokens; it costs the seconds the preview takes to start. Unlike Have a look, it never shows you anything or pauses.</p>
       {last ? (
         <div className="flex items-start gap-2 text-xs">
           <Badge state={last.status} />
-          <span className="min-w-0 text-zinc-400">
+          <span className="min-w-0 text-ink-soft">
             {last.errors.length ? `${last.errors.length} error${last.errors.length === 1 ? '' : 's'}` : 'no errors'}
-            {task && <span className="text-zinc-500"> · after {task}</span>}
+            {task && <span className="text-ink-faint"> · after {task}</span>}
             {last.screenshot && (
               <>
                 {' · '}
-                <a href={api.screenshotUrl(g.id, last.screenshot)} target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">
+                <a href={api.screenshotUrl(g.id, last.screenshot)} target="_blank" rel="noreferrer" className="font-semibold text-work-ink hover:underline">
                   screenshot
                 </a>
               </>
@@ -263,23 +227,23 @@ function SelfCheckSection({ d }: { d: GoalDetail }) {
           </span>
         </div>
       ) : (
-        g.selfCheck && <div className="text-[11px] text-zinc-600">No run yet.</div>
+        g.selfCheck && <div className="text-[11px] text-ink-faint">No run yet.</div>
       )}
       {last && last.errors.length > 0 && (
-        <ul className="mono text-[11px] text-rose-300 space-y-0.5 max-h-24 overflow-auto">
+        <ul className="mono text-[11px] text-bad-ink space-y-0.5 max-h-24 overflow-auto">
           {last.errors.slice(0, 5).map((e, i) => (
             <li key={i} className="break-words">{e}</li>
           ))}
         </ul>
       )}
-      {err && <div className="text-[11px] text-rose-300">{err}</div>}
+      {err && <div className="text-[11px] text-bad-ink">{err}</div>}
     </div>
   );
 }
 
 /**
  * The approved Brief in one line under the timeline: its state and size, with a link to the Brief page, which holds
- * the Understanding and everything else the Clarifier wrote.
+ * the Understanding and everything else the Clarifier wrote. A quiet panel: the stages above already say where the goal is.
  */
 export function BriefStrip({ d }: { d: GoalDetail }) {
   const g = d.goal;
@@ -292,32 +256,36 @@ export function BriefStrip({ d }: { d: GoalDetail }) {
     `est. ${reportsDollars(g.provider) ? `$${b.costEstimateUsd} / ` : ''}${b.timeEstimateMin} min`,
   ].filter(Boolean);
   return (
-    <Link to={`/goals/${g.id}/brief`} className="group flex items-center gap-x-3 gap-y-1 flex-wrap rounded-md border border-zinc-800 px-3 py-2 text-xs hover:border-zinc-600" title="Open the Brief: the Understanding, questions, assumptions, plan and checks">
-      <span className="flex items-center gap-1.5">
-        <span className="text-zinc-200 font-medium">Brief</span>
+    <Link to={`/goals/${g.id}/brief`} className="group flex items-center gap-x-4 gap-y-1 flex-wrap rounded-lg border border-line bg-panel px-4 py-2.5 text-[13px] shadow-[0_1px_2px_rgb(0_0_0/0.05)] transition-colors hover:border-line-strong" title="Open the Brief: the Understanding, questions, assumptions, plan and checks">
+      <span className="flex items-center gap-2">
+        <span className={cn(LABEL, 'text-ink')}>Brief</span>
         {d.brief!.approved ? <Badge state="pass">approved</Badge> : <Badge state="pending" />}
       </span>
       {stats.map((s) => (
-        <span key={s} className="text-zinc-400">
+        <span key={s} className="text-ink-soft">
           {s}
         </span>
       ))}
-      <span className="ml-auto text-zinc-400 group-hover:text-zinc-100">Open Brief →</span>
+      <span className="ml-auto font-semibold text-ink-soft group-hover:text-ink group-hover:underline underline-offset-[3px]">Open Brief →</span>
     </Link>
   );
 }
 
-/** the goal review's verdict in one line; the reviewer's notes fold out */
+/**
+ * the goal review's verdict in one line, on a quiet panel: the square and the word say how it went (green passed, red
+ * failed), the panel only takes a red edge when it failed; the reviewer's notes fold out
+ */
 export function GoalReview({ review }: { review: { passed: boolean; overDelivered: boolean; notes: string } }) {
   const [open, setOpen] = useState(false);
   const verdict = review.passed ? (review.overDelivered ? 'over-delivered' : 'passed') : 'failed';
   return (
-    <div className={cn('rounded-lg border px-3 py-2 text-xs', review.passed ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-rose-500/30 bg-rose-500/5')}>
-      <button type="button" className="w-full flex items-center gap-2 text-left" disabled={!review.notes} onClick={() => setOpen((o) => !o)} aria-expanded={review.notes ? open : undefined}>
-        <span className="text-zinc-200 font-medium">Goal review</span>
-        <span className={review.passed ? 'text-emerald-300' : 'text-rose-300'}>{verdict}</span>
-        {review.notes && <span className="min-w-0 flex-1 truncate text-zinc-500">{open ? '' : review.notes.split('\n')[0]}</span>}
-        {review.notes && <span className="ml-auto shrink-0 text-[11px] text-zinc-500">{open ? 'hide notes' : 'reviewer notes'}</span>}
+    <div className={cn('rounded-lg border bg-panel px-4 py-2.5 text-[13px] shadow-[0_1px_2px_rgb(0_0_0/0.05)]', review.passed ? 'border-line' : 'border-bad/40')}>
+      <button type="button" className="w-full flex items-center gap-2.5 text-left" disabled={!review.notes} onClick={() => setOpen((o) => !o)} aria-expanded={review.notes ? open : undefined}>
+        <CheckSquare mark={review.passed ? 'done' : 'bad'} />
+        <span className={cn(LABEL, 'text-ink shrink-0')}>Goal review</span>
+        <span className={cn('font-bold shrink-0', review.passed ? 'text-ok-ink' : 'text-bad-ink')}>{verdict}</span>
+        {review.notes && <span className="min-w-0 flex-1 truncate text-ink-faint">{open ? '' : review.notes.split('\n')[0]}</span>}
+        {review.notes && <span className="ml-auto shrink-0 text-[11px] font-semibold text-ink-faint">{open ? 'hide notes' : 'reviewer notes'}</span>}
       </button>
       {open && <div className="mt-2"><MarkdownPanel title="reviewer notes" source={review.notes} maxHeight={240} actions={<OpenFull value={{ title: `Goal review · ${verdict}`, text: review.notes }} />} /></div>}
     </div>

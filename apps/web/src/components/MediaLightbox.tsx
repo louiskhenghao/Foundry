@@ -45,7 +45,7 @@ export function useSwipe(go: (d: -1 | 1) => void, isVideo: boolean) {
 /** the previous and next arrows with the place between them, under a picture or a clip, where a thumb reaches them */
 export function StepBar({ index, count, onStep, children }: { index: number; count: number; onStep: (d: -1 | 1) => void; children?: ReactNode }) {
   const arrow = (d: -1 | 1) => (
-    <button type="button" className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-md border border-zinc-800 text-zinc-300 hover:bg-zinc-800 disabled:opacity-30" disabled={index + d < 0 || index + d >= count} onClick={() => onStep(d)} aria-label={d < 0 ? 'previous' : 'next'} title={d < 0 ? 'previous (←)' : 'next (→)'}>
+    <button type="button" className="h-9 w-9 shrink-0 inline-flex items-center justify-center rounded-md border border-line text-ink-soft hover:bg-line disabled:opacity-30" disabled={index + d < 0 || index + d >= count} onClick={() => onStep(d)} aria-label={d < 0 ? 'previous' : 'next'} title={d < 0 ? 'previous (←)' : 'next (→)'}>
       {d < 0 ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
     </button>
   );
@@ -54,7 +54,7 @@ export function StepBar({ index, count, onStep, children }: { index: number; cou
       {arrow(-1)}
       <div className="min-w-0 flex-1 text-center">
         {children}
-        <div className="text-[11px] text-zinc-500">
+        <div className="text-[11px] text-ink-faint">
           {index + 1} / {count}
         </div>
       </div>
@@ -94,19 +94,19 @@ export function MediaLightbox({ items, index, onIndex, onClose, title, unavailab
         <div className={cn('touch-pan-y select-none flex items-center justify-center', MEDIA_STAGE)} {...swipe}>
           {/* keyed by source: switching items starts the next clip from its beginning */}
           {why ? (
-            <div className="flex h-full w-full items-center justify-center rounded border border-zinc-800 px-4 text-center text-xs text-zinc-500">{why}</div>
+            <div className="flex h-full w-full items-center justify-center rounded border border-line px-4 text-center text-xs text-ink-faint">{why}</div>
           ) : m.kind === 'video' ? (
-            <video key={m.src} src={m.src} controls autoPlay muted playsInline onError={() => onError?.(m)} className="max-h-full max-w-full rounded border border-zinc-800 bg-black" />
+            <video key={m.src} src={m.src} controls autoPlay muted playsInline onError={() => onError?.(m)} className="max-h-full max-w-full rounded border border-line bg-black" />
           ) : (
-            <img key={m.src} src={m.src} alt={m.caption} draggable={false} onError={() => onError?.(m)} className="max-h-full max-w-full object-contain rounded border border-zinc-800 bg-zinc-950" />
+            <img key={m.src} src={m.src} alt={m.caption} draggable={false} onError={() => onError?.(m)} className="max-h-full max-w-full object-contain rounded border border-line bg-page" />
           )}
         </div>
         <StepBar index={index} count={items.length} onStep={go}>
-          <div className="truncate text-xs text-zinc-300" title={m.caption}>
+          <div className="truncate text-xs text-ink-soft" title={m.caption}>
             {m.caption || '\u00a0'}
           </div>
           {m.link ? (
-            <a href={m.link.href} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-sky-300 hover:underline">
+            <a href={m.link.href} target="_blank" rel="noreferrer" className="block truncate text-[11px] text-work-ink hover:underline">
               {m.link.label}
             </a>
           ) : anyLink ? (

@@ -10,7 +10,7 @@ Foundry reads your project, asks what only you can decide, and writes a plan cal
 Once you approve the Brief, it drives your chosen coding agent, Claude Code, Codex or Antigravity, to do the work, checks it and reviews it.
 You get the finished work on a separate branch, and Foundry only pushes or publishes it under the delivery policy you chose.
 
-![The Goals page: six goals, one in each state, each with its tasks and its cost against the budget](images/goals.png)
+![The Goals page: what needs you hangs as yellow signs at the top, the goals at work sit on a board below with their stages, tasks, cost and time](images/goals.png)
 
 ## The life of a goal
 
@@ -53,9 +53,10 @@ The full glossary, for the curious, is `CONTEXT.md` in the Foundry repository.
 7. [Getting the result](./getting-the-result.md): branches, pushes and pull requests, and media files.
 8. [Schedules](./schedules.md): goals that run on their own, every day, week or month.
 9. [Settings explained](./settings.md): every Settings section in plain words.
-10. [Costs and usage](./costs-and-usage.md): what costs money and how to spend less.
-11. [Moving to a new computer](./moving-to-a-new-computer.md): carrying settings, keys and goals to another Foundry.
-12. [Ports](./ports.md): which ports are in use, who holds them, and freeing one.
-13. [FAQ](./faq.md): short answers to common questions.
+10. [Themes](./themes.md): choosing how Foundry looks, and making a theme of your own.
+11. [Costs and usage](./costs-and-usage.md): what costs money and how to spend less.
+12. [Moving to a new computer](./moving-to-a-new-computer.md): carrying settings, keys and goals to another Foundry.
+13. [Ports](./ports.md): which ports are in use, who holds them, and freeing one.
+14. [FAQ](./faq.md): short answers to common questions.
 
-**Help** in the ⚙ menu at the right of the top bar shows this guide inside Foundry. The same menu holds **Settings**, **Setup**, **Transfer**, **Ports**, **Learnings**, **Schedules**, the light or dark mode, and the version you run: a red dot on the ⚙ button marks a newer one, and pressing the version opens **About & updates**.
+**Help** in the ⚙ menu at the right of the top bar shows this guide inside Foundry. The same menu holds **Settings**, **Setup**, **Transfer**, **Ports**, **Learnings**, **Schedules**, the light or dark mode, **Appearance** (the theme; see [Themes](./themes.md)), and the version you run: a red dot on the ⚙ button marks a newer one, and pressing the version opens **About & updates**.

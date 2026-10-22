@@ -1,0 +1,40 @@
+import { expect, test } from 'bun:test';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { BUILTIN_THEMES } from '@foundry/core/browser';
+import { Appearance } from '../src/pages/settings/AppearanceCard.tsx';
+
+test('Appearance offers every theme, says which is in use, and how to make your own', () => {
+  const mine = { id: 'night-shift', builtIn: false, file: '/data/themes/night-shift.json', theme: { ...BUILTIN_THEMES[0]!.theme, name: 'Night shift', description: 'Mine.' } };
+  const html = renderToStaticMarkup(<Appearance themes={[...BUILTIN_THEMES, mine]} problems={[{ file: 'broken.json', error: 'light.page: a colour is written #rgb or #rrggbb, e.g. #1f2933' }]} dir="/data/themes" id="night-shift" mode="system" light />);
+  for (const name of ['Wayfinding', 'Ledger', 'Classic', 'Night shift']) expect(html).toContain(name);
+  // the theme in use is the custom one; its file is named where a built-in theme says "built in"
+  expect(html).toContain('aria-label="Night shift, in use"');
+  expect(html).toContain('night-shift.json');
+  expect(html.match(/built in/g)).toHaveLength(3);
+  // each theme says how it lays the pages out: Ledger down a side column, Classic as Foundry was before themes
+  for (const words of ['Side column', 'Numbered steps', 'Small capitals', 'Compact titles', 'Labels as written', 'Yellow strips']) expect(html).toContain(words);
+  expect(html).toContain('Same as this computer');
+  expect(html).toContain('Make your own theme');
+  expect(html).toContain('/data/themes');
+  expect(html).toContain('broken.json');
+  expect(html).toContain('href="/help/themes"');
+  // no editor found: nothing offers to open the file
+  expect(html).not.toContain('Open in');
+  // only a theme of your own has more to do (rename, export, delete); any theme file can come in
+  expect(html.match(/aria-label="More for /g)).toHaveLength(1);
+  expect(html).toContain('aria-label="More for Night shift"');
+  expect(html).toContain('Import a theme file');
+});
+
+test('a theme of your own opens in the editor found, or offers a choice of several', () => {
+  const mine = { id: 'night-shift', builtIn: false, file: '/data/themes/night-shift.json', theme: { ...BUILTIN_THEMES[0]!.theme, name: 'Night shift' } };
+  const editor = (id: 'vscode' | 'cursor', label: string) => ({ id, label, kind: 'editor' as const, available: true, via: id });
+  const props = { themes: [...BUILTIN_THEMES, mine], problems: [], dir: '/data/themes', id: 'night-shift', mode: 'system' as const, light: true };
+  const one = renderToStaticMarkup(<Appearance {...props} editors={[editor('vscode', 'VS Code')]} />);
+  // only the custom theme has a file to open: one button, on its card alone
+  expect(one.match(/Open in VS Code/g)).toHaveLength(1);
+  const two = renderToStaticMarkup(<Appearance {...props} editors={[editor('vscode', 'VS Code'), editor('cursor', 'Cursor')]} />);
+  expect(two).toContain('Open in an editor');
+  expect(two).not.toContain('Open in VS Code');
+});

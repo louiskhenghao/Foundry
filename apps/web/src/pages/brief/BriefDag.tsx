@@ -4,7 +4,7 @@ import { useMemo } from 'react';
 import { DagCanvas, type DagTask } from '../goal/DagCanvas.tsx';
 import { areaOf, areaStyle } from './shared.ts';
 
-/** The Brief's task DAG drawn with the run view's canvas: nodes are Brief tasks, coloured by Area. */
+/** The Brief's task DAG drawn with the run view's canvas: nodes are Brief tasks, each named with its Area. */
 export function BriefDag({ brief, selected, onSelect }: { brief: Brief; selected: string | null; onSelect: (key: string | null) => void }) {
   const tasks = useMemo<DagTask[] | null>(() => {
     let d: Map<string, number>;
@@ -51,6 +51,6 @@ export function BriefDag({ brief, selected, onSelect }: { brief: Brief; selected
       plain: { label: areaOf(brief, t.areaKey)?.name ?? null, color: areaStyle(brief, t.areaKey).dot },
     }));
   }, [brief]);
-  if (!tasks) return <div className="text-xs text-rose-300">The task graph has a cycle — fix the "runs after" settings below.</div>;
+  if (!tasks) return <div className="text-xs font-semibold text-bad-ink">The task graph has a cycle — fix the "runs after" settings below.</div>;
   return <DagCanvas tasks={tasks} selected={selected} onSelect={onSelect} />;
 }

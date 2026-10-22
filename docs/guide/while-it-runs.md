@@ -11,18 +11,32 @@ A Codex goal's **Codex models** card shows the saved role table, goal-wide overr
 
 After you approve the Brief, Foundry works on its own. You can close the browser; the work continues on your computer. This page explains the goal page, so you can follow along when you want to.
 
-![A goal page while tasks run: cost and time meters, the stage timeline, and the task graph](images/goal-running.png)
+![The Goals page: what needs you hangs as yellow signs at the top, the goals at work sit on a board below](images/goals.png)
+
+## The Goals page
+
+**Goals**, the first page, sorts your goals by what they need from you.
+
+- **Needs you**: every goal that waits for you hangs as a yellow sign at the top, the longest waiting first. Its largest words say what to do: **Review brief**, **Answer questions**, **Have a look**, **Open Inbox** or **See why**. Press the sign to go there. Under the action are the goal's title, how long it has waited, one sentence on what is needed, and its coding agent, tasks, cost and time.
+- **Working**: the goals Foundry is working on that need nothing from you. Each row shows the title, the coding agent and the project folder; the goal's five stages (Clarify, Brief, Run, Review, Deliver) as small leaning segments with its state under them; its tasks as small squares; its cost and time against their limits; and when it last changed.
+- **Finished**: done, over-delivered, failed and cancelled goals, newest first, 10 per page by default. Choose 20 or 50 per page below the board (remembered in this browser). The page number is kept in the address.
+
+The squares and segments mean the same everywhere in Foundry: green is done, moving blue stripes are under way, yellow waits for you, red failed, an outline has not started. A goal and its follow-ups are one entry on its board (see [Continue with a follow-up](./getting-the-result.md#continue-with-a-follow-up)), and delegated goals fold under their main goal (see [Delegated goals](#delegated-goals)).
+
+![A goal page while tasks run: its state, title and facts, the cost and time meters, the five stages, and the task graph](images/goal-running.png)
 
 ## The goal page at a glance
 
-Open a goal from **Goals** (the list in the top bar). At the top of its page:
+Open a goal from **Goals** (the first page, also in the top bar). At the top of its page:
 
-- The title, a state badge (for example **running**, **have a look**, **reviewing**, **done**), and a **fast** chip if the goal runs in fast mode.
-- The project folder (with **copy** for its path), the goal's coding agent (**Claude Code** or **Codex**) and the branches: the one the goal started from → the goal's own branch. The **Goals** list shows the same coding agent next to each project path. Each of its rows stacks related facts: title, coding agent and folder; state and task counts; cost and time against their limits; last update and creation date. It shows 10 goals per page by default, newest first, with the count and the page at the bottom; choose 20 or 50 per page there (remembered in this browser). The page number is kept in the address.
-- **Time** in minutes against the limit; Claude also shows **cost** against its USD budget. An amber dot after it means some sessions ended before Claude Code reported a cost (a timeout, a kill, a crash): hold the pointer over it, or tap it on a phone, for how many and about what they cost. That estimate (≈) prices their tokens at the rate the same model cost in sessions that did report it; it is never added to the total and never counts against the budget. Codex dollar cost is unavailable.
+- The goal's state on a plate in its colour: blue while Foundry works (**running**, a blue tint while it clarifies), violet while it is **reviewing**, green once **done**, yellow while it waits for you (**approve brief**, **have a look**, **blocked**), red when it **failed**. Beside it, how many tasks are done or running and how long Foundry has worked.
+- The title, and under it the goal's facts: the project folder (with **copy** for its path), the branches (the one the goal started from → the goal's own branch), the coding agent (**Claude Code**, **Codex** or **Antigravity**), the workflow suite, **pace fast** if the goal runs in fast mode, and its delivery.
+- **Time** in minutes against the limit; Claude also shows **cost** against its USD budget. A yellow dot after it means some sessions ended before Claude Code reported a cost (a timeout, a kill, a crash): hold the pointer over it, or tap it on a phone, for how many and about what they cost. That estimate (≈) prices their tokens at the rate the same model cost in sessions that did report it; it is never added to the total and never counts against the budget. Codex dollar cost is unavailable.
 - **Open ▾**: open the project or the progress folder on your computer (see [The progress folder](#the-progress-folder)), or in **VS Code (web)**: VS Code in a browser tab, which also opens on your phone over Tailscale. It starts on first use (install it once under [Settings → Tools & keys](./settings.md#tools--keys)), runs on this computer only, and stops after two idle hours. Its sign-in page asks for a password, which the menu shows with a copy button; a browser remembers it. A folder the coding agents wrote opens in restricted mode until you choose to trust it. Edits there are real edits: while the goal runs, the menu warns that changes in its folders can clash with the coding agents' and go into their next commit.
 - One main button that changes with the state: **Review brief →** while the Brief waits, **Cancel** while it runs, **Deliver…**, **Delivering…** or **Delivery** when it is done.
 - **⋯** (More actions): **Restart…**, **Re-run Clarify**, **Cancel goal**, **Delete goal…**, whichever apply.
+
+Under the header the five stages run across the page: **Clarify**, **Brief**, **Run**, **Review** and **Deliver**. A finished stage is framed in ink, its tick on a green tile. The current one is outlined, in blue while Foundry works on it, with **Now** above it, or turns yellow with **You** when it waits for you and red with **Failed**. On a phone or a small tablet the stages are slim segments, green when done, with the current one's name and note in a line under them; Ledger and Classic draw them as a numbered line of steps. Each stage says how it went in a few words, for example "approved", "3 of 4 tasks" or "a pull request". While the goal runs, the Run stage carries a bar of its tasks. In Expert view, press a stage to open where its work shows: the Activity tab for Clarify and Review, the Brief page, the Tasks tab for Run, the Delivery tab for Deliver.
 
 Below that, cards appear only when they matter: the milestone card when the goal waits for your look, the interview while Foundry asks questions, and **Goal review…** with a live log while the final review runs.
 
@@ -49,7 +63,7 @@ In Simple view the goal page shows:
 | Tab | What it shows |
 |---|---|
 | **Overview** | Where the goal stands, what needs you, the progress folder, the preview, acceptance checks. A number on the tab means something waits for you. |
-| **Tasks** | The task graph with each task's state. Shows **done/total · N running**. |
+| **Tasks** | The tasks as a graph of which waits for which, or as a list. Shows **done/total · N running**. |
 | **Timeline** | When each step ran and how long it took, the goal and its delegated goals on one time axis. |
 | **Activity** | Everything that happened, newest first. |
 | **Diff** | Every change compared with where the goal started. |
@@ -57,12 +71,11 @@ In Simple view the goal page shows:
 
 ## Overview
 
-![The Overview tab of a finished goal: every stage of the timeline done, four pull requests merged, the goal, the progress folder, and all acceptance checks passing](images/goal-overview.png)
+![The Overview tab of a finished goal: the Brief, the goal, the goal review's verdict, the progress folder, and all acceptance checks passing](images/goal-overview.png)
 
 From top to bottom:
 
-- **The timeline**: **Clarify → Brief → Run → Review → Done** (or **Over-delivered**), plus **Deliver · mode** if the goal pushes or opens a pull request. The current stage pulses. Click a stage to jump to where its work is shown.
-- **Brief**: one line under the timeline, for example **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**. Click it to open the Brief, where the Understanding and everything else the Clarifier wrote are.
+- **Brief**: one line, for example **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**. Click it to open the Brief, where the Understanding and everything else the Clarifier wrote are.
 - **What needs you**: the same cards as in the Inbox, with their buttons.
 - **goal**: your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window.
 - **Goal review**: right under the goal once the final review ran: one line with the verdict (**passed**, **over-delivered** or **failed**) and the start of the reviewer's notes; **reviewer notes** unfolds them, and the **Open full** icon reads them in a larger window.
@@ -79,9 +92,13 @@ From top to bottom:
 
 ## Tasks
 
-The **Tasks** tab draws the plan as a graph. Each card is a task with its state, its attempts so far out of those allowed (for example 2/3) what the task has cost so far, all attempts together, its difficulty (**simple**, **standard** or **complex**, which picks the model from the preset) and the model its latest attempt ran on. Arrows show which task waits for which. On a phone the graph becomes a list.
+The **Tasks** tab shows the plan two ways; **Graph | List** at the top right of the tab switches between them, and this browser remembers your choice for every goal.
+
+**Graph** draws the plan as a graph. Each card is a task with its state, its attempts so far out of those allowed (for example 2/3), what the task has cost so far, all attempts together, its difficulty (**simple**, **standard** or **complex**, which picks the model from the preset) and the model its latest attempt ran on. Arrows show which task waits for which. On a phone the graph becomes a list by step.
 
 ![The Tasks tab: the plan as a graph, with one task done, two side by side (one still running) and one waiting for both](images/goal-tasks.png)
+
+**List** shows one row per task, numbered **T1**, **T2**… in the order they were planned. Each row has the task's square (see [The Goals page](#the-goals-page)), its title, its state, attempt and model, the tasks it waits for (**after T1, T2**), how far it is through **Work**, **Review** and **Merge** (**Review ↺1** when a review sent it back once), and its time and cost. Press a row to open the task, as you would a card in the graph.
 
 ### Task states
 
@@ -165,7 +182,7 @@ If the card says **Nothing to run yet**, there is no start command yet. It appea
 
 A repository can hold several apps you run side by side, for example a web app, an admin and an API. Foundry finds them in the workspaces of `package.json`, or the Brief lists them under **How to run it**. The card then shows one row per app, the first one at the top:
 
-- a dot (green: answering, amber: starting, red: the last run failed, grey: stopped), the app's name and its folder;
+- a small square (solid: answering, striped: starting, red: the last run failed, hollow: stopped), the app's name and its folder;
 - **Open** while it runs, and its own **Start** or **Stop**;
 - **▸ output** shows what that app prints.
 
@@ -188,7 +205,7 @@ Foundry also starts the preview by itself at a milestone, restarts it after each
 
 The top of the card says which branch runs and where. While the goal is being worked on, the preview runs the goal's own copy of the repository (its progress folder, on the goal's branch), **not your checkout**, so you see the goal's work, not what is in your own folder. **copy** copies that folder's path.
 
-Once the goal is finished, the branch is a menu, with a line under it saying what the chosen branch is (the goal's folder, the base branch with the merged work…). Pick the goal branch, the base branch (for example `main`) or another local branch of yours; stop the preview first to change it. After a merge Foundry cleans up the goal's folder and deletes its branch; the preview then runs the base branch, which holds the merged work, and an amber line says so.
+Once the goal is finished, the branch is a menu, with a line under it saying what the chosen branch is (the goal's folder, the base branch with the merged work…). Pick the goal branch, the base branch (for example `main`) or another local branch of yours; stop the preview first to change it. After a merge Foundry cleans up the goal's folder and deletes its branch; the preview then runs the base branch, which holds the merged work, and a line in bold says so.
 
 Beside the branch, a second menu picks where a branch other than the goal's runs:
 
@@ -202,7 +219,7 @@ When the start command launches more servers than the one Foundry gave a port to
 
 ### When it fails
 
-If an app stops on its own, the card says **The last run failed** with the reason (for example `exited with code 1`) and the last lines the app printed, such as the error message, without opening the output. If it runs but does not answer within 90 seconds, an amber line says so: it may still be starting, or its command ignores the port Foundry gave it (`{port}` in the Brief's **How to run it** fixes that). If installing dependencies failed, that shows too. When it stopped because its port was in use (`EADDRINUSE`), the card names what holds that port, with **Stop & release** when it can be freed and a link to [Ports](./ports.md).
+If an app stops on its own, the card says **The last run failed** with the reason (for example `exited with code 1`) and the last lines the app printed, such as the error message, without opening the output. If it runs but does not answer within 90 seconds, a line in bold says so: it may still be starting, or its command ignores the port Foundry gave it (`{port}` in the Brief's **How to run it** fixes that). If installing dependencies failed, that shows too. When it stopped because its port was in use (`EADDRINUSE`), the card names what holds that port, with **Stop & release** when it can be freed and a link to [Ports](./ports.md).
 
 ### Environment
 
@@ -250,10 +267,10 @@ When the goal pauses, its badge reads **have a look**, the Inbox shows **Have a 
 The card shows:
 
 - What to look at, as written in the Brief.
-- **What Foundry saw**: a recording of the preview and screenshots, so you can look without starting anything. While the card opens it says **Recording a walkthrough of the preview…**: a small model plans a few steps from what to look at and the page's controls (clicking, filling in sample values, opening pages; never signing in, paying or deleting), and a hidden browser follows them, recording a video and taking a screenshot at each point worth seeing. A step that cannot be done is skipped; when no walkthrough can be planned, one screenshot of the page is kept, and an amber line says why. It needs Playwright's Chromium, the same as the self-check.
+- **What Foundry saw**: a recording of the preview and screenshots, so you can look without starting anything. While the card opens it says **Recording a walkthrough of the preview…**: a small model plans a few steps from what to look at and the page's controls (clicking, filling in sample values, opening pages; never signing in, paying or deleting), and a hidden browser follows them, recording a video and taking a screenshot at each point worth seeing. A step that cannot be done is skipped; when no walkthrough can be planned, one screenshot of the page is kept, and a line in bold says why. It needs Playwright's Chromium, the same as the self-check.
   - With several apps, the walkthrough opens the one whose folder holds the task's files.
   - Before the apps start, Docker is opened if it is installed but not running (Docker Desktop, OrbStack, Rancher Desktop or colima), and variables the app's example env files ask for are taken from your checkout's env files when only they have them.
-  - A screenshot of an error page (an HTTP error, a "could not be found" page, a blank page) shows nothing of the milestone: it is left out, and the amber line says how many.
+  - A screenshot of an error page (an HTTP error, a "could not be found" page, a blank page) shows nothing of the milestone: it is left out, and the line in bold says how many.
   - When the app does not answer, or shows only error pages, Foundry walks the same app again with its mock command, against fake data: the **Mock command** in **How to run it**, or a `dev:mock`, `start:mock` or `mock` script in the app's `package.json`. The summary then starts with *With mock data*, and the milestone reads **unverified · fake data**: it does not count as shown. Workers on a screen with a milestone without a script are asked to add such a script when the app needs a backend, Docker or secrets to run.
 - The preview, already starting, with **Open preview**.
 - **What the self-check saw**: its latest screenshots, if the self-check is on.
@@ -278,7 +295,7 @@ When each step ran and how long it took, on one time axis, so the step that took
 
 **Where the time went** starts with how long the goal took from start to end (or until now), how much of that it waited for you, and how long its delivery took. Below that is the time spent in sessions by kind (**Work**, **Reviews**, **Clarify**, **Landing**, **Other sessions**). Sessions run side by side, so together they can take longer than the goal did. **The longest steps** names the longest waits, sessions and delegated goals.
 
-The chart below has one row for the goal, with its phases: Clarify, waits for you, running, goal review and delivery. Then come a row with Foundry's own sessions (Clarify, the planner, reviews, docs), and one row per task: each attempt, its review and its landing. A delegated goal sits under the task it does, with rows of its own. Waits for you are striped, and a step still going has a green outline. Hold the pointer over a bar for its duration and cost.
+The chart below has one row for the goal, with its phases: Clarify, waits for you, running, goal review and delivery. Then come a row with Foundry's own sessions (Clarify, the planner, reviews, docs), and one row per task: each attempt, its review and its landing. A delegated goal sits under the task it does, with rows of its own. Waits for you are striped in yellow, and a step still going is hatched. Hold the pointer over a bar for its duration and cost.
 
 A goal that ran for hours keeps its steps readable: a stretch in which nothing ran (no session, no wait for you, no delegated goal) folds into a short hatched gap labelled with how long it lasted, for example **⋯ 2h 40m**, and the rest keeps its scale. The chart reads like a Gantt chart: the rows' names stay on the left, and the chart beside them slides sideways. It fits the whole goal in the width unless the steps would get too thin to read (a long goal, a phone); then it keeps a readable scale and slides, and a rail under it shows the whole goal in miniature with the part in view framed: drag the frame, or press anywhere on the rail, to go there. **+** and **−** next to the colours zoom in and out, and **fit** shows the whole goal again.
 
@@ -316,7 +333,7 @@ Click a file to open its changes in a window: the code coloured by language, add
 
 The buttons above the list (**all**, **Claude Code**, **Codex**, each with its count in the last 24 hours) filter by coding agent, **live only** keeps the sessions working or waiting for input, and the search box matches titles, goal names, tasks, models, folders and session IDs. **expand all** and **collapse all** open or fold every card. On the right, **Overview** counts the sessions by state, by coding agent (Foundry's and yours) and by model; on a phone, **overview** shows it. The list refreshes every five seconds; external sessions remain read-only.
 
-A red count on the **Agents** icon in the header says how many sessions are working right now; it is gone while none is. **Agents** combines Foundry-owned sessions with recent native Claude Code and Codex history. Each row identifies its coding agent; retrieval is bounded, so this is not an inventory of every conversation ever created.
+A live count beside **Agents** in the top bar (a pulsing dot and a number) says how many sessions are working right now; it is gone while none is. **Agents** combines Foundry-owned sessions with recent native Claude Code and Codex history. Each row identifies its coding agent; retrieval is bounded, so this is not an inventory of every conversation ever created.
 
 - **Foundry agents**: sessions Foundry started for your goals, one card per goal. Each card's heading shows the goal, its coding agent, its project folder, how many sessions it has and how many are working; **Open goal →** goes to the goal page. Click a heading to collapse or expand the card. A card starts expanded while one of its sessions is working or idle (or when it is the only one); Foundry remembers your choice in this browser, and a search expands every card. A running session can be stopped with its red **Stop** button, after you confirm. A row names the task the session worked on, with a **work** or **merge** chip and its attempt number; **merge** sessions bring a branch up to date during integration or delivery.
 - **Your sessions**: sessions you opened yourself (in a terminal, in VS Code), one card per folder, folding the same way. Foundry only watches them, never touches them.

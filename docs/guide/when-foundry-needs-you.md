@@ -10,7 +10,7 @@ Everything else you see while a goal runs is normal and needs nothing from you. 
 
 ## The eight reasons Foundry stops
 
-Each one is a card. Its heading names what stopped, with an icon and colour of its own (orange when something failed, amber for a question or a limit, blue for a milestone to look at), and one plain sentence under it; outside its task it also says which goal and task. The details come next, then what your answer carries (a hint and its extra attempts, or new limits). The buttons sit in the card's footer: help from the AI on the left, your answers on the right with the main one last. Once answered, the footer says what was chosen.
+Each one is a card whose head is a yellow strip, as everything that waits for you is: an icon for the kind of stop, what stopped in large letters, how long it has waited, and one plain sentence; outside its task it also says which goal and task. The details come next, then what your answer carries (a hint and its extra attempts, or new limits). The buttons sit in the card's footer: help from the AI on the left, your answers on the right with the main one last. Once answered, the footer says what was chosen.
 
 ### A piece could not be finished
 
@@ -120,7 +120,7 @@ The dollar/turn and native sub-agent examples below describe Claude output. Code
 | `[reviewer] …` after the work finished | The task reviewer is checking the change. |
 | `[reviewer] ✗ Output does not match required schema …` | The reviewer sent its verdict in the wrong shape and resends it. Harmless. |
 | `■ success · $0.420 · 7 turns — …` | The session finished. The text after the dash is the worker's final message; click the line to read all of it. |
-| `■ error_max_turns`, `■ error_max_budget_usd`, `■ killed_timeout` (amber) | The session hit a limit. In a task's worker session the line ends with *the engine resumes this session*: Foundry resumes it with a fresh allowance, up to twice, before starting a new attempt. `error_max_budget_usd` is the **Claude cost cap per session** (Settings → Models & limits), not the goal's budget: an unlimited goal budget still stops one session at that cap. |
+| `■ error_max_turns`, `■ error_max_budget_usd`, `■ killed_timeout` (in bold) | The session hit a limit. In a task's worker session the line ends with *the engine resumes this session*: Foundry resumes it with a fresh allowance, up to twice, before starting a new attempt. `error_max_budget_usd` is the **Claude cost cap per session** (Settings → Models & limits), not the goal's budget: an unlimited goal budget still stops one session at that cap. |
 | `⏳ rate limit rejected` | The session’s account reached its usage limit. Foundry pauses that coding agent and retries later, or goes on with its next account ([Several accounts](./costs-and-usage.md#several-accounts)); other coding agents can continue. A retry time is not proof of recovered quota. The task resumes its session later without spending a retry. |
 | `⏱ sub-agent still working · 3m 30s` | A helper session is still busy. Long pauses in the log are normal while this line updates. |
 | `[claude-code:unrecognized_model] …` | Your Claude Code is older than the model you picked. The session works; updating Claude Code removes the line. |

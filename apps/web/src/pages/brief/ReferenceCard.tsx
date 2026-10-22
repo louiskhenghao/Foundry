@@ -1,10 +1,11 @@
 import { reportsDollars } from '@foundry/core/browser';
 import type { Goal } from '@foundry/core/browser';
-import { ExternalLink, Loader2, RotateCcw } from 'lucide-react';
+import { Check, ExternalLink, Loader2, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../../api.ts';
 import { Button, Card, ago, fmtUsd } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { SectionTitle } from './SectionTitle.tsx';
 
 /** the shipped software this goal learns from, and what REA found out about it: the report every session reads */
 export function ReferenceCard({ goal, investigating = false }: { goal: Goal; investigating?: boolean }) {
@@ -27,7 +28,7 @@ export function ReferenceCard({ goal, investigating = false }: { goal: Goal; inv
   };
   return (
     <Card
-      title={<>Reference<HelpLink to="approving-the-brief#reference" className="ml-1.5" /></>}
+      title={<span className="flex items-start gap-1.5"><SectionTitle section="reference">Reference</SectionTitle><HelpLink to="approving-the-brief#reference" className="mt-0.5 shrink-0" /></span>}
       actions={
         again && (
           <Button size="sm" variant="info" disabled={busy || running} onClick={() => void rerun()} title="Study the references again with REA and replace the report; the Brief changes only with Re-run Clarify">
@@ -36,43 +37,49 @@ export function ReferenceCard({ goal, investigating = false }: { goal: Goal; inv
         )
       }
     >
-      <ul className="text-xs text-zinc-300 space-y-0.5">
+      <ul className="text-xs text-ink-soft space-y-0.5">
         {goal.references.map((r, i) => (
           <li key={i}>
-            <span className="mono break-all">{r.target}</span>
-            {r.lookAt && <span className="text-zinc-500"> — {r.lookAt}</span>}
+            <span className="mono break-all text-ink">{r.target}</span>
+            {r.lookAt && <span className="text-ink-faint"> — {r.lookAt}</span>}
           </li>
         ))}
       </ul>
-      <div className="mt-2 text-xs">
+      <div className="mt-2.5 text-xs">
         {running ? (
-          <span className="inline-flex items-center gap-1.5 text-zinc-400">
-            <Loader2 size={12} className="animate-spin" /> REA is studying the reference and writing the report…
+          // REA at work: its spinner and its words blue
+          <span className="inline-flex items-center gap-1.5 text-work-ink">
+            <Loader2 size={12} className="animate-spin shrink-0" /> REA is studying the reference and writing the report…
           </span>
         ) : inv!.status === 'ok' ? (
           <div className="space-y-1">
-            <p className="text-zinc-200">{inv.summary}</p>
-            <div className="flex flex-wrap items-center gap-3 text-[11px] text-zinc-500">
+            {/* the report done: its tick green */}
+            <p className="flex items-start gap-1.5 text-ink">
+              <Check size={13} strokeWidth={2.75} className="mt-px shrink-0 text-ok-ink" aria-hidden="true" />
+              <span className="min-w-0">{inv.summary}</span>
+            </p>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-ink-faint">
               {report && (
-                <a href={api.attachmentUrl(goal.id, report.id)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-300 hover:underline">
+                <a href={api.attachmentUrl(goal.id, report.id)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-work-ink hover:underline">
                   {report.name} <ExternalLink size={10} />
                 </a>
               )}
               {inv.docPath && <span className="mono">{inv.docPath} on the goal branch</span>}
-              <span>
+              <span className="mono">
                 {ago(inv.at)}
                 {reportsDollars(goal.provider) && inv.costUsd > 0 ? ` · ${fmtUsd(inv.costUsd)}` : ''}
               </span>
             </div>
           </div>
         ) : (
-          <p className={inv.status === 'failed' ? 'text-rose-300' : 'text-amber-300'}>
+          // a failure is red; a skipped investigation only says why
+          <p className={inv.status === 'failed' ? 'font-semibold text-bad-ink' : 'text-ink-soft'}>
             {inv.status === 'failed' ? 'The investigation failed' : 'The investigation was skipped'}: {inv.detail}
           </p>
         )}
       </div>
-      <p className="mt-2 text-[11px] text-zinc-500">Only software you are allowed to examine; the goal builds its own version from the evidence, never a copy.</p>
-      {err && <div className="mt-1 text-[11px] text-rose-300">{err}</div>}
+      <p className="mt-2.5 text-xs text-ink-faint">Only software you are allowed to examine; the goal builds its own version from the evidence, never a copy.</p>
+      {err && <div className="mt-1 text-xs text-bad-ink">{err}</div>}
     </Card>
   );
 }

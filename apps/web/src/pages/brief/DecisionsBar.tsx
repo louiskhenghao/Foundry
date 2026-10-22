@@ -1,9 +1,9 @@
 import type { Brief, Goal, InterviewQuestion } from '@foundry/core/browser';
 import { decisionsOf, diffIsEmpty, markDecisionsApplied } from '@foundry/core/browser';
-import { Check, MessageCircleQuestion, Sparkles, X } from 'lucide-react';
+import { Check, Loader2, MessageCircleQuestion, Sparkles, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';
-import { Button, Card, cn } from '../../ui.tsx';
+import { Button, Card, NEEDS_YOU_CARD, YouStrip, cn } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { RoundForm, type RoundSubmitKind } from '../goal/RoundForm.tsx';
 import { DraftPanel } from './DraftPanel.tsx';
@@ -104,77 +104,86 @@ export function DecisionsBar({ brief, goal, goalId, editable, revisable = editab
         )
       }
     >
-      <p className="text-xs text-zinc-500 mb-2">
+      <p className="text-xs text-ink-faint mb-3">
         {decisions.length ? (
           <>
-            Every worker, reviewer and pull request receives these verbatim. {pending.length > 0 ? <span className="text-amber-300">{pending.length} not yet applied to the plan — the tasks and checks below still reflect the Brief as it was before you decided.</span> : <span className="text-emerald-300">All applied to the plan.</span>}
+            Every worker, reviewer and pull request receives these verbatim. {pending.length > 0 ? <span className="font-semibold text-you-ink">{pending.length} not yet applied to the plan — the tasks and checks below still reflect the Brief as it was before you decided.</span> : <span className="font-semibold text-ok-ink">All applied to the plan.</span>}
           </>
         ) : (
           <>No decisions yet: answer a question, reject an assumption, or write a note below. Every worker, reviewer and pull request receives them verbatim.</>
         )}
       </p>
-      <ul className="space-y-1 text-sm">
+      {/* a Decision applied to the plan is marked green; one the plan does not follow yet waits for you, in yellow */}
+      <ul className="space-y-1.5 text-sm">
         {decisions.map((d) => (
-          <li key={d.id} className={cn('flex gap-2 items-start', d.applied ? 'text-zinc-400' : 'text-zinc-200')}>
-            <span className={cn('mt-1.5 w-1.5 h-1.5 rounded-full shrink-0', d.applied ? 'bg-emerald-400' : 'bg-amber-400')} title={d.applied ? 'applied to the plan' : 'not yet applied to the plan'} />
+          <li key={d.id} className={cn('flex gap-2 items-start', d.applied ? 'text-ink-soft' : 'text-ink')}>
+            <span className={cn('mt-1.5 w-2 h-2 rounded-full shrink-0', d.applied ? 'bg-ok' : 'bg-you ring-1 ring-inset ring-on-you/40')} title={d.applied ? 'applied to the plan' : 'not yet applied to the plan'} />
             {d.kind === 'answer' ? (
               <span>
-                <span className="text-zinc-400">{d.text}</span> → <span className="font-medium">{d.answer}</span>
+                <span className="text-ink-soft">{d.text}</span> → <span className="font-semibold">{d.answer}</span>
               </span>
             ) : d.kind === 'note' ? (
               <span className="flex-1 flex items-start gap-2">
                 <span className="flex-1 whitespace-pre-wrap">
-                  <span className="text-[11px] text-zinc-500 mr-1">note</span>
+                  <span className="mr-1.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-faint">note</span>
                   {d.text}
                 </span>
                 {editable && (
-                  <button type="button" className="text-zinc-500 hover:text-rose-300 shrink-0 mt-0.5" title="Remove this note" onClick={() => edit((b) => ({ ...b, questions: b.questions.filter((q) => q.id !== d.id) }))}>
+                  <button type="button" className="text-ink-faint hover:text-bad-ink shrink-0 mt-0.5" title="Remove this note" onClick={() => edit((b) => ({ ...b, questions: b.questions.filter((q) => q.id !== d.id) }))}>
                     <X size={12} />
                   </button>
                 )}
               </span>
             ) : (
               <span>
-                <span className="line-through text-zinc-500">{d.text}</span> <span className="text-[11px] text-zinc-500">(assumption rejected)</span>
+                <span className="line-through text-ink-faint">{d.text}</span> <span className="text-xs text-ink-faint">(assumption rejected)</span>
               </span>
             )}
           </li>
         ))}
       </ul>
-      <div className={cn(decisions.length > 0 && 'mt-3 border-t border-zinc-800 pt-3')}>
+      <div className={cn(decisions.length > 0 && 'mt-3 border-t border-line pt-3')}>
         <NotesComposer brief={brief} editable={editable} edit={edit} />
       </div>
-      {err && <div className="text-xs text-rose-300 mt-2">{err}</div>}
+      {err && <div className="text-xs text-bad-ink mt-2">{err}</div>}
       {round && !busy && (
-        <div className="mt-3 rounded-md border border-sky-500/30 bg-sky-500/5 p-3 space-y-3 text-xs text-zinc-400">
-          <div className="flex items-center gap-2 text-sm text-zinc-100">
-            <MessageCircleQuestion size={14} className="text-sky-300" /> Before it revises, the Clarifier asks (round {round.round} of 2)
+        // a round of questions waits for you, as the interview's and the Inbox's do: the yellow strip, the form on the panel under it
+        <section className={cn(NEEDS_YOU_CARD, 'mt-3')}>
+          <YouStrip icon={MessageCircleQuestion} title={`Before it revises, the Clarifier asks (round ${round.round} of 2)`} since={goal.revise?.status === 'awaiting_answers' ? (goal.revise.rounds.find((r) => r.round === round.round)?.askedAt ?? null) : null} />
+          {/* spaced as the interview's round: the form is a run of blocks */}
+          <div className="p-4 sm:p-5 space-y-4 text-xs text-ink-soft">
+            <RoundForm
+              key={`${goalId}-revise-${round.round}`}
+              round={round.round}
+              questions={round.questions}
+              rounds={goal.revise?.rounds ?? []}
+              busy={answering}
+              intro={<p className="max-w-[90ch] text-[13px] leading-relaxed text-ink-soft">Your decisions left these open. Answer, or press Enough and it proposes with its recommendations. You can still approve the Brief as it is meanwhile; that lets this revision go.</p>}
+              finishLabel="Enough — propose now"
+              finishTitle="Stop asking: the Clarifier proposes with its recommended answers for what is still open"
+              onSubmit={answer}
+              onCancel={letGo}
+            />
           </div>
-          <RoundForm
-            key={`${goalId}-revise-${round.round}`}
-            round={round.round}
-            questions={round.questions}
-            rounds={goal.revise?.rounds ?? []}
-            busy={answering}
-            intro={<p>Your decisions left these open. Answer, or press Enough and it proposes with its recommendations. You can still approve the Brief as it is meanwhile; that lets this revision go.</p>}
-            finishLabel="Enough — propose now"
-            finishTitle="Stop asking: the Clarifier proposes with its recommended answers for what is still open"
-            onSubmit={answer}
-            onCancel={letGo}
-          />
-        </div>
+        </section>
       )}
       {busy && (
         <div className="mt-3">
-          <p className="text-xs text-zinc-500 mb-1">The Clarifier is re-reading the Brief and the repository — its live output below. A revision usually takes a few minutes.</p>
+          {/* the Clarifier at work: its spinner and its words blue */}
+          <p className="flex items-start gap-1.5 text-xs text-work-ink mb-1">
+            <Loader2 size={12} className="mt-0.5 shrink-0 animate-spin" aria-hidden="true" />
+            <span>The Clarifier is re-reading the Brief and the repository — its live output below. A revision usually takes a few minutes.</span>
+          </p>
           <LiveLog attemptId={`draft-${goalId}`} className="max-h-56" />
         </div>
       )}
       {proposal && (
         <div className="mt-3">
           {noChanges ? (
-            <div className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs text-zinc-300 flex items-center gap-2 flex-wrap">
-              <span>The Clarifier found nothing to change: {proposal.revision!.changeSummary}</span>
+            // nothing to change is a check passed: its tick green, the box as any inside a card
+            <div className="rounded-md border border-line bg-sunken p-3 text-xs text-ink-soft flex items-center gap-2 flex-wrap">
+              <Check size={14} className="shrink-0 text-ok-ink" aria-hidden="true" />
+              <span className="min-w-0 flex-1">The Clarifier found nothing to change: {proposal.revision!.changeSummary}</span>
               <Button size="sm" className="ml-auto" onClick={() => { markApplied(); setProposal(null); }}>
                 <Check size={12} /> OK, mark applied
               </Button>

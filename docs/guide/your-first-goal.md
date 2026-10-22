@@ -57,7 +57,7 @@ Foundry works in a *repository*: a project folder that git keeps history for. Yo
 
 ## The New goal form
 
-Press **New goal** in the top bar. The four numbered steps at the top right (**Goal**, **Repository**, **Budget**, **Delivery**) show how far you are. **Goal** turns green once you describe the goal, **Repository** once a ready folder is picked. **Budget** and **Delivery** are always green: their defaults work. The form starts with two cards of choices; the numbered cards **1** to **4** follow.
+Press **New goal** in the top bar. The four numbered steps at the top right (**Goal**, **Repository**, **Budget**, **Delivery**) show how far you are. **Goal** turns solid once you describe the goal, **Repository** once a ready folder is picked. **Budget** and **Delivery** are always solid: their defaults work. The form starts with three cards of choices (the coding agent, the kind of goal, how much you want to see); the numbered cards **1** to **4** follow. A menu of the form's sections sits on the left, a row of chips at the top on a narrower screen: each says how it stands (the agent, kind and view chosen, the budget, the delivery), with what you still have to give, such as the goal's text or a folder, on yellow. Click one to jump there.
 
 Several choices start from [Settings → New goal defaults](./settings.md#new-goal-defaults): the view, **Fast mode**, TDD, Ponytail, the workflow suite, and the delivery mode and granularity. You can change them for this goal.
 

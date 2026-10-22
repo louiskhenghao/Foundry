@@ -26,8 +26,128 @@
   }
 }
 
+/*
+ * The theme's names for its colours (ADR-0066): bg-page, bg-panel, bg-sunken (a theme file's `inset`), border-line,
+ * text-ink-soft, bg-you with text-on-you, text-ok-ink and the rest. These are Classic's, pointed at Tailwind's own ramps.
+ * Any other theme replaces them — and the ramps themselves, so every zinc-*, emerald-*, amber-* class follows it — with
+ * the stylesheet theme.ts puts in <head>. `on-x` is text on an x fill; `x-ink` is x-coloured text that reads on a panel.
+ */
+@theme static {
+  --color-page: var(--color-zinc-950);
+  --color-panel: var(--color-zinc-900);
+  --color-sunken: var(--color-zinc-900);
+  --color-line: var(--color-zinc-800);
+  --color-line-strong: var(--color-zinc-700);
+  --color-ink: var(--color-zinc-100);
+  --color-ink-soft: var(--color-zinc-400);
+  --color-ink-faint: var(--color-zinc-500);
+  --color-on-ink: var(--color-zinc-950);
+  --color-band: var(--color-zinc-950);
+  --color-band-ink: var(--color-zinc-100);
+  --color-band-ink-soft: var(--color-zinc-400);
+  --color-band-line: var(--color-zinc-800);
+  --color-band-hover: var(--color-zinc-900);
+  --color-accent: var(--color-emerald-500);
+  --color-on-accent: #09090b;
+  --color-accent-ink: var(--color-emerald-300);
+  --color-you: var(--color-amber-400);
+  --color-on-you: #09090b;
+  --color-you-ink: var(--color-amber-300);
+  --color-work: var(--color-blue-400);
+  --color-on-work: #09090b;
+  --color-work-ink: var(--color-blue-300);
+  --color-ok: var(--color-emerald-400);
+  --color-on-ok: #09090b;
+  --color-ok-ink: var(--color-emerald-300);
+  --color-bad: var(--color-rose-500);
+  --color-on-bad: #ffffff;
+  --color-bad-ink: var(--color-rose-300);
+  --color-extra: var(--color-violet-400);
+  --color-on-extra: #09090b;
+  --color-extra-ink: var(--color-violet-300);
+  /* each coding agent's own colour says who did the work: the same in every theme, never a signal */
+  --color-agent-claude: #fdba74;
+  --color-agent-codex: #93c5fd;
+  --color-agent-agy: #5eead4;
+  /* eight category colours (ADR-0067) tell things of a kind apart — the Brief's sections, Areas, extension sources —
+     and never say how something stands; Classic's are the hues those had before themes */
+  --color-code-1: var(--color-sky-400);
+  --color-code-1-ink: var(--color-sky-300);
+  --color-on-code-1: #09090b;
+  --color-code-2: var(--color-emerald-400);
+  --color-code-2-ink: var(--color-emerald-300);
+  --color-on-code-2: #09090b;
+  --color-code-3: var(--color-violet-400);
+  --color-code-3-ink: var(--color-violet-300);
+  --color-on-code-3: #09090b;
+  /* orange, a step away from the amber of what waits for you */
+  --color-code-4: var(--color-orange-500);
+  --color-code-4-ink: var(--color-orange-400);
+  --color-on-code-4: #09090b;
+  --color-code-5: var(--color-rose-400);
+  --color-code-5-ink: var(--color-rose-300);
+  --color-on-code-5: #09090b;
+  --color-code-6: var(--color-teal-400);
+  --color-code-6-ink: var(--color-teal-300);
+  --color-on-code-6: #09090b;
+  --color-code-7: var(--color-fuchsia-400);
+  --color-code-7-ink: var(--color-fuchsia-300);
+  --color-on-code-7: #09090b;
+  --color-code-8: var(--color-lime-400);
+  --color-code-8-ink: var(--color-lime-300);
+  --color-on-code-8: #09090b;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* page titles and large headings; a theme's `fonts.display`, else the text font */
+  --font-display: var(--font-sans);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 :root {
   color-scheme: dark;
+  /* how far a theme leans the stage plates, and how much grain it lays on the page */
+  --slant: 0deg;
+  --texture-opacity: 0;
+  /* card titles and small labels (the `caps` utility): in capitals, letter-spaced */
+  --label-case: uppercase;
+  --label-variant: normal;
+  --label-tracking: 0.1em;
+  /* what lifts a card or a board off the page */
+  --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+/*
+ * A theme's layout (ADR-0067) sits on <html> as data-nav, data-header, data-stages, data-labels, data-signs and
+ * data-surface: put there before the first paint by index.html and on every change of theme by theme.ts. Labels and
+ * surfaces follow here; a class follows the rest with a variant (header-compact:text-2xl, signs-card:bg-panel…).
+ */
+:root[data-labels='small-caps'] {
+  --label-case: none;
+  /* small-caps, not all-small-caps: the first letter keeps its full height, so a 12px heading still reads */
+  --label-variant: small-caps;
+  --label-tracking: 0.04em;
+}
+:root[data-labels='plain'] {
+  --label-case: none;
+  --label-variant: normal;
+  --label-tracking: 0;
+}
+:root[data-surface='flat'] {
+  --surface-shadow: 0 0 #0000;
+}
+@custom-variant header-compact (&:is([data-header='compact'] *));
+@custom-variant signs-card (&:is([data-signs='card'] *));
+@custom-variant nav-side (&:is([data-nav='side'] *));
+/* a card title or a small label, in the case the theme gives its labels */
+@utility caps {
+  text-transform: var(--label-case);
+  font-variant-caps: var(--label-variant);
+  letter-spacing: var(--label-tracking);
+}
+/* words inside a label that keep their own case (a count's note) */
+@utility no-caps {
+  text-transform: none;
+  font-variant-caps: normal;
+  letter-spacing: normal;
 }
 
 /* Keep native dropdown behavior, with a consistent inset for the indicator and its text. */
@@ -93,6 +213,20 @@ select:not([multiple]):is(:not([size]), [size='1']) {
   --color-teal-200: var(--color-teal-800);
   --color-teal-300: var(--color-teal-700);
   --color-teal-400: var(--color-teal-600);
+  /* the fourth category colour, darker in light so it stays clear of the amber of what waits for you */
+  --color-code-4: var(--color-orange-700);
+  --color-code-4-ink: var(--color-orange-700);
+  /* the eighth category colour */
+  --color-lime-200: var(--color-lime-800);
+  --color-lime-300: var(--color-lime-700);
+  --color-lime-400: var(--color-lime-600);
+  --color-sunken: #f4f4f5;
+  /* Classic's top bar is white in light mode */
+  --color-band: #ffffff;
+  --color-band-hover: #f4f4f5;
+  --color-agent-claude: #c2410c;
+  --color-agent-codex: #1d4ed8;
+  --color-agent-agy: #0f766e;
 }
 
 /*
@@ -100,44 +234,118 @@ select:not([multiple]):is(:not([size]), [size='1']) {
  * page-coloured (or transparent) in dark dissolves into the light page. Marked boxes become white
  * cards, the one shape every panel shares here; their border does the separating when they nest.
  */
-:root.light .surface-card,
-:root.light .dag-node {
-  background-color: #ffffff;
-}
-:root.light .dag-node {
-  box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
-}
-
-/*
- * Dark has two surface levels (page 950 / card 900) and uses 900 for BOTH cards and the panels
- * nested inside them. Light needs a third step, or those nested panels turn white-on-white:
- * code blocks, table headers and the diff file strip get the tint between page and card.
- */
-:root.light .md code,
-:root.light .md pre,
-:root.light .md th,
-:root.light .diff-file-head,
-:root.light .surface-inset {
-  background-color: #f4f4f5;
+:root.light .surface-card {
+  background-color: var(--color-panel);
 }
 :root.light .surface-card .log-row:hover {
   /* hover:bg-zinc-900 is white in light — invisible on a white card (the Agents log), so rows tint instead (a step past the inset tint, so the "you" rows still react) */
-  background-color: #e9e9ed;
+  background-color: color-mix(in oklab, var(--color-sunken), var(--color-ink) 6%);
 }
 :root.light ::-webkit-scrollbar-thumb {
-  background-color: #c4c4c9;
+  background-color: var(--color-line-strong);
 }
+/* work under way: a diagonal hatch in the text colour that flows; done is solid, not started is hollow */
+@utility hatch {
+  background-image: linear-gradient(135deg, currentColor 0 25%, transparent 25% 50%, currentColor 50% 75%, transparent 75%);
+  background-size: 6px 6px;
+  animation: hatch-flow 0.8s linear infinite;
+}
+/* the theme's lean: Wayfinding's stage plates are parallelograms, Classic's stand upright */
+@utility slant {
+  transform: skewX(var(--slant));
+}
+@keyframes hatch-flow {
+  to {
+    background-position: 6px 0;
+  }
+}
+/* a Needs you sign: hung from the rail above it, it swings in when it appears and a little under the pointer; its
+   arrow nudges forward now and then */
+.sign-in {
+  transform-origin: 50% -26px;
+  animation: sign-hang 0.8s cubic-bezier(0.25, 0.8, 0.35, 1) both;
+}
+.sign {
+  transform-origin: 50% -26px;
+  box-shadow:
+    inset 0 -4px 0 color-mix(in srgb, var(--color-on-you) 14%, transparent),
+    0 2px 0 rgb(0 0 0 / 0.08),
+    0 24px 34px -20px rgb(0 0 0 / 0.55);
+}
+.sign:hover {
+  animation: sign-swing 0.7s cubic-bezier(0.3, 0.7, 0.4, 1);
+}
+.sign-arrow {
+  animation: arrow-nudge 5s cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
+}
+@keyframes sign-hang {
+  0% { transform: rotate(2.4deg); }
+  30% { transform: rotate(-1.4deg); }
+  56% { transform: rotate(0.7deg); }
+  80% { transform: rotate(-0.25deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes sign-swing {
+  0% { transform: rotate(0deg); }
+  22% { transform: rotate(1.3deg); }
+  48% { transform: rotate(-0.8deg); }
+  74% { transform: rotate(0.3deg); }
+  100% { transform: rotate(0deg); }
+}
+@keyframes arrow-nudge {
+  0%, 80%, 100% { transform: translateX(0); }
+  87% { transform: translateX(6px); }
+  93% { transform: translateX(-1px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hatch,
+  .sign-in,
+  .sign:hover,
+  .sign-arrow {
+    animation: none;
+  }
+}
+/* a theme whose signs are cards: a panel with a yellow edge, standing on the page rather than hung and swinging */
+:root[data-signs='card'] .sign {
+  box-shadow:
+    inset 5px 0 0 var(--color-you),
+    0 0 0 1px var(--color-line),
+    var(--surface-shadow);
+}
+:root[data-signs='card'] .sign-in,
+:root[data-signs='card'] .sign:hover {
+  animation: none;
+}
+
+/* native checkboxes, radios and sliders in the theme's accent */
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'],
+progress {
+  accent-color: var(--color-accent);
+}
+
 html,
 body,
 #root {
   height: 100%;
 }
 body {
-  @apply bg-zinc-950 text-zinc-100 antialiased;
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  @apply bg-page text-ink antialiased;
+  font-family: var(--font-sans);
+}
+/* a theme's texture: a faint grain on the page, behind the cards (Wayfinding's concrete) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--texture-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .9 -.25'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 /*
  * Styling the scrollbar makes it a classic, space-consuming one, so the page scroller must always
@@ -152,78 +360,81 @@ main {
   height: 8px;
 }
 ::-webkit-scrollbar-thumb {
-  @apply bg-zinc-700 rounded;
+  @apply bg-line-strong rounded;
 }
 
-/* minimal prose for model-authored markdown */
-.md {
-  @apply text-sm text-zinc-200 leading-relaxed;
-}
-.md > * + * {
-  margin-top: 0.6em;
-}
-.md h1,
-.md h2,
-.md h3,
-.md h4 {
-  @apply font-semibold text-zinc-100;
-}
-.md h1 {
-  @apply text-base;
-}
-.md h2 {
-  @apply text-[15px];
-}
-.md h3,
-.md h4 {
-  @apply text-sm;
-}
-.md p {
-  @apply whitespace-pre-wrap;
-}
-.md ul {
-  @apply list-disc pl-5;
-}
-.md ol {
-  @apply list-decimal pl-5;
-}
-.md li + li {
-  margin-top: 0.15em;
-}
-.md li > input[type='checkbox'] {
-  @apply mr-1.5 align-middle;
-}
-.md code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  @apply text-[12px] bg-zinc-900 border border-zinc-800 rounded px-1 py-0.5 text-emerald-200;
-}
-.md pre {
-  @apply bg-zinc-900 border border-zinc-800 rounded-md p-3 overflow-x-auto;
-}
-.md pre code {
-  @apply bg-transparent border-0 p-0 text-zinc-200;
-}
-.md blockquote {
-  @apply border-l-2 border-zinc-700 pl-3 text-zinc-400;
-}
-.md table {
-  @apply text-xs border-collapse;
-}
-.md th,
-.md td {
-  @apply border border-zinc-800 px-2 py-1 text-left align-top;
-}
-.md th {
-  @apply bg-zinc-900 text-zinc-300;
-}
-.md a {
-  @apply underline text-sky-300;
-}
-.md hr {
-  @apply border-zinc-800;
-}
-.md img {
-  @apply max-w-full rounded;
+/* minimal prose for model-authored markdown; a layer below the utilities, so a class given to a Markdown block wins */
+@layer components {
+  .md {
+    @apply text-sm text-ink-soft leading-relaxed;
+  }
+  .md > * + * {
+    margin-top: 0.6em;
+  }
+  .md h1,
+  .md h2,
+  .md h3,
+  .md h4 {
+    @apply font-bold text-ink;
+  }
+  .md h1 {
+    @apply text-base;
+  }
+  .md h2 {
+    @apply text-[15px];
+  }
+  .md h3,
+  .md h4 {
+    @apply text-sm;
+  }
+  .md p {
+    @apply whitespace-pre-wrap;
+  }
+  .md ul {
+    @apply list-disc pl-5;
+  }
+  .md ol {
+    @apply list-decimal pl-5;
+  }
+  .md li + li {
+    margin-top: 0.15em;
+  }
+  .md li > input[type='checkbox'] {
+    @apply mr-1.5 align-middle;
+  }
+  /* code in the text is ink on the inset colour, framed by a hairline: a word set apart, not a signal */
+  .md code {
+    font-family: var(--font-mono);
+    @apply text-[12px] bg-sunken border border-line rounded-sm px-1 py-0.5 text-ink;
+  }
+  .md pre {
+    @apply bg-sunken border border-line rounded-md p-3 overflow-x-auto;
+  }
+  .md pre code {
+    @apply bg-transparent border-0 p-0 text-ink-soft;
+  }
+  .md blockquote {
+    @apply border-l-[3px] border-line-strong pl-3 text-ink-faint;
+  }
+  .md table {
+    @apply text-xs border-collapse;
+  }
+  .md th,
+  .md td {
+    @apply border border-line px-2 py-1 text-left align-top;
+  }
+  .md th {
+    @apply bg-sunken text-ink font-bold;
+  }
+  .md a {
+    @apply underline decoration-[1.5px] underline-offset-2 text-work-ink;
+  }
+  .md hr {
+    @apply border-line;
+  }
+  .md img {
+    @apply max-w-full rounded;
+  }
 }
 
 /* phones: slightly larger touch targets, no horizontal page scroll */
@@ -247,41 +458,42 @@ main {
 }
 
 /*
- * Syntax colours for the file preview (highlight.js classes), taken from the app's own ramps so light mode's
- * remapped accents keep them readable on white.
+ * Syntax colours for the file preview and the diff (highlight.js classes), in the theme's category colours: they tell
+ * kinds of words apart and never say how something stands, so a number is never signal yellow; added and removed
+ * lines keep the signals.
  */
 .hl .hljs-keyword,
 .hl .hljs-selector-tag,
 .hl .hljs-meta .hljs-keyword,
-.hl .hljs-doctag { color: var(--color-violet-400); }
+.hl .hljs-doctag { color: var(--color-code-3-ink); }
 .hl .hljs-string,
 .hl .hljs-regexp,
-.hl .hljs-addition,
-.hl .hljs-template-tag { color: var(--color-emerald-400); }
+.hl .hljs-template-tag { color: var(--color-code-2-ink); }
+.hl .hljs-addition { color: var(--color-ok-ink); }
 .hl .hljs-number,
 .hl .hljs-literal,
 .hl .hljs-symbol,
-.hl .hljs-bullet { color: var(--color-amber-400); }
+.hl .hljs-bullet { color: var(--color-code-4-ink); }
 .hl .hljs-title,
 .hl .hljs-title.function_,
-.hl .hljs-section { color: var(--color-sky-400); }
+.hl .hljs-section { color: var(--color-code-1-ink); }
 .hl .hljs-type,
 .hl .hljs-built_in,
 .hl .hljs-title.class_,
-.hl .hljs-selector-class { color: var(--color-orange-400); }
+.hl .hljs-selector-class { color: var(--color-code-6-ink); }
 .hl .hljs-attr,
 .hl .hljs-attribute,
 .hl .hljs-property,
 .hl .hljs-variable,
 .hl .hljs-template-variable,
 .hl .hljs-selector-attr,
-.hl .hljs-selector-id { color: var(--color-blue-400); }
+.hl .hljs-selector-id { color: var(--color-code-7-ink); }
 .hl .hljs-tag,
-.hl .hljs-name { color: var(--color-rose-400); }
+.hl .hljs-name { color: var(--color-code-5-ink); }
 .hl .hljs-comment,
 .hl .hljs-quote,
-.hl .hljs-meta { color: var(--color-zinc-500); font-style: italic; }
-.hl .hljs-deletion { color: var(--color-rose-400); }
+.hl .hljs-meta { color: var(--color-ink-faint); font-style: italic; }
+.hl .hljs-deletion { color: var(--color-bad-ink); }
 .hl .hljs-emphasis { font-style: italic; }
 .hl .hljs-strong { font-weight: 600; }
 

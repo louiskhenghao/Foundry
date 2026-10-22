@@ -2,7 +2,7 @@ import type { AgentProvider } from '../api.ts';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
-import { RotateCcw } from 'lucide-react';
+import { Check, CheckCircle2, CircleDashed, LoaderCircle, RotateCcw, XCircle } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
@@ -11,11 +11,15 @@ import { ModelPresetsSection } from './settings/ModelPresets.tsx';
 import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
 import { AgyModelsSection } from './settings/AgyModels.tsx';
 import { SectionTitle } from './settings/PresetParts.tsx';
+import { SECTION_STYLE, SettingsTitle } from './settings/sections.tsx';
+import { SectionChipNav, SectionSideNav, type NavSection } from '../components/SectionNav.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
+import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { AccessCard } from './settings/AccessCard.tsx';
-import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
+import { Button, Card, CopyButton, Empty, Field, Input, PageHeader, Select, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
+import { AppearanceCard } from './settings/AppearanceCard.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 
 type Section = keyof Settings;
@@ -31,7 +35,10 @@ const SEED_MODELS: { id: string; label: string }[] = [
 ];
 const get = (o: any, path: string) => path.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
 
-/** left-hand index; the ids are the Card ids further down */
+/**
+ * left-hand index (a row of chips on a phone or a tablet); the ids are the Card ids further down, and each section's
+ * colour and icon are in settings/sections.tsx
+ */
 const SECTIONS: { id: string; label: string }[] = [
   { id: 'goals', label: 'New goal defaults' },
   { id: 'models', label: 'Models & limits' },
@@ -40,19 +47,48 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'tools', label: 'Tools & keys' },
   { id: 'preview', label: 'Preview & self-check' },
   { id: 'notifications', label: 'Notifications' },
+  { id: 'access', label: 'Access' },
   { id: 'safety', label: 'Safety' },
   { id: 'engine', label: 'Engine (install)' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'about', label: 'About & updates' },
 ];
+/** the menu's entries, each with its section's colour */
+const NAV: NavSection[] = SECTIONS.map((s) => ({ ...s, dot: SECTION_STYLE[s.id]?.dot }));
 
+/**
+ * a small fact beside a setting (where its value comes from, a restart it needs) as a plate. Its outline is an
+ * inset-ring: with ring-inset the theme's colour named inset would win over the ring's own colour.
+ */
+const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.08em] inset-ring';
+/** a setting that applies only after a restart, told apart from the rest in orange (a kind of setting, not a state) */
+const RESTART_TAG = 'bg-code-4/12 text-code-4-ink inset-ring-code-4/45';
+
+/** where a setting's value comes from, told apart by colour as before themes: saved green, the environment blue, the default hollow */
 function SourceBadge({ view, path }: { view: SettingsView; path: string }) {
   const m = view.meta[path];
   if (!m) return null;
   const label = m.source === 'file' ? 'saved' : m.source === 'env' ? 'env' : 'default';
   const title = m.source === 'env' ? `from ${m.env}` : m.env ? `set ${m.env} to seed this value (default ${JSON.stringify(m.default)})` : `default ${JSON.stringify(m.default)}`;
   return (
-    <span className={cn('text-[10px] uppercase tracking-wide rounded px-1 py-px border', m.source === 'file' ? 'text-emerald-300 border-emerald-500/40' : m.source === 'env' ? 'text-sky-300 border-sky-500/40' : 'text-zinc-500 border-zinc-800')} title={title}>
+    <span className={cn(TAG, m.source === 'file' ? 'bg-code-2/12 text-code-2-ink inset-ring-code-2/45' : m.source === 'env' ? 'bg-code-1/12 text-code-1-ink inset-ring-code-1/45' : 'text-ink-faint inset-ring-line')} title={title}>
       {label}
+    </span>
+  );
+}
+
+type Tone = 'ok' | 'work' | 'bad' | 'none';
+const TONE_INK: Record<Tone, string> = { ok: 'text-ok-ink', work: 'text-work-ink', bad: 'text-bad-ink', none: 'text-ink-soft' };
+/** a line that reports how something went: ✘ failed (red), still going… (blue), ✓ done (green), anything else plain */
+const toneOf = (line: string): Tone => (line.includes('✘') ? 'bad' : line.endsWith('…') ? 'work' : line.includes('✓') || line.startsWith('→') ? 'ok' : 'none');
+
+/** how an install stands, in its signal colour: in place (green), being read (blue), broken (red), not there yet (hollow) */
+function InstallState({ tone, children }: { tone: Tone; children: ReactNode }) {
+  const Icon = tone === 'ok' ? CheckCircle2 : tone === 'work' ? LoaderCircle : tone === 'bad' ? XCircle : CircleDashed;
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 font-semibold', TONE_INK[tone])}>
+      <Icon size={13} strokeWidth={2.25} aria-hidden="true" className={cn('shrink-0', tone === 'work' && 'animate-spin')} />
+      {children}
     </span>
   );
 }
@@ -67,7 +103,6 @@ export function SettingsPage() {
   const [known, setKnown] = useState<ModelRecordView[] | null>(null);
   const [probe, setProbe] = useState<Record<string, string>>({});
   const [notifMsg, setNotifMsg] = useState<string | null>(null);
-  const [active, setActive] = useState(SECTIONS[0]!.id);
   const [upd, setUpd] = useState<UpdateStatusView | null>(null);
   const [updBusy, setUpdBusy] = useState(false);
   const [updOpen, setUpdOpen] = useState(false);
@@ -114,23 +149,6 @@ export function SettingsPage() {
     loadModels();
     loadUpdate();
   }, []);
-  // highlight the section the page is on; the scroller is <main>, not the window
-  useEffect(() => {
-    if (!draft) return;
-    const root = document.querySelector('main');
-    const io = new IntersectionObserver(
-      (entries) => {
-        const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
-        if (top?.target.id) setActive(top.target.id);
-      },
-      { root, rootMargin: '-20% 0px -70% 0px' },
-    );
-    for (const s of SECTIONS) {
-      const el = document.getElementById(s.id);
-      if (el) io.observe(el);
-    }
-    return () => io.disconnect();
-  }, [draft]);
   const testModel = async (name: string) => {
     setProbe((p) => ({ ...p, [name]: 'testing…' }));
     try {
@@ -221,12 +239,12 @@ export function SettingsPage() {
     <>
       <SourceBadge view={view} path={path} />
       {view.meta[path]?.restart && (
-        <span className="text-[10px] uppercase tracking-wide rounded px-1 py-px border text-amber-300 border-amber-500/40" title="takes effect after the engine restarts">
+        <span className={cn(TAG, RESTART_TAG)} title="takes effect after the engine restarts">
           restart
         </span>
       )}
       {view.meta[path]?.source === 'file' && (
-        <button type="button" className="text-zinc-500 hover:text-zinc-200" title="forget the saved value (back to env / default)" disabled={busy} onClick={() => reset(path)}>
+        <button type="button" className="text-ink-faint hover:text-ink" title="forget the saved value (back to env / default)" disabled={busy} onClick={() => reset(path)}>
           <RotateCcw size={11} />
         </button>
       )}
@@ -236,13 +254,13 @@ export function SettingsPage() {
   const text = (path: Leaf, placeholder?: string, nullable = false) => <Input value={(get(draft, path) as string | null) ?? ''} placeholder={placeholder} onChange={(e) => set(path, nullable && e.target.value === '' ? null : e.target.value)} />;
   const bool = (path: Leaf, label: string, help: string) => (
     <label className="flex items-start gap-2 cursor-pointer">
-      <input type="checkbox" className="mt-0.5 accent-emerald-500" checked={!!get(draft, path)} onChange={(e) => set(path, e.target.checked)} />
+      <input type="checkbox" className="mt-0.5" checked={!!get(draft, path)} onChange={(e) => set(path, e.target.checked)} />
       <span className="min-w-0 flex-1">
         <span className="flex items-center gap-2">
-          <span className="text-xs text-zinc-200">{label}</span>
+          <span className="text-xs font-semibold text-ink">{label}</span>
           <span className="ml-auto flex items-center gap-1.5">{aside(path)}</span>
         </span>
-        <span className="block text-[11px] text-zinc-500">{help}</span>
+        <span className="block mt-0.5 text-[11px] leading-snug text-ink-faint">{help}</span>
       </span>
     </label>
   );
@@ -270,54 +288,72 @@ export function SettingsPage() {
             Test
           </Button>
         </div>
-        {(probe[v] || warn) && <div className={cn('text-[11px]', probe[v]?.startsWith('✘') || (!probe[v] && warn) ? 'text-amber-300' : 'text-zinc-400')}>{probe[v] ?? warn}</div>}
+        {/* a test in its signal colour (testing… blue, resolved green, failed red), a model that last failed in red;
+            "never seen resolving" is unknown, so plain */}
+        {(probe[v] || warn) && <div className={cn('text-[11px]', probe[v] ? TONE_INK[toneOf(probe[v]!)] : warn!.startsWith('last failed') ? 'text-bad-ink' : 'text-ink-soft')}>{probe[v] ?? warn}</div>}
       </div>
     );
   };
   const list = (path: Leaf, placeholder: string) => <Input className="mono" value={((get(draft, path) as string[] | null) ?? []).join(', ')} placeholder={placeholder} onChange={(e) => set(path, e.target.value.trim() ? e.target.value.split(',').map((s) => s.trim()).filter(Boolean) : null)} />;
 
   const grid = (children: ReactNode) => <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">{children}</div>;
+  const agent = PROVIDER_STYLE[draft.engine.provider];
 
   return (
-    <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6">
-      <div className="min-w-0 mb-4">
-        <h1 className="text-lg font-semibold">Settings</h1>
-        <p className="text-sm text-zinc-400 mt-1">
-          Saved to <span className="mono break-all">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className="text-amber-300">restart</span> after the engine restarts.
-        </p>
-      </div>
-      <div className="grid lg:grid-cols-[11rem_minmax(0,1fr)] gap-x-6">
-        <nav className="hidden lg:block sticky top-0 self-start max-h-screen overflow-auto py-1 space-y-0.5">
-          {SECTIONS.map((s) => (
-            <button
-              key={s.id}
-              onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-              className={cn('block w-full text-left rounded px-2 py-1 text-xs', active === s.id ? 'bg-zinc-800 text-zinc-100' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900')}
-            >
-              {s.label}
-            </button>
-          ))}
-        </nav>
-        <div className="min-w-0 space-y-4">
-          {/* the save bar follows you down the page: settings are long and the change you just made is at the bottom */}
-          <div className="sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-2 bg-zinc-950/95 backdrop-blur flex items-center gap-2">
-            <span className="text-xs text-zinc-400 mr-auto">{changed.length ? `${changed.length} unsaved` : 'no changes'}</span>
-            <Button size="sm" variant="ghost" disabled={!changed.length || busy} onClick={() => setDraft(structuredClone(view.values))}>
-              Discard
-            </Button>
-            <Button size="sm" variant="primary" disabled={!changed.length || busy} onClick={save}>
-              {busy ? 'Saving…' : 'Save'}
-            </Button>
+    <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16">
+      <PageHeader
+        title="Settings"
+        summary={
+          <>
+            Saved to <span className="mono break-all text-ink-soft">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className={cn(TAG, 'align-[2px]', RESTART_TAG)}>restart</span> after the engine restarts.
+          </>
+        }
+      />
+      <div className="grid lg:grid-cols-[11rem_minmax(0,1fr)] gap-x-8">
+        <SectionSideNav items={NAV} label="Settings sections" />
+        {/* a section jumped to stops clear of the sticky bar above it, taller where the row of sections rides in it (the
+            parent's rule outranks each card's own scroll margin) */}
+        <div className="min-w-0 space-y-4 [&>section]:scroll-mt-28 lg:[&>section]:scroll-mt-16">
+          {/* the save bar follows you down the page: settings are long and the change you just made is at the bottom. On a
+              phone or a tablet the sections ride in it too, as the side list's row of chips */}
+          <div className="sticky top-0 z-20 bg-page border-b border-line">
+            <SectionChipNav items={NAV} label="Settings sections" inBar />
+            <div className="py-2.5 flex items-center gap-2">
+              <span className="text-[13px] text-ink-faint mr-auto">{changed.length ? <><b className="mono font-bold text-ink">{changed.length}</b> unsaved</> : 'no changes'}</span>
+              <Button size="sm" variant="ghost" disabled={!changed.length || busy} onClick={() => setDraft(structuredClone(view.values))}>
+                Discard
+              </Button>
+              <Button size="sm" variant="primary" disabled={!changed.length || busy} onClick={save}>
+                {busy ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
           </div>
       {view.restartNeeded.length > 0 && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-200">
-          Restart the engine to apply: <span className="mono">{view.restartNeeded.join(', ')}</span> — stop it (Ctrl-C) and run <span className="mono">bun run serve</span> <CopyButton text="bun run serve" />
+        // the engine waits for you to restart it: on a plain panel, its sign square yellow with a thin yellow edge
+        <div className="flex items-start gap-2.5 rounded-lg bg-panel py-2.5 pl-4 pr-3 text-xs text-ink inset-ring inset-ring-line shadow-[inset_4px_0_0_var(--color-you)]">
+          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-you text-on-you" aria-hidden="true">
+            <RotateCcw size={13} strokeWidth={2.5} />
+          </span>
+          <span className="min-w-0 break-words pt-1">
+            <b className="font-bold">Restart the engine to apply:</b> <span className="mono">{view.restartNeeded.join(', ')}</span> — stop it (Ctrl-C) and run <span className="mono">bun run serve</span> <CopyButton text="bun run serve" />
+          </span>
         </div>
       )}
-      {msg && <div className="rounded-md border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-200">{msg}</div>}
-      {err && <div className="rounded-md border border-rose-500/40 bg-rose-500/5 px-3 py-2 text-xs text-rose-300">{err}</div>}
+      {msg && (
+        <div className="flex items-start gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink">
+          <Check size={13} className="mt-px shrink-0 text-ok-ink" aria-hidden="true" />
+          {msg}
+        </div>
+      )}
+      {/* a failure in red words with its mark, on a plain box: no red panel */}
+      {err && (
+        <div className="flex items-start gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-xs text-bad-ink">
+          <XCircle size={13} className="mt-px shrink-0" aria-hidden="true" />
+          <span className="min-w-0 break-words">{err}</span>
+        </div>
+      )}
 
-      <Card id="goals" title={<>New goal defaults<HelpLink to="settings#new-goal-defaults" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="goals" title={<SettingsTitle id="goals">New goal defaults<HelpLink to="settings#new-goal-defaults" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-4">
           {grid(
             <>
@@ -385,8 +421,8 @@ export function SettingsPage() {
             </>,
           )}
           {bool('reviews.alwaysReviewTasks', 'Review every task', 'Run the lightweight task reviewer even when the Brief defined no reviewer check for the task (thorough pace only).')}
-          <div className="border-t border-zinc-800 pt-4">
-            <div className="text-xs text-zinc-300 mb-2">Delivery — what happens to the branch when a goal finishes</div>
+          <div className="border-t border-line pt-4">
+            <div className="text-sm font-bold text-ink mb-3">Delivery — what happens to the branch when a goal finishes</div>
             {grid(
               <>
                 <Field label="Mode for new goals" aside={aside('delivery.defaultMode')}>
@@ -412,18 +448,18 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="models" title={<>Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="models" title={<SettingsTitle id="models">Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <ProviderSelector className="mb-5" value={modelProvider} onChange={setModelProvider} controls={{ claude: 'models-claude', codex: 'models-codex', agy: 'models-agy' }} />
         <div id="models-codex" role="region" aria-label="Codex models" hidden={modelProvider !== 'codex'}>
           <CodexModelPresetsSection draft={draft} setFields={(patch) => setDraft((previous) => previous ? { ...previous, models: { ...previous.models, ...patch } } : previous)} />
         </div>
         <div id="models-agy" role="region" aria-label="Antigravity models" hidden={modelProvider !== 'agy'}>
           <AgyModelsSection model={String(get(draft, 'models.agyModel') ?? 'agy-default')} effort={String(get(draft, 'models.agyEffort') ?? 'high')} onModel={(value) => set('models.agyModel', value)} onEffort={(value) => set('models.agyEffort', value)} />
-          <p className="mt-2 text-[11px] text-zinc-500">Antigravity reports tokens, not dollars: goals on it keep time, attempt and concurrency limits, never a USD budget. No presets, no fallback order: an unknown model fails the session outright.</p>
+          <p className="mt-2 text-[11px] text-ink-faint">Antigravity reports tokens, not dollars: goals on it keep time, attempt and concurrency limits, never a USD budget. No presets, no fallback order: an unknown model fails the session outright.</p>
         </div>
         <div id="models-claude" role="region" aria-label="Claude Code models" hidden={modelProvider !== 'claude'}>
         <ModelPresetsSection draft={draft} set={set as (p: `models.${string}`, v: unknown) => void} known={known} reloadModels={loadModels} />
-        <div className="border-t border-zinc-800 mt-5 pt-4 mb-3">
+        <div className="border-t border-line mt-5 pt-4 mb-3">
           <SectionTitle>Other models</SectionTitle>
         </div>
         {grid(
@@ -439,10 +475,10 @@ export function SettingsPage() {
             </div>
           </>,
         )}
-        <p className="text-[11px] text-zinc-500 mt-3">The list is what this machine has seen resolve (family aliases follow the latest release through Claude Code; a full model id pins a version). A new family is one custom entry away — after its first session it shows up here with its resolved id. Preset changes reach running goals too, at their next session.</p>
+        <p className="text-[11px] text-ink-faint mt-3">The list is what this machine has seen resolve (family aliases follow the latest release through Claude Code; a full model id pins a version). A new family is one custom entry away — after its first session it shows up here with its resolved id. Preset changes reach running goals too, at their next session.</p>
         </div>
-        <div className="border-t border-zinc-800 mt-4 pt-4">
-          <div className="text-xs text-zinc-300 mb-2">Limits — what one session may spend before the engine stops it</div>
+        <div className="border-t border-line mt-4 pt-4">
+          <div className="text-sm font-bold text-ink mb-3">Limits — what one session may spend before the engine stops it</div>
           {grid(
             <>
               {<Field label="Claude cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
@@ -467,8 +503,9 @@ export function SettingsPage() {
                 {num('engine.maxConcurrent', { min: 1, max: 16 })}
               </Field>
               <Field label="Account switch on a usage limit" help="With several accounts of a coding agent, new sessions can move to the next one when the current one's usage limit stops a session. It is turned on per coding agent on the Accounts page, which says first what the provider's terms say about it.">
-                <p className="text-xs text-zinc-300">
-                  Claude Code {get(draft, 'accounts.autoSwitchClaude') ? 'on' : 'off'} · Codex {get(draft, 'accounts.autoSwitchCodex') ? 'on' : 'off'} — <Link className="underline text-emerald-400" to="/accounts">change on Accounts</Link>
+                {/* each switch's state in its colour: on green, off plain */}
+                <p className="text-xs text-ink-soft">
+                  Claude Code <b className={get(draft, 'accounts.autoSwitchClaude') ? 'text-ok-ink' : 'font-semibold text-ink-faint'}>{get(draft, 'accounts.autoSwitchClaude') ? 'on' : 'off'}</b> · Codex <b className={get(draft, 'accounts.autoSwitchCodex') ? 'text-ok-ink' : 'font-semibold text-ink-faint'}>{get(draft, 'accounts.autoSwitchCodex') ? 'on' : 'off'}</b> — <Link className="underline text-work-ink" to="/accounts">change on Accounts</Link>
                 </p>
               </Field>
             </>,
@@ -476,11 +513,11 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="skills" title={<>Skills<HelpLink to="settings#skills" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="skills" title={<SettingsTitle id="skills">Skills<HelpLink to="settings#skills" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-4">
           <div>
             <ProviderSelector value={modelProvider} onChange={setModelProvider} />
-            <p className="mt-1 text-[11px] text-zinc-500">Installation status and actions target the selected agent. Workflow pack choices are shared by both agents.</p>
+            <p className="mt-1 text-[11px] text-ink-faint">Installation status and actions target the selected agent. Workflow pack choices are shared by both agents.</p>
           </div>
           {grid(
             <>
@@ -493,32 +530,32 @@ export function SettingsPage() {
           {bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). Uses .claude/skills for Claude and .agents/skills for Codex and Antigravity. The generated CLAUDE.md is restored and the skills are git-excluded.')}
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs text-zinc-300">Design skills</span>
+              <span className="text-sm font-bold text-ink">Design skills</span>
               <span className="ml-auto flex items-center gap-1.5">{aside('workflow.designPack')}</span>
             </div>
             <DesignPacks key={`${modelProvider}:design`} provider={modelProvider} compact />
-            <p className="text-[11px] text-zinc-500 mt-1.5">Choosing a pack saves immediately; only that pack is shown to sessions working on frontend / fullstack tasks.</p>
+            <p className="text-[11px] text-ink-faint mt-1.5">Choosing a pack saves immediately; only that pack is shown to sessions working on frontend / fullstack tasks.</p>
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs text-zinc-300">Image skills</span>
+              <span className="text-sm font-bold text-ink">Image skills</span>
               <span className="ml-auto flex items-center gap-1.5">{aside('workflow.imagePack')}</span>
             </div>
             <DesignPacks key={`${modelProvider}:image`} provider={modelProvider} compact pack="image" />
-            <p className="text-[11px] text-zinc-500 mt-1.5">Mandated to workers on image tasks (scenario `image`). The pack only generates when a key is set under Tools &amp; keys.</p>
+            <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on image tasks (scenario `image`). The pack only generates when a key is set under Tools &amp; keys.</p>
           </div>
           <div>
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="text-xs text-zinc-300">Video skills</span>
+              <span className="text-sm font-bold text-ink">Video skills</span>
               <span className="ml-auto flex items-center gap-1.5">{aside('workflow.videoPack')}</span>
             </div>
             <DesignPacks key={`${modelProvider}:video`} provider={modelProvider} compact pack="video" />
-            <p className="text-[11px] text-zinc-500 mt-1.5">Mandated to workers on video tasks (scenario `video`).</p>
+            <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on video tasks (scenario `video`).</p>
           </div>
         </div>
       </Card>
 
-      <Card id="git" title={<>Git &amp; delivery<HelpLink to="settings#git--delivery" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="git" title={<SettingsTitle id="git">Git &amp; delivery<HelpLink to="settings#git--delivery" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-3">
           {bool('sync.fetchBeforeGoal', 'Fetch the base branch before a goal starts', 'Only remote-tracking refs are updated — your checkout is never touched. The Clarifier explores, and the goal branch starts from, the freshest tip.')}
           {grid(
@@ -541,8 +578,8 @@ export function SettingsPage() {
           {bool('sync.refreshBetweenTasks', 'Refresh between tasks', 'When nothing is running, fetch again and merge a moved base branch into the goal branch (conflicts go to a Merge Attempt). Useful for long goals on busy repositories; off by default because mid-goal merges can surprise workers.')}
           {bool('delivery.updateLocalBase', 'Update my local base branch after a merge', 'When a pull request merges, Foundry fetches and fast-forwards your local base branch (only when that is safe: no uncommitted changes, no commits of your own on it), then removes the goal\'s progress folder, worktrees and local branches. Screenshots and the goal itself stay.')}
           <div className="pt-1 space-y-2">
-            <div className="text-xs text-zinc-300">Deploy — a finished web app to a host</div>
-            <p className="text-[11px] text-zinc-500">For a goal's web page or all-in-one web app (never a worker or a separate backend): its Delivery tab deploys it on your click, a preview unless you ask for production. The tokens are kept by the engine only and never handed to a coding session.</p>
+            <div className="text-sm font-bold text-ink">Deploy — a finished web app to a host</div>
+            <p className="text-[11px] text-ink-faint">For a goal's web page or all-in-one web app (never a worker or a separate backend): its Delivery tab deploys it on your click, a preview unless you ask for production. The tokens are kept by the engine only and never handed to a coding session.</p>
             {grid(
               <>
                 <Field label="Vercel token" aside={aside('delivery.vercelToken')} help="vercel.com → Account Settings → Tokens. Scope it to the team you deploy to.">
@@ -567,7 +604,7 @@ export function SettingsPage() {
             )}
           </div>
           <details className="pt-1">
-            <summary className="text-xs text-zinc-400 cursor-pointer">Delivery timings (advanced)</summary>
+            <summary className="text-xs font-semibold text-ink-soft hover:text-ink cursor-pointer">Delivery timings (advanced)</summary>
             <div className="mt-3">
               {grid(
                 <>
@@ -590,7 +627,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="tools" title={<>Tools &amp; keys<HelpLink to="settings#tools--keys" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="tools" title={<SettingsTitle id="tools">Tools &amp; keys<HelpLink to="settings#tools--keys" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-3">
           {bool('tools.useGraphify', 'Use graphify for relevant-file discovery', 'When the graphify CLI is installed, sessions get a code-graph based context instead of grep.')}
           {grid(
@@ -625,9 +662,9 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="preview" title={<>Preview &amp; self-check<HelpLink to="settings#preview--self-check" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="preview" title={<SettingsTitle id="preview">Preview &amp; self-check<HelpLink to="settings#preview--self-check" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-3">
-          <p className="text-xs text-zinc-400">At a milestone, and on request from a goal's page, the engine starts the goal's dev server in its progress folder and links you to it. With the self-check on, it also opens that preview in headless Chromium after every task lands, takes a screenshot and fails the goal's must checks on console or network errors.</p>
+          <p className="text-xs text-ink-faint">At a milestone, and on request from a goal's page, the engine starts the goal's dev server in its progress folder and links you to it. With the self-check on, it also opens that preview in headless Chromium after every task lands, takes a screenshot and fails the goal's must checks on console or network errors.</p>
           {grid(
             <>
               <Field label="First port" aside={aside('preview.portFrom')} help="Previews take the first free port in this range.">
@@ -646,9 +683,9 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="notifications" title={<>Notifications<HelpLink to="settings#notifications" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="notifications" title={<SettingsTitle id="notifications">Notifications<HelpLink to="settings#notifications" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-4">
-          <p className="text-[11px] text-zinc-500">Get pinged outside the app the moment a goal needs you or finishes. Every enabled event goes to every configured channel; leave a channel's fields empty to keep it off.</p>
+          <p className="text-xs text-ink-faint">Get pinged outside the app the moment a goal needs you or finishes. Every enabled event goes to every configured channel; leave a channel's fields empty to keep it off.</p>
           {grid(
             <>
               <Field label="Telegram bot token" aside={aside('notifications.telegramBotToken')} help="Create a bot with @BotFather in Telegram and paste its token here.">
@@ -697,13 +734,13 @@ export function SettingsPage() {
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => sendTestNotification({ telegramBotToken: draft.notifications.telegramBotToken, telegramChatId: draft.notifications.telegramChatId, discordWebhookUrl: draft.notifications.discordWebhookUrl, discordBotToken: draft.notifications.discordBotToken })} title="Sends a test message with the values above (saved or not)">
               Send test message
             </Button>
-            {notifMsg && <span className={cn('text-[11px]', notifMsg.includes('✘') ? 'text-amber-300' : 'text-zinc-400')}>{notifMsg}</span>}
+            {notifMsg && <span className={cn('text-[11px] font-semibold', TONE_INK[toneOf(notifMsg)])}>{notifMsg}</span>}
           </div>
         </div>
       </Card>
 
       <AccessCard />
-      <Card id="safety" title={<>Safety<HelpLink to="settings#safety" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="safety" title={<SettingsTitle id="safety">Safety<HelpLink to="settings#safety" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         {grid(
           <>
             <Field label="Extra boundary patterns" aside={aside('safety.extraBoundaryPatterns')} help="Additional ERE patterns the boundary hook blocks, '|'-separated (e.g. `terraform apply|kubectl`).">
@@ -719,7 +756,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="engine" title={<>Engine (install)<HelpLink to="settings#engine-install" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="engine" title={<SettingsTitle id="engine">Engine (install)<HelpLink to="settings#engine-install" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         {grid(
           <>
             <Field label="Port" aside={aside('engine.port')} help="HTTP port of the local server and of the boundary hook callback.">
@@ -729,7 +766,11 @@ export function SettingsPage() {
               {text('engine.host')}
             </Field>
             <Field label="Default coding agent" help="Default for new goals in this data directory. Choose any coding agent on New goal; existing goals keep theirs.">
-              <div className="text-sm">{PROVIDER_LABEL[draft.engine.provider]}</div>
+              {/* the coding agent in its own colour and icon, as everywhere it is named */}
+              <div className={cn('inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm font-semibold', agent.chip)}>
+                <agent.Icon size={14} strokeWidth={2} aria-hidden="true" />
+                {PROVIDER_LABEL[draft.engine.provider]}
+              </div>
             </Field>
             {<>
               <Field label="Codex binary" aside={aside('engine.codexBin')} help="Empty = codex on PATH.">{text('engine.codexBin', 'codex', true)}</Field>
@@ -748,39 +789,45 @@ export function SettingsPage() {
         )}
       </Card>
 
-      <Card id="about" title={<>About & updates<HelpLink to="settings#about--updates" className="ml-1.5" /></>} className="scroll-mt-16">
+      <AppearanceCard />
+
+      <Card id="about" title={<SettingsTitle id="about">About & updates<HelpLink to="settings#about--updates" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-3">
           <div className="flex items-center gap-3 flex-wrap text-sm">
-            <span className="text-zinc-200">
+            <span className="font-bold text-ink">
               Foundry <span className="mono">{upd?.current ?? '…'}</span>
             </span>
-            {upd && <span className="text-[10px] uppercase tracking-wide rounded px-1 py-px border text-zinc-500 border-zinc-800">{upd.capability.mode} install</span>}
+            {upd && <span className={cn(TAG, 'text-ink-faint inset-ring-line')}>{upd.capability.mode} install</span>}
             {upd?.updateAvailable ? (
               <Button size="sm" variant="primary" onClick={() => setUpdOpen(true)}>
                 Update to {upd.latest}
               </Button>
             ) : (
-              upd?.checkedAt && <span className="text-[11px] text-zinc-500">up to date · checked {new Date(upd.checkedAt).toLocaleString()}</span>
+              upd?.checkedAt && (
+                <span className="text-[11px] text-ink-faint">
+                  <InstallState tone="ok">up to date</InstallState> · checked <span className="mono">{new Date(upd.checkedAt).toLocaleString()}</span>
+                </span>
+              )
             )}
             <Button size="sm" variant="ghost" disabled={updBusy} onClick={checkUpdate} title="Asks the release registry for the newest version right now (the engine also checks once a day)">
               {updBusy ? 'Checking…' : 'Check now'}
             </Button>
           </div>
-          {upd?.error && <p className="text-[11px] text-amber-300">✘ {upd.error}</p>}
+          {upd?.error && <p className="text-[11px] text-bad-ink">✘ {upd.error}</p>}
           {upd?.updateAvailable && upd.changelog.length > 0 && (
-            <div className="max-h-40 overflow-auto rounded-md border border-zinc-800 bg-zinc-900/40 p-3 space-y-2">
+            <div className="max-h-40 overflow-auto rounded-md border border-line bg-sunken p-3 space-y-2">
               {upd.changelog.map((c) => (
                 <div key={c.version}>
-                  <div className="text-xs font-semibold text-zinc-200 mono">{c.version}</div>
-                  <div className="text-[11px] text-zinc-400 whitespace-pre-wrap mt-0.5">{c.notes || '(no notes)'}</div>
+                  <div className="text-xs font-bold text-ink mono">{c.version}</div>
+                  <div className="text-[11px] text-ink-soft whitespace-pre-wrap mt-0.5">{c.notes || '(no notes)'}</div>
                 </div>
               ))}
             </div>
           )}
-          <p className="text-[11px] text-zinc-500">Updates never interrupt running agents: new sessions stop first and active ones finish before the restart (unless you force it in the update dialog).</p>
-          <p className="text-[11px] text-zinc-500">
+          <p className="text-[11px] text-ink-faint">Updates never interrupt running agents: new sessions stop first and active ones finish before the restart (unless you force it in the update dialog).</p>
+          <p className="text-[11px] text-ink-faint">
             Foundry is built on open-source software:{' '}
-            <Link to="/credits" className="underline hover:text-zinc-300">
+            <Link to="/credits" className="underline hover:text-ink">
               Open source credits
             </Link>
             , with the license notices of everything the Docker image ships.
@@ -814,11 +861,11 @@ function CodeServerInstall() {
     return () => clearInterval(poll);
   }, [running]);
   return (
-    <div className="text-xs text-zinc-400 space-y-2 border-t border-zinc-800 pt-3">
-      <div className="text-zinc-200">VS Code in the browser (code-server)</div>
-      <p className="text-[11px] text-zinc-500">Open ▾ → <b>VS Code (web)</b> opens a repository or a goal's folder in VS Code in a browser tab, also on your phone over Tailscale. It starts when first used, listens on this computer only behind a password the menu shows, and stops after two idle hours.</p>
+    <div className="text-xs text-ink-soft space-y-2 border-t border-line pt-3">
+      <div className="text-sm font-bold text-ink">VS Code in the browser (code-server)</div>
+      <p className="text-[11px] text-ink-faint">Open ▾ → <b>VS Code (web)</b> opens a repository or a goal's folder in VS Code in a browser tab, also on your phone over Tailscale. It starts when first used, listens on this computer only behind a password the menu shows, and stops after two idle hours.</p>
       <div className="flex items-center gap-2 flex-wrap">
-        <span className={st?.installed ? 'text-emerald-300' : 'text-amber-300'}>{st ? (st.installed ? `installed${st.running ? ' · running' : ''}` : 'not installed') : '…'}</span>
+        <InstallState tone={!st ? 'work' : st.installed ? 'ok' : 'none'}>{st ? (st.installed ? `installed${st.running ? ' · running' : ''}` : 'not installed') : '…'}</InstallState>
         {st && !st.installed && (
           <Button
             size="sm"
@@ -839,7 +886,7 @@ function CodeServerInstall() {
           </Button>
         )}
       </div>
-      {error && <div className="text-[11px] text-rose-300">Could not start the install: {error}</div>}
+      {error && <div className="text-[11px] text-bad-ink">Could not start the install: {error}</div>}
       {running && <LiveLog attemptId="tool-install" className="max-h-40" />}
     </div>
   );
@@ -854,10 +901,11 @@ function PlaywrightInstall() {
     void load();
   }, []);
   return (
-    <div className="text-xs text-zinc-400 space-y-2">
+    <div className="text-xs text-ink-soft space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className={st?.browser ? 'text-emerald-300' : 'text-amber-300'}>{st ? (st.browser ? 'Chromium installed' : st.installed ? 'Chromium not downloaded yet' : 'Playwright unavailable') : '…'}</span>
-        {st && <span className="text-zinc-500">{st.detail}</span>}
+        {/* Playwright ships with Foundry, so its absence is a fault; a browser not downloaded yet is only not there yet */}
+        <InstallState tone={!st ? 'work' : st.browser ? 'ok' : st.installed ? 'none' : 'bad'}>{st ? (st.browser ? 'Chromium installed' : st.installed ? 'Chromium not downloaded yet' : 'Playwright unavailable') : '…'}</InstallState>
+        {st && <span className="text-ink-faint">{st.detail}</span>}
         {st && !st.browser && (
           <Button
             size="sm"
