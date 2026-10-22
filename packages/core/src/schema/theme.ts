@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 /**
- * A Theme (ADR-0066): how the web UI looks — its colours in light and dark mode, its fonts and the shape of its corners.
- * Two are built in; anyone can add their own as a JSON file in the data folder's `themes/`. Every value is checked to be
- * exactly a colour, a font list, a number or an https address, so a theme file can change how Foundry looks and nothing else.
+ * A Theme (ADR-0066, ADR-0067): how the web UI looks — its colours in light and dark mode, its fonts, the shape of its
+ * corners and its layout. Three are built in; anyone can add their own as a JSON file in the data folder's `themes/`.
+ * Every value is checked to be exactly a colour, a font list, a number, an https address or one of a few named choices,
+ * so a theme file can change how Foundry looks and nothing else.
  */
 
 const Hex = z.string().regex(/^#(?:[0-9a-fA-F]{3}){1,2}$/, 'a colour is written #rgb or #rrggbb, e.g. #1f2933');
@@ -28,6 +29,12 @@ export const ThemePalette = z
     ok: colour('Done, passing, merged, added lines').optional(),
     bad: colour('Failed, errors, danger, removed lines').optional(),
     extra: colour('Reviews, merges and other categories that need telling apart. Default: work').optional(),
+    codes: z
+      .array(Hex)
+      .min(1)
+      .max(8)
+      .describe('Up to eight colours that tell things of a kind apart, never a state: the Brief\'s sections, Areas, extension sources, credits. Fewer than eight repeat. Default: eight hues that read in this mode')
+      .optional(),
   })
   .strict();
 export type ThemePalette = z.infer<typeof ThemePalette>;
@@ -41,6 +48,7 @@ const FontList = z
 export const ThemeFonts = z
   .object({
     sans: FontList.describe('Text: a CSS font-family list, e.g. "Inter", ui-sans-serif, sans-serif').optional(),
+    display: FontList.describe('Page titles and other large headings: a CSS font-family list. Default: the text font').optional(),
     mono: FontList.describe('Numbers, times, paths and code: a CSS font-family list').optional(),
     stylesheets: z
       .array(z.string().max(500).regex(/^https:\/\/[^\s"'()<>\\]+$/, 'a stylesheet is an https:// address'))
@@ -60,6 +68,19 @@ export const ThemeShape = z
   .strict();
 export type ThemeShape = z.infer<typeof ThemeShape>;
 
+/** How the pages are laid out (ADR-0067): a few named choices, each left out taking Wayfinding's. */
+export const ThemeLayout = z
+  .object({
+    nav: z.enum(['top', 'side']).describe('Where the main navigation sits on a wide screen: top = a bar across the top; side = a column down the left. Phones always get the bar').optional(),
+    header: z.enum(['poster', 'compact']).describe("A page's title: poster = very large type; compact = a modest title line").optional(),
+    stages: z.enum(['plates', 'steps']).describe("A goal's five stages: plates = large leaning plates; steps = a numbered line of steps").optional(),
+    labels: z.enum(['caps', 'small-caps', 'plain']).describe('Card titles and small labels: caps = CAPITALS, letter-spaced; small-caps = small capitals; plain = as written').optional(),
+    signs: z.enum(['strip', 'card']).describe('What waits for you: strip = a band in the you colour; card = a card with an edge in the you colour').optional(),
+    surface: z.enum(['raised', 'flat']).describe('Cards and boards: raised = a soft shadow under them; flat = hairlines only').optional(),
+  })
+  .strict();
+export type ThemeLayout = z.infer<typeof ThemeLayout>;
+
 export const Theme = z
   .object({
     $schema: z.string().optional(),
@@ -67,6 +88,7 @@ export const Theme = z
     description: z.string().max(200).describe('One line under the name').optional(),
     fonts: ThemeFonts.optional(),
     shape: ThemeShape.optional(),
+    layout: ThemeLayout.optional(),
     light: ThemePalette.describe('Colours in light mode'),
     dark: ThemePalette.describe('Colours in dark mode'),
   })

@@ -13,4 +13,5 @@ export * from './machine/schedule.ts';
 export * from './machine/calibration.ts';
 export * from './theme/palette.ts';
 export * from './theme/builtins.ts';
+export * from './theme/layout.ts';
 export * from './guide-anchor.ts';

@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { Theme, parseTheme } from '../schema/theme.ts';
 import { BUILTIN_THEMES, CLASSIC, WAYFINDING } from './builtins.ts';
 import { contrast, mix, readable } from './color.ts';
-import { entryCss, fillPalette, paletteVars, themeCss } from './palette.ts';
+import { DEFAULT_LAYOUT, layoutOf } from './layout.ts';
+import { CODE_COUNT, entryCss, fillPalette, paletteVars, themeCss } from './palette.ts';
 
 /** the declarations of one block of a generated stylesheet, by variable name */
 const blockOf = (css: string, selector: string): Record<string, string> => {
@@ -123,6 +124,41 @@ describe('the generated stylesheet', () => {
   test('font stylesheets are imported first', () => {
     const css = themeCss({ ...minimal, fonts: { sans: '"Inter", sans-serif', stylesheets: ['https://fonts.googleapis.com/css2?family=Inter'] } });
     expect(css.split('\n')[0]).toBe('@import url("https://fonts.googleapis.com/css2?family=Inter");');
+  });
+  test('a display font for the titles comes through when a theme names one', () => {
+    expect(blockOf(themeCss({ ...minimal, fonts: { display: '"Fraunces", serif' } }), ':root:root')['--font-display']).toBe('"Fraunces", serif');
+    expect(dark['--font-display']).toBeUndefined();
+  });
+  test('eight category colours, each readable as text on the panels and the page, in both modes', () => {
+    for (const [block, mode] of [[light, 'light'], [dark, 'dark']] as const) {
+      const p = WAYFINDING[mode];
+      for (let i = 1; i <= CODE_COUNT; i++) {
+        expect(block[`--color-code-${i}`]).toBe(p.codes![i - 1]!);
+        expect(contrast(block[`--color-code-${i}-ink`]!, p.panel)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(block[`--color-code-${i}-ink`]!, p.page)).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(block[`--color-on-code-${i}`]!, block[`--color-code-${i}`]!)).toBeGreaterThanOrEqual(3);
+      }
+    }
+  });
+  test('a theme without category colours gets eight that read; a shorter list repeats', () => {
+    expect(fillPalette(minimal.dark, 'dark').codes).toHaveLength(CODE_COUNT);
+    expect(fillPalette({ ...minimal.light, codes: ['#aa0000', '#00aa00', '#0000aa'] }, 'light').codes).toEqual(['#aa0000', '#00aa00', '#0000aa', '#aa0000', '#00aa00', '#0000aa', '#aa0000', '#00aa00']);
+    expect(Theme.safeParse({ ...minimal, light: { ...minimal.light, codes: Array(9).fill('#123456') } }).success).toBe(false);
+  });
+});
+
+describe('layout', () => {
+  test("what a theme leaves out of its layout is Wayfinding's", () => {
+    expect(layoutOf(minimal as Theme)).toEqual(DEFAULT_LAYOUT);
+    expect(layoutOf({ ...minimal, layout: { nav: 'side' } } as Theme)).toEqual({ ...DEFAULT_LAYOUT, nav: 'side' });
+    expect(layoutOf(WAYFINDING)).toEqual(DEFAULT_LAYOUT);
+  });
+  test('Classic lays the pages out as Foundry did before themes', () => {
+    expect(layoutOf(CLASSIC)).toEqual({ nav: 'top', header: 'compact', stages: 'steps', labels: 'plain', signs: 'card', surface: 'flat' });
+  });
+  test('only the named choices get in, and a wrong one is said in words', () => {
+    expect(parseTheme(JSON.stringify({ ...minimal, layout: { nav: 'bottom' } }))).toEqual({ error: expect.stringContaining('layout.nav') });
+    expect(parseTheme(JSON.stringify({ ...minimal, layout: { grid: 'masonry' } }))).toEqual({ error: 'layout.grid: not a theme setting' });
   });
 });
 

@@ -13,10 +13,19 @@ const SIGNAL_DEFAULTS: Record<'light' | 'dark', Record<Exclude<Signal, 'extra'>,
   dark: { you: '#fbbf24', work: '#60a5fa', ok: '#34d399', bad: '#fb7185' },
 };
 
+/** how many category colours a palette has (ADR-0067): a theme's list repeats up to it */
+export const CODE_COUNT = 8;
+/** the category colours of a palette that leaves them out: blue, green, violet, orange, pink, teal, magenta, lime */
+const CODE_DEFAULTS: Record<'light' | 'dark', string[]> = {
+  light: ['#2563eb', '#059669', '#7c3aed', '#ea580c', '#db2777', '#0d9488', '#c026d3', '#65a30d'],
+  dark: ['#60a5fa', '#34d399', '#a78bfa', '#fb923c', '#f472b6', '#2dd4bf', '#e879f9', '#a3e635'],
+};
+
 export function fillPalette(p: ThemePalette, mode: 'light' | 'dark'): Palette {
   const d = SIGNAL_DEFAULTS[mode];
   const inset = p.inset ?? mix(p.page, p.panel, 0.5);
   const work = p.work ?? d.work;
+  const codes = p.codes ?? CODE_DEFAULTS[mode];
   return {
     page: p.page,
     panel: p.panel,
@@ -34,6 +43,7 @@ export function fillPalette(p: ThemePalette, mode: 'light' | 'dark'): Palette {
     ok: p.ok ?? d.ok,
     bad: p.bad ?? d.bad,
     extra: p.extra ?? work,
+    codes: Array.from({ length: CODE_COUNT }, (_, i) => codes[i % codes.length]!),
   };
 }
 
@@ -85,9 +95,10 @@ const FAMILIES: Record<string, Signal> = {
 };
 
 /**
- * The CSS variables of one palette: the theme's own names (bg-page, text-ink-soft, bg-you, text-on-you, text-you-ink…)
- * and Tailwind's colour ramps the app's classes are written in, pointed at the theme: zinc runs from page to ink, each
- * colour family takes its signal — light steps for text, the middle for fills, dark steps toward the panel for tints.
+ * The CSS variables of one palette: the theme's own names (bg-page, text-ink-soft, bg-you, text-on-you, text-you-ink,
+ * bg-code-3, text-code-3-ink…) and Tailwind's colour ramps the app's classes are written in, pointed at the theme: zinc
+ * runs from page to ink, each colour family takes its signal — light steps for text, the middle for fills, dark steps
+ * toward the panel for tints.
  */
 export function paletteVars(p: Palette): Record<string, string> {
   const on = (fill: string) => bestOn(fill, [p.page, p.panel, p.ink]);
@@ -117,6 +128,11 @@ export function paletteVars(p: Palette): Record<string, string> {
     v[`on-${s}`] = on(p[s]);
     v[`${s}-ink`] = text(p[s]);
   }
+  p.codes.forEach((c, i) => {
+    v[`code-${i + 1}`] = c;
+    v[`on-code-${i + 1}`] = on(c);
+    v[`code-${i + 1}-ink`] = text(c);
+  });
   const zinc: Record<number, string> = { 50: p.ink, 100: p.ink, 200: mix(p.inkSoft, p.ink, 0.75), 300: mix(p.inkSoft, p.ink, 0.5), 400: p.inkSoft, 500: p.inkFaint, 600: mix(p.inkFaint, p.lineStrong, 0.5), 700: p.lineStrong, 800: p.line, 900: p.panel, 950: p.page };
   for (const [k, c] of Object.entries(zinc)) v[`zinc-${k}`] = c;
   for (const [family, s] of Object.entries(FAMILIES)) {
@@ -141,6 +157,7 @@ export function themeCss(theme: Theme): string {
   const grain = theme.shape?.texture === 'grain';
   const shared = [
     ...(theme.fonts?.sans ? [`--font-sans:${theme.fonts.sans}`] : []),
+    ...(theme.fonts?.display ? [`--font-display:${theme.fonts.display}`] : []),
     ...(theme.fonts?.mono ? [`--font-mono:${theme.fonts.mono}`] : []),
     `--radius-xs:${px(r / 4)}`,
     `--radius-sm:${px(r / 2)}`,
