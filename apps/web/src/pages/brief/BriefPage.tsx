@@ -229,17 +229,17 @@ export function BriefPage() {
   // a section is flagged only while the Brief can still change: an approved one waits for nothing
   const navItems: BriefNavItem[] = [
     { id: 'brief-understanding', label: 'Understanding' },
-    ...(asked.length ? [{ id: 'brief-questions', label: 'Questions', status: blockingUnanswered.length ? `${blockingUnanswered.length} blocking` : `${answered}/${asked.length}`, warn: editable && blockingUnanswered.length > 0 }] : []),
-    ...(subjectsCard ? [{ id: 'brief-subjects', label: 'Looks like', status: searching.length ? 'searching' : subjects.length ? String(subjects.length) : null }] : []),
+    ...(asked.length ? [{ id: 'brief-questions', label: 'Questions', status: blockingUnanswered.length ? `${blockingUnanswered.length} blocking` : `${answered}/${asked.length}`, warn: editable && blockingUnanswered.length > 0, ...(answered === asked.length ? { tone: 'ok' as const } : {}) }] : []),
+    ...(subjectsCard ? [{ id: 'brief-subjects', label: 'Looks like', status: searching.length ? 'searching' : subjects.length ? String(subjects.length) : null, ...(searching.length ? { tone: 'work' as const } : {}) }] : []),
     { id: 'brief-assumptions', label: 'Assumptions', status: brief.assumptions.length ? `${brief.assumptions.filter((a) => a.accepted).length}/${brief.assumptions.length}` : null },
     ...(decisions.length || editable ? [{ id: 'brief-decisions', label: 'Decisions', status: pending.length ? `${pending.length} to apply` : decisions.length ? String(decisions.length) : null, warn: editable && pending.length > 0 }] : []),
     // while the planner works every Area is still empty: nothing to warn about yet
     { id: 'brief-areas', label: 'Areas', status: gaps.length && !skeleton ? `${gaps.length} empty` : String(brief.areas.length), warn: editable && !skeleton && gaps.length > 0 },
-    { id: 'brief-plan', label: 'Plan', status: skeleton ? 'planning…' : `${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'}`, warn: editable && !skeleton && (!graph.ok || badTasks.length > 0) },
+    { id: 'brief-plan', label: 'Plan', status: skeleton ? 'planning…' : `${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'}`, warn: editable && !skeleton && (!graph.ok || badTasks.length > 0), ...(skeleton ? { tone: 'work' as const } : {}) },
     { id: 'brief-acceptance', label: 'Goal acceptance', status: String(goalChecks), warn: editable && badChecks.length > 0 },
     { id: 'brief-run', label: 'How to run it' },
     { id: 'brief-completion', label: 'Completion' },
-    { id: 'brief-budget', label: 'Estimate & budget', status: skeleton ? 'with the plan' : `${costAvailable ? `$${brief.costEstimateUsd} · ` : ''}${brief.timeEstimateMin}m`, warn: editable && !skeleton && (overCost || overTime) },
+    { id: 'brief-budget', label: 'Estimate & budget', status: skeleton ? 'with the plan' : `${costAvailable ? `${brief.costEstimateUsd} · ` : ''}${brief.timeEstimateMin}m`, warn: editable && !skeleton && (overCost || overTime), ...(skeleton ? { tone: 'work' as const } : {}) },
   ];
   const sec = 'scroll-mt-14 lg:scroll-mt-4';
 

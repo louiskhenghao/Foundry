@@ -519,13 +519,14 @@ export function NewGoalPage() {
   /** a branch's name for the menu, cut short where it would not fit beside its section */
   const short = (s: string) => (s.length > 12 ? `${s.slice(0, 11)}…` : s);
   // the menu: each section in its colour, with what it is set to; what only you can still give (the goal's text, its
-  // folder, a sign-in) on a yellow plate
+  // folder, a sign-in) on a yellow plate, a check under way in blue and one passed (the agent signed in, the folder
+  // ready) in green
   const navItems: NavSection[] = [
-    { id: SECTIONS.agent.id, label: 'Coding agent', dot: SECTIONS.agent.dot, ...(selectedAccount && !selectedAccount.installed ? { status: 'not installed', warn: true } : selectedAccount && !selectedAccount.status.loggedIn ? { status: 'sign in', warn: true } : { status: PROVIDER_LABEL[provider] }) },
+    { id: SECTIONS.agent.id, label: 'Coding agent', dot: SECTIONS.agent.dot, ...(selectedAccount && !selectedAccount.installed ? { status: 'not installed', warn: true } : selectedAccount && !selectedAccount.status.loggedIn ? { status: 'sign in', warn: true } : { status: PROVIDER_LABEL[provider], ...(selectedAccount ? { tone: 'ok' as const } : {}) }) },
     { id: SECTIONS.kind.id, label: 'Kind of goal', dot: SECTIONS.kind.dot, status: NATURES.find((n) => n.id === nature)?.label },
     { id: SECTIONS.view.id, label: 'How much to see', dot: SECTIONS.view.dot, status: mode === 'simple' ? 'Simple' : 'Expert' },
     { id: SECTIONS.goal.id, label: `1 · ${STEPS[0]}`, dot: SECTIONS.goal.dot, ...(prompt.trim() ? {} : { status: 'missing', warn: true }) },
-    { id: SECTIONS.repo.id, label: `2 · ${STEPS[1]}`, dot: SECTIONS.repo.dot, ...(!repoPath.trim() ? { status: 'missing', warn: true } : !repoInfo ? { status: 'checking…' } : !repoInfo.ok ? { status: 'not ready', warn: true } : { status: short(repoInfo.branch) }) },
+    { id: SECTIONS.repo.id, label: `2 · ${STEPS[1]}`, dot: SECTIONS.repo.dot, ...(!repoPath.trim() ? { status: 'missing', warn: true } : !repoInfo ? { status: 'checking…', tone: 'work' as const } : !repoInfo.ok ? { status: 'not ready', warn: true } : { status: short(repoInfo.branch), tone: 'ok' as const }) },
     { id: SECTIONS.budget.id, label: `3 · ${STEPS[2]}`, dot: SECTIONS.budget.dot, status: BUDGET_PRESETS[budget.preset].label },
     { id: SECTIONS.delivery.id, label: `4 · ${STEPS[3]}`, dot: SECTIONS.delivery.dot, status: DELIVERY_WORD[delivery.mode] },
     ...(advanced ? [{ id: SECTIONS.advanced.id, label: 'Skip Clarify', dot: SECTIONS.advanced.dot, status: auto ? 'on' : 'off' }] : []),

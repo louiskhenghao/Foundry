@@ -9,6 +9,8 @@ export interface NavSection {
   status?: string | null;
   /** the section needs attention: its status on a yellow plate */
   warn?: boolean;
+  /** how its status stands, in that signal colour: work under way (blue), a check passed (green), a problem (red) */
+  tone?: 'work' | 'ok' | 'bad';
   /** the section's category colour, a `bg-…` class (code(i).dot); grey when left out */
   dot?: string;
 }
@@ -16,10 +18,12 @@ export interface NavSection {
 /** the section's colour, as a small square before its name */
 const Dot = ({ dot }: { dot?: string }) => <span className={cn('h-2 w-2 shrink-0 rounded-[2px]', dot ?? 'bg-line-strong')} aria-hidden="true" />;
 
-/** how a section stands, in mono: on a yellow plate when it needs you (as the Overview tab's count), else quiet */
+const TONE = { work: 'font-semibold text-work-ink', ok: 'font-semibold text-ok-ink', bad: 'font-semibold text-bad-ink' };
+
+/** how a section stands, in mono: on a yellow plate when it needs you (as the Overview tab's count), in its signal colour when it has one, else quiet */
 function Status({ item, onAccent = false }: { item: NavSection; /** drawn on the chosen chip's accent fill */ onAccent?: boolean }) {
   if (!item.status) return null;
-  return <span className={cn('mono shrink-0 whitespace-nowrap text-[11px] leading-[1.125rem]', item.warn ? 'rounded-[5px] bg-you px-1.5 font-bold text-on-you' : onAccent ? 'text-on-accent/75' : 'text-ink-faint')}>{item.status}</span>;
+  return <span className={cn('mono shrink-0 whitespace-nowrap text-[11px] leading-[1.125rem]', item.warn ? 'rounded-[5px] bg-you px-1.5 font-bold text-on-you' : onAccent ? 'text-on-accent/75' : item.tone ? TONE[item.tone] : 'text-ink-faint')}>{item.status}</span>;
 }
 
 /**
