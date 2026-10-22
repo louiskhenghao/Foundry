@@ -27,6 +27,8 @@ export interface DagTask extends Task {
   unmeasured?: number;
   /** the model the latest worker session ran on (short name), once one ran */
   model?: string | null;
+  /** wall-clock minutes from its first attempt's start to now or its last session's end; null before it started */
+  minutes?: number | null;
   /** Brief mode: no run state yet — show this chip (the Area) instead of the state badge and attempt count */
   plain?: { label: string | null; color: string };
   /** a goal task: where its Delegated goal stands, once it exists */

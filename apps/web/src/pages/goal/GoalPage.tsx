@@ -25,6 +25,7 @@ import { DiffTab } from './DiffTab.tsx';
 import { OverviewTab } from './OverviewTab.tsx';
 import { TimelineTab } from './TimelineTab.tsx';
 import { TaskDrawer } from './TaskDrawer.tsx';
+import { TaskList } from './TaskList.tsx';
 import { SimpleOverview } from './SimpleOverview.tsx';
 import { UsagePausedBanner } from '../../components/UsageBanner.tsx';
 import { ProviderBadge } from '../agents/rows.tsx';
@@ -32,6 +33,16 @@ import { ProviderBadge } from '../agents/rows.tsx';
 type Tab = 'overview' | 'tasks' | 'timeline' | 'activity' | 'diff' | 'delivery';
 const TABS: Tab[] = ['overview', 'tasks', 'timeline', 'activity', 'diff', 'delivery'];
 
+/** the Tasks tab as the graph of which task waits for which, or as a list in planned order: kept in this browser for every goal */
+type TaskView = 'graph' | 'list';
+const TASK_VIEW_KEY = 'foundry.tasks.view';
+const savedTaskView = (): TaskView => {
+  try {
+    return localStorage.getItem(TASK_VIEW_KEY) === 'list' ? 'list' : 'graph';
+  } catch {
+    return 'graph';
+  }
+};
 /** what each delivery policy does, as the Deliver stage says it */
 const DELIVER_NOTE: Record<string, string> = { local: 'kept on its branch', push: 'pushed', pr: 'a pull request', 'pr-automerge': 'a pull request, auto-merged' };
 
@@ -57,6 +68,13 @@ export function GoalPage() {
     localStorage.setItem(`foundry.expert.${id}`, e ? '1' : '0');
   };
   const [deleting, setDeleting] = useState(false);
+  const [taskView, setTaskView] = useState<TaskView>(savedTaskView);
+  const chooseTaskView = (v: TaskView) => {
+    setTaskView(v);
+    try {
+      localStorage.setItem(TASK_VIEW_KEY, v);
+    } catch {}
+  };
   const tab = (TABS.find((t) => `#${t}` === loc.hash) ?? 'overview') as Tab;
   const setTab = (t: Tab) => nav({ hash: t }, { replace: true });
 
@@ -83,7 +101,7 @@ export function GoalPage() {
         const attempts = d!.attempts.filter((a) => a.taskId === t.id);
         const model = attempts.flatMap((a) => a.sessions).filter((s) => s.role === 'worker' && s.model).at(-1)?.model ?? null;
         const u = attempts.length ? taskUsage(attempts) : null;
-        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: reportsDollars(d!.goal.provider) && u ? u.costUsd : null, unmeasured: u?.unmeasured ?? 0, model: model?.replace(/^claude-/, '').replace(/\[1m\]$/, '') ?? null };
+        return { ...t, attempts: attempts.length, maxAttempts: t.retryBudget + t.extraAttempts, totalCost: reportsDollars(d!.goal.provider) && u ? u.costUsd : null, unmeasured: u?.unmeasured ?? 0, model: model?.replace(/^claude-/, '').replace(/\[1m\]$/, '') ?? null, minutes: u ? u.wallMin : null };
       }),
     [d],
   );
@@ -335,8 +353,21 @@ export function GoalPage() {
       {tab === 'overview' && <OverviewTab d={d} />}
       {tab === 'tasks' && (
         <div className="space-y-4">
-          <Card title={`Tasks (${d.tasks.length})`}>
-            <DagCanvas tasks={dagTasks} selected={sel} onSelect={setSel} />
+          <Card
+            title={`Tasks (${d.tasks.length})`}
+            actions={
+              <ButtonGroup
+                label="Show the tasks as"
+                value={taskView}
+                onChange={chooseTaskView}
+                options={[
+                  { id: 'graph', label: 'Graph', title: 'Which task waits for which: the plan as a graph' },
+                  { id: 'list', label: 'List', title: 'One row per task, in the order they were planned' },
+                ]}
+              />
+            }
+          >
+            {taskView === 'graph' ? <DagCanvas tasks={dagTasks} selected={sel} onSelect={setSel} /> : <TaskList tasks={dagTasks} selected={sel} onSelect={setSel} />}
           </Card>
         </div>
       )}
