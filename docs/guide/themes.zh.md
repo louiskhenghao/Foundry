@@ -127,7 +127,7 @@ Foundry 里所有颜色都跟随主题，包括本指南没有展示的页面。
 
 | 设置 | 选项 |
 |---|---|
-| `nav` | `top`：页面导航是横在顶部的一栏。`side`：宽屏上改为左侧的一栏，里面有 **New goal**、各个页面、Inbox，底部是用量、账号和 ⚙（Ledger）。手机上始终是顶栏。 |
+| `nav` | `top`：页面导航是横在顶部的一栏。`side`：屏幕宽 1280px 及以上时改为左侧的一栏，里面有 **New goal**、各个页面、Inbox，底部是用量、账号和 ⚙（Ledger）。更窄的屏幕仍是顶栏。 |
 | `header` | `poster`：页面标题用很大的字。`compact`：朴素的一行标题（Classic）。 |
 | `stages` | `plates`：目标的五个阶段画成大的斜切阶段牌，手机上是细长的色段。`steps`：一条带编号的步骤线（Ledger、Classic）。 |
 | `labels` | `caps`：卡片标题和小标题用大写字母。`small-caps`：用小型大写字母（Ledger）。`plain`：照原样书写（Classic）。11px 及以下的小标签在所有主题里都保持大写。 |

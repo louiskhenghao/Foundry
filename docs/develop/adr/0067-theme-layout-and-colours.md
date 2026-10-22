@@ -18,7 +18,7 @@ With Wayfinding (ADR-0066) the dozen colour families of the old UI collapsed int
 
 **Three built-in themes.** Wayfinding: a top bar, poster titles, leaning plates, capitals, yellow strips, raised cards. Ledger, new: paper and ink, titles in Fraunces (bundled through `@fontsource-variable/fraunces`, OFL, downloaded only where a theme names it), a side column, numbered steps, small capitals, cards with a highlighter edge, flat cards. Classic: the layout Foundry had before themes, compact titles, labels as written, numbered steps, cards with an amber edge, flat cards.
 
-**On a phone** the plates become slim segments with the current stage's tag, name and note in a line under them, and a side column becomes the top bar.
+**On a phone** the plates become slim segments with the current stage's tag, name and note in a line under them. A side column shows from 1280px, so the page beside it keeps the 1024px the pages are laid out for; a narrower screen gets the top bar.
 
 ## Consequences
 

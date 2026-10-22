@@ -99,8 +99,9 @@ export function App() {
   return (
     <div className={cn('h-full flex', side ? 'flex-row' : 'flex-col')}>
       {side && (
-        // a theme whose navigation is `side`: on a wide screen a column down the left holds what the top bar would
-        <aside className="theme-band hidden lg:flex w-60 xl:w-64 shrink-0 flex-col overflow-y-auto border-r border-band-line bg-band text-band-ink">
+        // a theme whose navigation is `side`: from 1280px a column down the left holds what the top bar would, so the
+        // page beside it keeps the 1024px the pages are laid out for; narrower screens keep the top bar
+        <aside className="theme-band hidden xl:flex w-64 shrink-0 flex-col overflow-y-auto border-r border-band-line bg-band text-band-ink">
           <NavLink to="/" className="flex h-16 shrink-0 items-center gap-2.5 px-5 font-display text-lg font-extrabold tracking-tight text-band-ink">
             <Logo />
             Foundry
@@ -131,7 +132,7 @@ export function App() {
           panel that stays in view (Settings, Ports, the Brief…) scrolls away with the rest */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* the top bar is a band in the theme's band colours (theme-band): Wayfinding's is graphite in both modes */}
-      <header className={cn('theme-band relative flex items-center gap-2 md:gap-4 px-3 md:px-5 h-14 border-b border-band-line bg-band text-band-ink sticky top-0 z-20', side && 'lg:hidden')}>
+      <header className={cn('theme-band relative flex items-center gap-2 md:gap-4 px-3 md:px-5 h-14 border-b border-band-line bg-band text-band-ink sticky top-0 z-20', side && 'xl:hidden')}>
         <button className="lg:hidden p-1.5 -ml-1 rounded text-band-ink-soft hover:text-band-ink hover:bg-band-hover" aria-label="menu" onClick={() => setMenu(!menu)}>
           {menu ? <X size={18} /> : <Menu size={18} />}
         </button>

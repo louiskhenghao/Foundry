@@ -127,7 +127,7 @@ Each choice is one of a few names. A choice the file leaves out takes Wayfinding
 
 | Setting | Choices |
 |---|---|
-| `nav` | `top`: the pages in a bar across the top. `side`: a column down the left on a wide screen, with **New goal**, the pages, the Inbox and, at its foot, usage, accounts and ⚙ (Ledger). A phone always gets the top bar. |
+| `nav` | `top`: the pages in a bar across the top. `side`: a column down the left on a screen 1280px wide or more, with **New goal**, the pages, the Inbox and, at its foot, usage, accounts and ⚙ (Ledger). A narrower screen gets the top bar. |
 | `header` | `poster`: page titles in very large type. `compact`: a modest title line (Classic). |
 | `stages` | `plates`: a goal's five stages as large leaning plates, slim segments on a phone. `steps`: a numbered line of steps (Ledger, Classic). |
 | `labels` | `caps`: card titles and headings in capitals. `small-caps`: in small capitals (Ledger). `plain`: as written (Classic). Labels of 11px and under stay in capitals in every theme. |
