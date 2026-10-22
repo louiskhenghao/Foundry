@@ -1,6 +1,6 @@
 # 搬到新电脑
 
-**Transfer** 把一个 Foundry 知道的东西带到另一个 Foundry，通常是在新电脑上：你的设置、key 和 goal。在旧电脑上导出一个文件，再到新电脑上导入。入口在顶栏右侧的 ⚙ 菜单：**Transfer — move to another computer**。
+**Transfer** 把一个 Foundry 知道的东西带到另一个 Foundry，通常是在新电脑上：你的设置、key 和 goal。在旧电脑上导出一个文件，再到新电脑上导入。入口在顶栏右侧的 ⚙ 菜单：**Transfer**（下面一行写着 Move to another computer）。
 
 ## Export
 

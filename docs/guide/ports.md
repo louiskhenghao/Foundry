@@ -1,6 +1,6 @@
 # Ports
 
-**Ports** shows which ports are in use on the computer Foundry runs on, and who holds each one. Open it from the ⚙ menu at the right of the top bar: **Ports — what holds which port**. Use it when a preview says a port is already in use but nothing seems to hold it.
+**Ports** shows which ports are in use on the computer Foundry runs on, and who holds each one. Open it from the ⚙ menu at the right of the top bar: **Ports** ("What holds which port" under it). Use it when a preview says a port is already in use but nothing seems to hold it.
 
 ## What it lists
 

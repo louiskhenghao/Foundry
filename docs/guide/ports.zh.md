@@ -1,6 +1,6 @@
 # 端口
 
-**Ports** 显示 Foundry 所在电脑上有哪些端口正在被使用，以及每个端口被谁占着。入口在顶栏右侧的 ⚙ 菜单：**Ports — what holds which port**。preview 提示端口已被占用、却怎么也查不到占用者时，就来这里看。
+**Ports** 显示 Foundry 所在电脑上有哪些端口正在被使用，以及每个端口被谁占着。入口在顶栏右侧的 ⚙ 菜单：**Ports**（下面一行写着 What holds which port）。preview 提示端口已被占用、却怎么也查不到占用者时，就来这里看。
 
 ## 列出什么
 
