@@ -178,7 +178,7 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
   };
   return (
     <DropMenu
-      width="w-60"
+      width="w-64"
       trigger={({ open, toggle }) => (
         <button onClick={toggle} className={cn('relative h-8 w-8 sm:h-7 sm:w-7 flex items-center justify-center rounded text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900', (open || here) && 'bg-zinc-900 text-zinc-100')} title="Settings, setup, help and theme" aria-label="Settings, setup, help and theme">
           <Settings2 size={16} />
@@ -196,23 +196,23 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
               Setup {setupBad && <span className="text-[10px] text-rose-400">incomplete</span>}
             </span>
           </MenuItem>
-          <MenuItem icon={<ArrowLeftRight size={13} />} onClick={() => go(close, '/transfer')}>
-            Transfer — move to another computer
+          <MenuItem icon={<ArrowLeftRight size={13} />} hint="Move to another computer" onClick={() => go(close, '/transfer')}>
+            Transfer
           </MenuItem>
-          <MenuItem icon={<Network size={13} />} onClick={() => go(close, '/ports')}>
-            Ports — what holds which port
+          <MenuItem icon={<Network size={13} />} hint="What holds which port" onClick={() => go(close, '/ports')}>
+            Ports
           </MenuItem>
-          <MenuItem icon={<NotebookPen size={13} />} onClick={() => go(close, '/learnings')}>
-            Learnings — what Foundry knows about your projects
+          <MenuItem icon={<NotebookPen size={13} />} hint="What Foundry knows about your projects" onClick={() => go(close, '/learnings')}>
+            Learnings
           </MenuItem>
-          <MenuItem icon={<AlarmClock size={13} />} onClick={() => go(close, '/schedules')}>
-            Schedules — goals that run on their own
+          <MenuItem icon={<AlarmClock size={13} />} hint="Goals that run on their own" onClick={() => go(close, '/schedules')}>
+            Schedules
           </MenuItem>
-          <MenuItem icon={<BarChart3 size={13} />} onClick={() => go(close, '/reports')}>
-            Reports — what it cost, by project and over time
+          <MenuItem icon={<BarChart3 size={13} />} hint="What it cost, by project and over time" onClick={() => go(close, '/reports')}>
+            Reports
           </MenuItem>
-          <MenuItem icon={<HelpCircle size={13} />} onClick={() => go(close, '/help')}>
-            Help — how to use Foundry
+          <MenuItem icon={<HelpCircle size={13} />} hint="How to use Foundry" onClick={() => go(close, '/help')}>
+            Help
           </MenuItem>
           {me?.enabled && me.person && (
             <MenuItem icon={<LogOut size={13} />} onClick={() => api.accessLogout().catch(() => {}).then(() => location.assign('/login'))} title="Forget this browser's token; sign in again with it or another">

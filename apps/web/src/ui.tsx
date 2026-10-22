@@ -109,11 +109,15 @@ export function Field({ label, help, aside, children, className }: { label: Reac
   );
 }
 
-export function MenuItem({ icon, children, danger, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: ReactNode; danger?: boolean }) {
+/** `hint`: what the item is for, on a smaller second line under its label (the icon stays with the label) */
+export function MenuItem({ icon, children, hint, danger, className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { icon?: ReactNode; danger?: boolean; hint?: ReactNode }) {
   return (
-    <button className={cn('w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs disabled:opacity-40 disabled:cursor-not-allowed', danger ? 'text-rose-300 hover:bg-rose-500/10' : 'text-zinc-200 hover:bg-zinc-800', className)} {...props}>
-      {icon && <span className="shrink-0 text-zinc-400">{icon}</span>}
-      <span className="min-w-0 flex-1">{children}</span>
+    <button className={cn('w-full flex gap-2 rounded-md px-2 py-1.5 text-left text-xs disabled:opacity-40 disabled:cursor-not-allowed', hint ? 'items-start' : 'items-center', danger ? 'text-rose-300 hover:bg-rose-500/10' : 'text-zinc-200 hover:bg-zinc-800', className)} {...props}>
+      {icon && <span className={cn('shrink-0 text-zinc-400', !!hint && 'mt-px')}>{icon}</span>}
+      <span className="min-w-0 flex-1">
+        {children}
+        {hint ? <span className="block mt-0.5 text-[10px] leading-snug text-zinc-500">{hint}</span> : null}
+      </span>
     </button>
   );
 }
