@@ -1,7 +1,8 @@
 import { PROVIDER_LABEL } from '@foundry/core/browser';
-import { ArrowDown, ArrowUp, Plus } from 'lucide-react';
+import { ArrowDown, ArrowUp, Check, Clock, Laptop, Plus, Repeat } from 'lucide-react';
 import { useState } from 'react';
 import { api, type AccountPoolInfo, type AgentProvider, type PoolAccount } from '../api.ts';
+import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
 import { Button, ConfirmDialog, cn } from '../ui.tsx';
 
@@ -65,45 +66,55 @@ export function AccountPoolList({ provider, pool, installed, onChange }: { provi
   };
   const t = TERMS[provider];
   return (
-    <div className="border-t border-zinc-800 pt-3 mb-3 space-y-2">
+    <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-xs font-medium text-zinc-300">Accounts</h3>
+        <h3 className="text-sm font-medium text-zinc-200">
+          Accounts <span className="ml-1 tabular-nums text-xs font-normal text-zinc-500">{pool.accounts.length}</span>
+        </h3>
         <Button size="sm" disabled={busy || !installed} onClick={() => setAdding(true)} title={`Sign in with another ${name} subscription of yours`}>
-          <Plus size={12} aria-hidden="true" />
+          <Plus size={13} aria-hidden="true" />
           Add account
         </Button>
       </div>
-      <ul className="space-y-1.5" aria-label={`${name} accounts`}>
+      <ul className="space-y-2" aria-label={`${name} accounts`}>
         {pool.accounts.map((a) => {
           const i = added.findIndex((x) => x.id === a.id);
+          const native = a.id === 'native';
+          const signedOut = !!a.status && !a.status.loggedIn && !native;
+          const meta = [a.plan, native ? (a.email ? 'this computer’s sign-in' : null) : 'added in Foundry'].filter(Boolean).join(' · ');
           return (
-            <li key={a.id} className={cn('rounded-md border px-2 py-1.5 text-xs', a.current ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-zinc-800')}>
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="truncate text-zinc-200" title={a.email ?? undefined}>{a.email ?? (a.id === 'native' ? 'this computer’s sign-in' : 'signed out')}</span>
-                {a.current && <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 text-[10px] text-emerald-300">current</span>}
+            <li key={a.id} className={cn('flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border px-3 py-2.5', a.current ? 'border-emerald-500/30 bg-emerald-500/[0.06]' : 'border-zinc-800 bg-zinc-950/30')}>
+              <span aria-hidden="true" className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-semibold uppercase', a.current ? PROVIDER_STYLE[provider].tile : 'border-zinc-700 bg-zinc-800/60 text-zinc-300')}>
+                {a.email ? a.email[0] : <Laptop size={15} strokeWidth={1.75} />}
+              </span>
+              <div className="min-w-0 grow basis-40">
+                <div className="truncate text-sm text-zinc-100" title={a.email ?? undefined}>{a.email ?? (native ? 'This computer’s sign-in' : 'Signed out')}</div>
+                {meta && <div className="truncate text-xs text-zinc-500">{meta}</div>}
               </div>
-              <div className="flex items-center gap-2 flex-wrap mt-1 text-[11px] text-zinc-500">
-                {/* the native sign-in without an email is named so above already */}
-                <span>{[a.plan, a.id === 'native' && a.email ? 'this computer’s sign-in' : null].filter(Boolean).join(' · ')}</span>
-                {a.limitedUntil && <span className="text-amber-300">limited until {at(a.limitedUntil)}</span>}
-                {a.status && !a.status.loggedIn && a.id !== 'native' && <span className="text-rose-300">signed out — remove it and add it again</span>}
-                <span className="ml-auto flex items-center gap-1">
+              <div className="flex flex-wrap items-center gap-1.5">
+                {a.current && <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-medium text-emerald-300"><Check size={11} aria-hidden="true" />current</span>}
+                {a.limitedUntil && <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300"><Clock size={11} aria-hidden="true" />limited until {at(a.limitedUntil)}</span>}
+                {signedOut && <span className="rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[11px] text-rose-300" title="Remove it and add it again">signed out</span>}
+              </div>
+              {(!a.current || !native) && (
+                <span className="ml-auto flex items-center gap-0.5">
                   {!a.current && <Button size="sm" variant="ghost" disabled={busy} onClick={() => act(() => api.useAccount(provider, a.id))} title="New sessions run on this account; sessions already running finish on theirs">Use now</Button>}
-                  {i > 0 && <Button size="sm" variant="ghost" disabled={busy} aria-label="Try earlier" onClick={() => move(a.id, -1)}><ArrowUp size={12} /></Button>}
-                  {i >= 0 && i < added.length - 1 && <Button size="sm" variant="ghost" disabled={busy} aria-label="Try later" onClick={() => move(a.id, 1)}><ArrowDown size={12} /></Button>}
-                  {a.id !== 'native' && <Button size="sm" variant="ghost" disabled={busy} onClick={() => setRemoving(a)}>Remove</Button>}
+                  {i > 0 && <Button size="sm" variant="ghost" disabled={busy} aria-label="Try earlier" title="Try earlier" onClick={() => move(a.id, -1)}><ArrowUp size={13} /></Button>}
+                  {i >= 0 && i < added.length - 1 && <Button size="sm" variant="ghost" disabled={busy} aria-label="Try later" title="Try later" onClick={() => move(a.id, 1)}><ArrowDown size={13} /></Button>}
+                  {!native && <Button size="sm" variant="ghost" className="hover:text-rose-300" disabled={busy} onClick={() => setRemoving(a)}>Remove</Button>}
                 </span>
-              </div>
+              )}
             </li>
           );
         })}
       </ul>
-      <label className="flex items-start gap-2 text-xs text-zinc-300">
+      <label className={cn('flex items-start gap-3 rounded-lg border px-3 py-2.5', pool.autoSwitch ? 'border-emerald-500/30 bg-emerald-500/[0.06]' : 'border-zinc-800', pool.accounts.length < 2 && 'opacity-70')}>
         <input type="checkbox" className="mt-0.5 accent-emerald-500" disabled={busy || pool.accounts.length < 2} checked={pool.autoSwitch} onChange={(e) => toggle(e.target.checked)} />
-        <span>
-          Switch accounts when a usage limit stops a session
-          <span className="block text-[11px] text-zinc-500">{pool.accounts.length < 2 ? 'Add a second account first.' : pool.autoSwitch ? 'On: new sessions move to the next account, and the stopped session resumes there.' : 'Off: new sessions pause until the limit resets; the pause offers to switch.'}</span>
+        <span className="min-w-0 grow">
+          <span className="block text-sm text-zinc-200">Switch accounts when a usage limit stops a session</span>
+          <span className="block mt-0.5 text-xs text-zinc-500">{pool.accounts.length < 2 ? 'Add a second account first.' : pool.autoSwitch ? 'On: new sessions move to the next account, and the stopped session resumes there.' : 'Off: new sessions pause until the limit resets; the pause offers to switch.'}</span>
         </span>
+        <Repeat size={15} aria-hidden="true" className={cn('mt-0.5 shrink-0', pool.autoSwitch ? 'text-emerald-400' : 'text-zinc-600')} />
       </label>
       {error && <p role="alert" className="text-xs text-rose-400">{error}</p>}
       {adding && <SignInDialog provider={provider} add onClose={() => { setAdding(false); onChange(); }} />}
