@@ -301,6 +301,17 @@ select:not([multiple]):is(:not([size]), [size='1']) {
     animation: none;
   }
 }
+/* a theme whose signs are cards: a panel with a yellow edge, standing on the page rather than hung and swinging */
+:root[data-signs='card'] .sign {
+  box-shadow:
+    inset 5px 0 0 var(--color-you),
+    0 0 0 1px var(--color-line),
+    var(--surface-shadow);
+}
+:root[data-signs='card'] .sign-in,
+:root[data-signs='card'] .sign:hover {
+  animation: none;
+}
 
 /* native checkboxes, radios and sliders in the theme's accent */
 input[type='checkbox'],

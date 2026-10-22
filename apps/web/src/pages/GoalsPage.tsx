@@ -310,11 +310,11 @@ export function GoalsPage() {
         <>
           {signs.length > 0 && (
             <section aria-labelledby="needs-you" className="mb-12">
-              <h2 id="needs-you" className="inline-flex items-center gap-2.5 rounded-t-md bg-ink px-3.5 py-2 text-[12.5px] font-extrabold caps text-on-ink">
+              <h2 id="needs-you" className="inline-flex items-center gap-2.5 rounded-t-md bg-ink px-3.5 py-2 text-[12.5px] font-extrabold caps text-on-ink signs-card:bg-transparent signs-card:px-0 signs-card:text-ink">
                 Needs you
                 <b className="mono grid h-5 min-w-5 place-items-center rounded-[5px] bg-you px-1.5 text-xs tracking-normal text-on-you">{signs.length}</b>
               </h2>
-              <div className="grid gap-x-6 gap-y-8 border-t-4 border-ink pt-7 md:grid-cols-2">
+              <div className="grid gap-x-6 gap-y-8 border-t-4 border-ink pt-7 md:grid-cols-2 signs-card:gap-y-4 signs-card:border-t-0 signs-card:pt-1">
                 {signs.map(({ g, need }, i) => (
                   <Sign key={g.id} g={g} need={need} delay={i * 120} />
                 ))}
@@ -435,10 +435,10 @@ function Sign({ g, need, delay }: { g: GoalRow; need: Need; delay: number }) {
     <div className="sign-in" style={{ animationDelay: `${delay}ms` }}>
     <Link
       to={need.href}
-      className="sign group relative grid grid-cols-[2.875rem_minmax(0,1fr)] sm:grid-cols-[4rem_minmax(0,1fr)_auto] gap-x-3.5 sm:gap-x-[18px] rounded-[10px] bg-you p-4 sm:p-[18px] sm:pr-5 text-on-you focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-ink before:absolute before:-top-[26px] before:left-[18%] before:h-[26px] before:w-1 before:rounded-b-sm before:bg-ink before:content-[''] after:absolute after:-top-[26px] after:right-[18%] after:h-[26px] after:w-1 after:rounded-b-sm after:bg-ink after:content-['']"
+      className="sign group relative grid grid-cols-[2.875rem_minmax(0,1fr)] sm:grid-cols-[4rem_minmax(0,1fr)_auto] gap-x-3.5 sm:gap-x-[18px] rounded-[10px] bg-you p-4 sm:p-[18px] sm:pr-5 text-on-you focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-ink signs-card:bg-panel signs-card:text-ink signs-card:before:hidden signs-card:after:hidden before:absolute before:-top-[26px] before:left-[18%] before:h-[26px] before:w-1 before:rounded-b-sm before:bg-ink before:content-[''] after:absolute after:-top-[26px] after:right-[18%] after:h-[26px] after:w-1 after:rounded-b-sm after:bg-ink after:content-['']"
     >
-      <span className="grid h-[2.875rem] w-[2.875rem] sm:h-16 sm:w-16 place-items-center rounded-[9px] bg-on-you">
-        <svg viewBox="0 0 24 24" aria-hidden="true" className="sign-arrow h-7 w-7 sm:h-[38px] sm:w-[38px] fill-you">
+      <span className="grid h-[2.875rem] w-[2.875rem] sm:h-16 sm:w-16 place-items-center rounded-[9px] bg-on-you signs-card:bg-you">
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="sign-arrow h-7 w-7 sm:h-[38px] sm:w-[38px] fill-you signs-card:fill-on-you">
           <path d={ARROW} />
         </svg>
       </span>
@@ -446,12 +446,12 @@ function Sign({ g, need, delay }: { g: GoalRow; need: Need; delay: number }) {
         <span className="text-2xl sm:text-[1.75rem] lg:text-3xl font-extrabold leading-[1.04] tracking-[-0.03em]">{need.action}</span>
         <span className="text-base sm:text-[17px] font-bold leading-tight">{g.title}</span>
       </span>
-      <span className="col-start-2 sm:col-start-auto mt-2.5 sm:mt-0 inline-flex items-center gap-1.5 self-start justify-self-start rounded-md bg-on-you px-2 py-1 text-you mono text-[12.5px] font-bold whitespace-nowrap">
+      <span className="col-start-2 sm:col-start-auto mt-2.5 sm:mt-0 inline-flex items-center gap-1.5 self-start justify-self-start rounded-md bg-on-you px-2 py-1 text-you mono text-[12.5px] font-bold whitespace-nowrap signs-card:bg-you signs-card:text-on-you">
         <Clock size={13} aria-hidden="true" />
         waiting {waited(g.updatedAt)}
       </span>
       <span className="col-span-2 sm:col-span-2 sm:col-start-2 mt-2.5 max-w-[54ch] text-[15px] leading-normal">{need.say}</span>
-      <span className="col-span-2 sm:col-span-2 sm:col-start-2 mt-3 flex flex-wrap items-center gap-x-[18px] gap-y-1.5 border-t-[1.5px] border-on-you/25 pt-2.5 text-[13px] font-semibold">
+      <span className="col-span-2 sm:col-span-2 sm:col-start-2 mt-3 flex flex-wrap items-center gap-x-[18px] gap-y-1.5 border-t-[1.5px] border-on-you/25 pt-2.5 text-[13px] font-semibold signs-card:border-line">
         {provider && (
           <span className="inline-flex items-center gap-1.5">
             <provider.Icon size={13} aria-hidden="true" />
@@ -476,14 +476,14 @@ function Sign({ g, need, delay }: { g: GoalRow; need: Need; delay: number }) {
   );
 }
 
-/** task squares drawn in the sign's own ink: on yellow, done is solid and the rest is outlined */
+/** task squares drawn in the sign's own ink: on yellow, done is solid and the rest is outlined (in ink on a card sign) */
 function SignSquares({ counts }: { counts: Record<string, number> }) {
   return (
     <span className="inline-flex gap-[3px]" aria-hidden="true">
       {countMarks(counts)
         .slice(0, 10)
         .map((m, i) => (
-          <i key={i} className={cn('block h-3 w-3 rounded-[3px] ring-[1.5px] ring-inset ring-on-you', m === 'done' && 'bg-on-you', m === 'run' && 'hatch text-on-you')} />
+          <i key={i} className={cn('block h-3 w-3 rounded-[3px] ring-[1.5px] ring-inset ring-on-you signs-card:ring-ink', m === 'done' && 'bg-on-you signs-card:bg-ink', m === 'run' && 'hatch text-on-you signs-card:text-ink')} />
         ))}
     </span>
   );
