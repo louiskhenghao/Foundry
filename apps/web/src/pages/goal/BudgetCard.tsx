@@ -56,9 +56,9 @@ export function BudgetCard({ d }: { d: GoalDetail }) {
   const limit = g.budgets.maxDurationMin;
   const elapsed = d.budget.elapsedMin;
   const est = brief?.timeEstimateMin ?? null;
-  const estimate = brief ? `est. ${dollars ? `${fmtUsd(brief.costEstimateUsd)} / ` : ''}${brief.timeEstimateMin} min` : null;
+  const estimate = brief ? `${dollars ? `${fmtUsd(brief.costEstimateUsd)} · ` : ''}${brief.timeEstimateMin} min` : null;
   return (
-    <Card title="Budget & time" actions={estimate && <span className="mono text-[13px] text-ink-faint">{estimate}</span>}>
+    <Card title="Budget & time">
       <div className="space-y-5">
         {dollars ? (
           <Gauge label="Spent" value={fmtUsd(g.costUsd)} of={cost == null ? 'no limit' : `of ${fmtUsd(cost)}`} note={unmeasured > 0 ? <CutSessionsDot n={unmeasured} est={d.costEstimate} /> : null}>
@@ -94,6 +94,12 @@ export function BudgetCard({ d }: { d: GoalDetail }) {
             )}
           </Gauge>
         </div>
+        {/* the estimate under the figures: in the card's head it wrapped onto a line of its own in a narrow column */}
+        {estimate && (
+          <p className="flex flex-wrap items-baseline justify-between gap-x-3 border-t border-line pt-3 text-xs text-ink-faint">
+            The Brief's estimate <b className="mono text-[13px] font-semibold text-ink-soft">{estimate}</b>
+          </p>
+        )}
       </div>
     </Card>
   );

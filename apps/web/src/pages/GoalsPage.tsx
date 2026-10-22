@@ -145,8 +145,8 @@ export function GoalsPage() {
         <div className="min-w-0 flex flex-col gap-1">
           {/* the title link covers the whole row */}
           <Link to={href(g)} className="text-[15px] sm:text-base font-bold leading-snug text-ink group-hover:underline decoration-2 underline-offset-[3px] after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-accent">
-            {mark === 'delegated' && <CornerDownRight size={13} className="inline mr-1 text-extra-ink" aria-label="delegated goal" />}
-            {mark === 'follow-up' && <CornerDownRight size={13} className="inline mr-1 text-work-ink" aria-label="follow-up" />}
+            {mark === 'delegated' && <CornerDownRight size={13} className="inline mr-1 text-code-7-ink" aria-label="delegated goal" />}
+            {mark === 'follow-up' && <CornerDownRight size={13} className="inline mr-1 text-code-1-ink" aria-label="follow-up" />}
             {g.title}
           </Link>
           <div className="flex items-center gap-2 min-w-0 flex-wrap text-xs text-ink-faint">

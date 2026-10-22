@@ -445,7 +445,8 @@ export function InfoDot({ label, children, tone = 'amber' }: { label: string; ch
 export function ConfirmDialog({ open, title, children, confirmLabel = 'Confirm', danger, busy, confirmDisabled, onConfirm, onClose }: { open: boolean; title: ReactNode; children?: ReactNode; confirmLabel?: string; danger?: boolean; busy?: boolean; /** the confirm button waits for something in `children` (a box to tick) */ confirmDisabled?: boolean; onConfirm: () => void; onClose: () => void }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
+    // m-0: a parent's space-y gives its children a bottom margin, which shortened this backdrop by as much
+    <div className="fixed inset-0 z-50 m-0 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
       <div className="w-full sm:max-w-md rounded-xl border border-line bg-panel shadow-2xl p-4 space-y-3">
         <h3 className="text-sm font-bold text-ink">{title}</h3>
         {children && <div className="text-xs text-zinc-300 space-y-2">{children}</div>}
@@ -466,7 +467,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel = 'Confirm',
 export function Modal({ open, title, onClose, children, wide }: { open: boolean; title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className="fixed inset-0 z-50 m-0 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={cn('w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[85vh] rounded-xl border border-line bg-panel shadow-2xl flex flex-col', wide ? 'sm:max-w-4xl' : 'sm:max-w-2xl')}>
         <header className="flex items-center gap-2 px-4 py-3 border-b border-line">
           <h3 className="text-sm font-bold text-ink min-w-0 truncate">{title}</h3>

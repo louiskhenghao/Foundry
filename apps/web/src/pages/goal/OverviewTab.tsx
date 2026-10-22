@@ -51,6 +51,10 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div className="lg:col-span-2 space-y-4">
+          {/* on a phone and a tablet, what it spent and how long it worked come first, not after the whole column */}
+          <div className="lg:hidden">
+            <BudgetCard d={d} />
+          </div>
           <MarkdownPanel title="goal" source={g.prompt} maxHeight={240} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
           {/* the verdict on the goal, next to the goal itself */}
           {review && <GoalReview review={review} />}
@@ -97,7 +101,9 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
         </div>
         <div className="space-y-4">
           {/* the right column reads as the Wayfinding sample has it: what the goal has used, then how it stands */}
-          <BudgetCard d={d} />
+          <div className="hidden lg:block">
+            <BudgetCard d={d} />
+          </div>
           <Card title="Acceptance">
             {/* a checklist: per tier its count (green once every check passes, red while one fails), then each check's
                 square, its name and how it stands, in the signal colours */}
