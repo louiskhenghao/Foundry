@@ -153,7 +153,7 @@ export function App() {
           <NavLink to="/inbox" title={open > 0 ? `Inbox: ${open} waiting for you` : 'Inbox'} aria-label={open > 0 ? `Inbox, ${open} waiting for you` : 'Inbox'} className={({ isActive }) => cn('relative flex h-8 w-8 sm:h-7 sm:w-7 shrink-0 items-center justify-center rounded-md border', isActive ? 'border-band-ink text-band-ink' : 'border-band-line text-band-ink-soft hover:text-band-ink hover:bg-band-hover')}>
             <Inbox size={15} />
             {/* what waits for you is the one thing in signal yellow */}
-            {open > 0 && <span className="mono absolute -top-2 -right-2 min-w-[1.125rem] h-[1.125rem] rounded-[5px] bg-you px-1 text-[10.5px] font-bold leading-[1.125rem] text-center text-on-you">{open > 99 ? '99+' : open}</span>}
+            {open > 0 && <span className="mono absolute -top-2 -right-2 min-w-[1.125rem] h-[1.125rem] rounded-[5px] bg-you px-1 text-[11px] font-bold leading-[1.125rem] text-center text-on-you">{open > 99 ? '99+' : open}</span>}
           </NavLink>
           <UpdatePill />
           <UsagePill />

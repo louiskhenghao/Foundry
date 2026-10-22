@@ -204,64 +204,80 @@ export function Card({ children, className, bodyClassName, title, actions, id, o
   );
 }
 
+/**
+ * A state badge's colour: how something stands in its signal (a faint tint behind the word and a ring, so the colour
+ * marks it without filling the row), what kind of thing it is in a category colour (a catalog entry's tier, a skill's
+ * source, a port's holder), and what has not started or is not known hollow. Literal classes, so Tailwind keeps them.
+ */
+const SIGNAL_CHIP = {
+  you: 'bg-you/20 text-you-ink ring-1 ring-inset ring-you/55',
+  work: 'bg-work/12 text-work-ink ring-1 ring-inset ring-work/40',
+  ok: 'bg-ok/12 text-ok-ink ring-1 ring-inset ring-ok/40',
+  bad: 'bg-bad/10 text-bad-ink ring-1 ring-inset ring-bad/40',
+  extra: 'bg-extra/12 text-extra-ink ring-1 ring-inset ring-extra/40',
+  hollow: 'text-ink-faint ring-1 ring-inset ring-line-strong',
+  quiet: 'bg-sunken text-ink-soft ring-1 ring-inset ring-line',
+};
 const STATE_COLORS: Record<string, string> = {
-  draft: 'bg-zinc-700 text-zinc-200',
-  clarifying: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
-  awaiting_brief_approval: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-  running: 'bg-blue-500/20 text-blue-300 border-blue-500/40',
-  goal_review: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
-  awaiting_feedback: 'bg-amber-400/25 text-amber-200 border-amber-400/50',
-  blocked: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
-  done: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40',
-  over_delivered: 'bg-emerald-400/30 text-emerald-200 border-emerald-400/60',
-  failed: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
-  cancelled: 'bg-zinc-700 text-zinc-400',
-  pending: 'bg-zinc-800 text-zinc-400 border-zinc-700',
-  ready: 'bg-sky-500/20 text-sky-300 border-sky-500/40',
-  observing: 'bg-violet-500/20 text-violet-300 border-violet-500/40',
-  merging: 'bg-fuchsia-500/20 text-fuchsia-300 border-fuchsia-500/40',
-  created: 'bg-zinc-800 text-zinc-400',
-  passed: 'bg-emerald-500/20 text-emerald-300',
-  error: 'bg-rose-500/20 text-rose-300',
-  aborted: 'bg-zinc-700 text-zinc-400',
-  pass: 'bg-emerald-500/20 text-emerald-300',
-  fail: 'bg-rose-500/20 text-rose-300',
-  skipped: 'bg-zinc-700 text-zinc-400',
-  // what an acceptance check or a catalog entry must have is a solid plate; a nice-to-have is outlined: neither is a signal
-  must: 'bg-ink text-on-ink',
-  stretch: 'text-ink-soft ring-1 ring-inset ring-line-strong',
-  open: 'bg-orange-500/20 text-orange-300 border-orange-500/40',
-  answered: 'bg-zinc-700 text-zinc-300',
-  required: 'bg-ink text-on-ink',
-  recommended: 'text-ink ring-1 ring-inset ring-ink/60',
-  optional: 'bg-zinc-800 text-zinc-400 border-zinc-700',
-  installed: 'bg-emerald-500/20 text-emerald-300',
-  'installed-unmanaged': 'bg-emerald-500/10 text-emerald-400',
-  'installed-via-plugin': 'bg-emerald-500/10 text-emerald-400',
-  partial: 'bg-amber-500/20 text-amber-300',
-  missing: 'bg-zinc-800 text-zinc-400 border-zinc-700',
-  duplicate: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-  user: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
-  plugin: 'bg-violet-500/15 text-violet-300 border-violet-500/30',
-  project: 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/30',
+  draft: SIGNAL_CHIP.hollow,
+  clarifying: SIGNAL_CHIP.work,
+  awaiting_brief_approval: SIGNAL_CHIP.you,
+  running: SIGNAL_CHIP.work,
+  goal_review: SIGNAL_CHIP.extra,
+  awaiting_feedback: SIGNAL_CHIP.you,
+  blocked: SIGNAL_CHIP.you,
+  done: SIGNAL_CHIP.ok,
+  over_delivered: SIGNAL_CHIP.ok,
+  failed: SIGNAL_CHIP.bad,
+  cancelled: SIGNAL_CHIP.hollow,
+  pending: SIGNAL_CHIP.hollow,
+  ready: SIGNAL_CHIP.work,
+  observing: SIGNAL_CHIP.extra,
+  merging: SIGNAL_CHIP.extra,
+  created: SIGNAL_CHIP.hollow,
+  passed: SIGNAL_CHIP.ok,
+  error: SIGNAL_CHIP.bad,
+  aborted: SIGNAL_CHIP.hollow,
+  pass: SIGNAL_CHIP.ok,
+  fail: SIGNAL_CHIP.bad,
+  skipped: SIGNAL_CHIP.hollow,
+  // what an acceptance check or a catalog entry must have, and what is nice to have: kinds, in the hues they had before
+  must: 'bg-code-5/12 text-code-5-ink ring-1 ring-inset ring-code-5/45',
+  stretch: 'bg-code-4/12 text-code-4-ink ring-1 ring-inset ring-code-4/45',
+  open: SIGNAL_CHIP.you,
+  answered: SIGNAL_CHIP.ok,
+  required: 'bg-code-5/12 text-code-5-ink ring-1 ring-inset ring-code-5/45',
+  recommended: 'bg-code-2/12 text-code-2-ink ring-1 ring-inset ring-code-2/45',
+  optional: SIGNAL_CHIP.hollow,
+  installed: SIGNAL_CHIP.ok,
+  'installed-unmanaged': SIGNAL_CHIP.ok,
+  'installed-via-plugin': SIGNAL_CHIP.ok,
+  partial: SIGNAL_CHIP.you,
+  // not there: outlined in red, beside the green of what is installed
+  missing: 'text-bad-ink ring-1 ring-inset ring-bad/55',
+  duplicate: SIGNAL_CHIP.you,
+  // where a skill comes from
+  user: 'bg-code-1/12 text-code-1-ink ring-1 ring-inset ring-code-1/45',
+  plugin: 'bg-code-3/12 text-code-3-ink ring-1 ring-inset ring-code-3/45',
+  project: 'bg-code-7/12 text-code-7-ink ring-1 ring-inset ring-code-7/45',
   'foundry': 'bg-ink/10 text-ink',
   // the Ports page's holders
-  tailscale: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
-  docker: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
-  process: 'bg-zinc-800 text-zinc-300 border-zinc-700',
-  'holder-unknown': 'bg-amber-500/15 text-amber-300 border-amber-500/30',
-  'agents-cli': 'bg-zinc-800 text-zinc-300 border-zinc-700',
-  manifest: 'bg-zinc-800 text-zinc-300 border-zinc-700',
-  symlink: 'bg-zinc-800 text-zinc-300 border-zinc-700',
-  warn: 'bg-amber-500/20 text-amber-300',
+  tailscale: 'bg-code-1/12 text-code-1-ink ring-1 ring-inset ring-code-1/45',
+  docker: 'bg-code-6/12 text-code-6-ink ring-1 ring-inset ring-code-6/45',
+  process: SIGNAL_CHIP.quiet,
+  'holder-unknown': SIGNAL_CHIP.hollow,
+  'agents-cli': SIGNAL_CHIP.quiet,
+  manifest: SIGNAL_CHIP.quiet,
+  symlink: SIGNAL_CHIP.quiet,
+  warn: SIGNAL_CHIP.you,
   // skills sources / update status
-  'up-to-date': 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
-  outdated: 'bg-amber-500/20 text-amber-300 border-amber-500/40',
-  modified: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
-  unknown: 'bg-zinc-800 text-zinc-400 border-zinc-700',
-  broken: 'bg-rose-500/20 text-rose-300 border-rose-500/40',
-  hand: 'bg-zinc-800 text-zinc-300 border-zinc-700',
-  'update-available': 'bg-amber-500/20 text-amber-300 border-amber-500/40',
+  'up-to-date': SIGNAL_CHIP.ok,
+  outdated: SIGNAL_CHIP.you,
+  modified: SIGNAL_CHIP.work,
+  unknown: SIGNAL_CHIP.hollow,
+  broken: SIGNAL_CHIP.bad,
+  hand: SIGNAL_CHIP.quiet,
+  'update-available': SIGNAL_CHIP.you,
 };
 
 export function Tabs<T extends string>({ tabs, value, onChange, right }: { tabs: { id: T; label: ReactNode; badge?: ReactNode }[]; value: T; onChange: (t: T) => void; right?: ReactNode }) {
@@ -380,7 +396,7 @@ const STATE_LABELS: Record<string, string> = {
 /** a state in words, as a badge or a caption shows it */
 export const stateLabel = (state: string) => STATE_LABELS[state] ?? state.replace(/_/g, ' ');
 export function Badge({ state, children, className }: { state: string; children?: ReactNode; className?: string }) {
-  return <span className={cn('inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)} title={state.replace(/_/g, ' ')}>{children ?? stateLabel(state)}</span>;
+  return <span className={cn('inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-[0.08em] border-transparent', STATE_COLORS[state] ?? SIGNAL_CHIP.quiet, className)} title={state.replace(/_/g, ' ')}>{children ?? stateLabel(state)}</span>;
 }
 
 /** Progress bar against a limit; `max` null = no limit (renders a neutral bar). */
@@ -464,16 +480,16 @@ export function Modal({ open, title, onClose, children, wide }: { open: boolean;
   );
 }
 
-/** a page's side panel pinned under the top bar on a wide screen (see useAffix) */
-export const AFFIX_SIDE = 'lg:sticky lg:top-14 lg:self-start';
+/** a page's side panel pinned near the top of the page on a wide screen (see useAffix): <main> starts under the top bar */
+export const AFFIX_SIDE = 'lg:sticky lg:top-4 lg:self-start';
 
 /**
- * A page's side panel (Extensions' Catalog, Ports' and Agents' Overview): on a wide screen it stays in view right under
- * the top bar while the list beside it scrolls — as long as it fits under the bar. A taller panel scrolls with the page
- * instead: pinning it would hide its end, and an inner scroll box of its own caught the wheel and cut its content off.
+ * A page's side panel (Extensions' Catalog, Ports' and Agents' Overview): on a wide screen it stays in view while the list
+ * beside it scrolls. One that fits stays right under the top of the page; a taller one scrolls with the page until its end
+ * is in view and stays there, so every part of it can be reached without a scroll box of its own (one caught the wheel
+ * and cut the panel's content off).
  */
 export function useAffix<T extends HTMLElement>(): { ref: (el: T | null) => void; className: string } {
-  const [fits, setFits] = useState(true);
   const stop = useRef<() => void>(() => {});
   // a callback ref: the panel often mounts after the page's first render (once its data is in), so an effect that
   // looked at the ref once on mount would never see it
@@ -481,7 +497,13 @@ export function useAffix<T extends HTMLElement>(): { ref: (el: T | null) => void
     stop.current();
     stop.current = () => {};
     if (!el) return;
-    const check = () => setFits(el.offsetHeight <= window.innerHeight - 64);
+    // the page scrolls inside <main>, under the top bar
+    const scroller = el.closest('main') ?? document.documentElement;
+    const check = () => {
+      const room = scroller.clientHeight;
+      // taller than the room under its top (lg:top-4) and a margin: it sticks by its end instead, its top that far up
+      el.style.top = el.offsetHeight > room - 32 ? `${room - el.offsetHeight - 16}px` : '';
+    };
     check();
     const ro = new ResizeObserver(check);
     ro.observe(el);
@@ -489,10 +511,11 @@ export function useAffix<T extends HTMLElement>(): { ref: (el: T | null) => void
     stop.current = () => {
       ro.disconnect();
       window.removeEventListener('resize', check);
+      el.style.top = '';
     };
   }, []);
   useEffect(() => () => stop.current(), []);
-  return { ref, className: fits ? AFFIX_SIDE : 'lg:self-start' };
+  return { ref, className: AFFIX_SIDE };
 }
 
 export function Empty({ children }: { children: ReactNode }) {
@@ -534,7 +557,7 @@ export function YouStrip({ icon: Icon, title, tags, since, aside, children, quie
   const waiting = quiet ? null : since;
   return (
     <header className={cn('grid grid-cols-[2.25rem_minmax(0,1fr)] sm:grid-cols-[2.75rem_minmax(0,1fr)_auto] items-start gap-x-3 sm:gap-x-4 gap-y-2.5 px-4 py-3.5 sm:px-5 sm:py-4', quiet ? 'border-b border-line' : 'bg-you text-on-you signs-card:border-b signs-card:border-line signs-card:bg-panel signs-card:text-ink signs-card:shadow-[inset_5px_0_0_var(--color-you)]')}>
-      <span className={cn('grid h-9 w-9 sm:h-11 sm:w-11 place-items-center rounded-lg', quiet ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-soft' : 'bg-on-you text-you signs-card:bg-you signs-card:text-on-you')} aria-hidden="true">
+      <span className={cn('grid h-9 w-9 sm:h-11 sm:w-11 place-items-center rounded-lg', quiet ? 'bg-ok/12 text-ok-ink ring-[1.5px] ring-inset ring-ok/45' : 'bg-on-you text-you signs-card:bg-you signs-card:text-on-you')} aria-hidden="true">
         <Icon size={18} strokeWidth={2.25} className="sm:h-[22px] sm:w-[22px]" />
       </span>
       <div className="min-w-0 self-center">
