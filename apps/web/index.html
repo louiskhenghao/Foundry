@@ -7,10 +7,18 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <script>
-      // apply the saved (or system) theme before first paint so there is no flash
+      // before the first paint, so nothing flashes: light or dark (saved, or the computer's), and the chosen theme's
+      // stylesheet as theme.ts last kept it
       try {
         var t = localStorage.getItem('foundry.theme');
         if (t === 'light' || (!t && matchMedia('(prefers-color-scheme: light)').matches)) document.documentElement.classList.add('light');
+        var css = localStorage.getItem('foundry.themeCss');
+        if (css) {
+          var s = document.createElement('style');
+          s.id = 'foundry-theme';
+          s.textContent = css;
+          document.head.appendChild(s);
+        }
       } catch (e) {}
     </script>
   </head>

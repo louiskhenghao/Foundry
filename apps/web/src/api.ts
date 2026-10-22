@@ -1,7 +1,7 @@
 import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeliveryRevert, InterviewQuestion, MergeMethod } from '@foundry/core/browser';
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 import type { IssueRead } from './pages/new-goal-issue.ts';
-import type { Calibration, GoalRecipe, Schedule, ScheduleCadence } from '@foundry/core/browser';
+import type { Calibration, GoalRecipe, Schedule, ScheduleCadence, ThemeEntry, ThemeProblem } from '@foundry/core/browser';
 
 /** a Schedule as the Schedules page lists it (ADR-0054): with its next run and the goal of its last run */
 export type ScheduleRow = Schedule & { nextRunAt: string | null; lastGoal: { id: string; title: string; state: GoalState } | null };
@@ -615,6 +615,10 @@ export function apiForProvider(provider?: AgentProvider) {
     }),
   addLink: (url: string, opts: { goalId?: string; name?: string; note?: string } = {}) => req<{ attachments: Attachment[] }>(opts.goalId ? `/api/goals/${opts.goalId}/attachments` : '/api/uploads', { method: 'POST', body: JSON.stringify({ url, name: opts.name, note: opts.note }) }).then((r) => r.attachments[0]!),
   openTargets: () => req<{ targets: OpenTarget[] }>('/api/open/targets').then((r) => r.targets),
+  // themes (ADR-0066): the built-in ones and the files in the data folder's themes/
+  themes: () => req<{ dir: string; themes: ThemeEntry[]; problems: ThemeProblem[] }>('/api/themes'),
+  copyTheme: (from: string, name?: string) => req<ThemeEntry>('/api/themes', { method: 'POST', body: JSON.stringify({ from, name }) }),
+  openThemes: (target: OpenTarget['id']) => req<{ ok: true; path: string; command: string[] }>('/api/themes/open', { method: 'POST', body: JSON.stringify({ target }) }),
   openGoal: (goalId: string, target: OpenTarget['id'], which: 'repo' | 'workspace' | `task:${string}` | `resolve:${string}`) => req<{ ok: true; path: string; command: string[] }>(`/api/goals/${goalId}/open`, { method: 'POST', body: JSON.stringify({ target, which }) }),
   stagedAttachment: (attId: string) => req<Attachment>(`/api/uploads/${attId}`),
   reconvertAttachment: (goalId: string, attId: string) => req<{ markdown: Attachment['markdown'] }>(`/api/goals/${goalId}/attachments/${attId}/convert`, { method: 'POST' }),

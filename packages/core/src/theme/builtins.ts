@@ -9,8 +9,8 @@ export const WAYFINDING: Theme = {
   name: 'Wayfinding',
   description: 'Concrete grey and graphite, with signal yellow only where you are needed.',
   fonts: {
-    sans: "'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, sans-serif",
-    mono: "'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
+    sans: "'Atkinson Hyperlegible Next Variable', 'Atkinson Hyperlegible Next', ui-sans-serif, system-ui, sans-serif",
+    mono: "'Atkinson Hyperlegible Mono Variable', 'Atkinson Hyperlegible Mono', ui-monospace, SFMono-Regular, Menlo, monospace",
   },
   shape: { radius: 10, slant: -14, texture: 'grain' },
   light: {

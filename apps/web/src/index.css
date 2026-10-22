@@ -26,8 +26,58 @@
   }
 }
 
+/*
+ * The theme's names for its colours (ADR-0066): bg-page, bg-panel, text-ink-soft, border-line, bg-you with text-on-you,
+ * text-ok-ink and the rest. These are Classic's, pointed at Tailwind's own ramps. Any other theme replaces them — and the
+ * ramps themselves, so every zinc-*, emerald-*, amber-* class follows it — with the stylesheet theme.ts puts in <head>.
+ * `on-x` is text on an x fill; `x-ink` is x-coloured text that reads on a panel.
+ */
+@theme static {
+  --color-page: var(--color-zinc-950);
+  --color-panel: var(--color-zinc-900);
+  --color-inset: var(--color-zinc-900);
+  --color-line: var(--color-zinc-800);
+  --color-line-strong: var(--color-zinc-700);
+  --color-ink: var(--color-zinc-100);
+  --color-ink-soft: var(--color-zinc-400);
+  --color-ink-faint: var(--color-zinc-500);
+  --color-on-ink: var(--color-zinc-950);
+  --color-band: var(--color-zinc-950);
+  --color-band-ink: var(--color-zinc-100);
+  --color-band-ink-soft: var(--color-zinc-400);
+  --color-band-line: var(--color-zinc-800);
+  --color-band-hover: var(--color-zinc-900);
+  --color-accent: var(--color-emerald-500);
+  --color-on-accent: #09090b;
+  --color-accent-ink: var(--color-emerald-300);
+  --color-you: var(--color-amber-400);
+  --color-on-you: #09090b;
+  --color-you-ink: var(--color-amber-300);
+  --color-work: var(--color-blue-400);
+  --color-on-work: #09090b;
+  --color-work-ink: var(--color-blue-300);
+  --color-ok: var(--color-emerald-400);
+  --color-on-ok: #09090b;
+  --color-ok-ink: var(--color-emerald-300);
+  --color-bad: var(--color-rose-500);
+  --color-on-bad: #ffffff;
+  --color-bad-ink: var(--color-rose-300);
+  --color-extra: var(--color-violet-400);
+  --color-on-extra: #09090b;
+  --color-extra-ink: var(--color-violet-300);
+  /* each coding agent's own colour says who did the work: the same in every theme, never a signal */
+  --color-agent-claude: #fdba74;
+  --color-agent-codex: #93c5fd;
+  --color-agent-agy: #5eead4;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 :root {
   color-scheme: dark;
+  /* how far a theme leans the stage plates, and how much grain it lays on the page */
+  --slant: 0deg;
+  --texture-opacity: 0;
 }
 
 /* Keep native dropdown behavior, with a consistent inset for the indicator and its text. */
@@ -93,6 +143,10 @@ select:not([multiple]):is(:not([size]), [size='1']) {
   --color-teal-200: var(--color-teal-800);
   --color-teal-300: var(--color-teal-700);
   --color-teal-400: var(--color-teal-600);
+  --color-inset: #f4f4f5;
+  --color-agent-claude: #c2410c;
+  --color-agent-codex: #1d4ed8;
+  --color-agent-agy: #0f766e;
 }
 
 /*
@@ -102,7 +156,7 @@ select:not([multiple]):is(:not([size]), [size='1']) {
  */
 :root.light .surface-card,
 :root.light .dag-node {
-  background-color: #ffffff;
+  background-color: var(--color-panel);
 }
 :root.light .dag-node {
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
@@ -118,14 +172,14 @@ select:not([multiple]):is(:not([size]), [size='1']) {
 :root.light .md th,
 :root.light .diff-file-head,
 :root.light .surface-inset {
-  background-color: #f4f4f5;
+  background-color: var(--color-inset);
 }
 :root.light .surface-card .log-row:hover {
   /* hover:bg-zinc-900 is white in light — invisible on a white card (the Agents log), so rows tint instead (a step past the inset tint, so the "you" rows still react) */
-  background-color: #e9e9ed;
+  background-color: color-mix(in oklab, var(--color-inset), var(--color-ink) 6%);
 }
 :root.light ::-webkit-scrollbar-thumb {
-  background-color: #c4c4c9;
+  background-color: var(--color-line-strong);
 }
 html,
 body,
@@ -133,11 +187,21 @@ body,
   height: 100%;
 }
 body {
-  @apply bg-zinc-950 text-zinc-100 antialiased;
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  @apply bg-page text-ink antialiased;
+  font-family: var(--font-sans);
+}
+/* a theme's texture: a faint grain on the page, behind the cards (Wayfinding's concrete) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--texture-opacity);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .9 -.25'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 .mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
 }
 /*
  * Styling the scrollbar makes it a classic, space-consuming one, so the page scroller must always
@@ -194,7 +258,7 @@ main {
   @apply mr-1.5 align-middle;
 }
 .md code {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--font-mono);
   @apply text-[12px] bg-zinc-900 border border-zinc-800 rounded px-1 py-0.5 text-emerald-200;
 }
 .md pre {

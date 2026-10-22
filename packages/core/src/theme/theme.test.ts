@@ -92,7 +92,7 @@ describe('the generated stylesheet', () => {
     expect(light['--color-on-you']).toBe('#11151b');
   });
   test('fonts, corners and the lean of the stage plates come from the theme', () => {
-    expect(dark['--font-sans']).toStartWith("'Atkinson Hyperlegible Next'");
+    expect(dark['--font-sans']).toStartWith("'Atkinson Hyperlegible Next Variable'");
     expect(dark['--radius-lg']).toBe('10px');
     expect(dark['--radius-md']).toBe('7.5px');
     expect(dark['--slant']).toBe('-14deg');

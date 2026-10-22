@@ -27,6 +27,7 @@ import { LoginPage } from './pages/LoginPage.tsx';
 import { ReportsPage } from './pages/ReportsPage.tsx';
 import { UsagePage, UsagePill } from './pages/UsagePage.tsx';
 import { useLive } from './store.ts';
+import { setMode, useTheme } from './theme.ts';
 import { Button, Menu as DropMenu, MenuItem, cn } from './ui.tsx';
 
 // the credits carry ~270 KB of license texts: loaded when the page is opened, not with the app
@@ -173,15 +174,8 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
     const i = setInterval(load, 5 * 60_000);
     return () => (clearTimeout(t), clearInterval(i));
   }, []);
-  const [light, setLight] = useState(() => document.documentElement.classList.contains('light'));
-  const toggleTheme = () => {
-    const next = !light;
-    setLight(next);
-    document.documentElement.classList.toggle('light', next);
-    try {
-      localStorage.setItem('foundry.theme', next ? 'light' : 'dark');
-    } catch {}
-  };
+  const light = useTheme((s) => s.light);
+  const toggleTheme = () => setMode(light ? 'dark' : 'light');
   const here = ['/settings', '/setup', '/transfer', '/ports', '/learnings', '/schedules', '/reports', '/help', '/credits'].some((p) => loc.pathname.startsWith(p));
   const go = (close: () => void, to: string) => {
     close();
