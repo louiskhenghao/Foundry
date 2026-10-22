@@ -12,7 +12,7 @@ export interface MoreItem {
 }
 
 /** "⋯" overflow menu for secondary actions. */
-export function MoreMenu({ items, size = 'sm', label }: { items: MoreItem[]; size?: 'sm' | 'md'; label?: string }) {
+export function MoreMenu({ items, size = 'sm', label }: { items: MoreItem[]; size?: 'sm' | 'md' | 'lg'; label?: string }) {
   return (
     <Menu
       width="w-52"

@@ -23,7 +23,7 @@ const remote = () => typeof location !== 'undefined' && !['localhost', '127.0.0.
  * opens on a phone. Launching apps happens on the server (same machine). `working` = the coding agents are using the
  * goal's folders now, so edits made there can clash with theirs.
  */
-export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working = false }: { goalId: string; places: OpenPlace[]; size?: 'sm' | 'md'; label?: string; working?: boolean }) {
+export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working = false }: { goalId: string; places: OpenPlace[]; size?: 'sm' | 'md' | 'lg'; label?: string; working?: boolean }) {
   const [targets, setTargets] = useState<OpenTarget[] | null>(cached);
   const [status, setStatus] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   // the web editor's password, shown once it opened so it can be pasted on its sign-in page

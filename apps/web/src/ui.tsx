@@ -124,11 +124,14 @@ export function MenuItem({ icon, children, hint, danger, className, ...props }: 
 
 type ButtonVariant = 'default' | 'primary' | 'danger' | 'info' | 'ghost';
 
-/** a button's look, for a link that acts as one (an address that opens in a new tab) */
-export function buttonClass(variant: ButtonVariant = 'default', size: 'sm' | 'md' = 'md', className?: string): string {
+/**
+ * a button's look, for a link that acts as one (an address that opens in a new tab). `lg`: the actions of a page's own head
+ * (a goal's), 42px tall in bold.
+ */
+export function buttonClass(variant: ButtonVariant = 'default', size: 'sm' | 'md' | 'lg' = 'md', className?: string): string {
   return cn(
-    'inline-flex items-center gap-1.5 rounded-md font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed',
-    size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3.5 py-1.5 text-sm',
+    'inline-flex items-center transition disabled:opacity-40 disabled:cursor-not-allowed',
+    size === 'sm' ? 'gap-1.5 rounded-md font-semibold px-2.5 py-1 text-xs' : size === 'lg' ? 'h-[42px] gap-2 rounded-lg font-bold px-4 text-[14.5px]' : 'gap-1.5 rounded-md font-semibold px-3.5 py-1.5 text-sm',
     variant === 'primary' && 'bg-accent text-on-accent hover:bg-accent/85',
     variant === 'default' && 'bg-panel text-ink hover:bg-zinc-800 border border-line-strong',
     variant === 'danger' && 'bg-bad/10 text-bad-ink border border-bad/40 hover:bg-bad/20',
@@ -138,7 +141,7 @@ export function buttonClass(variant: ButtonVariant = 'default', size: 'sm' | 'md
   );
 }
 
-export function Button({ variant = 'default', size = 'md', className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: 'sm' | 'md' }) {
+export function Button({ variant = 'default', size = 'md', className, ...props }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant; size?: 'sm' | 'md' | 'lg' }) {
   return <button className={buttonClass(variant, size, className)} {...props} />;
 }
 
@@ -155,11 +158,14 @@ export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTex
   return <textarea className={cn('w-full rounded-md bg-panel border border-line-strong px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent', className)} {...props} />;
 }
 
-/** A row of mutually exclusive buttons for a short list of choices: every option visible, one click to pick. */
-export function ButtonGroup<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { id: T; label: ReactNode; title?: string; /** shown, not choosable (the title says why) */ disabled?: boolean }[]; label: string }) {
+/**
+ * A row of mutually exclusive buttons for a short list of choices: every option visible, one click to pick. `lg`: beside
+ * the large buttons of a page's own head.
+ */
+export function ButtonGroup<T extends string>({ value, onChange, options, label, size = 'md' }: { value: T; onChange: (v: T) => void; options: { id: T; label: ReactNode; title?: string; /** shown, not choosable (the title says why) */ disabled?: boolean }[]; label: string; size?: 'md' | 'lg' }) {
   return (
     // a segmented control: the chosen option filled with the accent; wrapped buttons grow to fill their row
-    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap gap-0.5 max-w-full rounded-md p-0.5 bg-panel ring-1 ring-inset ring-line-strong text-xs">
+    <div role="radiogroup" aria-label={label} className={cn('inline-flex flex-wrap gap-0.5 max-w-full bg-panel ring-1 ring-inset ring-line-strong', size === 'lg' ? 'rounded-lg p-[3px] text-sm' : 'rounded-md p-0.5 text-xs')}>
       {options.map((o) => (
         <button
           key={o.id}
@@ -169,7 +175,7 @@ export function ButtonGroup<T extends string>({ value, onChange, options, label 
           aria-disabled={o.disabled || undefined}
           title={o.title}
           onClick={() => !o.disabled && onChange(o.id)}
-          className={cn('grow rounded-sm px-2.5 py-1 whitespace-nowrap font-semibold', o.disabled && 'opacity-40 cursor-not-allowed', value === o.id ? 'bg-accent text-on-accent' : 'text-ink-soft hover:text-ink hover:bg-zinc-800')}
+          className={cn('grow whitespace-nowrap', size === 'lg' ? 'h-9 rounded-md px-3.5 font-bold' : 'rounded-sm px-2.5 py-1 font-semibold', o.disabled && 'opacity-40 cursor-not-allowed', value === o.id ? 'bg-accent text-on-accent' : 'text-ink-soft hover:text-ink hover:bg-zinc-800')}
         >
           {o.label}
         </button>

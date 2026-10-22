@@ -1,5 +1,5 @@
-import { PROVIDER_LABEL, isHistory, reportsDollars, taskUsage, unmeasuredSessions } from '@foundry/core/browser';
-import { ArrowLeft, Ban, CornerDownRight, Folder, GitBranch, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
+import { isHistory, reportsDollars, taskUsage } from '@foundry/core/browser';
+import { ArrowLeft, Ban, CornerDownRight, Folder, GitBranch, GitMerge, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -12,9 +12,8 @@ import { MilestoneCard } from './MilestoneCard.tsx';
 import { ImportedCard } from './ImportedCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, Meter, PAGE_TITLE, Tabs, cn, fmtLimitMin, fmtLimitUsd, fmtUsd, stateLabel } from '../../ui.tsx';
+import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, PAGE_TITLE, Tabs, cn, stateLabel } from '../../ui.tsx';
 import { StatePlate, StageRail, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
-import { CutSessionsDot } from '../../components/CutSessionsDot.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { MoreMenu, type MoreItem } from '../../components/MoreMenu.tsx';
 import { LiveLog } from '../LiveLog.tsx';
@@ -108,7 +107,6 @@ export function GoalPage() {
   if (!d) return <Empty>Loading…</Empty>;
   const g = d.goal;
   // sessions that ended before Claude Code reported a cost: the meter's total leaves them out and says so
-  const unmeasured = unmeasuredSessions(d.attempts);
   const terminal = ['done', 'over_delivered', 'failed', 'cancelled'].includes(g.state);
   const open = d.escalations.filter((e) => e.state === 'open').length;
   const running = d.tasks.filter((t) => t.state === 'running').length;
@@ -154,7 +152,7 @@ export function GoalPage() {
         <span aria-hidden="true">/</span>
         <span className="mono truncate" title={g.repoPath}>{repoName}</span>
       </nav>
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_21rem] md:gap-8 md:items-start">
+      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:gap-8 md:items-start">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
             <StatePlate state={g.state} label={stateLabel(g.state)} />
@@ -165,6 +163,8 @@ export function GoalPage() {
           <h1 className={cn(PAGE_TITLE, 'line-clamp-3')} title={g.title}>
             {g.title}
           </h1>
+          {/* what was asked, in its first lines: the Overview's Goal card holds all of it */}
+          {g.prompt && g.prompt !== g.title && <p className="mt-3 max-w-[72ch] text-[17px] leading-relaxed text-ink-soft line-clamp-2 header-compact:text-sm" title={g.prompt}>{g.prompt}</p>}
           <ul className="mt-4 flex flex-wrap gap-2" aria-label="About this goal">
             <li className={fact}>
               <Folder size={13} className="shrink-0" aria-hidden="true" />
@@ -214,22 +214,12 @@ export function GoalPage() {
             </div>
           )}
         </div>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            {!reportsDollars(g.provider) ? (
-              <span className="text-xs text-ink-soft">{PROVIDER_LABEL[g.provider ?? 'claude']} · dollar cost unavailable</span>
-            ) : (
-              <div>
-                <Meter label={`cost ${fmtUsd(g.costUsd)} / ${fmtLimitUsd(g.budgets.maxCostUsd)}`} value={g.costUsd} max={g.budgets.maxCostUsd} note={unmeasured > 0 ? <CutSessionsDot n={unmeasured} est={d.costEstimate} /> : null} />
-              </div>
-            )}
-            <div title="Time Foundry has worked on this goal, Clarify included. Waiting for you (interview answers, Brief approval, Inbox, a milestone pause) does not count.">
-              <Meter label={`time ${d.budget.elapsedMin.toFixed(0)} / ${fmtLimitMin(g.budgets.maxDurationMin)}`} value={d.budget.elapsedMin} max={g.budgets.maxDurationMin} />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap md:justify-end">
+        {/* the goal's actions, large: what it spent and how long it worked are the Overview's Budget & time */}
+        <div className="md:max-w-[27rem]">
+          <div className="flex items-center gap-2.5 flex-wrap md:justify-end">
             {/* in the header, not in the tabs row or the simple view's status line: switching views must not move it */}
             <ButtonGroup
+              size="lg"
               label="View"
               value={isExpert ? 'expert' : 'simple'}
               onChange={(v) => setView(v === 'expert')}
@@ -245,28 +235,30 @@ export function GoalPage() {
                 ...(d.paths.workspace ? [{ which: 'workspace' as const, label: 'Goal workspace', path: d.paths.workspace, hint: `branch ${g.branch}` }] : []),
               ]}
               working={['running', 'goal_review'].includes(g.state)}
+              size="lg"
             />
             {history ? null : awaiting ? (
               <Link to={`/goals/${id}/brief`}>
-                <Button size="sm" variant="primary">Review brief →</Button>
+                <Button size="lg" variant="primary">Review brief →</Button>
               </Link>
             ) : finished ? (
-              <Button size="sm" variant="primary" onClick={() => setTab('delivery')}>
+              <Button size="lg" variant="primary" onClick={() => setTab('delivery')}>
+                <GitMerge size={15} aria-hidden="true" />
                 {g.delivery.status === 'delivered' ? 'Delivery' : g.delivery.status === 'running' ? 'Delivering…' : 'Deliver…'}
               </Button>
             ) : !terminal ? (
-              <Button variant="danger" size="sm" onClick={() => api.cancelGoal(id)}>
-                <Ban size={13} /> Cancel
+              <Button variant="danger" size="lg" onClick={() => api.cancelGoal(id)}>
+                <Ban size={15} /> Cancel
               </Button>
             ) : null}
             {terminal && (!history || g.transfer?.repoMapped) && (
               <Link to={`/goals/new?follows=${id}`}>
-                <Button size="sm" variant={finished ? 'default' : 'primary'} title="Start a new goal that builds on this one">
-                  <CornerDownRight size={13} /> Continue with a follow-up…
+                <Button size="lg" variant={finished ? 'default' : 'primary'} title="Start a new goal that builds on this one">
+                  <CornerDownRight size={15} /> Continue with a follow-up…
                 </Button>
               </Link>
             )}
-            <MoreMenu items={more} />
+            <MoreMenu items={more} size="lg" />
           </div>
         </div>
       </div>
