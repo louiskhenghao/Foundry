@@ -20,20 +20,21 @@ Brief 上几乎所有东西你都能改。花五分钟看看：这是改主意�
 Brief 会以你在 New goal 表单上选的视图打开。用顶部的 **Expert view** 或 **Simple view** 切换；这个浏览器会为这个 goal 记住你的选择。
 
 - **Simple view** 只显示需要你决定的内容：Foundry 理解了什么、它的问题、它的假设、你会得到什么，以及价格。见本页末尾的 [Brief 的 Simple view](#brief-的-simple-view)。
-- **Expert view** 显示全部内容，顺序是：页头、**Understanding**、**Questions**、**Assumptions**、**Decisions**、**Areas**、**Plan**、**Goal acceptance**、**How to run it**、**Completion**、估算和预算，以及按钮。本页剩下的部分就按这个顺序讲。左边有这些部分的目录（手机上是顶部一排标签），点一项就跳到那里。正在看的那一项会高亮，每项旁边写着它的状态，比如 **Questions 1 blocking**、**Assumptions 2/2**、**Plan 36 tasks**；需要你处理的显示为琥珀色。
+- **Expert view** 显示全部内容，顺序是：页头、**Understanding**、**Questions**、**Assumptions**、**Decisions**、**Areas**、**Plan**、**Goal acceptance**、**How to run it**、**Completion**、估算和预算，以及按钮。本页剩下的部分就按这个顺序讲。左边有这些部分的目录（手机上是顶部一排标签），点一项就跳到那里。正在看的那一项会高亮，每项旁边写着它的状态，比如 **Questions 1 blocking**、**Assumptions 2/2**、**Plan 36 tasks**；需要你处理的会用黄色标出。
 
 ## 页面顶部
 
-- **← Goal** 跳到 goal 的页面。
-- Brief 等你处理时，标题旁边的徽标显示 **approve brief**。
-- 标题下面：项目文件夹、goal 从哪个分支开始，以及 goal 自己的分支。
+- 最上面一行：**← Goals** 回到 goal 列表，**Goal** 跳到这个 goal 的页面。
+- Brief 等你处理时，标题上方的黄色状态牌显示 **approve brief**。
+- 标题下面是几块小牌子：项目文件夹、goal 从哪个分支开始 → goal 自己的分支、编码智能体、workflow 套件（**Powered by**）、pace 和交付方式。
+- 再下面是 goal 的五个阶段，和 goal 页面上一样：Brief 等你处理时，**Brief** 是黄色的，并标着 **You**。
 - 有一行小字说明 Foundry 读的是你项目的哪个版本，比如 "Explored origin/main (your local main was 3 behind)"。如果它提示没有拉取远端（remote），而你知道之后别人改过项目，就按 **Re-run Clarify**。
 - **Re-run Clarify** 会丢掉这份 Brief，拉取你项目的最新版本，然后重新规划。附件、预算和交付设置都会保留。你在这个页面上输入的答案和备注会先保存；然后你的决定会以文字形式交给新的 Clarify：它会按这些决定来规划，不会再问一遍，但它们不会作为条目回到 **Decisions** 卡片里。它工作期间，你会回到 goal 页面。
 - **goal** 面板显示你最初的描述。面板角上的 **Open full**（两个斜向箭头的图标）会在更大的窗口里显示它，带 **Preview**、**Raw** 和 **Copy**。
 
 ## While the planner works
 
-Brief 分两步出现。Clarifier 先写好除任务之外的一切：理解、Areas、假设、goal 的验收检查、怎么运行。这个骨架会马上显示在这个页面上，此时徽标还是 **clarifying**，另一个 planner 会话正在把 goal 拆成任务，通常要几分钟。
+Brief 分两步出现。Clarifier 先写好除任务之外的一切：理解、Areas、假设、goal 的验收检查、怎么运行。这个骨架会马上显示在这个页面上，此时标题上方的状态牌还是 **clarifying**，另一个 planner 会话正在把 goal 拆成任务，通常要几分钟。
 
 ![planner 工作期间的 Brief 页面：理解和 Areas 可以编辑，Plan 卡片显示 planner 的进度](images/brief-planning.png)
 
@@ -98,7 +99,7 @@ Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，
 
 **Decisions (N)** 列出你给出的每一个答案、写下的每一条备注和否决的每一个假设，包括你在访谈中的回答和备注。每个执行者、审查员和 pull request 都会一字不差地收到它们。
 
-绿点表示计划已经考虑了这个决定。琥珀色点表示你是在计划写好之后才做的决定，所以下面的任务和检查可能还没反映它。卡片会写明有多少个 **not yet applied to the plan**。
+绿点表示计划已经考虑了这个决定。黄点表示你是在计划写好之后才做的决定，所以下面的任务和检查可能还没反映它。卡片会写明有多少个 **not yet applied to the plan**。
 
 ### Add note
 
@@ -118,7 +119,7 @@ Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，
 
 ### No changes needed
 
-如果计划已经符合你的决定，按 **No changes needed** 消除琥珀色提示。
+如果计划已经符合你的决定，按 **No changes needed** 消除黄色提示。
 
 你也可以在决定还没应用时直接批准。执行者仍然会收到这些决定；只是计划没有为它们重写。
 

@@ -20,20 +20,21 @@ When a Brief is ready you get a **Brief ready** message, if notifications are se
 The Brief opens in the view you chose on the New goal form. Switch with **Expert view** or **Simple view** at the top; the choice is remembered for this goal in this browser.
 
 - **Simple view** shows what you need to decide: what Foundry understood, its questions, its assumptions, what you will get, and the price. See [The Simple view of the Brief](#the-simple-view-of-the-brief) at the end of this page.
-- **Expert view** shows everything, in this order: the header, **Understanding**, **Questions**, **Assumptions**, **Decisions**, **Areas**, **Plan**, **Goal acceptance**, **How to run it**, **Completion**, the estimate and budget, and the buttons. The rest of this page follows that order. A list of these sections runs down the left (on a phone, a row of tabs at the top): click one to jump there. The one you are reading is highlighted, and each says how it stands, for example **Questions 1 blocking**, **Assumptions 2/2** or **Plan 36 tasks**, in amber when it needs you.
+- **Expert view** shows everything, in this order: the header, **Understanding**, **Questions**, **Assumptions**, **Decisions**, **Areas**, **Plan**, **Goal acceptance**, **How to run it**, **Completion**, the estimate and budget, and the buttons. The rest of this page follows that order. A list of these sections runs down the left (on a phone, a row of tabs at the top): click one to jump there. The one you are reading is highlighted, and each says how it stands, for example **Questions 1 blocking**, **Assumptions 2/2** or **Plan 36 tasks**, marked in yellow when it needs you.
 
 ## The top of the page
 
-- **← Goal** goes to the goal's page.
-- The badge next to the title reads **approve brief** while the Brief waits for you.
-- Under the title: the project folder, the branch the goal starts from, and the goal's own branch.
+- At the very top, **← Goals** goes back to the list of goals, and **Goal** to this goal's page.
+- Above the title, a yellow plate reads **approve brief** while the Brief waits for you.
+- Under the title, small plates: the project folder, the branch the goal starts from → the goal's own branch, the coding agent, the workflow suite (**Powered by**), the pace and the delivery.
+- Under those, the goal's five stages, as on the goal page: **Brief** is yellow and marked **You** while it waits for you.
 - A small line says which version of your project Foundry read, for example "Explored origin/main (your local main was 3 behind)". If it warns that the remote was not fetched and you know others changed the project since, press **Re-run Clarify**.
 - **Re-run Clarify** throws this Brief away, fetches the latest version of your project and plans again. Attachments, budget and delivery settings are kept. Answers and notes you typed on this page are saved first; then your decisions are handed to the new Clarify as text: it plans with them and does not ask again, but they do not come back as items in the **Decisions** card. You land on the goal page while it works.
 - The **goal** panel shows your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window with **Preview**, **Raw** and **Copy**.
 
 ## While the planner works
 
-The Brief appears in two steps. The Clarifier writes everything but the tasks first: the understanding, the Areas, the assumptions, the goal acceptance checks, how to run it. That skeleton shows on this page at once, while the badge still reads **clarifying**, and a separate planner session splits the goal into tasks, usually for a few minutes.
+The Brief appears in two steps. The Clarifier writes everything but the tasks first: the understanding, the Areas, the assumptions, the goal acceptance checks, how to run it. That skeleton shows on this page at once, while the plate above the title still reads **clarifying**, and a separate planner session splits the goal into tasks, usually for a few minutes.
 
 ![The Brief page while the planner works: the understanding and Areas are editable, the Plan card shows the planner's progress](images/brief-planning.png)
 
@@ -98,7 +99,7 @@ A delegated goal and a follow-up start with the Subjects of the goal they come f
 
 **Decisions (N)** lists every answer you gave, every note you wrote and every assumption you rejected, including your interview answers and notes. Every worker, reviewer and pull request receives them word for word.
 
-A green dot means the plan already takes the decision into account. An amber dot means you decided it after the plan was written, so the tasks and checks below may not reflect it yet. The card says how many are **not yet applied to the plan**.
+A green dot means the plan already takes the decision into account. A yellow dot means you decided it after the plan was written, so the tasks and checks below may not reflect it yet. The card says how many are **not yet applied to the plan**.
 
 ### Add note
 
@@ -118,7 +119,7 @@ The round waits for you: it is still there after a reload, and a **Brief ready**
 
 ### No changes needed
 
-If the plan already fits your decisions, press **No changes needed** to stop the amber warning.
+If the plan already fits your decisions, press **No changes needed** to stop the yellow warning.
 
 You can also approve with decisions not applied. Workers still receive them; the plan just was not rewritten for them.
 

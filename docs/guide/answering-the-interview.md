@@ -80,7 +80,7 @@ After you send a round, the card title changes to **Thinking about your answersâ
 
 As soon as the Clarifier has written the Brief, the card says **The Brief is taking shape** with an **Open the Brief** link: its understanding, Areas, assumptions and acceptance checks are ready to read and edit while the planner works, and the tasks fill in by themselves. See [While the planner works](./approving-the-brief.md#while-the-planner-works).
 
-If every session slot is taken by running work, the step says **waiting for a free session slot** in amber, with the time waited: Clarify, the planner and the other sessions you wait for may use one slot beyond the limit in Settings, so this wait is for another such session to end, never for a task.
+If every session slot is taken by running work, the step says **waiting for a free session slot**, with the time waited: Clarify, the planner and the other sessions you wait for may use one slot beyond the limit in Settings, so this wait is for another such session to end, never for a task.
 
 An answer is written in one go, so the live log under the steps can stand still for minutes while it is; the timer shows it is still working. You can close the page; the goal keeps going and the page updates when you come back.
 
