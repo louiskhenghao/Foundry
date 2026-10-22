@@ -194,7 +194,7 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 
 skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foundry 把哪些交给它的会话。
 
-- **Workflow suite**（在 [New goal defaults](#new-goal-defaults) 下）：各角色遵循谁的技能。**mattpocock**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断，任务改到 `AGENTS.md`、`CLAUDE.md` 或某个 skill 时用 `writing-for-agents` 来写），并记录它们有没有照做；装了 `retro` skill 时，写 goal 的 [Learnings](./learnings.zh.md) 的那个会话会以回顾（retrospective）的方式进行。**pstack** 遵循 pstack 的套件，它没有的由 Matt Pocock 的技能补上。**plain** 只是提一下装了哪些技能。每套技能都来自一个固定版本，不会在两个 goal 之间悄悄变化；每个 goal 在创建时就定下自己的套件。pstack 套件在 Setup 页整套安装，在这一页显示为 Managed by Foundry 下的一个来源 **pstack suite · v0.9.93**；**Re-sync** 把副本重新对齐到固定版本，只有 Foundry 发版才会移动这个版本。
+- **Workflow suite**（在 [New goal defaults](#new-goal-defaults) 下）：各角色遵循谁的技能。**mattpocock**（默认）告诉 worker 要遵循哪种工作方法（功能先写测试，bug 先诊断，任务改到 `AGENTS.md`、`CLAUDE.md` 或某个 skill 时用 `writing-for-agents` 来写），并记录它们有没有照做；装了 `retro` skill 时，写 goal 的 [Learnings](./learnings.zh.md) 的那个会话会以回顾（retrospective）的方式进行。**pstack** 遵循 pstack 的套件，它没有的由 Matt Pocock 的技能补上。**plain** 只是提一下装了哪些技能。每套技能都来自一个固定版本，不会在两个 goal 之间悄悄变化；每个 goal 在创建时就定下自己的套件。pstack 套件在 Setup 页整套安装，在这一页显示为 Managed by Foundry 下的一个来源 **pstack suite · v0.9.93**；**Re-sync** 把副本重新对齐到当前使用的版本；想换用任一套件的更新版本，见 [Workflow suite releases](#workflow-suite-releases)。
 - **Setting sources**（仅 Claude）：会话加载哪些 Claude Code 设置。留空。
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
 - **MCP tools that run or change things**（关）：让会话使用已允许的 MCP server 里会运行或改动东西的工具。对 REA 来说：启动目标程序、挂调试器、操作连接的 Android 设备。关着时会话只能做静态分析。
@@ -203,6 +203,18 @@ skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foun
 顶栏上的 **Extensions** 页面放着 skill、MCP server 和原生 Codex 插件。下述技能更新状态及整包卸载细节适用于 Claude。Codex 的 **Skills** 清单显示原生及共享技能，以及 Codex 已启用的每个插件里的技能，按插件分组（这些由 Codex 自己更新和移除，行上会说明怎么做）。在 Foundry 之外安装的技能，下次打开页面就会出现。插件包本身另在 **Plugins** 显示。以插件形式提供的设计或图像技能包，只要 Codex 装了那个插件就算已安装。共享技能（在 `~/.agents/skills`，其他智能体也会读取）可以在这里卸载，包括手动安装的；卸载后进入回收站，恢复时回到原来的文件夹。如果 Claude Code 也通过它自己技能目录里的链接使用某个共享技能，就不能在这里卸载：请先在 **Claude Code** 那边卸载，免得 Claude Code 留下一个失效的链接。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。右边的 **Catalog** 在你滚动列表时一直留在视野里；点某个技能的名字会弹出它的详情窗口：为什么在目录里、在这台电脑上的状态、来自哪里，以及哪些角色按什么规则使用它。**Install required**、**+ recommended** 和 **+ optional** 会把到那一级为止还没装的全部装上；某一级还有没装的技能时，它的标题上会出现 **Install N**，只装那一级。已经装好的不会动。
 
 在 **Claude Code** 这边，每个用户级和插件技能还会显示 Foundry 的会话有没有用到它，统计范围是最新的 30 个 Claude Code goal，不论状态（不足 30 个时就统计全部）：用到过的显示 **used in 4 goals · last 2d ago**，这些 goal 里没有任何会话调用过的显示一个 **unused** 标记（悬停会提示 *no session invoked it in the last 7 goals*）。标题下面那一行给出数量，比如 **3 of 42 installed skills were never used in the last 7 goals**；**needs attention** 旁边的 **unused only** 只留下这些行。还没有任何 goal 时，这一行显示 **No goals yet: skill usage is unknown**，也不标记任何技能。项目技能不计在内：会话会读它们，但不会调用。没用到的技能照样占用每个会话的上下文，可以考虑卸载；Foundry 不会替你删除。Codex 不报告技能调用，所以它的视图里没有这些。
+
+### Workflow suite releases
+
+来源列表上方的 **Workflow suites** 列出 Matt Pocock 的技能和 pstack，以及各自所在的版本。Foundry 会固定一个版本；**pinned by Foundry** 或 **moved by you** 说明是谁选的。这一行还写着这台电脑上是怎么装的（Foundry 的副本、Claude 插件，或 Foundry 的套件副本），以及有没有更新的版本：**v1.4.0 available**，后面跟一行预报，比如 **+2 new · 1 removed · 24 stay**。最新版本不再包含 Foundry 流程在用的某个技能时，这一行会出现一条黄色提示，写明是哪个技能、流程拿它做什么，比如 *grilling: the Clarifier prefers it*，不用点开就能看到。
+
+**Preview** 打开 **Release** 里所选版本的预报。它先列出这个版本移除的技能，Foundry 流程在用的排在前面；仓库把它移到 `deprecated/` 文件夹的会标 **deprecated upstream**，后面附上 changelog 里说明它去向的几行。接着是新增的技能，以及两个版本之间 changelog 的各个标题。预报下面的 **Move to v…** 会把套件换到这个版本：
+
+- Foundry 的副本会更新，新版本不再包含的技能会进废纸篓（可以在 **Trash** 标签里恢复）。
+- Claude 插件会在 Claude Code 的设置里把 marketplace 固定到新的 tag，再更新插件。你自己的 Claude 会话要重启才会加载新版本。
+- pstack 的副本会重新同步。
+
+切换会在底部的 **Operations** 栏里作为一个标签运行；有 goal 在跑时会被拒绝。你可以换到 Foundry 固定版本及之后的任何版本，也可以退回固定版本。之后某次 Foundry 更新固定的版本比你选的更新时，就用 Foundry 的。已安装的版本和当前使用的版本不一致时（比如在那样一次更新之后），会出现 **Re-sync**。
 
 ### Skill compatibility
 
