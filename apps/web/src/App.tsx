@@ -27,7 +27,7 @@ import { LoginPage } from './pages/LoginPage.tsx';
 import { ReportsPage } from './pages/ReportsPage.tsx';
 import { UsagePage, UsagePill } from './pages/UsagePage.tsx';
 import { useLive } from './store.ts';
-import { setMode, useTheme } from './theme.ts';
+import { setMode, useLayout, useTheme } from './theme.ts';
 import { Button, Menu as DropMenu, MenuItem, cn } from './ui.tsx';
 
 // the credits carry ~270 KB of license texts: loaded when the page is opened, not with the app
@@ -66,17 +66,20 @@ export function App() {
       'lg:after:absolute lg:after:inset-x-2.5 lg:after:bottom-0 lg:after:h-[3px] lg:after:rounded-t-[3px]',
       isActive ? 'bg-band-hover lg:bg-transparent text-band-ink lg:after:bg-band-ink' : 'text-band-ink-soft hover:text-band-ink',
     );
-  // between lg and xl the header only fits the icons; the dropdown (below lg) always shows labels
-  const label = 'lg:hidden xl:inline';
+  // in a side column (a theme whose navigation is `side`): a row, the chosen one filled with a bar at its left edge
+  const sideLink = ({ isActive }: { isActive: boolean }) =>
+    cn('relative flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-semibold transition-colors', isActive ? 'bg-band-hover text-band-ink shadow-[inset_3px_0_0_var(--color-band-ink)]' : 'text-band-ink-soft hover:bg-band-hover hover:text-band-ink');
+  const side = useLayout().nav === 'side';
   // how many agent sessions are working: a count on the Agents icon, like the Inbox's
   const agents = useAgentsSummary();
   const busy = agents?.busy ?? 0;
-  const links = (
+  // `label`: between lg and xl the top bar only fits the icons; the phone menu and a side column always show the names
+  const navLinks = (cls: typeof link, label: string) => (
     <>
-      <NavLink to="/" end className={link} title="Goals">
+      <NavLink to="/" end className={cls} title="Goals">
         <ListTodo size={15} /> <span className={label}>Goals</span>
       </NavLink>
-      <NavLink to="/agents" className={link} title={busy ? `Agents: ${busy} session${busy === 1 ? '' : 's'} working · ${agents?.idle ?? 0} idle` : 'Agents'} aria-label={busy ? `Agents, ${busy} working` : 'Agents'}>
+      <NavLink to="/agents" className={cls} title={busy ? `Agents: ${busy} session${busy === 1 ? '' : 's'} working · ${agents?.idle ?? 0} idle` : 'Agents'} aria-label={busy ? `Agents, ${busy} working` : 'Agents'}>
         <Bot size={15} aria-hidden="true" />
         <span className={label}>Agents</span>
         {/* how many sessions are working, live: a pulsing dot and the count, outlined so it never reads as an alarm */}
@@ -87,15 +90,48 @@ export function App() {
           </span>
         )}
       </NavLink>
-      <NavLink to="/skills" className={link} title="Extensions: skills and MCP servers">
+      <NavLink to="/skills" className={cls} title="Extensions: skills and MCP servers">
         <Puzzle size={15} /> <span className={label}>Extensions</span>
       </NavLink>
     </>
   );
+  const links = navLinks(link, 'lg:hidden xl:inline');
   return (
-    <div className="h-full flex flex-col">
+    <div className={cn('h-full flex', side ? 'flex-row' : 'flex-col')}>
+      {side && (
+        // a theme whose navigation is `side`: on a wide screen a column down the left holds what the top bar would
+        <aside className="theme-band hidden lg:flex w-60 xl:w-64 shrink-0 flex-col overflow-y-auto border-r border-band-line bg-band text-band-ink">
+          <NavLink to="/" className="flex h-16 shrink-0 items-center gap-2.5 px-5 font-display text-lg font-extrabold tracking-tight text-band-ink">
+            <Logo />
+            Foundry
+          </NavLink>
+          <Link to="/goals/new" className="mx-3 flex" title="Start a new goal">
+            <Button variant="primary" className="w-full justify-center">
+              <Plus size={15} /> New goal
+            </Button>
+          </Link>
+          <nav aria-label="Main" className="mt-5 flex flex-col gap-0.5 px-3">
+            {navLinks(sideLink, '')}
+            <NavLink to="/inbox" className={sideLink} title={open > 0 ? `Inbox: ${open} waiting for you` : 'Inbox'}>
+              <Inbox size={15} /> Inbox
+              {open > 0 && <span className="mono ml-auto min-w-[1.25rem] rounded-[5px] bg-you px-1.5 text-center text-[11px] font-bold leading-5 text-on-you">{open > 99 ? '99+' : open}</span>}
+            </NavLink>
+          </nav>
+          <div className="mt-auto flex flex-wrap items-center gap-2 border-t border-band-line px-3 py-3 text-xs text-band-ink-soft">
+            <UpdatePill />
+            <UsagePill />
+            <AccountMenu />
+            <span className="ml-auto">
+              <AppMenu setupBad={setupBad} connected={connected} />
+            </span>
+          </div>
+        </aside>
+      )}
+      {/* min-h-0: without it this column grows to its content, the page scrolls instead of <main>, and every side
+          panel that stays in view (Settings, Ports, the Brief…) scrolls away with the rest */}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* the top bar is a band in the theme's band colours (theme-band): Wayfinding's is graphite in both modes */}
-      <header className="theme-band relative flex items-center gap-2 md:gap-4 px-3 md:px-5 h-14 border-b border-band-line bg-band text-band-ink sticky top-0 z-20">
+      <header className={cn('theme-band relative flex items-center gap-2 md:gap-4 px-3 md:px-5 h-14 border-b border-band-line bg-band text-band-ink sticky top-0 z-20', side && 'lg:hidden')}>
         <button className="lg:hidden p-1.5 -ml-1 rounded text-band-ink-soft hover:text-band-ink hover:bg-band-hover" aria-label="menu" onClick={() => setMenu(!menu)}>
           {menu ? <X size={18} /> : <Menu size={18} />}
         </button>
@@ -104,7 +140,7 @@ export function App() {
           Foundry
         </NavLink>
         <nav className="hidden lg:flex items-stretch self-stretch gap-0.5">{links}</nav>
-        <div className="ml-auto flex items-center gap-2 md:gap-3 text-xs text-zinc-500 min-w-0">
+        <div className="ml-auto flex items-center gap-2 md:gap-3 text-xs text-band-ink-soft min-w-0">
           {/* the one action that starts work lives here, not in the nav, so a narrow header keeps it */}
           {/* every control in this row is one height: 32px on a phone (where buttons get a 32px touch height), 28px above */}
           <Link to="/goals/new" className="shrink-0 flex">
@@ -162,6 +198,7 @@ export function App() {
           />
         </Routes>
       </main>
+      </div>
       <FilePreviewHost />
     </div>
   );
@@ -237,19 +274,19 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
               Sign out ({me.person.name})
             </MenuItem>
           )}
-          <div className="my-1 border-t border-zinc-800" />
+          <div className="my-1 border-t border-line" />
           <MenuItem icon={light ? <Moon size={13} /> : <Sun size={13} />} onClick={toggleTheme}>
             {light ? 'Dark mode' : 'Light mode'}
           </MenuItem>
           <MenuItem icon={<Palette size={13} />} hint="Themes, and how to make your own" onClick={() => go(close, '/settings#appearance')}>
             Appearance
           </MenuItem>
-          <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-zinc-500">
-            <Radio size={12} className={connected ? 'text-emerald-400' : 'text-rose-400'} />
+          <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-ink-faint">
+            <Radio size={12} className={connected ? 'text-ok-ink' : 'text-bad-ink'} />
             {connected ? 'Live — updates arrive as they happen' : 'Reconnecting…'}
           </div>
-          <div className="my-1 border-t border-zinc-800" />
-          <MenuItem icon={<ArrowUpCircle size={13} className={update?.updateAvailable ? 'text-sky-300' : undefined} />} onClick={() => go(close, '/settings#about')} title="About & updates">
+          <div className="my-1 border-t border-line" />
+          <MenuItem icon={<ArrowUpCircle size={13} className={update?.updateAvailable ? 'text-work-ink' : undefined} />} onClick={() => go(close, '/settings#about')} title="About & updates">
             <span className="flex items-center gap-2">
               Foundry <span className="mono">{update?.current ?? '…'}</span>
               {update?.updateAvailable && (
