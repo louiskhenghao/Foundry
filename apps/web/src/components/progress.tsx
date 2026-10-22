@@ -178,7 +178,7 @@ export function StageRail({ marks, notes, tasks, links }: { marks: Mark[]; notes
         </>
       )}
       {now >= 0 && (
-        <p className="mt-3 flex min-w-0 items-center gap-2 text-[13px] sm:hidden">
+        <p className="mt-3 flex min-w-0 items-center gap-2 text-[13px] md:hidden">
           <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] leading-none', TAG[marks[now]!] ?? 'bg-ink text-on-ink')}>{tagOf(marks[now]!)}</span>
           <b className="shrink-0 font-extrabold text-ink">{STAGES[now]}</b>
           <span className="min-w-0 truncate text-ink-faint">{notes[now]}</span>
@@ -198,10 +198,10 @@ function StageLink({ link, label, className, children }: { link?: { to: string; 
   );
 }
 
-/** the plates on a phone: a slim leaning segment per stage, its name under it */
+/** the plates on a phone or a small tablet: a slim leaning segment per stage, its name under it */
 function StageSegments({ marks, links, now }: { marks: Mark[]; links?: StageLinks; now: number }) {
   return (
-    <ol aria-label="Stages" className="grid grid-cols-5 gap-1.5 sm:hidden">
+    <ol aria-label="Stages" className="grid grid-cols-5 gap-1.5 md:hidden">
       {STAGES.map((label, i) => {
         const m = marks[i]!;
         return (
@@ -247,19 +247,20 @@ function StageSteps({ marks, notes, links, now }: { marks: Mark[]; notes: ReactN
 }
 
 /**
- * The five stages as large leaning plates (wide screens): done ones filled green, the current one outlined heavily (in
- * blue while Foundry works on it) with its note, and the Run plate carrying the tasks as a bar while it is the current one.
+ * The five stages as large leaning plates (from a tablet up): done ones filled in ink with their tick on a green tile, the
+ * current one outlined heavily (in blue while Foundry works on it) with its note, and the Run plate carrying the tasks as a
+ * bar while it is the current one.
  */
 function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes: ReactNode[]; tasks: Mark[]; links?: StageLinks; now: number }) {
   return (
-    <ol aria-label="Stages" className="hidden sm:grid grid-cols-5 gap-4 px-3">
+    <ol aria-label="Stages" className="hidden md:grid grid-cols-5 gap-4 px-3">
       {STAGES.map((label, i) => {
         const m = marks[i]!;
         const current = i === now;
         const Icon = m === 'done' ? Check : STAGE_ICONS[i]!;
         return (
-          <li key={label} aria-current={current ? 'step' : undefined} className={cn('relative flex min-h-[4.5rem] min-w-0 items-center', m === 'done' ? 'text-on-ok' : current ? 'text-ink' : 'text-ink-faint')}>
-            <span aria-hidden="true" className={cn('absolute inset-0 overflow-hidden rounded-md slant', m === 'done' ? 'bg-ok' : m === 'you' ? 'bg-you' : m === 'bad' ? 'bg-panel ring-[3px] ring-inset ring-bad' : current ? cn('bg-panel ring-[3px] ring-inset shadow-[0_16px_28px_-18px_rgb(0_0_0/0.55)]', m === 'run' ? 'ring-work' : 'ring-ink') : 'bg-panel ring-[1.5px] ring-inset ring-line-strong')}>
+          <li key={label} aria-current={current ? 'step' : undefined} className={cn('relative flex min-h-[4.5rem] min-w-0 items-center', m === 'done' ? 'text-on-ink' : current ? 'text-ink' : 'text-ink-faint')}>
+            <span aria-hidden="true" className={cn('absolute inset-0 overflow-hidden rounded-md slant', m === 'done' ? 'bg-ink' : m === 'you' ? 'bg-you' : m === 'bad' ? 'bg-panel ring-[3px] ring-inset ring-bad' : current ? cn('bg-panel ring-[3px] ring-inset shadow-[0_16px_28px_-18px_rgb(0_0_0/0.55)]', m === 'run' ? 'ring-work' : 'ring-ink') : 'bg-panel ring-[1.5px] ring-inset ring-line-strong')}>
               {current && i === 2 && tasks.length > 0 && (
                 <span className="absolute bottom-2 left-4 right-4 flex h-1.5 gap-[3px]">
                   {tasks.map((t, j) => (
@@ -270,7 +271,7 @@ function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes
             </span>
             {links?.[i] && <Link to={links[i]!.to} title={links[i]!.title} aria-label={`${label}: ${links[i]!.title}`} className="absolute inset-0 z-10 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" />}
             <span className={cn('relative flex min-w-0 items-center gap-3 pb-3 pl-6 pr-3 pt-2', current && i === 2 && 'pb-5', m === 'you' && 'text-on-you')}>
-              <span className={cn('hidden lg:inline-grid h-7 w-7 shrink-0 place-items-center rounded-md', m === 'done' ? 'bg-on-ok text-ok' : current && m === 'run' ? 'bg-work text-on-work' : 'ring-[1.5px] ring-inset ring-current')}>
+              <span className={cn('hidden md:inline-grid h-7 w-7 shrink-0 place-items-center rounded-md', m === 'done' ? 'bg-ok text-on-ok' : current && m === 'run' ? 'bg-work text-on-work' : 'ring-[1.5px] ring-inset ring-current')}>
                 <Icon size={15} aria-hidden="true" />
               </span>
               <span className="flex min-w-0 flex-col items-start">

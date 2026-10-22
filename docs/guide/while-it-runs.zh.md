@@ -21,7 +21,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - **Working**：Foundry 正在做、不需要你的 goal。每行显示标题、编码智能体和项目文件夹；goal 的五个阶段（Clarify、Brief、Run、Review、Deliver）画成一排斜切的小段，下面写着状态；任务画成小方块；费用和用时对比上限；以及最近一次变化的时间。
 - **Finished**：已完成、超额完成、失败和已取消的 goal，最新的在前，默认每页 10 个。可在信息板下方改为每页 20 或 50 个（这个浏览器会记住）。页码记在地址栏里。
 
-方块和小段在 Foundry 各处的意思都一样：实心是完成，流动的斜纹是进行中，黄色是在等你，红色是失败，空心是还没开始。一个 goal 和它的后续 goal 在信息板上是一个条目（见 [接着做后续 goal](./getting-the-result.zh.md#continue-with-a-follow-up)），委派 goal 折叠在主 goal 下面（见 [Delegated goals](#delegated-goals)）。
+方块和小段在 Foundry 各处的意思都一样：绿色是完成，流动的蓝色斜纹是进行中，黄色是在等你，红色是失败，空心是还没开始。一个 goal 和它的后续 goal 在信息板上是一个条目（见 [接着做后续 goal](./getting-the-result.zh.md#continue-with-a-follow-up)），委派 goal 折叠在主 goal 下面（见 [Delegated goals](#delegated-goals)）。
 
 ![任务运行中的 goal 页面：状态、标题和基本信息，费用和时间计量，五个阶段，以及任务图](images/goal-running.png)
 
@@ -29,14 +29,14 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 
 从 **Goals**（第一个页面，顶栏上也有）打开一个 goal。页面顶部有：
 
-- goal 的状态牌：Foundry 在干活时是石墨色（比如 **running**、**reviewing**），等你时是黄色（**approve brief**、**have a look**、**blocked**），失败时是红色（**failed**）。旁边写着完成或正在运行的任务数，以及 Foundry 已经工作了多久。
+- goal 的状态牌，用它的信号色：Foundry 在干活时是蓝色（**running**；澄清时是浅蓝），审查时（**reviewing**）是紫色，完成（**done**）后是绿色，等你时是黄色（**approve brief**、**have a look**、**blocked**），失败时是红色（**failed**）。旁边写着完成或正在运行的任务数，以及 Foundry 已经工作了多久。
 - 标题，以及标题下面的基本信息：项目文件夹（**copy** 复制它的路径）、分支（goal 起步的分支 → goal 自己的分支）、编码智能体（**Claude Code**、**Codex** 或 **Antigravity**）、workflow 套件、goal 以 fast 模式运行时的 **pace fast**，以及交付方式。
 - **time** 显示已用分钟数对比时间上限；Claude 还显示 **cost** 对比美元预算。后面的黄色圆点表示有会话在 Claude Code 回报费用之前就结束了（超时、被终止、崩溃）：鼠标停在上面，或在手机上点它，就能看到有几个、大约花了多少。这个估算（≈）按同一个模型在已回报费用的会话里的单价计算它们的 token；它不计入总数，也不占用预算。它们的轮数和 token 照常统计，美元数绝不记为 $0。Codex 美元费用不可用。
 - **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)），或者用 **VS Code (web)** 打开：浏览器标签里的 VS Code，经 Tailscale 在手机上也能打开。第一次使用时启动（先在 [Settings → Tools & keys](./settings.zh.md#tools--keys) 装一次），只在这台电脑上运行，闲置两小时后停止。它的登录页要输入密码，菜单里会显示这个密码并带复制按钮；浏览器会记住它。编码智能体写过的文件夹会以受限模式打开，直到你选择信任它。在里面的修改是真实修改：goal 运行时，菜单会提醒你在它的文件夹里改动可能和编码智能体的冲突，并被带进它们的下一个提交。
 - 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
 - **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal**、**Delete goal…**，视情况出现。
 
-页面顶部下方横排着五个阶段：**Clarify**、**Brief**、**Run**、**Review** 和 **Deliver**。完成的阶段是实心的；当前阶段加粗描边，上方标着 **Now**；等你时变成黄色并标 **You**，失败时变成红色并标 **Failed**。每个阶段用几个字说明情况，比如“approved”“3 of 4 tasks”“a pull request”。goal 运行时，Run 阶段上有一条它的任务进度条。在 Expert view 里，点一个阶段就打开显示它工作内容的地方：Clarify 和 Review 打开 Activity 标签，Brief 打开 Brief 页面，Run 打开 Tasks 标签，Deliver 打开 Delivery 标签。
+页面顶部下方横排着五个阶段：**Clarify**、**Brief**、**Run**、**Review** 和 **Deliver**。完成的阶段是实心的，勾在一个绿色的小方块上；当前阶段加粗描边（Foundry 正在做时是蓝色），上方标着 **Now**；等你时变成黄色并标 **You**，失败时变成红色并标 **Failed**。在手机或小平板上，阶段是一排细长的色段，完成的是绿色，下面一行写着当前阶段的名字和说明；Ledger 和 Classic 把它们画成一条带编号的步骤线。每个阶段用几个字说明情况，比如“approved”“3 of 4 tasks”“a pull request”。goal 运行时，Run 阶段上有一条它的任务进度条。在 Expert view 里，点一个阶段就打开显示它工作内容的地方：Clarify 和 Review 打开 Activity 标签，Brief 打开 Brief 页面，Run 打开 Tasks 标签，Deliver 打开 Delivery 标签。
 
 再往下，卡片只在需要时出现：goal 等你查看时的里程碑卡片，Foundry 提问时的访谈，以及最终审查运行时带实时日志的 **Goal review…**。
 
