@@ -2,6 +2,7 @@ import type { GoalState, TaskState } from '@foundry/core/browser';
 import { Ban, Check, Eye, FileText, GitMerge, Hand, MessageSquare, Play, X, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
+import { useLayout } from '../theme.ts';
 import { cn } from '../ui.tsx';
 
 /**
@@ -140,23 +141,125 @@ export function MiniRail({ marks, className }: { marks: Mark[]; className?: stri
   );
 }
 
+type StageLinks = ({ to: string; title: string } | null)[];
+
+/** the word on the current stage's tag */
+const tagOf = (m: Mark) => (m === 'you' ? 'You' : m === 'bad' ? 'Failed' : 'Now');
+
+/** a stage's number disc in the steps layout: solid done, blue at work, yellow waiting for you, red failed, hollow ahead */
+const STEP_DISC: Record<Mark, string> = {
+  done: 'bg-ink text-on-ink',
+  run: 'bg-work text-on-work',
+  you: 'bg-you text-on-you',
+  bad: 'bg-bad text-on-bad',
+  next: 'bg-panel text-ink-faint ring-[1.5px] ring-inset ring-line-strong',
+  off: 'bg-panel text-ink-faint ring-1 ring-inset ring-line-strong opacity-50',
+};
+
 /**
- * The five stages as large leaning plates (the goal page): done ones filled, the current one outlined heavily with its
- * note, and the Run plate carrying the tasks as a bar while it is the current one.
+ * A goal's five stages (the goal page, the Brief), as the theme lays them out: large leaning plates (Wayfinding), or a
+ * numbered line of steps. On a phone the plates become slim segments; either way the stage you are at says how it
+ * stands in a line under them, where the notes do not fit.
  */
-export function StageRail({ marks, notes, tasks, links }: { marks: Mark[]; notes: ReactNode[]; tasks: Mark[]; /** where each stage's work shows */ links?: ({ to: string; title: string } | null)[] }) {
-  const now = marks.findIndex((m) => m !== 'done');
+export function StageRail({ marks, notes, tasks, links }: { marks: Mark[]; notes: ReactNode[]; tasks: Mark[]; /** where each stage's work shows */ links?: StageLinks }) {
+  const { stages } = useLayout();
+  const at = marks.findIndex((m) => m !== 'done');
+  const now = at >= 0 && marks[at] !== 'off' ? at : -1;
   return (
-    <ol aria-label="Stages" className="grid grid-cols-5 gap-2 sm:gap-4 px-1.5 sm:px-3">
+    <div>
+      {stages === 'steps' ? (
+        <StageSteps marks={marks} notes={notes} links={links} now={now} />
+      ) : (
+        <>
+          <StageSegments marks={marks} links={links} now={now} />
+          <StagePlates marks={marks} notes={notes} tasks={tasks} links={links} now={now} />
+        </>
+      )}
+      {now >= 0 && (
+        <p className="mt-3 flex min-w-0 items-center gap-2 text-[13px] sm:hidden">
+          <span className={cn('shrink-0 rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em] leading-none', marks[now] === 'you' ? 'bg-you text-on-you' : marks[now] === 'bad' ? 'bg-bad text-on-bad' : 'bg-ink text-on-ink')}>{tagOf(marks[now]!)}</span>
+          <b className="shrink-0 font-extrabold text-ink">{STAGES[now]}</b>
+          <span className="min-w-0 truncate text-ink-faint">{notes[now]}</span>
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** a stage's content, a link to where its work shows when it has one */
+function StageLink({ link, label, className, children }: { link?: { to: string; title: string } | null; label: string; className?: string; children: ReactNode }) {
+  if (!link) return <span className={className}>{children}</span>;
+  return (
+    <Link to={link.to} title={link.title} aria-label={`${label}: ${link.title}`} className={cn(className, 'rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent')}>
+      {children}
+    </Link>
+  );
+}
+
+/** the plates on a phone: a slim leaning segment per stage, its name under it */
+function StageSegments({ marks, links, now }: { marks: Mark[]; links?: StageLinks; now: number }) {
+  return (
+    <ol aria-label="Stages" className="grid grid-cols-5 gap-1.5 sm:hidden">
       {STAGES.map((label, i) => {
         const m = marks[i]!;
-        const current = i === now && m !== 'off';
+        return (
+          <li key={label} aria-current={i === now ? 'step' : undefined} className="min-w-0">
+            <StageLink link={links?.[i]} label={label} className="flex flex-col gap-1.5">
+              <i className={cn('block h-2.5 rounded-[3px] slant', markFill[m], i === now && m === 'next' && 'ring-2 ring-ink')} aria-hidden="true" />
+              <span className={cn('truncate text-center text-[11px] leading-tight', i === now ? 'font-extrabold text-ink' : m === 'done' ? 'font-semibold text-ink-soft' : 'font-semibold text-ink-faint')}>{label}</span>
+            </StageLink>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/** the steps layout: a numbered disc per stage on a line, its name and note under it */
+function StageSteps({ marks, notes, links, now }: { marks: Mark[]; notes: ReactNode[]; links?: StageLinks; now: number }) {
+  return (
+    <ol aria-label="Stages" className="flex items-start">
+      {STAGES.map((label, i) => {
+        const m = marks[i]!;
+        const last = i === STAGES.length - 1;
+        return (
+          <li key={label} aria-current={i === now ? 'step' : undefined} className={cn('min-w-0', last ? 'shrink-0' : 'flex-1')}>
+            <span className="flex items-center">
+              <StageLink link={links?.[i]} label={label} className={cn('mono grid h-7 w-7 sm:h-8 sm:w-8 shrink-0 place-items-center rounded-full text-xs sm:text-[13px] font-bold', STEP_DISC[m], i === now && 'shadow-[0_0_0_4px_color-mix(in_oklab,var(--color-ink)_14%,transparent)]')}>
+                {m === 'done' ? <Check size={15} strokeWidth={3} aria-hidden="true" /> : m === 'bad' ? <X size={15} strokeWidth={3} aria-hidden="true" /> : i + 1}
+              </StageLink>
+              {!last && <span className={cn('mx-1.5 sm:mx-2.5 h-0.5 flex-1 rounded-full', m === 'done' ? 'bg-ink' : 'bg-line-strong')} aria-hidden="true" />}
+            </span>
+            <span className="mt-2 block min-w-0 pr-2">
+              <b className={cn('flex items-center gap-1.5 text-[11px] sm:text-sm leading-tight', i === now ? 'font-extrabold text-ink' : m === 'done' ? 'font-semibold text-ink-soft' : 'font-semibold text-ink-faint')}>
+                <span className="truncate">{label}</span>
+                {i === now && (m === 'you' || m === 'bad') && <span className={cn('hidden sm:inline rounded px-1 py-px text-[10px] font-extrabold uppercase tracking-[0.08em] leading-none', m === 'you' ? 'bg-you text-on-you' : 'bg-bad text-on-bad')}>{tagOf(m)}</span>}
+              </b>
+              <span className="hidden sm:block truncate text-xs leading-snug text-ink-faint">{notes[i]}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+/**
+ * The five stages as large leaning plates (wide screens): done ones filled, the current one outlined heavily with its
+ * note, and the Run plate carrying the tasks as a bar while it is the current one.
+ */
+function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes: ReactNode[]; tasks: Mark[]; links?: StageLinks; now: number }) {
+  return (
+    <ol aria-label="Stages" className="hidden sm:grid grid-cols-5 gap-4 px-3">
+      {STAGES.map((label, i) => {
+        const m = marks[i]!;
+        const current = i === now;
         const Icon = m === 'done' ? Check : STAGE_ICONS[i]!;
         return (
-          <li key={label} aria-current={current ? 'step' : undefined} className={cn('relative flex min-h-12 sm:min-h-[4.5rem] min-w-0 items-center', m === 'done' ? 'text-on-ink' : current ? 'text-ink' : 'text-ink-faint')}>
+          <li key={label} aria-current={current ? 'step' : undefined} className={cn('relative flex min-h-[4.5rem] min-w-0 items-center', m === 'done' ? 'text-on-ink' : current ? 'text-ink' : 'text-ink-faint')}>
             <span aria-hidden="true" className={cn('absolute inset-0 overflow-hidden rounded-md slant', m === 'done' ? 'bg-ink' : m === 'you' ? 'bg-you' : m === 'bad' ? 'bg-panel ring-[3px] ring-inset ring-bad' : current ? 'bg-panel ring-[3px] ring-inset ring-ink shadow-[0_16px_28px_-18px_rgb(0_0_0/0.55)]' : 'bg-panel ring-[1.5px] ring-inset ring-line-strong')}>
               {current && i === 2 && tasks.length > 0 && (
-                <span className="absolute bottom-1.5 left-3 right-3 sm:bottom-2 sm:left-4 sm:right-4 flex h-1 sm:h-1.5 gap-0.5 sm:gap-[3px]">
+                <span className="absolute bottom-2 left-4 right-4 flex h-1.5 gap-[3px]">
                   {tasks.map((t, j) => (
                     <i key={j} className={cn('block flex-1 rounded-[2px]', markFill[t])} />
                   ))}
@@ -164,19 +267,17 @@ export function StageRail({ marks, notes, tasks, links }: { marks: Mark[]; notes
               )}
             </span>
             {links?.[i] && <Link to={links[i]!.to} title={links[i]!.title} aria-label={`${label}: ${links[i]!.title}`} className="absolute inset-0 z-10 rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent" />}
-            <span className={cn('relative flex min-w-0 items-center justify-center gap-3 px-1 pb-3 pt-2 sm:justify-start sm:pl-6 sm:pr-3', current && i === 2 && 'sm:pb-5', m === 'you' && 'text-on-you')}>
+            <span className={cn('relative flex min-w-0 items-center gap-3 pb-3 pl-6 pr-3 pt-2', current && i === 2 && 'pb-5', m === 'you' && 'text-on-you')}>
               <span className={cn('hidden lg:inline-grid h-7 w-7 shrink-0 place-items-center rounded-md', m === 'done' ? 'bg-on-ink text-ink' : current && m === 'run' ? 'bg-ink text-on-ink' : 'ring-[1.5px] ring-inset ring-current')}>
                 <Icon size={15} aria-hidden="true" />
               </span>
-              <span className="flex min-w-0 flex-col items-center sm:items-start">
-                <b className="text-[12.5px] sm:text-base font-extrabold leading-tight tracking-tight">{label}</b>
-                <span className="hidden sm:block truncate max-w-full text-[12.5px] leading-snug">{notes[i]}</span>
+              <span className="flex min-w-0 flex-col items-start">
+                <b className="text-base font-extrabold leading-tight tracking-tight">{label}</b>
+                <span className="truncate max-w-full text-[12.5px] leading-snug">{notes[i]}</span>
               </span>
             </span>
             {current && (
-              <span className={cn('absolute -top-2.5 right-1/2 translate-x-1/2 sm:right-5 sm:translate-x-0 rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.12em]', m === 'you' ? 'bg-on-you text-you' : m === 'bad' ? 'bg-bad text-on-bad' : 'bg-ink text-on-ink')}>
-                {m === 'you' ? 'You' : m === 'bad' ? 'Failed' : 'Now'}
-              </span>
+              <span className={cn('absolute -top-2.5 right-5 rounded px-1.5 py-0.5 text-[10px] font-extrabold uppercase tracking-[0.08em]', m === 'you' ? 'bg-on-you text-you' : m === 'bad' ? 'bg-bad text-on-bad' : 'bg-ink text-on-ink')}>{tagOf(m)}</span>
             )}
           </li>
         );
@@ -190,7 +291,7 @@ export function StatePlate({ state, label }: { state: GoalState; label: string }
   const you = state === 'awaiting_brief_approval' || state === 'awaiting_feedback' || state === 'blocked';
   const Icon = state === 'running' ? Play : state === 'goal_review' ? Eye : state === 'clarifying' || state === 'draft' ? MessageSquare : state === 'failed' ? X : state === 'cancelled' ? Ban : you ? Hand : Check;
   return (
-    <span className={cn('inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] font-extrabold uppercase leading-none tracking-[0.12em]', you ? 'bg-you text-on-you' : state === 'failed' ? 'bg-bad text-on-bad' : state === 'cancelled' ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-faint' : 'bg-ink text-on-ink')}>
+    <span className={cn('inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-[12.5px] font-extrabold caps leading-none', you ? 'bg-you text-on-you' : state === 'failed' ? 'bg-bad text-on-bad' : state === 'cancelled' ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-faint' : 'bg-ink text-on-ink')}>
       <Icon size={13} strokeWidth={2.5} aria-hidden="true" />
       {label}
     </span>
