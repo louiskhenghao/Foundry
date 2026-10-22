@@ -16,7 +16,7 @@ import type { Engine } from '../engine.ts';
 import { exec, git } from '../git/git.ts';
 import { goalWorkspacePath } from '../workspace.ts';
 import { type Deployability, deployability } from './detect.ts';
-import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, configured, deploySteps, deployedUrl, projectName, redact } from './providers.ts';
+import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, configured, deploySteps, deployedUrl, failureHint, lastWords, plain, projectName, redact } from './providers.ts';
 import { runSmoke, smokeScripts, type SmokeTarget } from './smoke.ts';
 
 /** a goal is deployed once it is done: a failed or unfinished goal's branch is not a thing to publish */
@@ -170,10 +170,13 @@ async function run(engine: Engine, goal: Goal, dir: string, req: DeployRequest):
       }
       const t0 = Date.now();
       const r = await exec(step.argv, step.cwd, { timeoutMs: STEP_TIMEOUT_MS, env: step.env });
-      const out = `${r.stdout}\n${r.stderr}`.trim();
+      const out = plain(`${r.stdout}\n${r.stderr}`).trim();
       store.append({ type: 'deploy.command', goalId: goal.id, payload: { provider, label: step.label, command: redact(step.argv.join(' '), c), exitCode: r.code, durationMs: Date.now() - t0, outputTail: redact(out.slice(-3_000), c) } });
-      if (r.code !== 0 && !(step.okIf && step.okIf.test(out))) return fail(`${step.label} failed (exit ${r.code}): ${out.split('\n').filter(Boolean).slice(-4).join(' · ').slice(0, 600)}`);
-      last = r.stdout;
+      if (r.code !== 0 && !(step.okIf && step.okIf.test(out))) {
+        const hint = failureHint(provider, out, c);
+        return fail(`${step.label} failed (exit ${r.code}): ${hint ? `${hint} (${lastWords(out)})` : lastWords(out)}`);
+      }
+      last = plain(r.stdout);
     }
     const url = deployedUrl(provider, last, production);
     if (!url) return fail(`${PROVIDER_LABEL[provider]} finished but named no address: its output is in the activity`);

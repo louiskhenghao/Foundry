@@ -27,6 +27,9 @@ function fakeCli(dir: string): string {
 host="$1"; shift
 printf '%s|%s|vercel=%s netlify=%s cloudflare=%s account=%s|%s\\n' "$host" "$*" "\${VERCEL_TOKEN:+set}" "\${NETLIFY_AUTH_TOKEN:+set}" "\${CLOUDFLARE_API_TOKEN:+set}" "$CLOUDFLARE_ACCOUNT_ID" "$(pwd)" >> "${join(dir, 'calls.log')}"
 if [ -f "${join(dir, 'FAIL_DEPLOY')}" ]; then echo "Error: the token $VERCEL_TOKEN was refused" >&2; exit 1; fi
+case "$*" in
+  *"--team nosuch"*) printf 'npm warn deprecated @opentelemetry/sdk-trace-node@2.12.0: Use @opentelemetry/sdk-trace package\\nnpm warn deprecated glob@8.1.0: Glob versions prior to v9 are no longer supported\\n ›   Error: Failed to create site: 404: Not Found\\n' >&2; exit 1 ;;
+esac
 case "$host" in
   vercel) echo "Vercel CLI 64.5.0"; echo "https://site-abc-preview.vercel.app" ;;
   netlify) echo '{"site_id":"s1","deploy_url":"https://d1--site.netlify.app","url":"https://site.netlify.app"}' ;;
@@ -129,6 +132,17 @@ describe('deploying a finished goal', () => {
     await waitFor(() => last(engine, goal.id)?.status === 'failed');
     expect(last(engine, goal.id)!.reason).toContain('deploy to Vercel failed (exit 1): Error: the token *** was refused');
     expect(JSON.stringify(engine.store.listByGoal(goal.id, 5000))).not.toContain('SECRET_TOKEN');
+  }, 60_000);
+
+  test('a Netlify team the token cannot reach is said first, past the npm warnings npx printed', async () => {
+    const { engine, goal } = await finishedGoal({ 'index.html': '<h1>studio</h1>' });
+    engine.updateSettings({ delivery: { netlifyTeam: 'nosuch' } });
+    engine.deploy(goal.id, { provider: 'netlify', production: true });
+    await waitFor(() => last(engine, goal.id)?.status === 'failed');
+    const reason = last(engine, goal.id)!.reason!;
+    expect(reason).toStartWith('deploy to Netlify failed (exit 1): Netlify has no team "nosuch" this token can reach: set Settings → Git & delivery → Netlify team');
+    expect(reason).toEndWith('(›   Error: Failed to create site: 404: Not Found)');
+    expect(reason).not.toContain('npm warn');
   }, 60_000);
 
   test('what is not deployed: a separate backend, a server-rendered app on Cloudflare, an unfinished goal, a host not set up', async () => {

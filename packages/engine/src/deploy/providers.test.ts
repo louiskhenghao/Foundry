@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { type DeployCredentials, type DeployPlanInput, configured, deploySteps, deployedUrl, projectName, redact } from './providers.ts';
+import { type DeployCredentials, type DeployPlanInput, configured, deploySteps, deployedUrl, failureHint, lastWords, projectName, redact } from './providers.ts';
 
 const creds: DeployCredentials = { vercelToken: 'vcp_SECRET_TOKEN', vercelScope: null, netlifyToken: 'nfp_SECRET_TOKEN', netlifyTeam: 'studio', cloudflareToken: 'cf_SECRET_TOKEN', cloudflareAccountId: 'acc123' };
 const plan = (over: Partial<DeployPlanInput>): DeployPlanInput => ({
@@ -68,6 +68,25 @@ describe('what a deploy printed', () => {
     expect(deployedUrl('vercel', 'Vercel CLI 64.5.0\nInspect: https://vercel.com/studio/site/abc\nhttps://site-abc123-xyz.vercel.app\n', false)).toBe('https://site-abc123-xyz.vercel.app');
     expect(deployedUrl('cloudflare', '✨ Success! Uploaded 12 files\n✨ Deployment complete! Take a peek over at https://4f2a.site-abc123.pages.dev.\n', false)).toBe('https://4f2a.site-abc123.pages.dev');
     expect(deployedUrl('vercel', 'nothing here', false)).toBeNull();
+  });
+});
+
+describe('what a failed deploy says', () => {
+  test("a team the token cannot reach is named, with where its slug is set; a host's other errors are left as they are", () => {
+    const netlify404 = ' ›   Error: Failed to create site: 404: Not Found';
+    expect(failureHint('netlify', netlify404, creds)).toBe('Netlify has no team "studio" this token can reach: set Settings → Git & delivery → Netlify team to the team\'s slug (the part after app.netlify.com/teams/), or leave it empty for the token\'s default team');
+    expect(failureHint('netlify', netlify404, { ...creds, netlifyTeam: null })).toBeNull();
+    expect(failureHint('vercel', 'Error: The specified scope does not exist', { ...creds, vercelScope: 'team-x' })).toContain('Vercel has no team "team-x" this token can reach');
+    expect(failureHint('vercel', 'Error: The specified scope does not exist', creds)).toBeNull();
+    expect(failureHint('netlify', 'Error: build failed', creds)).toBeNull();
+  });
+
+  test("npm's own warnings (npx fetching the CLI) never hide the host's error", () => {
+    const out = 'npm warn deprecated @opentelemetry/sdk-trace-node@2.12.0: Use @opentelemetry/sdk-trace package\nnpm warn deprecated glob@8.1.0: Glob versions prior to v9 are no longer supported\nnpm notice New major version of npm available!\n ›   Error: Failed to create site: 404: Not Found\n';
+    expect(lastWords(out)).toBe('›   Error: Failed to create site: 404: Not Found');
+    expect(lastWords('a\nb\n\nc\nd\ne')).toBe('b · c · d · e');
+    // and a CLI's colours are no part of the words
+    expect(lastWords('\x1b[31m✘ \x1b[41;31m[\x1b[41;97mERROR\x1b[41;31m]\x1b[0m \x1b[1mNo access to the specified resource.\x1b[0m')).toBe('✘ [ERROR] No access to the specified resource.');
   });
 });
 

@@ -76,9 +76,9 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
 | `delivery.vercelToken` | — | `FOUNDRY_VERCEL_TOKEN` | A Vercel token for Deploy (a finished web app to Vercel). Kept by the engine only: never handed to a coding session. |
-| `delivery.vercelScope` | — | `FOUNDRY_VERCEL_SCOPE` | The Vercel team to deploy under; empty = the token’s own account. |
+| `delivery.vercelScope` | — | `FOUNDRY_VERCEL_SCOPE` | The slug of the Vercel team to deploy under (the part after vercel.com/); empty = the token’s own account. |
 | `delivery.netlifyToken` | — | `FOUNDRY_NETLIFY_TOKEN` | A Netlify personal access token for Deploy. Kept by the engine only. |
-| `delivery.netlifyTeam` | — | `FOUNDRY_NETLIFY_TEAM` | The Netlify team a new site is made in; empty = the token’s default team. |
+| `delivery.netlifyTeam` | — | `FOUNDRY_NETLIFY_TEAM` | The slug of the Netlify team a new site is made in (the part after app.netlify.com/teams/, not its name); empty = the token’s default team. |
 | `delivery.cloudflareToken` | — | `FOUNDRY_CLOUDFLARE_TOKEN` | A Cloudflare API token (Cloudflare Pages: Edit) for Deploy. Kept by the engine only. |
 | `delivery.cloudflareAccountId` | — | `FOUNDRY_CLOUDFLARE_ACCOUNT_ID` | The Cloudflare account the Pages projects are in (with the token above). |
 | `delivery.pollSec` | `30` | — | How often CI status is polled after the first two minutes (during the first two minutes it polls every 10 s). |

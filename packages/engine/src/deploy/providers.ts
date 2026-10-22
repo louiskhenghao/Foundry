@@ -127,6 +127,9 @@ export function deployedUrl(p: DeployProvider, stdout: string, production: boole
   return (hosted.at(-1) ?? urls.at(-1) ?? null)?.replace(/[.,;]+$/, '') ?? null;
 }
 
+/** a CLI's text without its colours */
+export const plain = (text: string) => text.replace(/\x1b\[[0-9;]*m/g, '');
+
 /** a host's project name for a repository: its folder's name, made safe, and a short tag of its path so two folders of the same name differ */
 export function projectName(repoPath: string, hash: string): string {
   const base = (repoPath.split('/').filter(Boolean).at(-1) ?? 'site')
@@ -135,6 +138,26 @@ export function projectName(repoPath: string, hash: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 40);
   return `${base || 'site'}-${hash.slice(0, 6)}`;
+}
+
+/** the last lines of a command's output that say something: npm's own warnings (npx fetching the CLI) left out, so the host's error shows */
+export const lastWords = (out: string) =>
+  plain(out)
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !/^npm (warn|notice|WARN)\b/.test(l))
+    .slice(-4)
+    .join(' · ')
+    .slice(0, 600);
+
+/** what a host's error means for Foundry's settings, when the host's own words do not say it */
+export function failureHint(p: DeployProvider, out: string, c: DeployCredentials): string | null {
+  // Netlify answers a team slug the token cannot reach with a bare 404 when it creates the site
+  if (p === 'netlify' && c.netlifyTeam && /Failed to create site: 404/i.test(out))
+    return `Netlify has no team "${c.netlifyTeam}" this token can reach: set Settings → Git & delivery → Netlify team to the team's slug (the part after app.netlify.com/teams/), or leave it empty for the token's default team`;
+  if (p === 'vercel' && c.vercelScope && /specified scope does not exist/i.test(out))
+    return `Vercel has no team "${c.vercelScope}" this token can reach: set Settings → Git & delivery → Vercel team to the team's slug (the part after vercel.com/), or leave it empty for the token's own account`;
+  return null;
 }
 
 /** what a recorded command shows: the token values written out nowhere */

@@ -2,6 +2,8 @@
 
 **Status:** accepted · 2026-10-18 · amends ADR-0003
 
+> Amended 2026-10-22: a Netlify or Vercel team slug the token cannot reach (Netlify answers it with a bare 404) fails with a reason that names the setting, and npm's own warnings and the CLIs' colours are left out of a failure's last lines.
+
 ## Context
 
 Delivery ends with the goal's work in the repository's history; to see a web result online, the person still had to
