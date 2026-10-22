@@ -33,16 +33,16 @@ export function SetupBanner() {
   return (
     <div className="space-y-2 mb-4">
       {failing.map(({ provider, report }) => (
-        // broken until it is fixed: a plate in the red tint, its sign square solid
-        <div key={provider} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-bad/[0.06] px-3 py-2.5 ring-1 ring-inset ring-bad/40 sm:px-4 text-sm">
-          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-bad text-on-bad" aria-hidden="true">
+        // setup incomplete waits for you to fix it: on a plain panel, its sign square solid yellow with a thin yellow edge
+        <div key={provider} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-panel py-2.5 pl-4 pr-3 sm:pr-4 inset-ring inset-ring-line shadow-[inset_4px_0_0_var(--color-you)] text-sm">
+          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-you text-on-you" aria-hidden="true">
             <CircleAlert size={15} strokeWidth={2.5} />
           </span>
           <div className="min-w-0 flex-1 basis-64 leading-snug">
             <b className="text-ink">Setup incomplete{several ? ` for ${NAME[provider]}` : ''}:</b>{' '}
             <span className="text-ink-soft">{report.checks.filter((c) => !c.ok && c.severity === 'error').map((e) => e.label).join(' · ')}</span>
           </div>
-          <Link to={`/setup?provider=${provider}`} className={buttonClass('primary', 'sm', 'whitespace-nowrap')}>
+          <Link to={`/setup?provider=${provider}`} className={buttonClass('primary', 'sm', 'whitespace-nowrap max-sm:min-h-8')}>
             Fix in Setup →
           </Link>
         </div>

@@ -1,8 +1,9 @@
-import { KeyRound } from 'lucide-react';
+import { KeyRound, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api.ts';
-import { Button, Input, PageHeader } from '../ui.tsx';
+import { Button, Input, PageHeader, cn } from '../ui.tsx';
+import { SECTION_STYLE } from './settings/sections.tsx';
 
 /** Access (ADR-0061): the page a Foundry that asks for tokens sends a browser to; the token becomes a cookie here. */
 export function LoginPage() {
@@ -28,13 +29,14 @@ export function LoginPage() {
     // one panel in the middle of the screen: signing in is the only thing to do here
     <div className="min-h-full flex items-center justify-center px-3 py-10 sm:px-4">
       <form
-        className="w-full max-w-md rounded-xl bg-panel p-5 sm:p-7 shadow-[0_0_0_1px_var(--color-line),0_24px_44px_-28px_rgb(0_0_0/0.45)]"
+        className="w-full max-w-md rounded-xl bg-panel p-5 sm:p-7 shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)]"
         onSubmit={(e) => {
           e.preventDefault();
           void go();
         }}
       >
-        <span className="mb-5 grid h-11 w-11 place-items-center rounded-lg bg-ink text-on-ink" aria-hidden="true">
+        {/* the key of Settings → Access, where the tokens are made, in that section's colour */}
+        <span className={cn('mb-5 grid h-11 w-11 place-items-center rounded-lg bg-sunken inset-ring inset-ring-line', SECTION_STYLE.access!.ink)} aria-hidden="true">
           <KeyRound size={20} strokeWidth={2.25} />
         </span>
         <PageHeader title="Sign in" summary="This Foundry asks for an access token. Paste yours; this browser keeps it for 90 days." />
@@ -43,7 +45,13 @@ export function LoginPage() {
             <span className="mb-1 block text-xs font-semibold text-ink-soft">Access token</span>
             <Input className="mono" value={token} onChange={(e) => setToken(e.target.value)} placeholder="fnd_…" autoFocus autoComplete="off" spellCheck={false} />
           </label>
-          {err && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-sm text-bad-ink">{err}</div>}
+          {/* a refused token in red words with its mark, on a plain box */}
+          {err && (
+            <div className="flex items-start gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-sm font-semibold text-bad-ink">
+              <XCircle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words">{err}</span>
+            </div>
+          )}
           <Button variant="primary" type="submit" className="w-full justify-center" disabled={busy || !token.trim()}>
             {busy ? 'Signing in…' : 'Sign in'}
           </Button>

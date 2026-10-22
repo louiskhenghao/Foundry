@@ -76,7 +76,8 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
     <Modal open={open} title={`Update to ${status.latest ?? '…'}`} onClose={phase === 'running' ? () => {} : onClose} wide>
       <div className="space-y-3 text-sm">
         <p className="text-xs text-ink-soft">
-          You run <span className="mono font-bold text-ink">{status.current}</span> ({cap.mode} install) — <span className="mono font-bold text-ink">{status.latest}</span> is available.
+          {/* the newer version is news, in the information blue the top bar's pill shows it in */}
+          You run <span className="mono font-bold text-ink">{status.current}</span> ({cap.mode} install) — <span className="mono font-bold text-work-ink">{status.latest}</span> is available.
         </p>
         {status.changelog.length > 0 && (
           <div className="max-h-56 overflow-auto rounded-md border border-line bg-sunken p-3 space-y-3">
@@ -114,7 +115,8 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
           ) : (
             <div className="space-y-2">
               <LiveLog attemptId="self-update" className="max-h-56" />
-              <p className={cn('text-xs', phase === 'failed' ? 'text-bad-ink' : 'text-ink-faint')}>
+              {/* the update at work in blue, a failed one in red */}
+              <p className={cn('text-xs font-semibold', phase === 'failed' ? 'text-bad-ink' : 'text-work-ink')}>
                 {phase === 'failed' ? 'The update did not go through — it was rolled back and the old version is running. See the log above.' : 'Updating… the server restarts at the end and this page reloads by itself.'}
               </p>
               {phase === 'failed' && (
@@ -135,7 +137,7 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
             </p>
             <div className="rounded-md border border-line bg-sunken p-3 space-y-1">
               {cap.guided.map((cmd) => (
-                <div key={cmd} className="flex items-center gap-2 text-[12px] mono text-ink">
+                <div key={cmd} className="flex items-center gap-2 text-[12px] mono text-ink [overflow-wrap:anywhere]">
                   <span className="text-ink-faint">$</span> {cmd} <CopyButton text={cmd} />
                 </div>
               ))}

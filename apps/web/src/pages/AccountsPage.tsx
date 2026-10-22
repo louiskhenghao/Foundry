@@ -9,10 +9,13 @@ import { Button, ConfirmDialog, PageHeader, cn } from '../ui.tsx';
 import { AccountPoolList } from './AccountPoolList.tsx';
 
 type State = 'checking' | 'connected' | 'signin' | 'missing' | 'unknown';
-/** each sign-in state as a plate: graphite once connected, yellow only when signing in is yours to do, hollow when there is nothing to say */
+/**
+ * each sign-in state as a plate in its signal colour: green once connected, blue while it is being checked, yellow only
+ * when signing in is yours to do, hollow when there is nothing to say
+ */
 const STATE: Record<State, { label: string; cls: string; Icon: LucideIcon }> = {
-  checking: { label: 'Checking…', cls: 'inset-ring-[1.5px] inset-ring-line-strong text-ink-soft', Icon: LoaderCircle },
-  connected: { label: 'Connected', cls: 'bg-ink text-on-ink', Icon: Check },
+  checking: { label: 'Checking…', cls: 'bg-work/10 inset-ring-[1.5px] inset-ring-work/60 text-work-ink', Icon: LoaderCircle },
+  connected: { label: 'Connected', cls: 'bg-ok text-on-ok', Icon: Check },
   signin: { label: 'Sign in required', cls: 'bg-you text-on-you', Icon: LogIn },
   missing: { label: 'CLI not installed', cls: 'inset-ring-[1.5px] inset-ring-line-strong text-ink-faint', Icon: Ban },
   unknown: { label: 'Status unavailable', cls: 'inset-ring-[1.5px] inset-ring-line-strong text-ink-faint', Icon: CircleHelp },
@@ -55,7 +58,8 @@ export function AccountsPage() {
       summary="Connect Claude Code, Codex and Antigravity independently. Choose the coding agent when creating a goal; it stays fixed for that goal. Claude Code and Codex can hold several of your accounts: new sessions run on the current one."
       actions={<Button disabled={busy || refreshing} onClick={load}><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} aria-hidden="true" />Refresh status</Button>}
     />
-    <div className="min-h-5 text-xs" aria-live="polite">{error ? <p role="alert" className="text-bad-ink">{error}</p> : <p className="text-ink-faint">{refreshing ? 'Checking native accounts…' : 'Account status is up to date.'}</p>}</div>
+    {/* the status line in its signal colour: checking blue, up to date green, a failure red */}
+    <div className="min-h-5 text-xs" aria-live="polite">{error ? <p role="alert" className="text-bad-ink">{error}</p> : <p className={cn('font-semibold', refreshing ? 'text-work-ink' : 'text-ok-ink')}>{refreshing ? 'Checking native accounts…' : 'Account status is up to date.'}</p>}</div>
     <div className="space-y-5" aria-busy={refreshing}>{AGENT_PROVIDERS.map((provider) => {
       const account = info?.accounts.find(value => value.provider === provider);
       const name = PROVIDER_LABEL[provider];
@@ -63,7 +67,7 @@ export function AccountsPage() {
       const at = stateOf(account, refreshing);
       const state = STATE[at];
       const who = [status?.email, status?.subscriptionType && `Plan: ${status.subscriptionType}`].filter(Boolean).join(' · ') || methodOf(status?.authMethod) || (provider === 'codex' ? 'Use your ChatGPT account' : provider === 'agy' ? 'Use your Google account' : 'Use your Claude subscription');
-      return <section key={provider} aria-labelledby={`agent-${provider}`} className="rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(0_0_0/0.06)]">
+      return <section key={provider} aria-labelledby={`agent-${provider}`} className="rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)]">
         <header className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4 sm:px-5">
           <ProviderMark provider={provider} size="lg" />
           <div className="min-w-0 grow basis-48">
@@ -76,7 +80,8 @@ export function AccountsPage() {
           <span className={cn('inline-flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-[12.5px] font-extrabold caps leading-none', state.cls)}><state.Icon size={13} strokeWidth={2.5} aria-hidden="true" className={cn(at === 'checking' && 'animate-spin')} />{state.label}</span>
           {provider !== 'agy' && <Button disabled={busy || refreshing || !account?.installed} variant={status?.loggedIn ? 'default' : 'primary'} onClick={() => status?.loggedIn ? setLogout(provider) : setLogin(provider)}>{status?.loggedIn ? 'Sign out' : `Sign in to ${name}`}</Button>}
         </header>
-        {status?.error && <p className="px-4 sm:px-5 -mt-1 pb-3 text-xs text-ink-faint">{status.error}</p>}
+        {/* what the CLI said, a long path included, wraps inside the card */}
+        {status?.error && <p className="px-4 sm:px-5 -mt-1 pb-3 text-xs text-ink-faint [overflow-wrap:anywhere]">{status.error}</p>}
         {provider === 'agy'
           ? <div className="border-t border-line px-4 sm:px-5 py-4 text-[13px] text-ink-soft space-y-1.5">
               <p>Antigravity signs in from a terminal: run <code className="mono rounded-sm bg-sunken px-1 py-0.5 text-[12px] text-ink">agy</code> once (it opens the browser), then refresh. <code className="mono rounded-sm bg-sunken px-1 py-0.5 text-[12px] text-ink">/logout</code> inside agy signs out.</p>
@@ -100,7 +105,7 @@ export function AccountsPage() {
         </details>
       </section>;
     })}</div>
-    <div className="flex gap-4 text-sm"><Link className="font-semibold text-work-ink hover:underline self-center" to="/goals/new">Create a goal →</Link></div>
+    <div className="flex gap-4 text-sm"><Link className="inline-flex items-center font-semibold text-work-ink hover:underline self-center max-sm:min-h-8" to="/goals/new">Create a goal →</Link></div>
     {login && <SignInDialog provider={login} onClose={() => { setLogin(null); void load(); }} />}
     {logout && <ConfirmDialog open danger busy={busy} title={`Sign out of ${PROVIDER_LABEL[logout]}?`} confirmLabel="Sign out" onConfirm={signOut} onClose={() => setLogout(null)}>This also signs out the local CLI using the same credentials. The other provider stays signed in.</ConfirmDialog>}
   </div>;

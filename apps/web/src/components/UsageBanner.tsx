@@ -55,8 +55,8 @@ export function UsagePausedBanner() {
   return (
     <div className="space-y-2" role="status">
       {active.map((provider) => (
-        // new sessions wait for the limit, or for you: a plate in the yellow tint, its sign square solid
-        <div key={provider} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-you/10 px-3 py-2.5 ring-1 ring-inset ring-you/50 sm:px-4">
+        // new sessions wait for the limit, or for you: on a plain panel, its sign square solid yellow with a thin yellow edge
+        <div key={provider} className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-panel py-2.5 pl-4 pr-3 sm:pr-4 inset-ring inset-ring-line shadow-[inset_4px_0_0_var(--color-you)]">
           <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-you text-on-you" aria-hidden="true">
             <Pause size={14} strokeWidth={2.75} />
           </span>
@@ -72,7 +72,7 @@ export function UsagePausedBanner() {
             <Button type="button" size="sm" disabled={resuming === provider} onClick={() => resume(provider)} title="Start sessions again now; if the limit still holds, the next session pauses them again">
               {resuming === provider ? 'Resuming…' : 'Resume now'}
             </Button>
-            <Link to={`/usage?provider=${provider}`} className="px-1 text-[13px] font-semibold text-ink-soft underline underline-offset-2 hover:text-ink">{PROVIDER_LABEL[provider]} usage</Link>
+            <Link to={`/usage?provider=${provider}`} className="inline-flex items-center px-1 text-[13px] font-semibold text-ink-soft underline underline-offset-2 hover:text-ink max-sm:min-h-8">{PROVIDER_LABEL[provider]} usage</Link>
           </span>
         </div>
       ))}

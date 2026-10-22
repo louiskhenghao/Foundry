@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { FolderOpen } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, FolderOpen } from 'lucide-react';
 import { api, transferDownloadUrl, type GoalRow, type ImportReport, type IncomingGoal, type IncomingReport, type SecretsPreview, type TransferCategories } from '../api.ts';
 import { FolderPicker } from '../components/FolderPicker.tsx';
-import { Badge, Button, ButtonGroup, Card, Input, PageHeader, buttonClass, cn } from '../ui.tsx';
+import { Badge, Button, ButtonGroup, CODES, Card, Input, PageHeader, buttonClass, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
+import { IconTitle } from './settings/sections.tsx';
 
 const fmtBytes = (n: number) => (n >= 1024 ** 3 ? `${(n / 1024 ** 3).toFixed(1)} GB` : n >= 1024 ** 2 ? `${(n / 1024 ** 2).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
 
@@ -22,10 +23,11 @@ export function TransferPage() {
   return (
     <div className="max-w-4xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16 space-y-4">
       <PageHeader title="Transfer" help={<HelpLink to="moving-to-a-new-computer" label="Moving to a new computer (new tab)" />} summary="Carry your settings, keys and goals to another Foundry — typically on a new computer — or bring them in from one." />
-      <Card title="Export">
+      {/* the two ways, out of this Foundry and into it, each an arrow in a category colour of its own */}
+      <Card title={<IconTitle icon={ArrowUpFromLine} ink={CODES[0].ink}>Export</IconTitle>}>
         <ExportPanel />
       </Card>
-      <Card title="Import">
+      <Card title={<IconTitle icon={ArrowDownToLine} ink={CODES[5].ink}>Import</IconTitle>}>
         <ImportPanel />
       </Card>
     </div>
@@ -362,11 +364,12 @@ export function ImportPanel({ initial }: { initial?: IncomingReport }) {
 
 export function ImportResult({ r }: { r: ImportReport }) {
   return (
-    <div className="rounded-md border border-ok/40 bg-ok/5 p-3 text-xs space-y-1">
+    // done, on a plain box: the green words and a thin green edge, never a green panel
+    <div className="rounded-md border border-line bg-sunken p-3 pl-4 text-xs space-y-1 break-words shadow-[inset_4px_0_0_var(--color-ok)]">
       <div className="font-bold text-ok-ink">✔ Imported {r.imported.length} goal{r.imported.length === 1 ? '' : 's'}</div>
       {r.imported.map((g) => (
         <div key={g.id}>
-          <Link className="underline text-ink" to={`/goals/${g.id}`}>
+          <Link className="inline-flex items-center underline text-ink max-sm:min-h-8" to={`/goals/${g.id}`}>
             {g.title}
           </Link>
         </div>

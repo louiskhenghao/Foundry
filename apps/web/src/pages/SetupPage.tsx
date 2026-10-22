@@ -1,6 +1,6 @@
 import { AGENT_PROVIDERS } from '@foundry/core/browser';
 import type { DoctorReport, SkillsOverview } from '@foundry/engine/skills-types';
-import { Check, CheckCircle2, CircleAlert, ListChecks, X, XCircle } from 'lucide-react';
+import { Box, Check, CheckCircle2, CircleAlert, CircleDashed, Layers, ListChecks, Scissors, Workflow, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api as baseApi, apiForProvider, awaitSkillOp, type AgentProvider } from '../api.ts';
@@ -8,7 +8,11 @@ import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import { GitHubSignInDialog } from '../components/GitHubSignInDialog.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
 import { LiveLog } from './LiveLog.tsx';
-import { BOARD_ROW, Board, Button, Card, CopyButton, Empty, PageHeader, cn } from '../ui.tsx';
+import { IconTitle } from './settings/sections.tsx';
+import { BOARD_ROW, Board, Button, CODES, Card, CopyButton, Empty, PageHeader, cn } from '../ui.tsx';
+
+/** the required checks that fail when a sign-in is missing: signing in is yours to do, so they wait in yellow, not red */
+const SIGN_IN_CHECKS = ['claude-auth', 'codex-auth', 'agy-auth'];
 
 /** Per-entry status of a catalog bundle + one-click install/adopt. */
 function BundleStatus({ provider, bundle, busy, onInstall }: { provider: AgentProvider; bundle: string; busy: string | null; onInstall: () => void }) {
@@ -20,7 +24,7 @@ function BundleStatus({ provider, bundle, busy, onInstall }: { provider: AgentPr
       .then((o) => setEntries(o.catalog.filter((c) => c.entry.bundle === bundle)))
       .catch(() => setEntries([]));
   }, [bundle, busy]);
-  if (!entries) return <div className="text-xs text-ink-faint">checking…</div>;
+  if (!entries) return <div className="text-xs text-work-ink">checking…</div>;
   const missing = entries.filter((c) => c.status === 'missing' || c.status === 'partial');
   const loose = entries.filter((c) => c.status === 'installed-unmanaged');
   const viaPlugin = entries.filter((c) => c.status === 'installed-via-plugin');
@@ -28,10 +32,10 @@ function BundleStatus({ provider, bundle, busy, onInstall }: { provider: AgentPr
     <div className="space-y-2">
       <div className="flex flex-wrap gap-1.5">
         {entries.map((c) => (
-          <span key={c.entry.id} className="inline-flex items-center gap-1 rounded-sm bg-sunken px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-line">
-            {/* installed: solid green · a loose copy (installed, not by Foundry): hollow green · missing: grey */}
-            <span className={cn('h-1.5 w-1.5 rounded-full', c.status === 'installed' || c.status === 'installed-via-plugin' ? 'bg-ok' : c.status === 'installed-unmanaged' ? 'ring-1 ring-inset ring-ok' : 'bg-line-strong')} />
-            <span className="mono text-ink">{c.entry.name}</span>
+          <span key={c.entry.id} className="inline-flex max-w-full items-center gap-1 rounded-sm bg-sunken px-1.5 py-0.5 text-[11px] ring-1 ring-inset ring-line">
+            {/* installed: solid green · a loose copy (installed, not by Foundry): hollow green · missing, not set: hollow grey */}
+            <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', c.status === 'installed' || c.status === 'installed-via-plugin' ? 'bg-ok' : c.status === 'installed-unmanaged' ? 'ring-1 ring-inset ring-ok' : 'ring-1 ring-inset ring-ink-faint')} />
+            <span className="mono min-w-0 truncate text-ink" title={c.entry.name}>{c.entry.name}</span>
             <span className="text-ink-faint">{c.status === 'installed-via-plugin' ? 'plugin' : c.status === 'installed' ? 'Foundry' : c.status === 'installed-unmanaged' ? 'loose copy' : 'missing'}</span>
           </span>
         ))}
@@ -44,7 +48,7 @@ function BundleStatus({ provider, bundle, busy, onInstall }: { provider: AgentPr
         ) : (
           <span className="font-semibold text-ok-ink">bundle complete{viaPlugin.length ? ` · ${viaPlugin.length} via plugin` : ''}</span>
         )}
-        <Link to={`/skills?provider=${provider}`} className="underline text-ink-soft hover:text-ink">
+        <Link to={`/skills?provider=${provider}`} className="inline-flex items-center underline text-ink-soft hover:text-ink max-sm:min-h-8">
           details on Extensions →
         </Link>
       </div>
@@ -129,10 +133,11 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
 
   return (
     <div className="space-y-4">
-      {/* where setup stands, as a plate: green when everything is in place, red while something must be fixed */}
-      <div className={cn('rounded-lg p-4 flex items-center gap-3 inset-ring', report.ok ? 'bg-ok/10 inset-ring-ok/50' : 'bg-bad/10 inset-ring-bad')}>
-        <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-lg', report.ok ? 'bg-ok text-on-ok' : 'bg-bad text-on-bad')} aria-hidden="true">
-          {report.ok ? <Check size={18} strokeWidth={2.5} /> : <X size={18} strokeWidth={2.5} />}
+      {/* where setup stands, on a plain panel: its tile and thin left edge green when everything is in place, yellow while
+          it is incomplete (fixing it is yours to do); the failing checks themselves say red or yellow below */}
+      <div className={cn('rounded-lg bg-panel p-4 flex items-center gap-3 inset-ring inset-ring-line', report.ok ? 'shadow-[inset_4px_0_0_var(--color-ok)]' : 'shadow-[inset_4px_0_0_var(--color-you)]')}>
+        <span className={cn('grid h-9 w-9 shrink-0 place-items-center rounded-lg', report.ok ? 'bg-ok text-on-ok' : 'bg-you text-on-you')} aria-hidden="true">
+          {report.ok ? <Check size={18} strokeWidth={2.5} /> : <CircleAlert size={18} strokeWidth={2.5} />}
         </span>
         <div className="flex-1 text-[15px] font-bold text-ink">
           {report.ok ? 'Everything is in place. ' : `${errors.length} thing${errors.length === 1 ? '' : 's'} to fix before goals can run well. `}
@@ -147,12 +152,12 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
         </Button>
       </div>
 
-      {/* the checks as a checklist: passed in green, failing in red; a warning in yellow only when it needs you (an optional
-          or recommended extra never does) */}
+      {/* the checks as a checklist: passed in green, failing in red; a missing sign-in, and a warning that needs you, in
+          yellow; an optional or recommended extra is only not set yet, so hollow and grey */}
       <Board id="checks" icon={<ListChecks size={14} aria-hidden="true" />} title="Checks" count={report.checks.length}>
           {report.checks.map((c) => (
             <li key={c.id} className={cn(BOARD_ROW, 'px-4 md:px-5 py-3 flex gap-3')}>
-              <div className="mt-0.5">{c.ok ? <CheckCircle2 size={16} className="text-ok-ink" /> : c.severity === 'warn' ? <CircleAlert size={16} className={/\((optional|recommended)\)$/.test(c.label) ? 'text-ink-faint' : 'text-you-ink'} /> : <XCircle size={16} className="text-bad-ink" />}</div>
+              <div className="mt-0.5">{c.ok ? <CheckCircle2 size={16} className="text-ok-ink" /> : c.severity === 'warn' ? (/\((optional|recommended)\)$/.test(c.label) ? <CircleDashed size={16} className="text-ink-faint" /> : <CircleAlert size={16} className="text-you-ink" />) : SIGN_IN_CHECKS.includes(c.id) ? <CircleAlert size={16} className="text-you-ink" /> : <XCircle size={16} className="text-bad-ink" />}</div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-bold text-ink">{c.label}</div>
                 <div className="text-xs text-ink-faint mt-0.5 break-words">{c.detail}</div>
@@ -226,7 +231,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
                       </Button>
                     )}
                     {c.fix.action === 'check-updates' && (
-                      <Link to={`/skills?provider=${provider}`} className="underline text-ink">
+                      <Link to={`/skills?provider=${provider}`} className="inline-flex items-center underline text-ink max-sm:min-h-8">
                         open Skills
                       </Link>
                     )}
@@ -236,7 +241,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
                       </span>
                     )}
                     {c.fix.url && !c.fix.action && (
-                      <a className="underline text-ink-soft hover:text-ink" href={c.fix.url} target="_blank" rel="noreferrer">
+                      <a className="inline-flex items-center underline text-ink-soft hover:text-ink max-sm:min-h-8" href={c.fix.url} target="_blank" rel="noreferrer">
                         docs
                       </a>
                     )}
@@ -255,7 +260,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
       )}
       {msg && <div className="rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink whitespace-pre-wrap">{msg}</div>}
 
-      <Card title="Development workflow — Matt Pocock's engineering skills">
+      <Card title={<IconTitle icon={Workflow} ink={CODES[0].ink}>Development workflow — Matt Pocock's engineering skills</IconTitle>}>
         <p className="text-xs text-ink-soft mb-3">
           Foundry's roles follow this workflow: workers use <span className="mono">tdd</span> for features and refactors and <span className="mono">diagnosing-bugs</span> for bugs, the merger follows built-in conflict-resolution instructions, and the goal reviewer applies <span className="mono">code-review</span>'s two axes. {provider === 'codex' ? 'Codex reads native SKILL.md instructions. Skill invocation telemetry is unavailable; reviews assess the work and tests instead of treating missing telemetry as a skipped skill.' : provider === 'agy' ? 'Antigravity reads skills only from a workspace: Foundry installs them in ~/.agents/skills (shared with Codex and the skills CLI) and links them into each goal\'s workspace. Skill invocation telemetry is unavailable; reviews assess the work and tests instead.' : <>The engine records which skills each session invoked. Skills provided by the <span className="mono">mattpocock-skills</span> plugin are used as-is; others are installed from the catalog.</>}
         </p>
@@ -265,7 +270,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
         })} />
       </Card>
 
-      <Card title="Workflow suite — pstack">
+      <Card title={<IconTitle icon={Layers} ink={CODES[2].ink}>Workflow suite — pstack</IconTitle>}>
         <p className="text-xs text-ink-soft mb-3">
           A second suite a goal can run on (<span className="mono">Powered by</span> on the New goal form): a bug fix that starts from the failing test, <span className="mono">deslop</span> before a task is handed back, <span className="mono">thermo-nuclear-review</span> for the final review, non-interactive conflict resolution and a technical-writing standard. Foundry keeps one pinned release as its own copy, without the plugin's hooks; Claude loads it per session, Codex and Antigravity get the skills linked into the goal's workspace. Roles pstack has no skill for keep Matt Pocock's.
         </p>
@@ -275,7 +280,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
         })} />
       </Card>
 
-      <Card title="Less code — Ponytail">
+      <Card title={<IconTitle icon={Scissors} ink={CODES[3].ink}>Less code — Ponytail</IconTitle>}>
         <p className="text-xs text-ink-soft mb-3">
           The lazy senior dev: before writing, a worker checks whether the code needs to exist, whether the repository, the standard library or an installed dependency already has it, and only then writes the smallest complete change. The planner plans the same way, and <span className="mono">ponytail-review</span> reviews each task and the whole goal (the code a change touches, not only the diff). Every goal has a Ponytail switch, on by default; TDD still decides how tests are written. The optional audit at the end of a goal uses <span className="mono">ponytail-audit</span>.
         </p>
@@ -285,7 +290,8 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
         })} />
       </Card>
 
-      <Card title="3D models — text-to-cad (CAD)">
+      {/* the bundles told apart by colour; text-to-cad in the teal of CAD goals on the New goal page */}
+      <Card title={<IconTitle icon={Box} ink={CODES[5].ink}>3D models — text-to-cad (CAD)</IconTitle>}>
         <p className="text-xs text-ink-soft mb-2 max-w-3xl">
           Parts and assemblies as STEP (STL, 3MF and GLB on request), engineering drawings, DXF cut profiles, URDF/SRDF/SDF robot files, printability and manufacturability checks, headless slicing: skills and a <span className="mono">cad</span> viewer server from{' '}
           <a className="underline" href="https://github.com/earthtojake/text-to-cad" target="_blank" rel="noreferrer">earthtojake/text-to-cad</a> (MIT). Goals get the <span className="mono">cad</span> nature; code goals use the same skills in their CAD tasks.
@@ -296,7 +302,9 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
           <li>Sessions run cadgen with usage statistics and update checks off; your own use of text-to-cad keeps its settings. Hand-offs to Bambu Connect, Bambu Studio or OrcaSlicer's window stay off until Settings → Safety → Desktop apps &amp; printers is on.</li>
         </ul>}
         {cadTools && provider !== 'agy' && (
-          <p className={cn('text-xs mb-3', cadTools.ok ? 'text-ink-soft' : 'text-work-ink')}>
+          // the mark says how it stands: uv found, a green tick; not found is only not there yet (CAD is optional), hollow
+          <p className="text-xs mb-3 text-ink-soft">
+            {cadTools.ok ? <CheckCircle2 size={13} className="mr-1 inline align-[-2px] text-ok-ink" aria-hidden="true" /> : <CircleDashed size={13} className="mr-1 inline align-[-2px] text-ink-faint" aria-hidden="true" />}
             {cadTools.detail}
             {cadTools.fix?.command ? (
               <>
@@ -319,7 +327,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
         {bundleLog && (
           <div className="mt-3">
             <div className="flex items-center justify-between mb-1">
-              <span className={cn('text-xs', bundleLog.status === 'failed' ? 'text-bad-ink' : 'text-ink-soft')} role="status">
+              <span className={cn('text-xs font-semibold', bundleLog.status === 'failed' ? 'text-bad-ink' : bundleLog.status === 'ok' ? 'text-ok-ink' : 'text-work-ink')} role="status">
                 {bundleLog.status === 'running' ? `Installing ${bundleLog.title}…` : bundleLog.status === 'ok' ? `${bundleLog.title} installed` : `${bundleLog.title}: install failed`}
               </span>
               <Button size="sm" variant="ghost" onClick={() => { setBundleLog(null); load(); }}>close</Button>

@@ -30,7 +30,7 @@ export function AccountsUsageCard({ provider, accounts }: { provider: AgentProvi
   return (
     <Card
       title={<span className="flex items-center gap-2">Accounts <span className="mono text-[13px] tracking-normal text-ink-faint">{accounts.length}</span></span>}
-      actions={<Link to="/accounts" className="text-xs font-semibold text-work-ink hover:underline">Manage on Accounts →</Link>}
+      actions={<Link to="/accounts" className="inline-flex items-center text-xs font-semibold text-work-ink hover:underline max-sm:min-h-8">Manage on Accounts →</Link>}
     >
       {/* the rows run edge to edge: the card's own padding is taken back */}
       <ul className="-m-4 divide-y divide-line" aria-label="Usage per account">
@@ -39,15 +39,19 @@ export function AccountsUsageCard({ provider, accounts }: { provider: AgentProvi
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="truncate text-sm font-bold text-ink" title={a.label}>{a.label}</span>
-                {/* the account new sessions run on, marked as the Accounts page marks it: a plate in the accent */}
+                {/* the account new sessions run on, marked as the Accounts page marks it: a plate in the ok green */}
                 {a.current && (
-                  <span className="inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-accent">
+                  <span className="inline-flex items-center gap-1 rounded-sm bg-ok px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-ok">
                     <Check size={11} aria-hidden="true" />current
                   </span>
                 )}
               </div>
+              {/* a reached limit in red words, as "limit reached" beside it */}
               <div className="mt-0.5 text-xs text-ink-faint">
-                {[a.plan, a.limitedUntil ? `limited until ${new Date(a.limitedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : null].filter(Boolean).join(' · ') || ' '}
+                {a.plan}
+                {a.plan && a.limitedUntil ? ' · ' : null}
+                {a.limitedUntil ? <span className="font-semibold text-bad-ink">limited until {new Date(a.limitedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> : null}
+                {!a.plan && !a.limitedUntil ? ' ' : null}
               </div>
             </div>
             {provider === 'codex' ? (

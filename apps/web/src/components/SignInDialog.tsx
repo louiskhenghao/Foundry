@@ -70,12 +70,24 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
           </Button>
         </header>
 
-        {/* the steps as the Tasks list draws a task's: leaning chips, done ones filled, the current one outlined in ink */}
+        {/* the steps as the Tasks list draws a task's: leaning chips in their signal colour — done green, the one waiting
+            for you yellow (blue while Foundry asks for a code), failed red; the first outlined in ink until you start */}
         <ol className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-5 pb-4" aria-label="Sign-in steps">
           {steps.map((label, i) => {
             const done = i < step || (i === 2 && !!session?.ok);
             const now = i === step && !done;
-            const look = done ? { plate: 'bg-ink/12', text: 'text-ink' } : now ? (failed ? { plate: 'bg-bad/15 inset-ring inset-ring-bad', text: 'text-bad-ink' } : { plate: 'inset-ring-[1.5px] inset-ring-ink', text: 'text-ink' }) : { plate: 'inset-ring inset-ring-line-strong', text: 'text-ink-faint' };
+            const asking = codex && !!session && !session.done && !session.deviceCode;
+            const look = done
+              ? { plate: 'bg-ok/15', text: 'text-ok-ink' }
+              : now
+                ? failed
+                  ? { plate: 'bg-bad/15 inset-ring inset-ring-bad', text: 'text-bad-ink' }
+                  : step === 0
+                    ? { plate: 'inset-ring-[1.5px] inset-ring-ink', text: 'text-ink' }
+                    : asking
+                      ? { plate: 'bg-work/12 inset-ring inset-ring-work/60', text: 'text-work-ink' }
+                      : { plate: 'bg-you', text: 'text-on-you' }
+                : { plate: 'inset-ring inset-ring-line-strong', text: 'text-ink-faint' };
             return (
               <li key={label} className={cn('relative isolate inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1 text-xs font-bold', look.text)} aria-current={now ? 'step' : undefined}>
                 <i className={cn('absolute inset-0 -z-10 rounded-[3px] slant', look.plate)} aria-hidden="true" />
@@ -98,9 +110,10 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
                   </>}
             </>
           ) : session.done ? (
-            <div className={cn('flex items-start gap-3 rounded-lg border p-3 text-sm', session.ok ? 'border-ok/40 bg-ok/5 text-ok-ink' : 'border-bad/40 bg-bad/5 text-bad-ink')}>
+            // the outcome on a plain box: its mark, its words and a thin edge in green or red
+            <div className={cn('flex items-start gap-3 rounded-lg border border-line bg-sunken p-3 pl-4 text-sm font-semibold', session.ok ? 'text-ok-ink shadow-[inset_4px_0_0_var(--color-ok)]' : 'text-bad-ink shadow-[inset_4px_0_0_var(--color-bad)]')}>
               {session.ok ? <CheckCircle2 size={18} aria-hidden="true" className="mt-px shrink-0" /> : <AlertTriangle size={18} aria-hidden="true" className="mt-px shrink-0" />}
-              <span>{session.ok ? (add ? 'Signed in. The account is added.' : 'Signed in.') : (session.error ?? 'Sign-in failed')}</span>
+              <span className="min-w-0 break-words">{session.ok ? (add ? 'Signed in. The account is added.' : 'Signed in.') : (session.error ?? 'Sign-in failed')}</span>
             </div>
           ) : codex ? (
             <div className="space-y-3">
@@ -111,10 +124,10 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
                     <span className="mono text-2xl font-bold tracking-[0.2em] text-ink">{session.deviceCode}</span>
                     <CopyButton text={session.deviceCode} />
                   </div>
-                  <p className="flex items-center gap-2 text-xs text-ink-soft"><Loader2 size={13} aria-hidden="true" className="animate-spin" />Waiting for you to enter the code and approve…</p>
+                  <p className="flex items-center gap-2 text-xs font-semibold text-you-ink"><Loader2 size={13} aria-hidden="true" className="animate-spin" />Waiting for you to enter the code and approve…</p>
                 </>
               ) : (
-                <p className="flex items-center gap-2 text-sm text-ink-soft"><Loader2 size={14} aria-hidden="true" className="animate-spin" />Asking OpenAI for a code…</p>
+                <p className="flex items-center gap-2 text-sm font-semibold text-work-ink"><Loader2 size={14} aria-hidden="true" className="animate-spin" />Asking OpenAI for a code…</p>
               )}
             </div>
           ) : session.needsCode ? (
@@ -135,17 +148,20 @@ export function SignInDialog({ onClose, provider: selectedProvider, add = false 
               </div>
             </div>
           ) : (
-            <p className="flex items-center gap-2 text-sm text-ink-soft"><Loader2 size={14} aria-hidden="true" className="animate-spin" />Waiting for you to finish in the browser…</p>
+            <p className="flex items-center gap-2 text-sm font-semibold text-you-ink"><Loader2 size={14} aria-hidden="true" className="animate-spin" />Waiting for you to finish in the browser…</p>
           )}
 
           {session?.url && !session.done && (
-            <div className="flex items-center gap-2 rounded-lg border border-line bg-sunken px-3 py-2 text-xs">
-              <span className="shrink-0 text-ink-faint">{codex ? 'Open this page, sign in to ChatGPT and enter the code:' : 'If the browser did not open, use this link:'}</span>
-              <a className="flex min-w-0 items-center gap-1 truncate font-semibold text-work-ink underline underline-offset-2" href={session.url} target="_blank" rel="noreferrer">
-                <ExternalLink size={12} aria-hidden="true" className="shrink-0" />
-                <span className="truncate">{session.url}</span>
-              </a>
-              <CopyButton text={session.url} />
+            // the words above the link where the line is too short for both (a phone); the link truncates, its copy beside it
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-line bg-sunken px-3 py-2 text-xs">
+              <span className="max-w-full text-ink-faint">{codex ? 'Open this page, sign in to ChatGPT and enter the code:' : 'If the browser did not open, use this link:'}</span>
+              <span className="flex min-w-40 flex-1 items-center gap-2">
+                <a className="flex min-w-0 flex-1 items-center gap-1 truncate font-semibold text-work-ink underline underline-offset-2 max-sm:min-h-8" href={session.url} target="_blank" rel="noreferrer">
+                  <ExternalLink size={12} aria-hidden="true" className="shrink-0" />
+                  <span className="truncate">{session.url}</span>
+                </a>
+                <CopyButton text={session.url} />
+              </span>
             </div>
           )}
           {err && <p role="alert" className="text-xs text-bad-ink">{err}</p>}

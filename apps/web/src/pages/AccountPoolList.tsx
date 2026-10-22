@@ -84,9 +84,9 @@ export function AccountPoolList({ provider, pool, installed, onChange }: { provi
           const signedOut = !!a.status && !a.status.loggedIn && !native;
           const meta = [a.plan, native ? (a.email ? 'this computer’s sign-in' : null) : 'added in Foundry'].filter(Boolean).join(' · ');
           return (
-            // the current account ringed in the accent with a "current" plate, as the theme in use is on Appearance (an
-            // inset-ring: with ring-inset the theme's colour named inset would win over ring-accent)
-            <li key={a.id} className={cn('flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-panel px-3 py-2.5', a.current ? 'inset-ring-2 inset-ring-accent' : 'inset-ring inset-ring-line')}>
+            // the current account marked green, its signal: a "current" plate and a thin edge, on a plain row (an inset-ring:
+            // with ring-inset the theme's colour named inset would win over the ring's own)
+            <li key={a.id} className={cn('flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-panel px-3 py-2.5 inset-ring inset-ring-line', a.current && 'pl-4 shadow-[inset_4px_0_0_var(--color-ok)]')}>
               <span aria-hidden="true" className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-bold uppercase', a.current ? PROVIDER_STYLE[provider].tile : 'border-line-strong bg-sunken text-ink-soft')}>
                 {a.email ? a.email[0] : <Laptop size={15} strokeWidth={1.75} />}
               </span>
@@ -95,9 +95,10 @@ export function AccountPoolList({ provider, pool, installed, onChange }: { provi
                 {meta && <div className="truncate text-xs text-ink-faint">{meta}</div>}
               </div>
               <div className="flex flex-wrap items-center gap-1.5">
-                {a.current && <span className="inline-flex items-center gap-1 rounded-sm bg-accent px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-accent"><Check size={11} aria-hidden="true" />current</span>}
-                {/* a limit that lifts by itself: a quiet chip; a lost sign-in is yours to redo, so it is yellow */}
-                {a.limitedUntil && <span className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[11px] font-semibold text-ink-soft inset-ring inset-ring-line-strong"><Clock size={11} aria-hidden="true" />limited until <span className="mono">{at(a.limitedUntil)}</span></span>}
+                {a.current && <span className="inline-flex items-center gap-1 rounded-sm bg-ok px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-ok"><Check size={11} aria-hidden="true" />current</span>}
+                {/* a reached limit stops the account until then, as "limit reached" on Usage: a red chip; a lost sign-in is
+                    yours to redo, so it is yellow */}
+                {a.limitedUntil && <span className="inline-flex items-center gap-1 rounded-sm bg-bad/10 px-1.5 py-0.5 text-[11px] font-semibold text-bad-ink inset-ring inset-ring-bad/45"><Clock size={11} aria-hidden="true" />limited until <span className="mono">{at(a.limitedUntil)}</span></span>}
                 {signedOut && <span className="rounded-sm bg-you px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-you" title="Remove it and add it again">signed out</span>}
               </div>
               {(!a.current || !native) && (
@@ -118,7 +119,7 @@ export function AccountPoolList({ provider, pool, installed, onChange }: { provi
           <span className="block text-sm font-semibold text-ink">Switch accounts when a usage limit stops a session</span>
           <span className="block mt-0.5 text-xs text-ink-faint">{pool.accounts.length < 2 ? 'Add a second account first.' : pool.autoSwitch ? 'On: new sessions move to the next account, and the stopped session resumes there.' : 'Off: new sessions pause until the limit resets; the pause offers to switch.'}</span>
         </span>
-        <Repeat size={15} aria-hidden="true" className={cn('mt-0.5 shrink-0', pool.autoSwitch ? 'text-ink' : 'text-ink-faint')} />
+        <Repeat size={15} aria-hidden="true" className={cn('mt-0.5 shrink-0', pool.autoSwitch ? 'text-ok-ink' : 'text-ink-faint')} />
       </label>
       {error && <p role="alert" className="text-xs text-bad-ink">{error}</p>}
       {adding && <SignInDialog provider={provider} add onClose={() => { setAdding(false); onChange(); }} />}

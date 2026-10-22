@@ -16,14 +16,18 @@ export function AgyQuotaCard({ quota }: { quota?: Quota | null }) {
   </Card>;
 }
 
-/** what is left of a limit: a blue bar (information from the account), yellow once under a tenth, as the top bar's dot */
+/**
+ * what is left of a limit: a blue bar (information from the account), yellow once under a tenth, as the top bar's dot —
+ * and so is the figure beside it; an unknown one stays plain
+ */
 function Bucket({ bucket }: { bucket: AgyQuotaBucket }) {
   const percentage = bucket.remainingFraction == null ? null : Math.round(bucket.remainingFraction * 1000) / 10;
   const reset = bucket.resetTime ? new Date(bucket.resetTime) : null;
   const resetText = reset && Number.isFinite(reset.getTime()) ? reset.toLocaleString() : null;
+  const low = percentage != null && percentage < 10;
   return <div className="space-y-1.5">
-    <div className="flex items-start justify-between gap-2 text-xs"><span className="text-ink-soft">{bucket.name}</span><span className="mono font-semibold text-ink shrink-0">{percentage == null ? 'unknown' : `${percentage.toLocaleString()}% remaining`}</span></div>
-    <div className="h-1.5 rounded-xs bg-line overflow-hidden" role={percentage == null ? undefined : 'meter'} aria-label={`${bucket.name} remaining${percentage == null ? ' unknown' : ''}`} aria-valuemin={percentage == null ? undefined : 0} aria-valuemax={percentage == null ? undefined : 100} aria-valuenow={percentage ?? undefined} aria-valuetext={percentage == null ? 'unknown' : `${percentage}% remaining`}><div className={cn('h-full', percentage != null && percentage < 10 ? 'bg-you' : 'bg-work')} style={{ width: `${percentage ?? 0}%` }} /></div>
+    <div className="flex items-start justify-between gap-2 text-xs"><span className="min-w-0 break-words text-ink-soft">{bucket.name}</span><span className={cn('mono font-semibold shrink-0', percentage == null ? 'text-ink-faint' : low ? 'text-you-ink' : 'text-ink')}>{percentage == null ? 'unknown' : `${percentage.toLocaleString()}% remaining`}</span></div>
+    <div className="h-1.5 rounded-xs bg-line overflow-hidden" role={percentage == null ? undefined : 'meter'} aria-label={`${bucket.name} remaining${percentage == null ? ' unknown' : ''}`} aria-valuemin={percentage == null ? undefined : 0} aria-valuemax={percentage == null ? undefined : 100} aria-valuenow={percentage ?? undefined} aria-valuetext={percentage == null ? 'unknown' : `${percentage}% remaining`}><div className={cn('h-full', low ? 'bg-you' : 'bg-work')} style={{ width: `${percentage ?? 0}%` }} /></div>
     <p className="text-[11px] text-ink-faint">{resetText ? `Resets ${resetText}` : 'Reset time unavailable'}</p>
   </div>;
 }
