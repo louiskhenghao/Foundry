@@ -2,6 +2,8 @@
 
 **Status:** accepted · 2026-10-21 · builds on [ADR-0031](0031-feature-milestones-with-scripts.md) and [ADR-0041](0041-deploy-web-apps.md)
 
+> Amended 2026-10-22: the smoke first looks at the address; one behind the host's login (a 401, or a redirect to a login page: Vercel's Deployment Protection, which covers previews by default, Netlify's visitor access, Cloudflare Access) is not tried, and the smoke fails saying which setting asks for the login. Smoke again tries once visitors can open it.
+
 ## Context
 
 Deploy (ADR-0041) ends with an address and the host's word that the build went up. Whether what is online does what
