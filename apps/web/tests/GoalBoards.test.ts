@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import type { GoalRow } from '../src/api.ts';
-import { countMarks, stageMarks, taskMark } from '../src/components/progress.tsx';
+import { countMarks, stageMarks, stageNotes, taskMark } from '../src/components/progress.tsx';
 import { boardOf, needOf } from '../src/pages/goal-boards.ts';
 import { waited } from '../src/ui.tsx';
 import { listEntries } from '../src/pages/goal-chains.ts';
 
 const goal = (patch: Partial<GoalRow> & { id: string }) =>
-  ({ title: `goal ${patch.id}`, state: 'running', openEscalations: 0, interview: null, follows: null, createdAt: '2026-10-20T10:00:00Z', updatedAt: '2026-10-20T10:00:00Z', taskCounts: {}, delivery: { status: 'idle', policy: { mode: 'pr' } }, ...patch }) as unknown as GoalRow;
+  ({ title: `goal ${patch.id}`, state: 'running', openEscalations: 0, interview: null, follows: null, createdAt: '2026-10-20T10:00:00Z', updatedAt: '2026-10-20T10:00:00Z', taskCounts: {}, delivery: { status: 'idle', policy: { mode: 'pr' }, prs: [] }, ...patch }) as unknown as GoalRow;
 
 describe('what waits for you hangs as a sign', () => {
   test('each kind of wait names its action and where it is done', () => {
@@ -59,4 +59,12 @@ describe('the five stages and the task squares', () => {
     expect(countMarks({ pending: 1, done: 2, running: 1, blocked: 1, failed: 1 })).toEqual(['done', 'done', 'run', 'you', 'bad', 'next']);
     expect(['merging', 'observing', 'ready', 'skipped'].map((s) => taskMark(s as never))).toEqual(['run', 'run', 'next', 'off']);
   });
+});
+
+test('each stage says how it went, on the goal page and the Brief alike', () => {
+  const g = goal({ id: 'g', state: 'running', approvedBy: 'Ana', interview: { status: 'done', rounds: [{}, {}] } as unknown as GoalRow['interview'], delivery: { status: 'idle', policy: { mode: 'pr' }, prs: [] } as unknown as GoalRow['delivery'] });
+  const tasks = [{ state: 'done' as const }, { state: 'running' as const }];
+  expect(stageNotes(g, tasks, stageMarks(g, true))).toEqual(['2 rounds of questions', 'approved by Ana', '1 of 2 tasks', 'the whole goal', 'a pull request']);
+  const planning = goal({ id: 'p', state: 'clarifying', interview: null });
+  expect(stageNotes(planning, [], stageMarks(planning, false), true).slice(0, 2)).toEqual(['planning the tasks', 'skeleton ready']);
 });

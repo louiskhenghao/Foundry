@@ -56,6 +56,34 @@ export function stageMarks(g: GoalLike, hasTasks: boolean): Mark[] {
   }
 }
 
+/** what each delivery policy does, as the Deliver stage says it */
+const DELIVER_NOTE: Record<string, string> = { local: 'kept on its branch', push: 'pushed', pr: 'a pull request', 'pr-automerge': 'a pull request, auto-merged' };
+
+interface NotedGoal extends GoalLike {
+  interview?: { status: string; rounds: unknown[] } | null;
+  approvedBy?: string | null;
+  delivery: { status: string; policy: { mode: string }; prs: unknown[] };
+}
+
+/**
+ * What each of the five stages says under its name, on the goal page and the Brief alike: how Clarify went, whether the
+ * Brief is approved, how far the tasks are, the review, the delivery. `skeleton`: the planner is still writing the tasks
+ * of a Brief whose skeleton is out to read.
+ */
+export function stageNotes(g: NotedGoal, tasks: { state: TaskState }[], marks: Mark[], skeleton = false): string[] {
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.state === 'done').length;
+  const rounds = g.interview?.rounds.length ?? 0;
+  const prs = g.delivery.prs.length;
+  return [
+    g.state === 'clarifying' ? (skeleton ? 'planning the tasks' : g.interview?.status === 'awaiting_answers' ? 'questions for you' : 'reading the project') : rounds ? `${rounds} round${rounds === 1 ? '' : 's'} of questions` : 'no questions needed',
+    g.state === 'awaiting_brief_approval' ? 'waiting for you' : skeleton ? 'skeleton ready' : marks[1] === 'done' ? (g.approvedBy ? `approved by ${g.approvedBy}` : 'approved') : 'not written yet',
+    total ? `${done} of ${total} tasks` : 'no tasks yet',
+    g.state === 'goal_review' ? 'reviewing the whole' : marks[3] === 'done' ? 'passed' : 'the whole goal',
+    g.delivery.status === 'delivered' ? `delivered${prs ? ` · ${prs} PR${prs === 1 ? '' : 's'}` : ''}` : (DELIVER_NOTE[g.delivery.policy.mode] ?? g.delivery.policy.mode),
+  ];
+}
+
 export function taskMark(state: TaskState): Mark {
   if (state === 'done') return 'done';
   if (state === 'running' || state === 'observing' || state === 'merging') return 'run';

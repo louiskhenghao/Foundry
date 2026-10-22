@@ -8,7 +8,7 @@ import { api, type GoalDetail } from '../../api.ts';
 import { FollowLinks } from '../goal/FollowUps.tsx';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { StageRail, StatePlate, stageMarks, taskMark, type Mark } from '../../components/progress.tsx';
+import { StageRail, StatePlate, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { useLive } from '../../store.ts';
 import { Badge, Button, Card, CopyButton, Empty, Input, Textarea, chipClass, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
@@ -473,28 +473,6 @@ function Figure({ label, value, note, dim }: { label: string; value: string; not
   );
 }
 
-/** what each delivery policy does, as the Deliver stage says it on the goal page */
-const DELIVER_NOTE: Record<string, string> = { local: 'kept on its branch', push: 'pushed', pr: 'a pull request', 'pr-automerge': 'a pull request, auto-merged' };
-
-/**
- * What each stage says under its name, as the goal page words it; while the planner works, Clarify is planning the tasks
- * and the Brief's skeleton is out to read.
- */
-function stageNotes(d: GoalDetail, marks: Mark[], skeleton: boolean): ReactNode[] {
-  const g = d.goal;
-  const total = d.tasks.length;
-  const done = d.tasks.filter((t) => t.state === 'done').length;
-  const rounds = g.interview?.rounds.length ?? 0;
-  const prs = g.delivery.prs.length;
-  return [
-    g.state === 'clarifying' ? (skeleton ? 'planning the tasks' : g.interview?.status === 'awaiting_answers' ? 'questions for you' : 'reading the project') : rounds ? `${rounds} round${rounds === 1 ? '' : 's'} of questions` : 'no questions needed',
-    g.state === 'awaiting_brief_approval' ? 'waiting for you' : skeleton ? 'skeleton ready' : marks[1] === 'done' ? (g.approvedBy ? `approved by ${g.approvedBy}` : 'approved') : 'not written yet',
-    total ? `${done} of ${total} tasks` : 'no tasks yet',
-    g.state === 'goal_review' ? 'reviewing the whole' : marks[3] === 'done' ? 'passed' : 'the whole goal',
-    g.delivery.status === 'delivered' ? `delivered${prs ? ` · ${prs} PR${prs === 1 ? '' : 's'}` : ''}` : (DELIVER_NOTE[g.delivery.policy.mode] ?? g.delivery.policy.mode),
-  ];
-}
-
 /**
  * The Brief's head, read as the goal page's: the way back, the goal's state as a plate, its title in large type, its facts
  * as small plates, how the Brief was made, the view switch and Re-run Clarify on the right; then the five stages, and the
@@ -629,7 +607,7 @@ function Header({ detail, simple = false, onView, beforeReclarify }: { detail: G
           </div>
         )}
       </div>
-      <StageRail marks={marks} notes={stageNotes(detail, marks, g.state === 'clarifying' && !!detail.brief?.skeleton)} tasks={detail.tasks.map((t) => taskMark(t.state))} links={links} />
+      <StageRail marks={marks} notes={stageNotes(g, detail.tasks, marks, g.state === 'clarifying' && !!detail.brief?.skeleton)} tasks={detail.tasks.map((t) => taskMark(t.state))} links={links} />
       <MarkdownPanel title="goal" source={g.prompt} maxHeight={220} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
     </div>
   );

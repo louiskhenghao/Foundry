@@ -13,7 +13,7 @@ import { ImportedCard } from './ImportedCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
 import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, Meter, Tabs, fmtLimitMin, fmtLimitUsd, fmtUsd, stateLabel } from '../../ui.tsx';
-import { StatePlate, StageRail, stageMarks, taskMark } from '../../components/progress.tsx';
+import { StatePlate, StageRail, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { CutSessionsDot } from '../../components/CutSessionsDot.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { MoreMenu, type MoreItem } from '../../components/MoreMenu.tsx';
@@ -43,8 +43,6 @@ const savedTaskView = (): TaskView => {
     return 'graph';
   }
 };
-/** what each delivery policy does, as the Deliver stage says it */
-const DELIVER_NOTE: Record<string, string> = { local: 'kept on its branch', push: 'pushed', pr: 'a pull request', 'pr-automerge': 'a pull request, auto-merged' };
 
 export function GoalPage() {
   const { id = '' } = useParams();
@@ -135,15 +133,6 @@ export function GoalPage() {
   const doneTasks = d.tasks.filter((t) => t.state === 'done').length;
   const statusLine = [total ? (running ? `${running} of ${total} task${total === 1 ? '' : 's'} running` : `${doneTasks} of ${total} task${total === 1 ? '' : 's'} done`) : null, d.budget.elapsedMin >= 1 ? `${d.budget.elapsedMin.toFixed(0)} min in` : null].filter(Boolean).join(' · ');
   const marks = stageMarks(g, total > 0);
-  const rounds = g.interview?.rounds.length ?? 0;
-  const prs = g.delivery.prs.length;
-  const stageNotes = [
-    g.state === 'clarifying' ? (g.interview?.status === 'awaiting_answers' ? 'questions for you' : 'reading the project') : rounds ? `${rounds} round${rounds === 1 ? '' : 's'} of questions` : 'no questions needed',
-    awaiting ? 'waiting for you' : marks[1] === 'done' ? (g.approvedBy ? `approved by ${g.approvedBy}` : 'approved') : 'not written yet',
-    total ? `${doneTasks} of ${total} tasks` : 'no tasks yet',
-    g.state === 'goal_review' ? 'reviewing the whole' : marks[3] === 'done' ? 'passed' : 'the whole goal',
-    g.delivery.status === 'delivered' ? `delivered${prs ? ` · ${prs} PR${prs === 1 ? '' : 's'}` : ''}` : (DELIVER_NOTE[g.delivery.policy.mode] ?? g.delivery.policy.mode),
-  ];
   // in Expert, each stage opens where its work shows; the Brief has its own page in both views
   const stageLinks = [
     isExpert ? { to: `/goals/${id}#activity`, title: 'open the Activity tab (Clarify session log)' } : null,
@@ -281,7 +270,7 @@ export function GoalPage() {
           </div>
         </div>
       </div>
-      <StageRail marks={marks} notes={stageNotes} tasks={d.tasks.map((t) => taskMark(t.state))} links={stageLinks} />
+      <StageRail marks={marks} notes={stageNotes(g, d.tasks, marks)} tasks={d.tasks.map((t) => taskMark(t.state))} links={stageLinks} />
       {history && <ImportedCard goal={g} onChanged={() => api.goal(id).then(setD).catch((e) => setErr(e.message))} />}
       <MarkFollowUpDialog d={d} open={markFollow} onClose={() => setMarkFollow(false)} />
       {restart !== false && <RestartDialog goalId={id} tasks={d.tasks} initial={typeof restart === 'string' ? restart : null} open onClose={() => setRestart(false)} onDone={() => { setRestart(false); setTab('tasks'); }} />}
