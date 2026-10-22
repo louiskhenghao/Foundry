@@ -2,7 +2,7 @@ import { ExternalLink, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { apiForProvider, type AgentProvider, type McpLoginSession } from '../../api.ts';
-import { Button, CopyButton, Input, cn, focusFirst } from '../../ui.tsx';
+import { Button, CopyButton, Input, buttonClass, cn, focusFirst } from '../../ui.tsx';
 
 /**
  * Connect a claude.ai connector (open its claude.ai link and authorize there) or sign in to an HTTP MCP server
@@ -72,7 +72,7 @@ export function McpConnectDialog({ provider = 'claude', name, onClose }: { provi
             {name} is a claude.ai connector: you authorize it once on claude.ai, with the Google (or other) account it should use. Claude Code and Foundry share that connection.
           </p>
           <div className="flex items-center gap-2">
-            <a href={s.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500 text-zinc-950 px-3 py-1.5 text-sm font-medium hover:bg-emerald-400">
+            <a href={s.url} target="_blank" rel="noreferrer" className={buttonClass('primary')}>
               <ExternalLink size={14} /> Open claude.ai to connect
             </a>
             <CopyButton text={s.url} />
