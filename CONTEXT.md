@@ -20,7 +20,7 @@ The smallest unit of work carved out of a Goal during Clarify. Tasks form a DAG 
 One Plan → Act → Observe pass at a Task, performed in a fresh session of the Goal's Coding agent. An Attempt is made of several sessions — the Worker's segments, the Task reviewer, possibly a Merger — each recorded with its model and the measurements its coding agent provides. A *retry* is simply the next Attempt, fed with the previous Attempt's Observation Report — unless the session can simply carry on (see Continuation). A **Merge Attempt** is an Attempt whose only job is to resolve a merge conflict between two Tasks.
 
 **Continuation**
-The next segment of the same Attempt: its session is resumed by the same Coding agent with everything it already knows, instead of a fresh session that must understand the Task again. The engine continues an Attempt when its session was cut (engine restart, an applicable session cap, timeout) or when the Checks still fail but the segment made progress; a Continuation consumes no retry, and an Attempt is continued at most a few times before a genuine new Attempt (fresh session, Observation Report) takes over. A Merge Attempt's second try is a Continuation of its first.
+The next segment of the same Attempt: its session is resumed by the same Coding agent with everything it already knows, instead of a fresh session that must understand the Task again. The engine continues an Attempt when its session was cut (engine restart, a usage limit, an applicable session cap, timeout) or when the Checks still fail but the segment made progress; a Continuation consumes no retry, and an Attempt is continued at most a few times before a genuine new Attempt (fresh session, Observation Report) takes over. A Merge Attempt's second try is a Continuation of its first.
 
 **Follow-up**
 A Goal that continues an earlier, finished Goal of the same repository: B *follows* A, and A is *followed by* B; chains are allowed (A → B → C). A Follow-up is given what A asked for, what was understood and decided, and how it ended, as background for its Clarify; that background is copied when the Follow-up is created, so it survives A being deleted. It starts from the base branch when A's work is already there, otherwise from A's Goal branch — then A's changes travel in B's Delivery. Opening Follow-up from a Goal page prefills the web form with the earlier coding agent, preset choice, Workflow suite, TDD, current saved Ponytail and any explicit all-role Codex model override. Those three workflow choices take precedence over folder defaults; the on-page Follows picker only links Goals. Simple view still submits preferred TDD, and Fast mode leaves TDD to the engine’s off default. A Follow-up is a new Goal: its creation captures the then-current preset tables, not the earlier Goal’s frozen table. A Goal can also be marked as a Follow-up afterwards, which records the relationship and nothing else.
@@ -145,6 +145,16 @@ An answer given from a Notification Channel instead of the app: a button under a
 
 **Sign-in**
 Authorising one Coding agent on the machine running Foundry. Each coding agent uses its native CLI login and owns its credentials independently. Claude can complete in a browser or accept a returned code in Foundry; Codex uses ChatGPT device authorisation, with the displayed code entered on the linked sign-in page. Codex API-key login is unsupported. Signing out also signs out that local CLI, without changing the other coding agent's account.
+
+**Account**
+One subscription Sign-in of a Coding agent. Claude Code and Codex can hold several; Antigravity holds one. Account 1 is the machine's own Sign-in, shared with the local CLI; every other Account is added in Foundry and lives in a home of its own where only its credentials differ, so Skills, plugins, settings and session history are the same for all of a coding agent's Accounts. Adding the same person and organisation twice changes nothing.
+_Avoid_: profile (a Launch profile or a Workflow suite), user (a person with an Access token)
+
+**Current account**
+The Account every new session of a Coding agent runs on. Making another Account current (Use now) leaves running sessions on theirs. It changes when the person says so, when an Account sessions run on is removed, and by an Account switch.
+
+**Account switch**
+New sessions of a Coding agent moving to its next Account that no usage limit holds, because the Current account's limit stopped a session. With Auto switch on (off unless the person turns it on, knowing what the provider's terms say about it) it happens by itself and nothing pauses; otherwise a Usage Pause starts and offers Switch and continue. The new Current account stays current after the old one's limit resets. Work never moves to another Coding agent. A Worker the limit stopped carries on as a Continuation on the Account current when sessions run again, or, if its session cannot be resumed there, as a new session told what the earlier one did (a handoff); either way it is never judged half-way and consumes no retry.
 
 **Boundary**
 The line between the local workspace and the outside world. Crossing it is always an Escalation.
@@ -386,7 +396,7 @@ What Foundry cost and did over a window — the last 30 days, 90 days, 12 months
 _Avoid_: analytics, dashboard, statistics, usage (the Usage page)
 
 **Usage Pause**
-The engine's reaction to one coding agent's usage limit: no new sessions start on that coding agent while its Goals keep their state. Other coding agents can continue. A reported reset schedules the next retry; without one, Codex retries after a short delay that does not claim the account has recovered. The pause survives engine restarts and is visible as a banner and on the Usage page; it is never an Escalation.
+The engine's reaction to one coding agent's usage limit: no new sessions start on that coding agent while its Goals keep their state. Other coding agents can continue. With several Accounts, the pause waits for the Current account's reset (or, with Auto switch on and every Account limited, for the first reset) and can be ended by an Account switch. A reported reset schedules the next retry; without one, Codex retries after a short delay that does not claim the account has recovered. The pause survives engine restarts and is visible as a banner and on the Usage page; it is never an Escalation.
 
 ## Agents monitor
 
