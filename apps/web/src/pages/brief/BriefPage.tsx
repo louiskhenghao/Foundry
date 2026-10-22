@@ -8,9 +8,9 @@ import { api, type GoalDetail } from '../../api.ts';
 import { FollowLinks } from '../goal/FollowUps.tsx';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { StageRail, StatePlate, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
+import { StageRail, StatePlate, markFill, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { useLive } from '../../store.ts';
-import { Badge, Button, Card, CopyButton, Empty, Input, PAGE_TITLE, Textarea, chipClass, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
+import { Button, Card, CopyButton, Empty, Input, PAGE_TITLE, Textarea, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { ReferenceCard } from './ReferenceCard.tsx';
 import { AreasCard } from './AreasCard.tsx';
@@ -27,6 +27,7 @@ import { ClarifyProgress, clarifyChannel } from '../goal/ClarifyProgress.tsx';
 import { PlanSection } from './PlanSection.tsx';
 import { BriefChipNav, BriefSideNav, type BriefNavItem } from './BriefNav.tsx';
 import { SimpleBrief } from './SimpleBrief.tsx';
+import { ACCEPTED_TICK, AnsweredTick, type Hold, Holds, ReadOnlyTick, answerChip, blockingTag } from './marks.tsx';
 import { areaOf, areaStyle, checkProblem, taskProblem, withPlan } from './shared.ts';
 import { ProviderBadge } from '../agents/rows.tsx';
 import { HelpLink } from '../HelpPage.tsx';
@@ -109,7 +110,7 @@ export function BriefPage() {
         {g.interview ? (
           <InterviewPanel goal={g} events={detail.events} />
         ) : (
-          <Card title="Clarifying…">
+          <Card title={<span className="inline-flex items-center gap-2"><Loader2 size={14} className="shrink-0 animate-spin text-work-ink" aria-hidden="true" />Clarifying…</span>}>
             <p className="text-sm text-ink-soft mb-3">The Clarifier is exploring the repository, listing the Areas the goal covers and drafting the Brief. This page shows the Brief as soon as its skeleton is written, and updates by itself.</p>
             <div className="mb-3 text-xs">
               <ClarifyProgress goal={g} writingBrief events={detail.events} />
@@ -133,16 +134,18 @@ export function BriefPage() {
   const badTasks = brief.tasks.filter((t) => taskProblem(t));
   const gaps = uncoveredAreas(brief);
   const pending = pendingDecisions(brief);
-  const blockers = [
-    skeleton ? 'the planner is still splitting the goal into tasks' : '',
-    blockingUnanswered.length ? `${blockingUnanswered.length} blocking question${blockingUnanswered.length > 1 ? 's' : ''} unanswered` : '',
-    !graph.ok ? 'task graph has a cycle' : '',
-    brief.tasks.length === 0 && !skeleton ? 'no tasks' : '',
-    badTasks.length ? `${badTasks.length} task${badTasks.length > 1 ? 's' : ''} without a title` : '',
-    badChecks.length ? `${badChecks.length} incomplete check${badChecks.length > 1 ? 's' : ''}` : '',
-    detail?.investigating ? 'REA is still studying the references' : '',
-    detail?.subjectSearches?.length ? 'pictures of the Subjects are still being found' : '',
-  ].filter(Boolean);
+  /** what holds the approval back, each with how it stands: work under way, your answer awaited, a problem to fix */
+  const holds = ([
+    skeleton && { text: 'the planner is still splitting the goal into tasks', tone: 'work' },
+    blockingUnanswered.length > 0 && { text: `${blockingUnanswered.length} blocking question${blockingUnanswered.length > 1 ? 's' : ''} unanswered`, tone: 'you' },
+    !graph.ok && { text: 'task graph has a cycle', tone: 'bad' },
+    brief.tasks.length === 0 && !skeleton && { text: 'no tasks', tone: 'bad' },
+    badTasks.length > 0 && { text: `${badTasks.length} task${badTasks.length > 1 ? 's' : ''} without a title`, tone: 'bad' },
+    badChecks.length > 0 && { text: `${badChecks.length} incomplete check${badChecks.length > 1 ? 's' : ''}`, tone: 'bad' },
+    !!detail?.investigating && { text: 'REA is still studying the references', tone: 'work' },
+    !!detail?.subjectSearches?.length && { text: 'pictures of the Subjects are still being found', tone: 'work' },
+  ] satisfies (Hold | false)[]).filter((h): h is Hold => !!h);
+  const blockers = holds.map((h) => h.text);
   // the Subjects are the server's copy: pictures arrive while the page holds an edited Brief
   const subjects = detail.brief?.brief.subjects ?? [];
   const searching = detail.subjectSearches ?? [];
@@ -199,7 +202,7 @@ export function BriefPage() {
         budgetDraft={budgetDraft}
         setBudgetEdit={setBudgetEdit}
         proposed={proposed}
-        blockers={blockers}
+        blockers={holds}
         pendingDecisions={pending.length}
         busy={busy}
         dirty={dirty}
@@ -216,19 +219,20 @@ export function BriefPage() {
   const decisions = decisionsOf(brief);
   const goalChecks = brief.checks.filter((c) => c.taskKey === null).length;
   const answered = asked.filter((q) => q.answer?.trim()).length;
+  // a section is flagged only while the Brief can still change: an approved one waits for nothing
   const navItems: BriefNavItem[] = [
     { id: 'brief-understanding', label: 'Understanding' },
-    ...(asked.length ? [{ id: 'brief-questions', label: 'Questions', status: blockingUnanswered.length ? `${blockingUnanswered.length} blocking` : `${answered}/${asked.length}`, warn: blockingUnanswered.length > 0 }] : []),
+    ...(asked.length ? [{ id: 'brief-questions', label: 'Questions', status: blockingUnanswered.length ? `${blockingUnanswered.length} blocking` : `${answered}/${asked.length}`, warn: editable && blockingUnanswered.length > 0 }] : []),
     ...(subjectsCard ? [{ id: 'brief-subjects', label: 'Looks like', status: searching.length ? 'searching' : subjects.length ? String(subjects.length) : null }] : []),
     { id: 'brief-assumptions', label: 'Assumptions', status: brief.assumptions.length ? `${brief.assumptions.filter((a) => a.accepted).length}/${brief.assumptions.length}` : null },
-    ...(decisions.length || editable ? [{ id: 'brief-decisions', label: 'Decisions', status: pending.length ? `${pending.length} to apply` : decisions.length ? String(decisions.length) : null, warn: pending.length > 0 }] : []),
+    ...(decisions.length || editable ? [{ id: 'brief-decisions', label: 'Decisions', status: pending.length ? `${pending.length} to apply` : decisions.length ? String(decisions.length) : null, warn: editable && pending.length > 0 }] : []),
     // while the planner works every Area is still empty: nothing to warn about yet
-    { id: 'brief-areas', label: 'Areas', status: gaps.length && !skeleton ? `${gaps.length} empty` : String(brief.areas.length), warn: !skeleton && gaps.length > 0 },
-    { id: 'brief-plan', label: 'Plan', status: skeleton ? 'planning…' : `${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'}`, warn: !skeleton && (!graph.ok || badTasks.length > 0) },
-    { id: 'brief-acceptance', label: 'Goal acceptance', status: String(goalChecks), warn: badChecks.length > 0 },
+    { id: 'brief-areas', label: 'Areas', status: gaps.length && !skeleton ? `${gaps.length} empty` : String(brief.areas.length), warn: editable && !skeleton && gaps.length > 0 },
+    { id: 'brief-plan', label: 'Plan', status: skeleton ? 'planning…' : `${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'}`, warn: editable && !skeleton && (!graph.ok || badTasks.length > 0) },
+    { id: 'brief-acceptance', label: 'Goal acceptance', status: String(goalChecks), warn: editable && badChecks.length > 0 },
     { id: 'brief-run', label: 'How to run it' },
     { id: 'brief-completion', label: 'Completion' },
-    { id: 'brief-budget', label: 'Estimate & budget', status: skeleton ? 'with the plan' : `${costAvailable ? `$${brief.costEstimateUsd} · ` : ''}${brief.timeEstimateMin}m`, warn: !skeleton && (overCost || overTime) },
+    { id: 'brief-budget', label: 'Estimate & budget', status: skeleton ? 'with the plan' : `${costAvailable ? `$${brief.costEstimateUsd} · ` : ''}${brief.timeEstimateMin}m`, warn: editable && !skeleton && (overCost || overTime) },
   ];
   const sec = 'scroll-mt-14 lg:scroll-mt-4';
 
@@ -239,8 +243,9 @@ export function BriefPage() {
         <BriefSideNav items={navItems} />
         <div className="min-w-0 space-y-4">
           <BriefChipNav items={navItems} />
+          {/* each card's "?" stays beside its title: a title that wraps never leaves it alone on a line */}
           <section id="brief-understanding" className={sec}>
-            <Card title={<><SectionTitle section="understanding">Understanding</SectionTitle><HelpLink to="approving-the-brief#understanding" className="ml-1.5" /></>}>
+            <Card title={<span className="flex items-start gap-1.5"><SectionTitle section="understanding">Understanding</SectionTitle><HelpLink to="approving-the-brief#understanding" className="mt-0.5 shrink-0" /></span>}>
               <div className="mb-4">
                 <label className="block mb-1 text-xs font-semibold text-ink-soft">
                   pull request title <span className="font-normal text-ink-faint">· Conventional Commits header for the whole goal (one-PR delivery); per-task PRs use each task's header</span>
@@ -264,7 +269,7 @@ export function BriefPage() {
 
           {asked.length > 0 && (
             <section id="brief-questions" className={sec}>
-              <Card title={<><SectionTitle section="questions">{`Questions (${blockingUnanswered.length} blocking unanswered)`}</SectionTitle><HelpLink to="approving-the-brief#questions" className="ml-1.5" /></>}>
+              <Card title={<span className="flex items-start gap-1.5"><SectionTitle section="questions">{`Questions (${blockingUnanswered.length} blocking unanswered)`}</SectionTitle><HelpLink to="approving-the-brief#questions" className="mt-0.5 shrink-0" /></span>}>
                 <div className="space-y-5">
                   {brief.questions.map((q, i) => {
                     if (q.kind === 'note') return null;
@@ -272,21 +277,23 @@ export function BriefPage() {
                     if (q.kind === 'style' && brief.styleOptions.length) return <StyleCards key={q.id} goalId={id} brief={brief} question={q} editable={editable} update={update} />;
                     return (
                       <div key={q.id}>
+                        {/* a blocking question waits for you, in yellow, until it has an answer; an answered one is ticked green */}
                         <div className="text-sm font-semibold text-ink mb-2 flex items-start gap-2 flex-wrap">
-                          {q.blocking && <Badge state="must">blocking</Badge>}
+                          <AnsweredTick answer={q.answer} />
+                          {q.blocking && <span className={blockingTag(!!q.answer?.trim())}>blocking</span>}
                           {area && <span className={areaStyle(brief, q.areaKey).chip}>{area.name}</span>}
-                          <span>{q.text}</span>
+                          <span className="min-w-0 flex-1 basis-64">{q.text}</span>
                         </div>
                         {q.options.length > 0 && (
                           <div className="flex flex-wrap gap-1.5 mb-2">
-                            {/* an answer picked is filled with the accent, as a chosen chip anywhere */}
+                            {/* the answer picked is green, as an answer given anywhere on the Brief */}
                             {q.options.map((opt, oi) => (
                               <button
                                 key={opt}
                                 type="button"
                                 disabled={!editable}
                                 title={oi === 0 ? 'Recommended by the Clarifier' : undefined}
-                                className={cn(chipClass((q.answer ?? '') === opt), 'text-left')}
+                                className={cn(answerChip((q.answer ?? '') === opt), 'text-left')}
                                 onClick={() => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: opt, applied: false } : x)) })}
                               >
                                 {opt}
@@ -311,12 +318,13 @@ export function BriefPage() {
           )}
 
           <section id="brief-assumptions" className={sec}>
-            <Card title={<><SectionTitle section="assumptions">Assumptions (accepted unless you uncheck)</SectionTitle><HelpLink to="approving-the-brief#assumptions" className="ml-1.5" /></>}>
+            <Card title={<span className="flex items-start gap-1.5"><SectionTitle section="assumptions">Assumptions (accepted unless you uncheck)</SectionTitle><HelpLink to="approving-the-brief#assumptions" className="mt-0.5 shrink-0" /></span>}>
               {brief.assumptions.length === 0 && <div className="text-sm text-ink-faint">None.</div>}
               <div className="space-y-1.5">
                 {brief.assumptions.map((a, i) => (
                   <label key={a.id} className="flex items-start gap-2 text-sm text-ink">
-                    <input type="checkbox" className="mt-1" disabled={!editable} checked={a.accepted} onChange={(e) => update({ assumptions: brief.assumptions.map((x, j) => (j === i ? { ...x, accepted: e.target.checked, applied: false } : x)) })} />
+                    <input type="checkbox" className={cn('mt-1', !editable && 'sr-only')} style={ACCEPTED_TICK} disabled={!editable} checked={a.accepted} onChange={(e) => update({ assumptions: brief.assumptions.map((x, j) => (j === i ? { ...x, accepted: e.target.checked, applied: false } : x)) })} />
+                    {!editable && <ReadOnlyTick on={a.accepted} />}
                     <span className={cn(!a.accepted && 'line-through text-ink-faint')}>{a.text}</span>
                   </label>
                 ))}
@@ -339,7 +347,7 @@ export function BriefPage() {
           </section>
           <section id="brief-plan" className={sec}>
             {skeleton ? (
-              <Card title={<><SectionTitle section="plan">Plan</SectionTitle><HelpLink to="approving-the-brief#while-the-planner-works" className="ml-1.5" /></>}>
+              <Card title={<span className="flex items-start gap-1.5"><SectionTitle section="plan">Plan</SectionTitle><HelpLink to="approving-the-brief#while-the-planner-works" className="mt-0.5 shrink-0" /></span>}>
                 <div className="text-xs space-y-3">
                   <ClarifyProgress goal={g} writingBrief skeleton events={detail.events} />
                   <p className="text-ink-soft">
@@ -370,13 +378,14 @@ export function BriefPage() {
           <section id="brief-budget" className={sec}>
             <Card title={<SectionTitle section="budget">{isAuto && editable ? 'Estimate → proposed budget' : 'Estimate & budget'}</SectionTitle>}>
               {skeleton && <p className="text-xs text-work-ink mb-3">The estimate arrives with the plan.</p>}
+              {/* over its budget is yours to settle while the Brief waits (yellow); once approved it is only a figure */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {costAvailable ? (
-                  <Figure label="Estimated cost" value={`$${brief.costEstimateUsd}`} dim={skeleton} note={<span className={overCost ? 'font-semibold text-you-ink' : 'text-ink-faint'}>(budget {fmtLimitUsd(g.budgets.maxCostUsd)})</span>} />
+                  <Figure label="Estimated cost" value={`$${brief.costEstimateUsd}`} dim={skeleton} note={<span className={overCost && editable ? 'font-semibold text-you-ink' : 'text-ink-faint'}>(budget {fmtLimitUsd(g.budgets.maxCostUsd)})</span>} />
                 ) : (
                   <p className="text-sm text-ink-soft">{PROVIDER_LABEL[g.provider ?? 'claude']} dollar costs are unavailable. Time and attempt limits apply.</p>
                 )}
-                <Figure label="Estimated time" value={`${brief.timeEstimateMin} min`} dim={skeleton} note={<span className={overTime ? 'font-semibold text-you-ink' : 'text-ink-faint'}>(budget {fmtLimitMin(g.budgets.maxDurationMin)})</span>} />
+                <Figure label="Estimated time" value={`${brief.timeEstimateMin} min`} dim={skeleton} note={<span className={overTime && editable ? 'font-semibold text-you-ink' : 'text-ink-faint'}>(budget {fmtLimitMin(g.budgets.maxDurationMin)})</span>} />
               </div>
               {calibration && !skeleton && (
                 <p className="mt-3 text-xs text-ink-soft" title={detail.calibration?.samples.map((s) => `${s.title}: ${s.actualUsd != null ? `$${s.actualUsd.toFixed(2)} of $${s.estimateUsd}` : 'no cost'}, ${s.actualMin != null ? `${Math.round(s.actualMin)} of ${s.estimateMin} min` : 'no time'}`).join('\n')}>
@@ -416,42 +425,56 @@ export function BriefPage() {
                         Keep unlimited
                       </Button>
                     )}
-                    {budgetChanged && <span className="text-xs font-semibold text-accent-ink">will be applied on approve</span>}
+                    {budgetChanged && (
+                      // pending until the Brief is approved: hollow, as a stage not started
+                      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-soft">
+                        <i className={cn('h-2 w-2 shrink-0 rounded-full', markFill.next)} aria-hidden="true" />
+                        will be applied on approve
+                      </span>
+                    )}
                   </div>
                 </div>
               )}
             </Card>
           </section>
 
-          {err && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-sm text-bad-ink">{err}</div>}
+          {err && <div className="rounded-md border border-bad/50 bg-panel px-3 py-2 text-sm text-bad-ink">{err}</div>}
           {editable ? (
-            // the actions follow you down the page, on the page's own colour under a hairline
-            <div className="flex items-center justify-end gap-2 flex-wrap sticky bottom-0 py-3 bg-page border-t border-line">
-              {skeleton && (
-                <span className="text-xs text-work-ink mr-auto inline-flex items-center gap-1.5">
-                  <Loader2 size={12} className="animate-spin shrink-0" /> The planner is splitting the goal into tasks. Read and edit meanwhile; approval opens when the plan is in.
-                </span>
+            // the actions follow you down the page, on the page's own colour under a hairline; what holds them back beside
+            // them (above them on a phone), each in its signal colour: the planner at work blue, yours yellow, a problem red
+            <div className="sticky bottom-0 py-3 bg-page border-t border-line flex flex-col gap-2 sm:flex-row sm:items-center">
+              {(skeleton || gaps.length > 0 || pending.length > 0 || holds.length > 0) && (
+                <div className="min-w-0 flex-1 space-y-1 text-xs">
+                  {skeleton && (
+                    <p className="flex items-start gap-1.5 text-work-ink">
+                      <Loader2 size={12} className="mt-0.5 animate-spin shrink-0" /> The planner is splitting the goal into tasks. Read and edit meanwhile; approval opens when the plan is in.
+                    </p>
+                  )}
+                  {!skeleton && (gaps.length > 0 || pending.length > 0) && (
+                    <p className="font-semibold">
+                      {gaps.length > 0 && <span className="text-bad-ink" title="Areas without tasks will simply not be built">{gaps.map((a) => a.name).join(', ')} {gaps.length > 1 ? 'have' : 'has'} no tasks. </span>}
+                      {pending.length > 0 && <span className="text-you-ink" title="Workers receive your decisions, but the tasks and checks were planned before them">{pending.length} decision{pending.length > 1 ? 's' : ''} not applied to the plan — Revise, or approve anyway.</span>}
+                    </p>
+                  )}
+                  {holds.length > 0 && <Holds holds={holds} />}
+                </div>
               )}
-              {!skeleton && (gaps.length > 0 || pending.length > 0) && (
-                <span className="text-xs font-semibold text-you-ink mr-auto">
-                  {gaps.length > 0 && <span title="Areas without tasks will simply not be built">{gaps.map((a) => a.name).join(', ')} {gaps.length > 1 ? 'have' : 'has'} no tasks. </span>}
-                  {pending.length > 0 && <span title="Workers receive your decisions, but the tasks and checks were planned before them">{pending.length} decision{pending.length > 1 ? 's' : ''} not applied to the plan — Revise, or approve anyway.</span>}
-                </span>
-              )}
-              {blockers.length > 0 && <span className="text-xs text-ink-faint">{blockers.join(' · ')}</span>}
-              <Button variant="danger" onClick={() => api.cancelGoal(id).then(() => nav('/'))}>
-                Cancel goal
-              </Button>
-              <Button disabled={!dirty || busy} onClick={save}>
-                Save edits
-              </Button>
-              <Button variant="primary" disabled={busy || blockers.length > 0} onClick={approve} title={blockers.join('; ')}>
-                Approve & run{editable && budgetChanged ? ` · budget ${costAvailable ? fmtLimitUsd(budgetDraft.maxCostUsd) + ' / ' : ''}${fmtLimitMin(budgetDraft.maxDurationMin)}` : ''}
-              </Button>
+              <div className="flex flex-wrap items-center justify-end gap-2 sm:ml-auto">
+                <Button variant="danger" onClick={() => api.cancelGoal(id).then(() => nav('/'))}>
+                  Cancel goal
+                </Button>
+                <Button disabled={!dirty || busy} onClick={save}>
+                  Save edits
+                </Button>
+                <Button variant="primary" disabled={busy || blockers.length > 0} onClick={approve} title={blockers.join('; ')}>
+                  Approve & run{editable && budgetChanged ? ` · budget ${costAvailable ? fmtLimitUsd(budgetDraft.maxCostUsd) + ' / ' : ''}${fmtLimitMin(budgetDraft.maxDurationMin)}` : ''}
+                </Button>
+              </div>
             </div>
           ) : (
+            // approved is done, in green; a Brief superseded by a newer one only says so
             <div className="text-sm text-ink-soft">
-              This brief was {detail.brief?.approved ? `approved${detail.goal.approvedBy ? ` by ${detail.goal.approvedBy}` : ''}` : 'superseded'}. <Link className="font-semibold text-ink underline underline-offset-[3px]" to={`/goals/${id}`}>Go to run view</Link>.
+              This brief was {detail.brief?.approved ? <span className="font-semibold text-ok-ink">approved{detail.goal.approvedBy ? ` by ${detail.goal.approvedBy}` : ''}</span> : 'superseded'}. <Link className="font-semibold text-ink underline underline-offset-[3px]" to={`/goals/${id}`}>Go to run view</Link>.
             </div>
           )}
         </div>

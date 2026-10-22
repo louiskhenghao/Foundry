@@ -15,7 +15,7 @@ export function GoalAcceptanceCard({ brief, editable, edit }: { brief: Brief; ed
   const add = (type: 'command' | 'reviewer', areaKey: string | null) => edit((b) => ({ ...b, checks: [...b.checks, newCheck(b, type, null, areaKey)] }));
   return (
     <Card
-      title={<><SectionTitle section="acceptance">{`Goal acceptance (${goalChecks.length})`}</SectionTitle><HelpLink to="approving-the-brief#goal-acceptance" className="ml-1.5" /></>}
+      title={<span className="flex items-start gap-1.5"><SectionTitle section="acceptance">{`Goal acceptance (${goalChecks.length})`}</SectionTitle><HelpLink to="approving-the-brief#goal-acceptance" className="mt-0.5 shrink-0" /></span>}
       actions={
         editable && (
           <Menu

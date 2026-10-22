@@ -1,6 +1,6 @@
 import type { Brief, Goal, InterviewQuestion } from '@foundry/core/browser';
 import { decisionsOf, diffIsEmpty, markDecisionsApplied } from '@foundry/core/browser';
-import { Check, MessageCircleQuestion, Sparkles, X } from 'lucide-react';
+import { Check, Loader2, MessageCircleQuestion, Sparkles, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type DraftProposal } from '../../api.ts';
 import { Button, Card, NEEDS_YOU_CARD, YouStrip, cn } from '../../ui.tsx';
@@ -169,15 +169,21 @@ export function DecisionsBar({ brief, goal, goalId, editable, revisable = editab
       )}
       {busy && (
         <div className="mt-3">
-          <p className="text-xs text-ink-faint mb-1">The Clarifier is re-reading the Brief and the repository — its live output below. A revision usually takes a few minutes.</p>
+          {/* the Clarifier at work: its spinner and its words blue */}
+          <p className="flex items-start gap-1.5 text-xs text-work-ink mb-1">
+            <Loader2 size={12} className="mt-0.5 shrink-0 animate-spin" aria-hidden="true" />
+            <span>The Clarifier is re-reading the Brief and the repository — its live output below. A revision usually takes a few minutes.</span>
+          </p>
           <LiveLog attemptId={`draft-${goalId}`} className="max-h-56" />
         </div>
       )}
       {proposal && (
         <div className="mt-3">
           {noChanges ? (
-            <div className="rounded-md border border-ok/30 bg-ok/5 p-3 text-xs text-ink-soft flex items-center gap-2 flex-wrap">
-              <span>The Clarifier found nothing to change: {proposal.revision!.changeSummary}</span>
+            // nothing to change is a check passed: its tick green, the box as any inside a card
+            <div className="rounded-md border border-line bg-sunken p-3 text-xs text-ink-soft flex items-center gap-2 flex-wrap">
+              <Check size={14} className="shrink-0 text-ok-ink" aria-hidden="true" />
+              <span className="min-w-0 flex-1">The Clarifier found nothing to change: {proposal.revision!.changeSummary}</span>
               <Button size="sm" className="ml-auto" onClick={() => { markApplied(); setProposal(null); }}>
                 <Check size={12} /> OK, mark applied
               </Button>

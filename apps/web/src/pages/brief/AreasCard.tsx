@@ -23,7 +23,7 @@ export function AreasCard({ brief, goalId, editable, draftable = editable, plann
   const uncovered = planning ? [] : brief.areas.filter((a) => counts(a).tasks === 0);
   return (
     <Card
-      title={<><SectionTitle section="areas">{`Areas (${brief.areas.length})`}</SectionTitle><HelpLink to="approving-the-brief#areas" className="ml-1.5" /></>}
+      title={<span className="flex items-start gap-1.5"><SectionTitle section="areas">{`Areas (${brief.areas.length})`}</SectionTitle><HelpLink to="approving-the-brief#areas" className="mt-0.5 shrink-0" /></span>}
       actions={
         editable && (
           <Button size="sm" onClick={() => edit((b) => ({ ...b, areas: [...b.areas, newArea(b)] }))}>
@@ -97,7 +97,8 @@ function AreaRow({ area, brief, goalId, editable, draftable, planning, edit, cou
         {editable ? (
           <Input className="flex-1 min-w-[12rem] text-xs" placeholder="one sentence: what this Area covers" value={area.description} onChange={(e) => change({ description: e.target.value })} />
         ) : (
-          <span className="text-xs text-ink-soft flex-1">{area.description}</span>
+          // as wide as the field it was: a line of its own on a phone rather than a narrow column
+          <span className="text-xs text-ink-soft flex-1 min-w-[12rem]">{area.description}</span>
         )}
         <span className={cn('mono text-xs whitespace-nowrap', empty && !planning ? 'font-semibold text-bad-ink' : 'text-ink-faint')}>
           {counts.tasks} task{counts.tasks === 1 ? '' : 's'} · {counts.checks} check{counts.checks === 1 ? '' : 's'}

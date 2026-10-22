@@ -38,7 +38,8 @@ export function NotesComposer({ brief, editable, edit, compact = false }: { brie
       )}
       {editable && (
         <div className="space-y-1.5">
-          <Textarea rows={2} className="text-sm" placeholder="Something the questions missed, or got wrong? Write it here. It becomes a Decision every worker receives." value={draft} onChange={(e) => setDraft(e.target.value)} />
+          {/* three lines on a phone, so its hint shows whole */}
+          <Textarea rows={2} className="text-sm min-h-[4.75rem] sm:min-h-0" placeholder="Something the questions missed, or got wrong? Write it here. It becomes a Decision every worker receives." value={draft} onChange={(e) => setDraft(e.target.value)} />
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" disabled={!draft.trim()} onClick={add} title="Keep this note with the Brief's Decisions (saved with the Brief)">
               <MessageSquarePlus size={12} /> Add note

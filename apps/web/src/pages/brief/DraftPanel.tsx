@@ -2,7 +2,7 @@ import type { Brief, BriefCheck, BriefTask } from '@foundry/core/browser';
 import { Check, ChevronRight, Sparkles, X } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import type { DraftProposal } from '../../api.ts';
-import { BOARD_ROW, Button, ButtonGroup, Modal, cn } from '../../ui.tsx';
+import { Button, ButtonGroup, Modal, cn } from '../../ui.tsx';
 import { type BriefSection, SECTION_STYLE, fmtCost } from './shared.ts';
 
 /** how one field of a proposal is shown */
@@ -42,7 +42,7 @@ export interface ProposalItem {
   apply: (b: Brief) => Brief;
 }
 
-/** the Brief page section (and so the icon) each proposal section belongs to */
+/** the Brief page section (and so the icon and the colour) each proposal section belongs to */
 const PART_OF: Record<Section, BriefSection> = { understanding: 'understanding', areas: 'areas', tasks: 'plan', checks: 'acceptance', assumptions: 'assumptions', questions: 'questions' };
 
 /** items grouped by section, in the Brief page's order; empty sections left out */
@@ -398,20 +398,20 @@ export function DraftPanel({ proposal, onApply, onClose }: { proposal: DraftProp
       )}
       {items.length === 0 && <div className="px-4 py-3 text-sm text-ink-faint">Nothing to change.</div>}
       {groups.map((g) => {
-        const { Icon, ink } = SECTION_STYLE[PART_OF[g.section]];
+        const { Icon, ink, bar } = SECTION_STYLE[PART_OF[g.section]];
         return (
         <div key={g.section} className="pb-1">
           <div className="flex items-center gap-1.5 px-3 sm:px-4 pt-3 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">
             <Icon size={12} className={ink} aria-hidden="true" /> {g.label} <span className="mono tracking-normal">· {g.items.length}</span>
           </div>
-          {/* rows as on a board: hovering one tints it and raises a bar of ink at its left edge */}
+          {/* each row edged in its section's colour, the one the Brief page codes that section with; hovering one tints it */}
           <ul className="px-2 sm:px-3 space-y-0.5">
             {g.items.map((it) => {
               const done = doneOf(it.id);
               const on = picked.has(it.id);
               const dim = done === 'skipped' || (!done && !on);
               return (
-                <li key={it.id} className={cn(BOARD_ROW, 'flex items-center gap-3 overflow-hidden rounded-md pl-3 pr-2 min-h-11', dim && 'opacity-60')}>
+                <li key={it.id} className={cn('flex items-center gap-3 rounded-md border-l-[3px] pl-3 pr-2 min-h-11 transition-colors hover:bg-sunken', bar, dim && 'opacity-60')}>
                   {done ? (
                     <span className={cn('w-4 shrink-0 text-center text-xs', done === 'applied' ? 'text-ok-ink' : 'text-ink-faint')} title={done}>
                       {done === 'applied' ? <Check size={14} aria-label="applied" /> : <X size={14} aria-label="skipped" />}

@@ -1,5 +1,6 @@
 import type { Brief } from '@foundry/core/browser';
 import { diffIsEmpty } from '@foundry/core/browser';
+import { Check, Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type DraftProposal, type SecondOpinionFailure, type SecondOpinionView } from '../../api.ts';
 import { Button, Card, ago } from '../../ui.tsx';
@@ -64,25 +65,38 @@ export function SecondOpinionBar({ goalId, stored, failed, running, editable, ed
       )}
       {live && (
         <div className="mt-3">
-          <p className="text-xs text-ink-faint mb-1">The reviewer is reading the Brief and the repository — its live output below. It goes on while you leave the page: a few minutes on a small project, up to twenty on a large one.</p>
+          {/* a review under way: its spinner and its words in the reviews' violet */}
+          <p className="flex items-start gap-1.5 text-xs text-extra-ink mb-1">
+            <Loader2 size={12} className="mt-0.5 shrink-0 animate-spin" aria-hidden="true" />
+            <span>The reviewer is reading the Brief and the repository — its live output below. It goes on while you leave the page: a few minutes on a small project, up to twenty on a large one.</span>
+          </p>
           <LiveLog attemptId={`draft-${goalId}`} className="max-h-56" />
         </div>
       )}
       {proposal && !live && (
         <div className="mt-3">
           {stored && stored.at === shownAt && (
-            <p className="text-xs text-ink-faint mb-2">
-              {stored.auto ? 'Written by itself' : 'Asked for'} {ago(stored.at)}
-              {stored.costAvailable === false ? '' : ` · $${stored.costUsd.toFixed(2)}`}
-              {stored.stale ? ' · the Brief changed since: these rows were made against the earlier one' : ''}
+            // the review that came in: a violet dot, as reviews are marked
+            <p className="flex items-start gap-2 text-xs text-ink-faint mb-2">
+              <i className="mt-[5px] h-2 w-2 shrink-0 rounded-full bg-extra" aria-hidden="true" />
+              <span>
+                {stored.auto ? 'Written by itself' : 'Asked for'} {ago(stored.at)}
+                {stored.costAvailable === false ? '' : ` · $${stored.costUsd.toFixed(2)}`}
+                {stored.stale ? ' · the Brief changed since: these rows were made against the earlier one' : ''}
+              </span>
             </p>
           )}
           {noChanges ? (
-            <div className="rounded-md border border-ok/30 bg-ok/5 p-3 text-xs text-ink-soft">The reviewer found nothing to change: {proposal.revision!.changeSummary}</div>
+            // nothing to change is a review passed: its tick green, the box as any inside a card
+            <div className="flex items-start gap-2 rounded-md border border-line bg-sunken p-3 text-xs text-ink-soft">
+              <Check size={14} className="shrink-0 text-ok-ink" aria-hidden="true" />
+              <span className="min-w-0">The reviewer found nothing to change: {proposal.revision!.changeSummary}</span>
+            </div>
           ) : editable ? (
             <DraftPanel key={shownAt ?? 'fresh'} proposal={proposal} onApply={(fn) => edit(fn)} onClose={() => setProposal(null)} />
           ) : (
-            <p className="text-xs text-ink-soft">{proposal.revision?.changeSummary ?? proposal.rationale}</p>
+            // what the reviewer proposed, edged in the reviews' violet
+            <p className="border-l-2 border-extra pl-3 text-xs text-ink-soft">{proposal.revision?.changeSummary ?? proposal.rationale}</p>
           )}
         </div>
       )}

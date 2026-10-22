@@ -4,10 +4,11 @@ import { Check, Loader2 } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { Badge, Button, Card, Input, chipClass, cn } from '../../ui.tsx';
+import { Button, Card, Input, cn } from '../../ui.tsx';
 import { areaStyle } from './shared.ts';
 import { NotesComposer } from './NotesComposer.tsx';
 import { StyleCards } from './StyleCards.tsx';
+import { ACCEPTED_TICK, AnsweredTick, type Hold, Holds, ReadOnlyTick, answerChip, blockingTag } from './marks.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SectionTitle } from './SectionTitle.tsx';
 
@@ -29,7 +30,8 @@ export function SimpleBrief(p: {
   proposed: { maxCostUsd: number | null; maxDurationMin: number | null };
   /** how far earlier goals ran from their estimate, in a sentence (ADR-0056); null when too few finished yet */
   calibration?: string | null;
-  blockers: string[];
+  /** what holds the approval back (the button stays disabled while there is any) */
+  blockers: Hold[];
   pendingDecisions: number;
   busy: boolean;
   dirty: boolean;
@@ -51,17 +53,20 @@ export function SimpleBrief(p: {
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-6">
       {p.head}
       <div className="space-y-4">
-        <Card title={<><SectionTitle section="understanding">What I understood</SectionTitle><HelpLink to="approving-the-brief" className="ml-1.5" /></>}>
+        <Card title={<span className="flex items-start gap-1.5"><SectionTitle section="understanding">What I understood</SectionTitle><HelpLink to="approving-the-brief" className="mt-0.5 shrink-0" /></span>}>
           <MarkdownPanel title="" source={brief.understanding} maxHeight={400} actions={<OpenFull value={{ title: 'What I understood', text: brief.understanding }} />} />
         </Card>
 
         {asked.length > 0 && (
           <Card title={<SectionTitle section="questions">{blockingUnanswered.length ? `Please answer (${blockingUnanswered.length})` : 'Questions'}</SectionTitle>}>
             <div className="space-y-5">
-              {brief.questions.map((q, i) => (q.kind === 'note' ? null : q.kind === 'style' && brief.styleOptions.length ? <StyleCards key={q.id} goalId={g.id} brief={brief} question={q} editable={editable} update={update} /> : (
+              {brief.questions.map((q, i) => (q.kind === 'note' ? null : q.kind === 'style' && brief.styleOptions.length ? <StyleCards key={q.id} goalId={g.id} brief={brief} question={q} editable={editable} update={update} tag="needed" /> : (
                 <div key={q.id}>
-                  <div className="text-sm font-semibold text-ink mb-2">
-                    {q.blocking && <Badge state="must">needed</Badge>} {q.text}
+                  {/* needed and unanswered waits for you, in yellow; once answered it is ticked green */}
+                  <div className="text-sm font-semibold text-ink mb-2 flex items-start gap-2 flex-wrap">
+                    <AnsweredTick answer={q.answer} />
+                    {q.blocking && <span className={blockingTag(!!q.answer?.trim())}>needed</span>}
+                    <span className="min-w-0 flex-1 basis-64">{q.text}</span>
                   </div>
                   {q.options.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mb-2">
@@ -71,7 +76,7 @@ export function SimpleBrief(p: {
                           type="button"
                           disabled={!editable}
                           title={oi === 0 ? 'Recommended' : undefined}
-                          className={cn(chipClass((q.answer ?? '') === opt), 'text-left')}
+                          className={cn(answerChip((q.answer ?? '') === opt), 'text-left')}
                           onClick={() => update({ questions: brief.questions.map((x, j) => (j === i ? { ...x, answer: opt, applied: false } : x)) })}
                         >
                           {opt}
@@ -102,7 +107,8 @@ export function SimpleBrief(p: {
             <div className="space-y-1.5">
               {brief.assumptions.map((a, i) => (
                 <label key={a.id} className="flex items-start gap-2 text-sm text-ink">
-                  <input type="checkbox" className="mt-1" disabled={!editable} checked={a.accepted} onChange={(e) => update({ assumptions: brief.assumptions.map((x, j) => (j === i ? { ...x, accepted: e.target.checked, applied: false } : x)) })} />
+                  <input type="checkbox" className={cn('mt-1', !editable && 'sr-only')} style={ACCEPTED_TICK} disabled={!editable} checked={a.accepted} onChange={(e) => update({ assumptions: brief.assumptions.map((x, j) => (j === i ? { ...x, accepted: e.target.checked, applied: false } : x)) })} />
+                  {!editable && <ReadOnlyTick on={a.accepted} />}
                   <span className={cn(!a.accepted && 'line-through text-ink-faint')}>{a.text}</span>
                 </label>
               ))}
@@ -112,8 +118,8 @@ export function SimpleBrief(p: {
 
         <Card title={<SectionTitle section="plan">{p.planning ? 'What you will get' : `What you will get (${brief.tasks.length} piece${brief.tasks.length === 1 ? '' : 's'} of work)`}</SectionTitle>}>
           {p.planning && (
-            <p className="text-sm text-work-ink mb-3 inline-flex items-center gap-1.5">
-              <Loader2 size={14} className="animate-spin shrink-0" /> Foundry is splitting the goal into pieces of work; they appear here by themselves. You can read and change the rest meanwhile.
+            <p className="text-sm text-work-ink mb-3 flex items-start gap-1.5">
+              <Loader2 size={14} className="mt-[3px] animate-spin shrink-0" /> Foundry is splitting the goal into pieces of work; they appear here by themselves. You can read and change the rest meanwhile.
             </p>
           )}
           <div className="space-y-4">
@@ -167,23 +173,32 @@ export function SimpleBrief(p: {
           </div>}
         </Card>
 
-        {p.err && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-sm text-bad-ink">{p.err}</div>}
+        {p.err && <div className="rounded-md border border-bad/50 bg-panel px-3 py-2 text-sm text-bad-ink">{p.err}</div>}
         {editable ? (
-          // the actions follow you down the page, on the page's own colour under a hairline
-          <div className="flex items-center justify-end gap-2 flex-wrap sticky bottom-0 py-3 bg-page border-t border-line">
-            {p.blockers.length > 0 && <span className="text-xs text-ink-faint mr-auto">{p.blockers.join(' · ')}</span>}
-            <Button variant="danger" onClick={p.onCancel}>
-              Cancel
-            </Button>
-            <Button disabled={!p.dirty || p.busy} onClick={p.onSave}>
-              Save
-            </Button>
-            <Button variant="primary" disabled={p.busy || p.blockers.length > 0} onClick={p.onApprove} title={p.blockers.join('; ')}>
-              <Check size={14} /> Looks good — go
-            </Button>
+          // the actions follow you down the page, on the page's own colour under a hairline; what holds them back beside
+          // them (above them on a phone), each in its signal colour
+          <div className="sticky bottom-0 py-3 bg-page border-t border-line flex flex-col gap-2 sm:flex-row sm:items-center">
+            {p.blockers.length > 0 && (
+              <div className="min-w-0 flex-1 text-xs">
+                <Holds holds={p.blockers} />
+              </div>
+            )}
+            <div className="flex flex-wrap items-center justify-end gap-2 sm:ml-auto">
+              <Button variant="danger" onClick={p.onCancel}>
+                Cancel
+              </Button>
+              <Button disabled={!p.dirty || p.busy} onClick={p.onSave}>
+                Save
+              </Button>
+              <Button variant="primary" disabled={p.busy || p.blockers.length > 0} onClick={p.onApprove} title={p.blockers.map((b) => b.text).join('; ')}>
+                <Check size={14} /> Looks good — go
+              </Button>
+            </div>
           </div>
         ) : (
-          <div className="text-sm text-ink-soft">This plan was approved; the work is under way.</div>
+          <div className="text-sm text-ink-soft">
+            This plan was <span className="font-semibold text-ok-ink">approved</span>; the work is under way.
+          </div>
         )}
       </div>
     </div>

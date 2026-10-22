@@ -1,6 +1,6 @@
 import { reportsDollars } from '@foundry/core/browser';
 import type { Goal } from '@foundry/core/browser';
-import { ExternalLink, Loader2, RotateCcw } from 'lucide-react';
+import { Check, ExternalLink, Loader2, RotateCcw } from 'lucide-react';
 import { useState } from 'react';
 import { api } from '../../api.ts';
 import { Button, Card, ago, fmtUsd } from '../../ui.tsx';
@@ -28,7 +28,7 @@ export function ReferenceCard({ goal, investigating = false }: { goal: Goal; inv
   };
   return (
     <Card
-      title={<><SectionTitle section="reference">Reference</SectionTitle><HelpLink to="approving-the-brief#reference" className="ml-1.5" /></>}
+      title={<span className="flex items-start gap-1.5"><SectionTitle section="reference">Reference</SectionTitle><HelpLink to="approving-the-brief#reference" className="mt-0.5 shrink-0" /></span>}
       actions={
         again && (
           <Button size="sm" variant="info" disabled={busy || running} onClick={() => void rerun()} title="Study the references again with REA and replace the report; the Brief changes only with Re-run Clarify">
@@ -47,12 +47,17 @@ export function ReferenceCard({ goal, investigating = false }: { goal: Goal; inv
       </ul>
       <div className="mt-2.5 text-xs">
         {running ? (
-          <span className="inline-flex items-center gap-1.5 text-ink-soft">
+          // REA at work: its spinner and its words blue
+          <span className="inline-flex items-center gap-1.5 text-work-ink">
             <Loader2 size={12} className="animate-spin shrink-0" /> REA is studying the reference and writing the report…
           </span>
         ) : inv!.status === 'ok' ? (
           <div className="space-y-1">
-            <p className="text-ink">{inv.summary}</p>
+            {/* the report done: its tick green */}
+            <p className="flex items-start gap-1.5 text-ink">
+              <Check size={13} strokeWidth={2.75} className="mt-px shrink-0 text-ok-ink" aria-hidden="true" />
+              <span className="min-w-0">{inv.summary}</span>
+            </p>
             <div className="flex flex-wrap items-center gap-3 text-xs text-ink-faint">
               {report && (
                 <a href={api.attachmentUrl(goal.id, report.id)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-work-ink hover:underline">

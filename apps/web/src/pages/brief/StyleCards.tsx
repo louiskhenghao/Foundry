@@ -2,7 +2,8 @@ import type { Brief, BriefQuestion } from '@foundry/core/browser';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Button, Modal, choiceClass, cn } from '../../ui.tsx';
+import { Button, Modal, cn } from '../../ui.tsx';
+import { AnsweredTick, blockingTag } from './marks.tsx';
 
 /** a quiet tag (a keyword, the recommendation): the Goals page's trait chip */
 const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[10.5px] font-semibold leading-tight ring-1 ring-inset ring-line-strong text-ink-soft';
@@ -12,7 +13,7 @@ const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px 
  * (palette, typefaces, keywords, feel), pick one, then optionally generate real sample images.
  * Samples are a history — regenerating appends, earlier ones stay pickable as the reference image.
  */
-export function StyleCards({ goalId, brief, question, editable, update }: { goalId: string; brief: Brief; question: BriefQuestion; editable: boolean; update: (patch: Partial<Brief>) => void }) {
+export function StyleCards({ goalId, brief, question, editable, update, tag = 'blocking' }: { goalId: string; brief: Brief; question: BriefQuestion; editable: boolean; update: (patch: Partial<Brief>) => void; /** the word on a blocking question's tag, as the view says it beside its other questions */ tag?: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   /** sample opened full-size in the lightbox; picking the reference image happens in there */
@@ -47,16 +48,20 @@ export function StyleCards({ goalId, brief, question, editable, update }: { goal
   };
   return (
     <div>
-      <div className="text-sm font-semibold text-ink mb-2">{question.text}</div>
+      <div className="text-sm font-semibold text-ink mb-2 flex items-start gap-2 flex-wrap">
+        <AnsweredTick answer={question.answer} />
+        {question.blocking && <span className={blockingTag(!!question.answer?.trim())}>{tag}</span>}
+        <span className="min-w-0 flex-1 basis-64">{question.text}</span>
+      </div>
       <div className="grid sm:grid-cols-2 gap-2.5">
         {brief.styleOptions.map((o, i) => {
           const chosen = (question.answer ?? '') === o.name;
           return (
-            // the direction picked is outlined in the accent, as a chosen option anywhere
-            <div key={o.key} className={cn('rounded-lg border p-3 space-y-2 transition-colors', choiceClass(chosen))}>
+            // the direction picked is the question's answer: edged in green, its dot green, the card itself as the others
+            <div key={o.key} className={cn('rounded-lg border p-3 space-y-2 transition-colors', chosen ? 'border-ok shadow-[inset_0_0_0_1px_var(--color-ok)]' : 'border-line hover:border-line-strong')}>
               <button type="button" disabled={!editable} onClick={() => pick(o.name)} className="w-full text-left space-y-2">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className={cn('h-3.5 w-3.5 rounded-full border shrink-0', chosen ? 'border-accent bg-accent shadow-[inset_0_0_0_2px_var(--color-panel)]' : 'border-line-strong')} />
+                  <span className={cn('h-3.5 w-3.5 rounded-full border shrink-0', chosen ? 'border-ok bg-ok shadow-[inset_0_0_0_2px_var(--color-panel)]' : 'border-line-strong')} />
                   <span className="text-sm font-bold text-ink">{o.name}</span>
                   {i === 0 && <span className={TAG} title="Recommended by the Clarifier">★ recommended</span>}
                 </div>
@@ -84,7 +89,7 @@ export function StyleCards({ goalId, brief, question, editable, update }: { goal
                     <div className="flex gap-1.5 overflow-x-auto">
                       {o.samples.map((f) => (
                         <button key={f} type="button" onClick={() => setViewing({ key: o.key, file: f })} title={o.chosenSample === f ? 'Reference image for the workers — click to view full size' : 'Click to view full size'}>
-                          <img src={api.styleSampleUrl(goalId, f)} alt={f} className={cn('h-20 w-20 object-cover rounded border-2', o.chosenSample === f ? 'border-accent' : 'border-transparent hover:border-line-strong')} />
+                          <img src={api.styleSampleUrl(goalId, f)} alt={f} className={cn('h-20 w-20 object-cover rounded border-2', o.chosenSample === f ? 'border-ok' : 'border-transparent hover:border-line-strong')} />
                         </button>
                       ))}
                     </div>
@@ -95,7 +100,7 @@ export function StyleCards({ goalId, brief, question, editable, update }: { goal
                         {busy === o.key ? 'Generating… (a minute or two)' : o.samples.length ? 'Regenerate (~$1) — earlier ones are kept' : 'Generate a sample (~$1)'}
                       </Button>
                       {o.samples.length >= 8 && <span className="text-xs text-ink-faint">sample limit reached for this direction</span>}
-                      {o.chosenSample && <span className="text-xs font-semibold text-accent-ink">reference image set — workers will match it</span>}
+                      {o.chosenSample && <span className="text-xs font-semibold text-ok-ink">reference image set — workers will match it</span>}
                     </div>
                   )}
                 </div>
@@ -120,7 +125,7 @@ export function StyleCards({ goalId, brief, question, editable, update }: { goal
                       {isRef ? 'Unpick reference image' : 'Use as the reference image'}
                     </Button>
                   )}
-                  {isRef && <span className="text-xs font-semibold text-accent-ink">reference image — workers will match it</span>}
+                  {isRef && <span className="text-xs font-semibold text-ok-ink">reference image — workers will match it</span>}
                 </div>
               </div>
             </Modal>

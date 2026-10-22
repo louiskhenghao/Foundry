@@ -1,11 +1,11 @@
 import type { Brief } from '@foundry/core/browser';
 import { LARGE_BRIEF_TASKS, stagesOf } from '@foundry/core/browser';
-import { Plus } from 'lucide-react';
+import { Info, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Button, Card, chipClass, cn, fmtUsd } from '../../ui.tsx';
 import { BriefDag } from './BriefDag.tsx';
 import { TaskCard } from './TaskCard.tsx';
-import { newTask } from './shared.ts';
+import { areaStyle, newTask } from './shared.ts';
 import { HelpLink } from '../HelpPage.tsx';
 import { SectionTitle } from './SectionTitle.tsx';
 
@@ -33,7 +33,7 @@ export function PlanSection({ costAvailable = true, brief, goalId, editable, edi
 
   return (
     <Card
-      title={<><SectionTitle section="plan">{`Plan (${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'} · ${stages.stages.length} stage${stages.stages.length === 1 ? '' : 's'})`}</SectionTitle><HelpLink to="approving-the-brief#plan" className="ml-1.5" /></>}
+      title={<span className="flex items-start gap-1.5"><SectionTitle section="plan">{`Plan (${brief.tasks.length} task${brief.tasks.length === 1 ? '' : 's'} · ${stages.stages.length} stage${stages.stages.length === 1 ? '' : 's'})`}</SectionTitle><HelpLink to="approving-the-brief#plan" className="mt-0.5 shrink-0" /></span>}
       actions={
         editable && (
           <Button size="sm" onClick={addTask}>
@@ -43,8 +43,12 @@ export function PlanSection({ costAvailable = true, brief, goalId, editable, edi
       }
     >
       {large && (
-        <div className="mb-3 rounded-md border border-work/30 bg-work/5 px-3 py-2 text-xs text-ink-soft">
-          This is a large goal: {brief.tasks.length} tasks, estimated {costAvailable && <>{fmtUsd(brief.costEstimateUsd)} / </>} {brief.timeEstimateMin} min. It will run, but consider splitting it into one goal per Area for smaller pull requests and easier review.
+        // advice, not a problem: its icon in the information blue, the box as any inside a card
+        <div className="mb-3 flex items-start gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink-soft">
+          <Info size={14} className="shrink-0 text-work-ink" aria-hidden="true" />
+          <span className="min-w-0">
+            This is a large goal: {brief.tasks.length} tasks, estimated {costAvailable && <>{fmtUsd(brief.costEstimateUsd)} / </>} {brief.timeEstimateMin} min. It will run, but consider splitting it into one goal per Area for smaller pull requests and easier review.
+          </span>
         </div>
       )}
       {!stages.ok && <div className="text-xs font-semibold text-bad-ink mb-2">Graph error: {stages.error}</div>}
@@ -54,14 +58,18 @@ export function PlanSection({ costAvailable = true, brief, goalId, editable, edi
         </div>
       )}
       {brief.areas.length > 1 && (
-        // a filter: the Area shown is the chip filled with the accent
+        // a filter: the Area shown is the chip filled with the accent; each Area's dot in its colour, as on its tasks and
+        // in the graph, ringed so it shows on the filled chip too
         <div className="flex flex-wrap gap-1.5 mb-4">
           <button onClick={() => setAreaFilter(null)} className={chipClass(!areaFilter)}>
             all Areas
           </button>
           {brief.areas.map((a) => (
-            <button key={a.key} onClick={() => setAreaFilter(areaFilter === a.key ? null : a.key)} className={chipClass(areaFilter === a.key)}>
-              {a.name} · <span className="mono">{brief.tasks.filter((t) => t.areaKey === a.key).length}</span>
+            <button key={a.key} onClick={() => setAreaFilter(areaFilter === a.key ? null : a.key)} className={cn(chipClass(areaFilter === a.key), 'inline-flex items-center gap-1.5')}>
+              <span className="h-2 w-2 shrink-0 rounded-full shadow-[0_0_0_1.5px_var(--color-panel)]" style={{ background: areaStyle(brief, a.key).dot }} aria-hidden="true" />
+              <span>
+                {a.name} · <span className="mono">{brief.tasks.filter((t) => t.areaKey === a.key).length}</span>
+              </span>
             </button>
           ))}
         </div>

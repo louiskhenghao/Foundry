@@ -137,10 +137,10 @@ export function MergeResolvePage() {
           </>
         }
       />
-      {err && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-xs text-bad-ink">{err}</div>}
+      {err && <div className="rounded-md border border-bad/50 bg-panel px-3 py-2 text-xs text-bad-ink">{err}</div>}
       {finish && (
-        // merged: done, in green; checks that failed hold the merge, in red, with the way to land it anyway
-        <div className={cn('rounded-lg border p-3 text-sm space-y-2', finish.ok ? 'border-ok/40 bg-ok/5' : 'border-bad/40 bg-bad/5')}>
+        // merged: done, its tick and edge green; checks that failed hold the merge, in red, with the way to land it anyway
+        <div className={cn('rounded-lg border bg-panel p-3 text-sm space-y-2', finish.ok ? 'border-ok/60' : 'border-bad/60')}>
           <div className="flex items-center gap-2 font-semibold text-ink">
             {finish.ok ? <Check size={14} className="shrink-0 text-ok-ink" /> : <AlertTriangle size={14} className="shrink-0 text-bad-ink" />}
             <span>{finish.ok ? `Merged as ${finish.ref?.slice(0, 7)} — the task is done; back to the goal…` : finish.reason}</span>
@@ -148,10 +148,11 @@ export function MergeResolvePage() {
           {finish.checks.length > 0 && (
             <ul className="text-xs space-y-1">
               {finish.checks.map((c) => (
-                <li key={c.name} className="flex gap-2 items-start">
+                // a failure's output under its name on a phone, beside it on a wider screen
+                <li key={c.name} className="flex flex-wrap items-start gap-x-2 gap-y-0.5">
                   <Badge state={c.status === 'pass' ? 'pass' : 'fail'} />
                   <span className="text-ink">{c.name}</span>
-                  {c.status !== 'pass' && <span className="text-ink-faint mono whitespace-pre-wrap break-all">{c.summary}</span>}
+                  {c.status !== 'pass' && <span className="basis-full sm:basis-0 sm:flex-1 min-w-0 text-ink-faint mono whitespace-pre-wrap break-all">{c.summary}</span>}
                 </li>
               ))}
             </ul>
@@ -164,9 +165,10 @@ export function MergeResolvePage() {
         </div>
       )}
 
-      <div className="grid gap-4 md:gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
+      {/* one column on a phone, held to the screen's width: a long path truncates instead of widening the page */}
+      <div className="grid grid-cols-1 gap-4 md:gap-6 md:grid-cols-[16rem_minmax(0,1fr)]">
         {/* the files as a side list on the page, as the Brief's sections: the one open marked, each with its mark (yellow waits for you, solid is resolved) */}
-        <section className="self-start md:sticky md:top-4 md:max-h-[calc(100dvh-5.5rem)] md:overflow-y-auto">
+        <section className="min-w-0 self-start md:sticky md:top-4 md:max-h-[calc(100dvh-5.5rem)] md:overflow-y-auto">
           <header className="px-2.5 pb-2 flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">
             <span>Files</span>
             <b className="mono text-xs tracking-normal text-ink">{state.files.length}</b>
@@ -179,7 +181,7 @@ export function MergeResolvePage() {
               <button key={f.path} onClick={() => setSel(f.path)} className={navItemClass(sel === f.path)}>
                 <span className="flex items-center gap-2">
                   <i className={cn('block h-2.5 w-2.5 shrink-0 rounded-[2px]', markFill[f.conflicted ? 'you' : 'done'])} aria-hidden="true" />
-                  <span className="mono text-xs truncate" title={f.path}>
+                  <span className="mono text-xs truncate min-w-0" title={f.path}>
                     {f.path}
                   </span>
                 </span>

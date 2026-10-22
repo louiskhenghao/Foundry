@@ -55,31 +55,39 @@ export function TaskCard({ task, brief, goalId, editable, open, onOpen, onClose,
         onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onOpen()}
         className={cn('rounded-md border bg-sunken transition-colors cursor-pointer hover:border-line-strong focus-visible:outline-2 focus-visible:outline-accent', problem && editable ? 'border-bad/50' : 'border-line')}
       >
-        <div className="flex items-center gap-2 flex-wrap p-2.5">
-          <span className="mono text-[13px] font-bold text-ink-faint w-7">{task.key}</span>
-          <span className="text-sm font-bold text-ink flex-1 min-w-0 truncate">{task.title || <span className="font-normal text-ink-faint">(untitled)</span>}</span>
-          {problem && editable && <span className="text-xs font-semibold text-bad-ink whitespace-nowrap">{problem}</span>}
-          <TaskTags kind={task.kind} scenario={task.scenario} difficulty={task.difficulty ?? 'standard'} />
-          {brief.areas.length > 0 && <span className={style.chip}>{area?.name ?? 'unassigned'}</span>}
-          {checks.length > 0 && (
-            <span className="mono text-[11px] text-ink-faint flex items-center gap-1 whitespace-nowrap" title="acceptance checks on this task">
-              <ListChecks size={12} /> {checks.length}
-            </span>
-          )}
-          {editable && (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={(e) => {
-                e.stopPropagation();
-                remove();
-              }}
-              title="Remove task (and its checks)"
-            >
-              <Trash2 size={13} />
-            </Button>
-          )}
-          <Maximize2 size={12} className="text-ink-faint" />
+        {/* the key, the title and the actions; under the title on a phone or a tablet (beside it on a wide screen) the
+            problem, the traits, the Area and the checks, so the title keeps its room */}
+        <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap p-2.5">
+          <span className="mono text-[13px] font-bold text-ink-faint w-7 shrink-0 self-start lg:self-center">{task.key}</span>
+          <span className="text-sm font-bold text-ink flex-1 min-w-0 break-words lg:min-w-[8rem] lg:truncate" title={task.title || undefined}>
+            {task.title || <span className="font-normal text-ink-faint">(untitled)</span>}
+          </span>
+          <span className="flex items-center gap-2 shrink-0 self-start lg:self-center lg:order-last">
+            {editable && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  remove();
+                }}
+                title="Remove task (and its checks)"
+              >
+                <Trash2 size={13} />
+              </Button>
+            )}
+            <Maximize2 size={12} className="text-ink-faint" />
+          </span>
+          <span className="flex flex-wrap items-center gap-2 basis-full pl-9 lg:basis-auto lg:pl-0">
+            {problem && editable && <span className="text-xs font-semibold text-bad-ink whitespace-nowrap">{problem}</span>}
+            <TaskTags kind={task.kind} scenario={task.scenario} difficulty={task.difficulty ?? 'standard'} />
+            {brief.areas.length > 0 && <span className={style.chip}>{area?.name ?? 'unassigned'}</span>}
+            {checks.length > 0 && (
+              <span className="mono text-[11px] text-ink-faint flex items-center gap-1 whitespace-nowrap" title="acceptance checks on this task">
+                <ListChecks size={12} /> {checks.length}
+              </span>
+            )}
+          </span>
         </div>
         {(task.dependsOnKeys.length > 0 || next.length > 0) && (
           <div className="px-2.5 pb-2.5 -mt-1 space-y-1.5 text-[11px]" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
@@ -261,11 +269,12 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
         </div>
 
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 mb-1">
             <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">Spec</span>
             {editable && (
-              <span className="ml-auto flex items-center gap-1.5">
-                <Input className="text-xs py-1 w-56" placeholder="notes for the AI (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+              // on a phone the note and the button take a line of their own under the label
+              <span className="flex items-center gap-1.5 basis-full sm:basis-auto sm:ml-auto">
+                <Input className="text-xs py-1 min-w-0 flex-1 sm:flex-none sm:w-56" placeholder="notes for the AI (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
                 <Button size="sm" className="shrink-0 whitespace-nowrap" disabled={drafting || !task.title.trim()} onClick={() => draft(hasSpec ? 'acceptance' : 'task')} title={hasSpec ? 'Propose acceptance checks for this task (your spec is kept)' : 'Draft the spec, attributes and acceptance checks from the title, the Brief and the repository'}>
                   <Sparkles size={12} /> {drafting ? 'Drafting…' : hasSpec ? 'Suggest acceptance' : 'Draft with AI'}
                 </Button>
@@ -288,9 +297,10 @@ function TaskModal({ task, brief, goalId, editable, onClose, onRemove, onOpenTas
         <Input className="mono text-xs" disabled={!editable} placeholder="start files, comma-separated (repo-relative)" value={task.relevantFiles.join(', ')} onChange={(e) => change({ relevantFiles: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} />
         <Input className="mono text-xs" disabled={!editable} placeholder="delivers: files the tasks after this one read, comma-separated (repo-relative)" value={(task.delivers ?? []).join(', ')} onChange={(e) => change({ delivers: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} title="Deliverables — the files this task leaves for the tasks after it: each is checked when the task lands, and the next tasks are told where they are" />
         {task.kind === 'goal' && (
-          <label className="block text-xs">
+          // the label sets the field's width (the field's own w-40 lost to the kit's w-full): the field fills it
+          <label className="block w-56 max-w-full text-xs">
             <span className="font-semibold text-ink-soft">Budget share (USD)</span>
-            <Input type="number" min={1} step={1} className="mono text-xs py-1 mt-0.5 w-40" disabled={!editable} placeholder="even share of what is left" value={task.budgetUsd ?? ''} onChange={(e) => change({ budgetUsd: e.target.value ? Number(e.target.value) : null })} title="What the delegated goal doing this step may spend, within this goal's budget; blank = an even share of what is left among the goal tasks still to run" />
+            <Input type="number" min={1} step={1} className="mono text-xs py-1 mt-0.5" disabled={!editable} placeholder="even share of what is left" value={task.budgetUsd ?? ''} onChange={(e) => change({ budgetUsd: e.target.value ? Number(e.target.value) : null })} title="What the delegated goal doing this step may spend, within this goal's budget; blank = an even share of what is left among the goal tasks still to run" />
           </label>
         )}
         {task.kind === 'goal' && task.repo && (

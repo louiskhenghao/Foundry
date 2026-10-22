@@ -12,20 +12,22 @@ export function CheckRow({ check, brief, editable, context, onChange, onRemove }
   return (
     // a box inside the card, outlined in red while the engine would reject it
     <div className={cn('rounded-md border bg-sunken p-2.5 space-y-1.5', problem && editable ? 'border-bad/50' : 'border-line')}>
+      {/* on a phone: the tier, the kind and the buttons on a line, the name on one of its own, the task and the Area side
+          by side; on a wider screen all on one line in the order they are written here (and tabbed through) */}
       <div className="flex items-center gap-2 flex-wrap">
-        <button disabled={!editable} onClick={() => onChange({ ...check, tier: check.tier === 'must' ? 'stretch' : 'must' })} title="Must = what you asked for; Stretch = proposed extra. Click to toggle.">
+        <button className="order-1 sm:order-none" disabled={!editable} onClick={() => onChange({ ...check, tier: check.tier === 'must' ? 'stretch' : 'must' })} title="Must = what you asked for; Stretch = proposed extra. Click to toggle.">
           <Badge state={check.tier} />
         </button>
         {/* wide enough for "Command" beside the select's arrow */}
-        <span className="w-28 shrink-0">
+        <span className="order-2 sm:order-none w-28 shrink-0">
           <Select disabled={!editable} className="text-xs py-1" value={check.spec.type === 'reviewer' ? 'reviewer' : 'command'} onChange={(e) => onChange(convertCheck(check, e.target.value as 'command' | 'reviewer'))} title="Command: a shell command that must exit 0. Reviewer: a session with the goal’s backend judges the diff against a rubric.">
             <option value="command">Command</option>
             <option value="reviewer">Reviewer</option>
           </Select>
         </span>
-        <Input className="flex-1 min-w-[8rem]" disabled={!editable} placeholder="what this check verifies" value={check.name} onChange={(e) => onChange({ ...check, name: e.target.value })} />
+        <Input className="order-4 sm:order-none grow basis-full sm:basis-0 min-w-[8rem]" disabled={!editable} placeholder="what this check verifies" value={check.name} onChange={(e) => onChange({ ...check, name: e.target.value })} />
         {context === 'goal' && (
-          <span className="w-40 shrink-0">
+          <span className="order-5 sm:order-none grow sm:grow-0 w-40 shrink-0">
             <Select disabled={!editable} className="text-xs py-1 mono" value={check.taskKey ?? ''} onChange={(e) => onChange(assignCheck(check, e.target.value || null, check.areaKey))} title="Which task must make this pass; blank = verified on the merged goal">
               <option value="">whole goal</option>
               {brief.tasks.map((t) => (
@@ -37,7 +39,7 @@ export function CheckRow({ check, brief, editable, context, onChange, onRemove }
           </span>
         )}
         {context === 'goal' && !check.taskKey && brief.areas.length > 1 && (
-          <span className="w-36 shrink-0">
+          <span className="order-6 sm:order-none grow sm:grow-0 w-36 shrink-0">
             <Select disabled={!editable} className="text-xs py-1" value={check.areaKey ?? ''} onChange={(e) => onChange({ ...check, areaKey: e.target.value || null })} title="The Area this check verifies; blank = repo-wide">
               <option value="">all Areas</option>
               {brief.areas.map((a) => (
@@ -48,15 +50,17 @@ export function CheckRow({ check, brief, editable, context, onChange, onRemove }
             </Select>
           </span>
         )}
-        {editable && context === 'task' && (
-          <Button size="sm" variant="ghost" title="Move to goal level: verified on the merged result instead of this task" onClick={() => onChange(assignCheck(check, null, null))}>
-            <ArrowUpToLine size={13} />
-          </Button>
-        )}
         {editable && (
-          <Button size="sm" variant="ghost" onClick={onRemove} title="Remove check">
-            <Trash2 size={13} />
-          </Button>
+          <span className="order-3 sm:order-none ml-auto sm:ml-0 flex items-center gap-2">
+            {context === 'task' && (
+              <Button size="sm" variant="ghost" title="Move to goal level: verified on the merged result instead of this task" onClick={() => onChange(assignCheck(check, null, null))}>
+                <ArrowUpToLine size={13} />
+              </Button>
+            )}
+            <Button size="sm" variant="ghost" onClick={onRemove} title="Remove check">
+              <Trash2 size={13} />
+            </Button>
+          </span>
         )}
       </div>
       {check.spec.type === 'command' ? (

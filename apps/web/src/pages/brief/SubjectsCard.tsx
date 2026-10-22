@@ -42,7 +42,7 @@ export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId
     setAdding({ name: '', lookFor: '' });
   });
   return (
-    <Card title={<><SectionTitle section="subjects">Looks like</SectionTitle><HelpLink to="approving-the-brief#looks-like" className="ml-1.5" /></>}>
+    <Card title={<span className="flex items-start gap-1.5"><SectionTitle section="subjects">Looks like</SectionTitle><HelpLink to="approving-the-brief#looks-like" className="mt-0.5 shrink-0" /></span>}>
       <p className="text-xs text-ink-faint mb-3">
         Real things the result must look like. Workers build from these pictures and every review compares against them; the pictures stay on this computer and are never part of the result.
       </p>
@@ -53,8 +53,9 @@ export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId
         ))}
       </div>
       {editable && subjects.length < SUBJECT_LIMITS.subjects && (
+        // the two fields side by side and the button under them, until a wide screen has room for all three in a row
         <form
-          className="mt-4 pt-3 border-t border-line grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]"
+          className="mt-4 pt-3 border-t border-line grid gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_auto]"
           onSubmit={(e) => {
             e.preventDefault();
             if (adding.name.trim()) void add();
@@ -62,7 +63,7 @@ export function SubjectsCard({ goalId, subjects, searching, editable }: { goalId
         >
           <Input value={adding.name} onChange={(e) => setAdding((a) => ({ ...a, name: e.target.value }))} placeholder="A real thing, e.g. Porsche 911 GT3 (992)" aria-label="Subject name" />
           <Input value={adding.lookFor} onChange={(e) => setAdding((a) => ({ ...a, lookFor: e.target.value }))} placeholder="What must match (proportions, features, colours)" aria-label="What must match" />
-          <Button type="submit" size="sm" disabled={!adding.name.trim() || busy === 'add'}>
+          <Button type="submit" size="sm" className="sm:col-span-2 sm:justify-self-end xl:col-span-1 xl:justify-self-stretch" disabled={!adding.name.trim() || busy === 'add'}>
             <Plus size={12} /> Add and find pictures
           </Button>
         </form>
@@ -127,14 +128,15 @@ function SubjectRow({ goalId, subject: s, searching, editable, busy, act, onView
         </div>
       )}
       <div className="flex flex-wrap items-center gap-2 text-xs">
+        {/* how its pictures stand: being searched blue, a failed search red, none found yours to fix (yellow) where you can */}
         {searching ? (
-          <span className="inline-flex items-center gap-1.5 text-ink-soft">
+          <span className="inline-flex items-center gap-1.5 text-work-ink">
             <Loader2 size={12} className="animate-spin shrink-0" /> Finding pictures… (a minute or two)
           </span>
         ) : s.search?.status === 'failed' ? (
           <span className="font-semibold text-bad-ink">The search failed: {s.search.detail}</span>
         ) : s.search && s.pictures.length === 0 ? (
-          <span className="font-semibold text-ink-soft">No picture found{s.search.detail ? ` (${s.search.detail})` : ''}: search again, or add your own.</span>
+          <span className={editable ? 'font-semibold text-you-ink' : 'text-ink-soft'}>No picture found{s.search.detail ? ` (${s.search.detail})` : ''}: search again, or add your own.</span>
         ) : s.pictures.length === 0 && !editable ? (
           <span className="text-ink-faint">No picture: workers go by the name.</span>
         ) : null}

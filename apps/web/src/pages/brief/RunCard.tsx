@@ -64,7 +64,7 @@ export function RunCard({ brief, editable, edit, goalId, selfCheck, milestonePau
   };
   return (
     <Card
-      title={<><SectionTitle section="run">How to run it</SectionTitle><HelpLink to="approving-the-brief#how-to-run-it" className="ml-1.5" /></>}
+      title={<span className="flex items-start gap-1.5"><SectionTitle section="run">How to run it</SectionTitle><HelpLink to="approving-the-brief#how-to-run-it" className="mt-0.5 shrink-0" /></span>}
       actions={
         editable ? (
           <>

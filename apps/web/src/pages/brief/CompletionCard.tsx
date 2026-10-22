@@ -56,7 +56,7 @@ export function CompletionCard({ brief, editable, value, onChange }: { brief: Br
   const hasApp = !!(brief.apps?.length || brief.run);
   const toggleDoc = (t: DocType) => onChange({ ...v, docs: v.docs.includes(t) ? v.docs.filter((x) => x !== t) : [...v.docs, t] });
   return (
-    <Card title={<><SectionTitle section="completion">Completion</SectionTitle><HelpLink to="approving-the-brief#completion" className="ml-1.5" /></>}>
+    <Card title={<span className="flex items-start gap-1.5"><SectionTitle section="completion">Completion</SectionTitle><HelpLink to="approving-the-brief#completion" className="mt-0.5 shrink-0" /></span>}>
       <p className="text-xs text-ink-faint mb-3">
         Runs automatically when the goal finishes: documents are generated after the review passes and committed to the goal branch (they ship with the code); the knowledge graph refreshes after delivery. Defaults follow the kind of work planned{value ? '' : ' — a changelog entry is added automatically when the repository keeps a CHANGELOG.md'}.
       </p>
