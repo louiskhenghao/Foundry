@@ -55,7 +55,11 @@ async function deployRef(goal: Goal): Promise<string | null> {
   return null;
 }
 
-/** a checkout of `ref` in the deploy folder: made once, then moved; ignored files (installed packages, the host's link) stay */
+/**
+ * a checkout of `ref` in the deploy folder: made once, then moved; ignored files (installed packages) stay, and so do the
+ * hosts' links to their site whether the project ignores them or not — an unlinked folder naming an existing Netlify site
+ * gets a new site of its own (`<name>-<suffix>`) on every deploy
+ */
 async function checkout(goal: Goal, dir: string, ref: string): Promise<void> {
   if (!existsSync(join(dir, '.git'))) {
     rmSync(dir, { recursive: true, force: true });
@@ -67,7 +71,7 @@ async function checkout(goal: Goal, dir: string, ref: string): Promise<void> {
   }
   const r = await git(['checkout', '--force', '--detach', ref], dir);
   if (r.code !== 0) throw new Error(`could not move the deploy folder to the goal's commit: ${r.stderr.trim()}`);
-  await git(['clean', '-fd'], dir);
+  await git(['clean', '-fd', '-e', '.netlify', '-e', '.vercel'], dir);
 }
 
 /** where a build left its files: the framework's folder, else the first usual one with an index.html (Angular nests it) */
