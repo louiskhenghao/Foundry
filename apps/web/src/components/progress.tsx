@@ -247,8 +247,8 @@ function StageSteps({ marks, notes, links, now }: { marks: Mark[]; notes: ReactN
 }
 
 /**
- * The five stages as large leaning plates (from a tablet up): done ones filled in ink with their tick on a green tile, the
- * current one outlined heavily (in blue while Foundry works on it) with its note, and the Run plate carrying the tasks as a
+ * The five stages as large leaning plates (from a tablet up): done ones framed in ink on the panel, their tick on a green
+ * tile, the current one outlined heavily (in blue while Foundry works on it) with its note, and the Run plate carrying the tasks as a
  * bar while it is the current one.
  */
 function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes: ReactNode[]; tasks: Mark[]; links?: StageLinks; now: number }) {
@@ -259,8 +259,8 @@ function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes
         const current = i === now;
         const Icon = m === 'done' ? Check : STAGE_ICONS[i]!;
         return (
-          <li key={label} aria-current={current ? 'step' : undefined} className={cn('relative flex min-h-[4.5rem] min-w-0 items-center', m === 'done' ? 'text-on-ink' : current ? 'text-ink' : 'text-ink-faint')}>
-            <span aria-hidden="true" className={cn('absolute inset-0 overflow-hidden rounded-md slant', m === 'done' ? 'bg-ink' : m === 'you' ? 'bg-you' : m === 'bad' ? 'bg-panel ring-[3px] ring-inset ring-bad' : current ? cn('bg-panel ring-[3px] ring-inset shadow-[0_16px_28px_-18px_rgb(0_0_0/0.55)]', m === 'run' ? 'ring-work' : 'ring-ink') : 'bg-panel ring-[1.5px] ring-inset ring-line-strong')}>
+          <li key={label} aria-current={current ? 'step' : undefined} className={cn('relative flex min-h-[4.5rem] min-w-0 items-center', m === 'done' || current ? 'text-ink' : 'text-ink-faint')}>
+            <span aria-hidden="true" className={cn('absolute inset-0 overflow-hidden rounded-md slant', m === 'done' ? 'bg-panel ring-2 ring-inset ring-ink' : m === 'you' ? 'bg-you' : m === 'bad' ? 'bg-panel ring-[3px] ring-inset ring-bad' : current ? cn('bg-panel ring-[3px] ring-inset shadow-[0_16px_28px_-18px_rgb(0_0_0/0.55)]', m === 'run' ? 'ring-work' : 'ring-ink') : 'bg-panel ring-[1.5px] ring-inset ring-line-strong')}>
               {current && i === 2 && tasks.length > 0 && (
                 <span className="absolute bottom-2 left-4 right-4 flex h-1.5 gap-[3px]">
                   {tasks.map((t, j) => (

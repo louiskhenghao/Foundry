@@ -36,7 +36,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 - 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
 - **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal**、**Delete goal…**，视情况出现。
 
-页面顶部下方横排着五个阶段：**Clarify**、**Brief**、**Run**、**Review** 和 **Deliver**。完成的阶段是实心的，勾在一个绿色的小方块上；当前阶段加粗描边（Foundry 正在做时是蓝色），上方标着 **Now**；等你时变成黄色并标 **You**，失败时变成红色并标 **Failed**。在手机或小平板上，阶段是一排细长的色段，完成的是绿色，下面一行写着当前阶段的名字和说明；Ledger 和 Classic 把它们画成一条带编号的步骤线。每个阶段用几个字说明情况，比如“approved”“3 of 4 tasks”“a pull request”。goal 运行时，Run 阶段上有一条它的任务进度条。在 Expert view 里，点一个阶段就打开显示它工作内容的地方：Clarify 和 Review 打开 Activity 标签，Brief 打开 Brief 页面，Run 打开 Tasks 标签，Deliver 打开 Delivery 标签。
+页面顶部下方横排着五个阶段：**Clarify**、**Brief**、**Run**、**Review** 和 **Deliver**。完成的阶段带一圈墨色边框，勾在一个绿色的小方块上；当前阶段加粗描边（Foundry 正在做时是蓝色），上方标着 **Now**；等你时变成黄色并标 **You**，失败时变成红色并标 **Failed**。在手机或小平板上，阶段是一排细长的色段，完成的是绿色，下面一行写着当前阶段的名字和说明；Ledger 和 Classic 把它们画成一条带编号的步骤线。每个阶段用几个字说明情况，比如“approved”“3 of 4 tasks”“a pull request”。goal 运行时，Run 阶段上有一条它的任务进度条。在 Expert view 里，点一个阶段就打开显示它工作内容的地方：Clarify 和 Review 打开 Activity 标签，Brief 打开 Brief 页面，Run 打开 Tasks 标签，Deliver 打开 Delivery 标签。
 
 再往下，卡片只在需要时出现：goal 等你查看时的里程碑卡片，Foundry 提问时的访谈，以及最终审查运行时带实时日志的 **Goal review…**。
 
