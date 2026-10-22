@@ -219,7 +219,7 @@ function Words({ segments, show }: { segments: DiffSegment[]; show: 'before' | '
 type ViewMode = 'inline' | 'split';
 
 const pane = 'rounded-md border border-line bg-sunken px-3 py-2 text-sm leading-relaxed text-ink whitespace-pre-wrap break-words';
-const PaneLabel = ({ children }: { children: ReactNode }) => <div className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint mb-1">{children}</div>;
+const PaneLabel = ({ children }: { children: ReactNode }) => <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint mb-1">{children}</div>;
 
 /** one field in the item's window: inline marks in one flow, or the old and the new side by side */
 function FieldView({ f, mode }: { f: FieldChange; mode: ViewMode }) {
@@ -362,7 +362,7 @@ export function DraftPanel({ proposal, onApply, onClose }: { proposal: DraftProp
     <section className="rounded-lg border border-line bg-panel" aria-label="Proposal">
       <div className="flex items-center gap-3 flex-wrap px-3 sm:px-4 py-3 border-b border-line">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 text-[12.5px] font-extrabold uppercase tracking-[0.1em] text-ink">
+          <div className="flex items-center gap-2 text-[12.5px] font-extrabold caps text-ink">
             <Sparkles size={14} aria-hidden="true" /> Proposal
           </div>
           <div className="mt-0.5 text-xs text-ink-faint">
@@ -398,11 +398,11 @@ export function DraftPanel({ proposal, onApply, onClose }: { proposal: DraftProp
       )}
       {items.length === 0 && <div className="px-4 py-3 text-sm text-ink-faint">Nothing to change.</div>}
       {groups.map((g) => {
-        const { Icon } = SECTION_STYLE[PART_OF[g.section]];
+        const { Icon, ink } = SECTION_STYLE[PART_OF[g.section]];
         return (
         <div key={g.section} className="pb-1">
-          <div className="flex items-center gap-1.5 px-3 sm:px-4 pt-3 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint">
-            <Icon size={12} aria-hidden="true" /> {g.label} <span className="mono tracking-normal">· {g.items.length}</span>
+          <div className="flex items-center gap-1.5 px-3 sm:px-4 pt-3 pb-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">
+            <Icon size={12} className={ink} aria-hidden="true" /> {g.label} <span className="mono tracking-normal">· {g.items.length}</span>
           </div>
           {/* rows as on a board: hovering one tints it and raises a bar of ink at its left edge */}
           <ul className="px-2 sm:px-3 space-y-0.5">

@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react';
 import { chipClass, cn, navItemClass } from '../../ui.tsx';
+import { SECTION_STYLE, sectionOfNav } from './shared.ts';
+
+/** the section's colour, as a small square before its name */
+const Dot = ({ id }: { id: string }) => {
+  const s = sectionOfNav(id);
+  return <span className={cn('h-2 w-2 shrink-0 rounded-[2px]', s ? SECTION_STYLE[s].dot : 'bg-line-strong')} aria-hidden="true" />;
+};
 
 export interface BriefNavItem {
   id: string;
@@ -51,6 +58,7 @@ export function BriefSideNav({ items }: { items: BriefNavItem[] }) {
       {items.map((i) => (
         <button key={i.id} type="button" onClick={() => go(i.id)} aria-current={active === i.id ? 'location' : undefined} className={navItemClass(active === i.id)}>
           <span className="flex items-center gap-2">
+            <Dot id={i.id} />
             <span className="min-w-0 flex-1">{i.label}</span>
             <Status item={i} />
           </span>
@@ -67,6 +75,7 @@ export function BriefChipNav({ items }: { items: BriefNavItem[] }) {
     <nav aria-label="Brief sections" className="lg:hidden sticky top-0 z-20 -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 py-2 bg-page border-b border-line flex gap-1.5 overflow-x-auto whitespace-nowrap">
       {items.map((i) => (
         <button key={i.id} type="button" onClick={() => go(i.id)} aria-current={active === i.id ? 'location' : undefined} className={cn(chipClass(active === i.id), 'shrink-0 inline-flex items-center gap-1.5')}>
+          <Dot id={i.id} />
           {i.label}
           <Status item={i} onAccent={active === i.id} />
         </button>

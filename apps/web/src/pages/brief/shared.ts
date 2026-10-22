@@ -1,27 +1,36 @@
 import type { Brief, BriefArea, BriefCheck, BriefTask } from '@foundry/core/browser';
 import { areaSlug } from '@foundry/core/browser';
 import { BookOpenText, Eye, Flag, Gavel, Image, LayoutGrid, Lightbulb, ListChecks, type LucideIcon, MessageCircleQuestion, Play, ScanSearch, ShieldCheck, Wallet } from 'lucide-react';
+import { code } from '../../ui.tsx';
+
+/** a section's category colour (ADR-0067): its icon's ink, the dot before it in the side list, the edge of its group */
+const hue = (i: number) => {
+  const c = code(i);
+  return { ink: c.ink, dot: c.dot, bar: c.bar };
+};
 
 /**
- * The parts of the Brief page, each with its icon: the page reads at a glance by its labels in capitals and their icons,
- * not by colour (colours are signals here: yellow waits for you, red failed, green passed).
+ * The parts of the Brief page, each with its icon and a category colour of its own, so the page reads at a glance: the
+ * hues the sections had before themes (understanding blue, decisions green, acceptance red…), in the theme's colours.
  */
 export type BriefSection = 'understanding' | 'questions' | 'subjects' | 'assumptions' | 'decisions' | 'opinion' | 'areas' | 'plan' | 'acceptance' | 'reference' | 'run' | 'completion' | 'budget';
-export const SECTION_STYLE: Record<BriefSection, { Icon: LucideIcon }> = {
-  understanding: { Icon: BookOpenText },
-  questions: { Icon: MessageCircleQuestion },
-  subjects: { Icon: Image },
-  assumptions: { Icon: Lightbulb },
-  decisions: { Icon: Gavel },
-  opinion: { Icon: Eye },
-  areas: { Icon: LayoutGrid },
-  plan: { Icon: ListChecks },
-  acceptance: { Icon: ShieldCheck },
-  reference: { Icon: ScanSearch },
-  run: { Icon: Play },
-  completion: { Icon: Flag },
-  budget: { Icon: Wallet },
+export const SECTION_STYLE: Record<BriefSection, { Icon: LucideIcon; ink: string; dot: string; bar: string }> = {
+  understanding: { Icon: BookOpenText, ...hue(0) },
+  questions: { Icon: MessageCircleQuestion, ...hue(3) },
+  subjects: { Icon: Image, ...hue(6) },
+  assumptions: { Icon: Lightbulb, ...hue(2) },
+  decisions: { Icon: Gavel, ...hue(1) },
+  opinion: { Icon: Eye, ...hue(5) },
+  areas: { Icon: LayoutGrid, ...hue(7) },
+  plan: { Icon: ListChecks, ...hue(0) },
+  acceptance: { Icon: ShieldCheck, ...hue(4) },
+  reference: { Icon: ScanSearch, ...hue(5) },
+  run: { Icon: Play, ...hue(0) },
+  completion: { Icon: Flag, ...hue(2) },
+  budget: { Icon: Wallet, ...hue(1) },
 };
+/** the section a Brief page nav item (id "brief-<section>") belongs to */
+export const sectionOfNav = (id: string): BriefSection | null => (id.startsWith('brief-') && id.slice(6) in SECTION_STYLE ? (id.slice(6) as BriefSection) : null);
 
 /**
  * The plan arrived while the page held edits of the Brief skeleton: the tasks, their checks and the estimate come in
@@ -41,17 +50,18 @@ export function withPlan(local: Brief, planned: Brief): Brief {
 /** every kind a task may have; `goal` = a Delegated goal of its own does the step (the planner offers it only where the goal allows delegation) */
 export const TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'chore', 'goal'] as const;
 
-/** an Area's tag shape: a quiet chip, as the Goals page draws a goal's traits */
-const AREA_CHIP = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[10.5px] font-semibold leading-tight ring-1 ring-inset';
-/**
- * An Area's chip and its dot (a CSS colour, for DAG nodes and lists): the same quiet ink for every Area, its name telling
- * them apart. A colour per Area would read as a signal (green passed, yellow waits for you, red failed).
- */
-const AREA_STYLE = { chip: `${AREA_CHIP} ring-line-strong text-ink-soft`, dot: 'var(--color-ink-faint)' };
-export const UNASSIGNED_STYLE = { chip: `${AREA_CHIP} ring-line text-ink-faint`, dot: 'var(--color-line-strong)' };
+/** an Area's tag shape: a small chip, tinted in the Area's colour */
+const AREA_CHIP = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[10.5px] font-semibold leading-tight';
+/** each Area's category colour, by its place in the Brief: green, blue, violet, then on round the eight, as before themes */
+const AREA_CODES = [1, 0, 2, 3, 4, 5, 6, 7];
+export const UNASSIGNED_STYLE = { chip: `${AREA_CHIP} ring-1 ring-inset ring-line text-ink-faint`, dot: 'var(--color-line-strong)' };
 
+/** An Area's chip and its dot (a CSS colour, for DAG nodes and lists): a category colour of its own, never a signal. */
 export function areaStyle(brief: Pick<Brief, 'areas'>, key: string | null): { chip: string; dot: string } {
-  return brief.areas.some((a) => a.key === key) ? AREA_STYLE : UNASSIGNED_STYLE;
+  const i = brief.areas.findIndex((a) => a.key === key);
+  if (i < 0) return UNASSIGNED_STYLE;
+  const c = code(AREA_CODES[i % AREA_CODES.length]!);
+  return { chip: `${AREA_CHIP} ${c.chip}`, dot: c.css };
 }
 
 export function areaOf(brief: Pick<Brief, 'areas'>, key: string | null): BriefArea | null {
