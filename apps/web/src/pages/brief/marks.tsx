@@ -1,4 +1,6 @@
 import { Check } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { markFill } from '../../components/progress.tsx';
 import { chipClass, cn } from '../../ui.tsx';
 
 /**
@@ -36,23 +38,43 @@ export function ReadOnlyTick({ on }: { on: boolean }) {
   );
 }
 
-/** something that holds the approval back, and how it stands: work under way, waiting for your answer, or a problem to fix */
+/** something that holds the approval back (or asks a look before it), and how it stands: work under way, waiting for your answer, or a problem to fix */
 export interface Hold {
   text: string;
+  /** what it means for you, after the words in plain ink */
+  detail?: string;
   tone: 'work' | 'you' | 'bad';
 }
-const HOLD_TONE: Record<Hold['tone'], string> = { work: 'text-work-ink', you: 'font-semibold text-you-ink', bad: 'font-semibold text-bad-ink' };
+/** the holds that apply, from a list where each is written `condition && { … }` */
+export const holdsOf = (list: (Hold | false)[]): Hold[] => list.filter((h): h is Hold => !!h);
+const HOLD_TONE: Record<Hold['tone'], string> = { work: 'text-work-ink', you: 'text-you-ink', bad: 'text-bad-ink' };
+/** the goal page's marks: at work hatched blue, waiting for you yellow, a problem red */
+const HOLD_MARK: Record<Hold['tone'], string> = { work: markFill.run, you: markFill.you, bad: markFill.bad };
 
-/** what holds the approval back, in a line by the actions: each in its signal colour */
-export function Holds({ holds }: { holds: Hold[] }) {
+/**
+ * The Brief's actions, docked at the foot of the screen while the page scrolls (both views): on the left a line for each
+ * thing that holds the approval back, then each note worth a look before approving, its square and words in its signal
+ * colour; on the right the buttons.
+ */
+export function ApprovalBar({ holds, notes = [], children }: { holds: Hold[]; /** what does not hold the approval back but asks a look first */ notes?: Hold[]; children: ReactNode }) {
+  const lines = [...holds, ...notes];
   return (
-    <p>
-      {holds.map((h, i) => (
-        <span key={h.text}>
-          {i > 0 && <span className="text-ink-faint"> · </span>}
-          <span className={HOLD_TONE[h.tone]}>{h.text}</span>
-        </span>
-      ))}
-    </p>
+    <div className="sticky bottom-3 z-20 flex flex-col gap-3 rounded-xl border border-line bg-panel px-3 py-3 shadow-lg sm:flex-row sm:items-center sm:px-4">
+      {lines.length > 0 && (
+        <ul className="min-w-0 flex-1 space-y-1.5 text-xs leading-snug">
+          {lines.map((h) => (
+            <li key={h.text} className="flex items-start gap-2">
+              <i className={cn('mt-[2px] h-3 w-3 shrink-0 rounded-[3px]', HOLD_MARK[h.tone])} aria-hidden="true" />
+              <p className="min-w-0 first-letter:uppercase">
+                <b className={cn('font-semibold', HOLD_TONE[h.tone])}>{h.text}</b>
+                {h.detail && <span className="text-ink-soft"> — {h.detail}</span>}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+      {/* on a phone the buttons share the width, the last (the approval) on a row of its own */}
+      <div className="grid grid-cols-2 gap-2 [&>*]:justify-center [&>*:last-child]:col-span-2 sm:ml-auto sm:flex sm:flex-wrap sm:items-center sm:justify-end">{children}</div>
+    </div>
   );
 }

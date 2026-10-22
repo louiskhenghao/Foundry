@@ -291,13 +291,13 @@ Claude 卡片显示 **Estimated cost** 和 **Estimated time**，旁边是预算�
 
 ## Approve
 
-在页面底部：
+在页面底部，一条滚动时一直留在视野里的操作栏：
 
-- **Approve & run** 开始干活。如果你改了预算，按钮上会显示新预算。有东西阻止批准时它是灰的；旁边的灰色文字会说明是什么（比如 "1 blocking question unanswered"、"task graph has a cycle"、"2 incomplete checks"）。
+- **Approve & run** 开始干活。如果你改了预算，按钮上会显示新预算。有东西阻止批准时它是灰的；操作栏一行一行列出原因，每行前面有一个对应颜色的小方块：蓝色是还在进行的工作（planner、REA、找 Subjects 的图片），黄色是等你回答，红色是要修的问题（比如 "1 blocking question unanswered"、"task graph has a cycle"、"2 incomplete checks"）。
 - **Save edits** 保存你的修改但不批准，方便你之后再回来。
 - **Cancel goal** 放弃这个 goal。
 
-黄色文字会提醒没有任务的 Area 和还没应用的决定。你照样可以批准。
+操作栏也会提醒没有任务的 Area（红色）和还没应用到计划里的决定（黄色）。你照样可以批准。
 
 批准之后，Brief 就不能再编辑了，你会进入 goal 页面：[运行期间](./while-it-runs.zh.md)。
 

@@ -27,7 +27,7 @@ import { ClarifyProgress, clarifyChannel } from '../goal/ClarifyProgress.tsx';
 import { PlanSection } from './PlanSection.tsx';
 import { BriefChipNav, BriefSideNav, type BriefNavItem } from './BriefNav.tsx';
 import { SimpleBrief } from './SimpleBrief.tsx';
-import { ACCEPTED_TICK, AnsweredTick, type Hold, Holds, ReadOnlyTick, answerChip, blockingTag } from './marks.tsx';
+import { ACCEPTED_TICK, AnsweredTick, ApprovalBar, ReadOnlyTick, answerChip, blockingTag, holdsOf } from './marks.tsx';
 import { areaOf, areaStyle, checkProblem, taskProblem, withPlan } from './shared.ts';
 import { ProviderBadge } from '../agents/rows.tsx';
 import { HelpLink } from '../HelpPage.tsx';
@@ -135,8 +135,8 @@ export function BriefPage() {
   const gaps = uncoveredAreas(brief);
   const pending = pendingDecisions(brief);
   /** what holds the approval back, each with how it stands: work under way, your answer awaited, a problem to fix */
-  const holds = ([
-    skeleton && { text: 'the planner is still splitting the goal into tasks', tone: 'work' },
+  const holds = holdsOf([
+    skeleton && { text: 'the planner is still splitting the goal into tasks', detail: 'read and edit meanwhile; approval opens when the plan is in', tone: 'work' },
     blockingUnanswered.length > 0 && { text: `${blockingUnanswered.length} blocking question${blockingUnanswered.length > 1 ? 's' : ''} unanswered`, tone: 'you' },
     !graph.ok && { text: 'task graph has a cycle', tone: 'bad' },
     brief.tasks.length === 0 && !skeleton && { text: 'no tasks', tone: 'bad' },
@@ -144,8 +144,15 @@ export function BriefPage() {
     badChecks.length > 0 && { text: `${badChecks.length} incomplete check${badChecks.length > 1 ? 's' : ''}`, tone: 'bad' },
     !!detail?.investigating && { text: 'REA is still studying the references', tone: 'work' },
     !!detail?.subjectSearches?.length && { text: 'pictures of the Subjects are still being found', tone: 'work' },
-  ] satisfies (Hold | false)[]).filter((h): h is Hold => !!h);
+  ]);
   const blockers = holds.map((h) => h.text);
+  /** what does not hold the approval back but asks a look first, once the plan is in: Areas it leaves out, Decisions it was planned before */
+  const notes = skeleton
+    ? []
+    : holdsOf([
+        gaps.length > 0 && { text: `${gaps.map((a) => a.name).join(', ')} ${gaps.length > 1 ? 'have' : 'has'} no tasks`, detail: `${gaps.length > 1 ? 'they' : 'it'} will simply not be built`, tone: 'bad' },
+        pending.length > 0 && { text: `${pending.length} decision${pending.length > 1 ? 's' : ''} not applied to the plan`, detail: 'Revise, or approve anyway', tone: 'you' },
+      ]);
   // the Subjects are the server's copy: pictures arrive while the page holds an edited Brief
   const subjects = detail.brief?.brief.subjects ?? [];
   const searching = detail.subjectSearches ?? [];
@@ -440,37 +447,18 @@ export function BriefPage() {
 
           {err && <div className="rounded-md border border-bad/50 bg-panel px-3 py-2 text-sm text-bad-ink">{err}</div>}
           {editable ? (
-            // the actions follow you down the page, on the page's own colour under a hairline; what holds them back beside
-            // them (above them on a phone), each in its signal colour: the planner at work blue, yours yellow, a problem red
-            <div className="sticky bottom-0 py-3 bg-page border-t border-line flex flex-col gap-2 sm:flex-row sm:items-center">
-              {(skeleton || gaps.length > 0 || pending.length > 0 || holds.length > 0) && (
-                <div className="min-w-0 flex-1 space-y-1 text-xs">
-                  {skeleton && (
-                    <p className="flex items-start gap-1.5 text-work-ink">
-                      <Loader2 size={12} className="mt-0.5 animate-spin shrink-0" /> The planner is splitting the goal into tasks. Read and edit meanwhile; approval opens when the plan is in.
-                    </p>
-                  )}
-                  {!skeleton && (gaps.length > 0 || pending.length > 0) && (
-                    <p className="font-semibold">
-                      {gaps.length > 0 && <span className="text-bad-ink" title="Areas without tasks will simply not be built">{gaps.map((a) => a.name).join(', ')} {gaps.length > 1 ? 'have' : 'has'} no tasks. </span>}
-                      {pending.length > 0 && <span className="text-you-ink" title="Workers receive your decisions, but the tasks and checks were planned before them">{pending.length} decision{pending.length > 1 ? 's' : ''} not applied to the plan — Revise, or approve anyway.</span>}
-                    </p>
-                  )}
-                  {holds.length > 0 && <Holds holds={holds} />}
-                </div>
-              )}
-              <div className="flex flex-wrap items-center justify-end gap-2 sm:ml-auto">
-                <Button variant="danger" onClick={() => api.cancelGoal(id).then(() => nav('/'))}>
-                  Cancel goal
-                </Button>
-                <Button disabled={!dirty || busy} onClick={save}>
-                  Save edits
-                </Button>
-                <Button variant="primary" disabled={busy || blockers.length > 0} onClick={approve} title={blockers.join('; ')}>
-                  Approve & run{editable && budgetChanged ? ` · budget ${costAvailable ? fmtLimitUsd(budgetDraft.maxCostUsd) + ' / ' : ''}${fmtLimitMin(budgetDraft.maxDurationMin)}` : ''}
-                </Button>
-              </div>
-            </div>
+            // the actions follow you down the page; what holds them back beside them (above them on a phone)
+            <ApprovalBar holds={holds} notes={notes}>
+              <Button variant="danger" onClick={() => api.cancelGoal(id).then(() => nav('/'))}>
+                Cancel goal
+              </Button>
+              <Button disabled={!dirty || busy} onClick={save}>
+                Save edits
+              </Button>
+              <Button variant="primary" disabled={busy || blockers.length > 0} onClick={approve} title={blockers.join('; ')}>
+                Approve & run{editable && budgetChanged ? ` · budget ${costAvailable ? fmtLimitUsd(budgetDraft.maxCostUsd) + ' / ' : ''}${fmtLimitMin(budgetDraft.maxDurationMin)}` : ''}
+              </Button>
+            </ApprovalBar>
           ) : (
             // approved is done, in green; a Brief superseded by a newer one only says so
             <div className="text-sm text-ink-soft">

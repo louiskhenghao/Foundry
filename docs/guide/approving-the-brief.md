@@ -291,13 +291,13 @@ What happens to the result (keep it local, push it, open a pull request) was cho
 
 ## Approve
 
-At the bottom:
+At the bottom, in a bar that stays in view while you scroll:
 
-- **Approve & run** starts the work. If you changed the budget, the button shows the new one. It is greyed out while something blocks approval; the grey text next to it says what (for example "1 blocking question unanswered", "task graph has a cycle", "2 incomplete checks").
+- **Approve & run** starts the work. If you changed the budget, the button shows the new one. It is greyed out while something blocks approval; the bar lists what, a line each with a square in its colour: blue for work still under way (the planner, REA, the pictures of the Subjects), yellow for your answer, red for a problem (for example "1 blocking question unanswered", "task graph has a cycle", "2 incomplete checks").
 - **Save edits** keeps your edits without approving, so you can come back later.
 - **Cancel goal** gives up on the goal.
 
-Yellow text warns about Areas with no tasks and decisions not applied. You can approve anyway.
+The bar also warns about Areas with no tasks (red) and decisions not applied to the plan (yellow). You can approve anyway.
 
 After you approve, the Brief can no longer be edited, and you go to the goal page: [While it runs](./while-it-runs.md).
 

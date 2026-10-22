@@ -8,7 +8,7 @@ import { Button, Card, Input, cn } from '../../ui.tsx';
 import { areaStyle } from './shared.ts';
 import { NotesComposer } from './NotesComposer.tsx';
 import { StyleCards } from './StyleCards.tsx';
-import { ACCEPTED_TICK, AnsweredTick, type Hold, Holds, ReadOnlyTick, answerChip, blockingTag } from './marks.tsx';
+import { ACCEPTED_TICK, AnsweredTick, ApprovalBar, type Hold, ReadOnlyTick, answerChip, blockingTag } from './marks.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SectionTitle } from './SectionTitle.tsx';
 
@@ -175,26 +175,18 @@ export function SimpleBrief(p: {
 
         {p.err && <div className="rounded-md border border-bad/50 bg-panel px-3 py-2 text-sm text-bad-ink">{p.err}</div>}
         {editable ? (
-          // the actions follow you down the page, on the page's own colour under a hairline; what holds them back beside
-          // them (above them on a phone), each in its signal colour
-          <div className="sticky bottom-0 py-3 bg-page border-t border-line flex flex-col gap-2 sm:flex-row sm:items-center">
-            {p.blockers.length > 0 && (
-              <div className="min-w-0 flex-1 text-xs">
-                <Holds holds={p.blockers} />
-              </div>
-            )}
-            <div className="flex flex-wrap items-center justify-end gap-2 sm:ml-auto">
-              <Button variant="danger" onClick={p.onCancel}>
-                Cancel
-              </Button>
-              <Button disabled={!p.dirty || p.busy} onClick={p.onSave}>
-                Save
-              </Button>
-              <Button variant="primary" disabled={p.busy || p.blockers.length > 0} onClick={p.onApprove} title={p.blockers.map((b) => b.text).join('; ')}>
-                <Check size={14} /> Looks good — go
-              </Button>
-            </div>
-          </div>
+          // the actions follow you down the page; what holds them back beside them (above them on a phone)
+          <ApprovalBar holds={p.blockers}>
+            <Button variant="danger" onClick={p.onCancel}>
+              Cancel
+            </Button>
+            <Button disabled={!p.dirty || p.busy} onClick={p.onSave}>
+              Save
+            </Button>
+            <Button variant="primary" disabled={p.busy || p.blockers.length > 0} onClick={p.onApprove} title={p.blockers.map((b) => b.text).join('; ')}>
+              <Check size={14} /> Looks good — go
+            </Button>
+          </ApprovalBar>
         ) : (
           <div className="text-sm text-ink-soft">
             This plan was <span className="font-semibold text-ok-ink">approved</span>; the work is under way.
