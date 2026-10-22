@@ -73,8 +73,9 @@ export function App() {
   // how many agent sessions are working: a count on the Agents icon, like the Inbox's
   const agents = useAgentsSummary();
   const busy = agents?.busy ?? 0;
-  // `label`: between lg and xl the top bar only fits the icons; the phone menu and a side column always show the names
-  const navLinks = (cls: typeof link, label: string) => (
+  // `label`: between lg and xl the top bar only fits the icons; the phone menu and a side column always show the names.
+  // `corner`: the top bar's links, where a count rides on the link's corner (from lg) instead of taking room in the row
+  const navLinks = (cls: typeof link, label: string, corner = false) => (
     <>
       <NavLink to="/" end className={cls} title="Goals">
         <ListTodo size={15} /> <span className={label}>Goals</span>
@@ -82,10 +83,11 @@ export function App() {
       <NavLink to="/agents" className={cls} title={busy ? `Agents: ${busy} session${busy === 1 ? '' : 's'} working · ${agents?.idle ?? 0} idle` : 'Agents'} aria-label={busy ? `Agents, ${busy} working` : 'Agents'}>
         <Bot size={15} aria-hidden="true" />
         <span className={label}>Agents</span>
-        {/* how many sessions are working, live: a pulsing dot and the count, outlined so it never reads as an alarm */}
+        {/* how many sessions are working, live: the count filled in the colour of work (yellow is for what waits for you),
+            a ring pinging behind it. On the top bar's corner it takes no room, so the links beside it never move; the
+            phone menu and a side column keep it at the row's end, as the Inbox's */}
         {busy > 0 && (
-          <span className="mono inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] font-bold leading-none text-band-ink ring-1 ring-inset ring-band-line">
-            <i className="h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-pulse" aria-hidden="true" />
+          <span className={cn('mono relative min-w-[1.125rem] h-[1.125rem] rounded-[5px] bg-work px-1 text-center text-[11px] font-bold leading-[1.125rem] text-on-work before:absolute before:inset-0 before:-z-10 before:rounded-[5px] before:bg-work motion-safe:before:animate-ping', corner ? 'ml-auto lg:ml-0 lg:absolute lg:top-2 lg:right-0 lg:translate-x-1/2' : 'ml-auto')}>
             {busy > 99 ? '99+' : busy}
           </span>
         )}
@@ -95,7 +97,7 @@ export function App() {
       </NavLink>
     </>
   );
-  const links = navLinks(link, 'lg:hidden xl:inline');
+  const links = navLinks(link, 'lg:hidden xl:inline', true);
   return (
     <div className={cn('h-full flex', side ? 'flex-row' : 'flex-col')}>
       {side && (
