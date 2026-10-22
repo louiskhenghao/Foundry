@@ -3,7 +3,7 @@ import { CalendarClock, Pencil, Play, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type ScheduleRow } from '../api.ts';
-import { BOARD_ROW, Button, ConfirmDialog, EmptyState, PageHeader, ago, cn, code } from '../ui.tsx';
+import { BOARD_ROW, Button, ConfirmDialog, EmptyState, Loading, PageHeader, ago, cn, code } from '../ui.tsx';
 import { STATE_INK, stateDot, statePlate, type Tone } from './agents/marks.ts';
 import { BOARD_PANEL, shortCwd } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
@@ -85,7 +85,7 @@ export function SchedulesPage() {
       />
       {err && <div className="text-sm text-bad-ink">{err}</div>}
       {rows === null ? (
-        <div className="text-xs text-ink-faint">loading…</div>
+        <Loading label="Loading schedules…" />
       ) : rows.length === 0 ? (
         <EmptyState icon={CalendarClock} title="No schedules yet">
           Fill in the New goal form as usual, then press Schedule… instead of creating the goal.

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Package, PackageCheck, Plug, Puzzle, SearchX } from 'lucide-react';
 import type { CodexPlugin, CodexPluginsView } from '@foundry/engine/plugins-types';
 import { apiForProvider } from '../../api.ts';
-import { BOARD_ROW, Board, Button, Card, ConfirmDialog, Empty, EmptyState, Input, cn, useFolds } from '../../ui.tsx';
+import { BOARD_ROW, Board, Button, Card, ConfirmDialog, Empty, EmptyState, Input, Loading, cn, useFolds } from '../../ui.tsx';
 import { stateDot } from '../agents/marks.ts';
 import { OpsDock } from './OpsDock.tsx';
 import { BottomDock } from './SkillsPage.tsx';
@@ -42,7 +42,7 @@ export function CodexPluginsPanel() {
     <p className="text-sm text-ink-soft">Manage plugins from your native Codex marketplaces. Installation affects the local Codex CLI and new Foundry sessions. Claude plugins remain separate.</p>
     <p className="text-xs text-ink-faint">Plugins can include skills, tools and hooks. Install sources you trust. Connected services still require native authorization; installing does not automatically allow their MCP tools in goals. Marketplace setup and plugin updates remain in the native CLI.</p>
     {error && <div role="alert" className="text-sm text-bad-ink">{error}</div>}
-    {!view ? <Empty>{error ? 'Could not load plugins. Try Refresh plugins.' : 'Reading native plugins…'}</Empty> : view.state === 'unavailable' ? <Card title="Native plugin list unavailable"><p className="text-sm text-you-ink">{view.message}</p><p className="mt-2 text-xs text-ink-soft">Use a compatible Codex CLI with plugin JSON commands, then refresh. No configuration was changed.</p></Card> : <>
+    {!view ? (error ? <Empty>Could not load plugins. Try Refresh plugins.</Empty> : <Loading label="Reading native plugins…" />) : view.state === 'unavailable' ? <Card title="Native plugin list unavailable"><p className="text-sm text-you-ink">{view.message}</p><p className="mt-2 text-xs text-ink-soft">Use a compatible Codex CLI with plugin JSON commands, then refresh. No configuration was changed.</p></Card> : <>
       <Input aria-label="Filter plugins" placeholder="Filter by plugin or marketplace" value={query} onChange={e=>setQuery(e.target.value)} />
       {plugins.length === 0 && (view.plugins.length ? <EmptyState icon={SearchX} title="No matching plugins">Clear the filter to see every plugin.</EmptyState> : <EmptyState icon={Puzzle} title="No plugins returned by the native CLI">Configure a marketplace in Codex, then refresh.</EmptyState>)}
       {(['Installed', 'Available'] as const).map(group => {

@@ -4,7 +4,7 @@ import { type Dispatch, type MouseEvent, type PointerEvent, type ReactNode, type
 import { useNavigate } from 'react-router-dom';
 import { api } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Button, Card, EmptyState, chipClass, cn, fmtUsd } from '../../ui.tsx';
+import { Button, Card, EmptyState, Loading, chipClass, cn, fmtUsd } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 
 /**
@@ -147,7 +147,7 @@ export function TimelineTab({ goalId, onOpenTask }: { goalId: string; onOpenTask
     const h = setTimeout(() => void api.timeline(goalId).then(setT, (e) => setErr(e.message)), 300);
     return () => clearTimeout(h);
   }, [goalId, version]);
-  if (!t) return <Card title="Timeline">{err ? <div className="text-sm text-bad-ink">{err}</div> : <div className="text-sm text-ink-faint">Loading…</div>}</Card>;
+  if (!t) return <Card title="Timeline">{err ? <div className="text-sm text-bad-ink">{err}</div> : <Loading size="card" label="Loading the timeline…" />}</Card>;
   if (!t.rows.length)
     return (
       <EmptyState icon={ChartGantt} title="No sessions yet">

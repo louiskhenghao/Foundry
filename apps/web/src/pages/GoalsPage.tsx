@@ -11,7 +11,7 @@ import { ProviderBadge, shortCwd } from './agents/rows.tsx';
 import { boardOf, isFinished, needOf, type Need } from './goal-boards.ts';
 import { listEntries, type GoalChain, type ListEntry } from './goal-chains.ts';
 import { useLive } from '../store.ts';
-import { BOARD_HEAD, BOARD_ROW, Board, Button, Empty, EmptyState, PageHeader, ago, buttonClass, cn, fmtUsd, stateLabel, waited } from '../ui.tsx';
+import { BOARD_HEAD, BOARD_ROW, Board, Button, EmptyState, Loading, PageHeader, ago, buttonClass, cn, fmtUsd, stateLabel, waited } from '../ui.tsx';
 
 /** Trait chip (nature, pace, view mode): quiet, so the state and the signs carry the colour. */
 function Chip({ className, children, title }: { className?: string; children: ReactNode; title?: string }) {
@@ -300,7 +300,7 @@ export function GoalsPage() {
         }
       />
       {!goals ? (
-        <Empty>Loading…</Empty>
+        <Loading label="Loading goals…" />
       ) : goals.length === 0 ? (
         <EmptyState
           icon={Target}

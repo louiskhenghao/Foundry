@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.ts';
 import { useLive } from '../store.ts';
-import { BOARD_HEAD, ButtonGroup, Card, Empty, EmptyState, PageHeader, cn, fmtUsd } from '../ui.tsx';
+import { BOARD_HEAD, ButtonGroup, Card, Empty, EmptyState, Loading, PageHeader, cn, fmtUsd } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { Kpi, SERIES } from './UsagePage.tsx';
 
@@ -102,7 +102,7 @@ export function ReportsPage() {
         actions={<ButtonGroup label="Window" value={win} onChange={setWin} options={WINDOWS} />}
       />
       {err && <div className="text-sm text-bad-ink">{err}</div>}
-      {report ? <ReportView report={report} /> : !err && <div className="text-sm text-ink-faint">Reading the records…</div>}
+      {report ? <ReportView report={report} /> : !err && <Loading label="Reading the records…" />}
     </div>
   );
 }

@@ -7,7 +7,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api.ts';
 import { useLive } from '../store.ts';
 import { useUnsaved } from '../unsaved.ts';
-import { BOARD_ROW, Board, Button, Empty, EmptyState, Field, Input, Modal, PageHeader, Select, Textarea, ago, chipClass, cn, code, focusFirst } from '../ui.tsx';
+import { BOARD_ROW, Board, Button, EmptyState, Field, Input, Loading, Modal, PageHeader, Select, Textarea, ago, chipClass, cn, code, focusFirst } from '../ui.tsx';
 import { categorySquare } from './agents/marks.ts';
 import { BOARD_PANEL, shortCwd } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
@@ -165,7 +165,7 @@ export function LearningsPage() {
           </div>
         )}
         {!shown ? (
-          <Empty>Loading…</Empty>
+          <Loading label="Loading Learnings…" />
         ) : shown.length === 0 ? (
           <EmptyState icon={NotebookPen} title="No learnings for a folder yet">
             They are written when a goal ends; a goal's page also links here to add your own.

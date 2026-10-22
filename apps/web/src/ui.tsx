@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { ChevronDown, ChevronRight, Clock, X, type LucideIcon } from 'lucide-react';
+import { ChevronDown, ChevronRight, Clock, LoaderCircle, X, type LucideIcon } from 'lucide-react';
 
 export const cn = (...xs: (string | false | null | undefined)[]) => xs.filter(Boolean).join(' ');
 
@@ -545,12 +545,12 @@ export function useAffix<T extends HTMLElement>(): { ref: (el: T | null) => void
   return { ref, className: AFFIX_SIDE };
 }
 
-/** a line while something loads, or why it could not: nothing to show yet, unlike EmptyState's "there is none" */
+/** a line on why something could not be shown: Loading is for what is on its way, EmptyState for "there is none" */
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="text-sm text-ink-faint py-8 text-center">{children}</div>;
 }
 
-/** the dots behind an EmptyState's icon, fading out around it: the words under it stay on the plain page */
+/** the dots behind a placard's tile, fading out around it: the words under it stay on the plain page */
 const EMPTY_FIELD = {
   backgroundImage: 'radial-gradient(var(--color-line-strong) 1px, transparent 1.6px)',
   backgroundSize: '18px 18px',
@@ -560,26 +560,58 @@ const EMPTY_FIELD = {
 };
 
 /**
- * What a page, a tab, a board or a card shows when there is nothing in it: the kind's icon on a tile ringed twice in a
- * halo of dots, a heading in the theme's display font, a line on how something comes to be there, and the action that
- * puts it there. `page`: a whole page's or tab's body, framed by a dashed line and tall; `card`: inside a card or a board,
- * which is its frame. `tone`: `ok` where nothing is good news (nothing waits for you), `bad` where the page failed.
+ * What EmptyState and Loading share, so the two always read as one family: a tile ringed twice in a halo of dots, a
+ * heading in the theme's display font, a line under it and its actions. `page`: tall, a page's, a tab's or a list's body;
+ * `card`: shorter, inside a card, a board or a viewer. `framed`: a dashed line round it, a slot with nothing in it.
+ * `live`: it stands for something on its way (a status for screen readers; the halo breathes). `tall`: a page's whole
+ * body, standing near the middle of the screen.
  */
-export function EmptyState({ icon: Icon, title, children, actions, size = 'page', tone, className }: { icon: LucideIcon; title: ReactNode; children?: ReactNode; actions?: ReactNode; size?: 'page' | 'card'; tone?: 'ok' | 'bad'; className?: string }) {
+function Placard({ tile, tileClass, title, children, actions, size, framed = false, live = false, tall = false, className }: { tile: ReactNode; tileClass?: string; title: ReactNode; children?: ReactNode; actions?: ReactNode; size: 'page' | 'card'; framed?: boolean; live?: boolean; tall?: boolean; className?: string }) {
   const page = size === 'page';
   return (
-    <div className={cn('relative isolate flex flex-col items-center justify-center overflow-hidden px-6 text-center', page ? 'min-h-[22rem] rounded-xl border border-dashed border-line-strong py-16' : 'min-h-[15rem] py-12', className)}>
+    <div role={live ? 'status' : undefined} aria-live={live ? 'polite' : undefined} className={cn('relative isolate flex flex-col items-center justify-center overflow-hidden px-6 text-center', page ? (tall ? 'min-h-[60vh] py-16' : 'min-h-[22rem] py-16') : 'min-h-[15rem] py-12', framed && 'rounded-xl border border-dashed border-line-strong', className)}>
       <span aria-hidden="true" className="relative">
-        <span className={cn('pointer-events-none absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2', page ? 'h-56 w-[26rem]' : 'h-44 w-80')} style={EMPTY_FIELD} />
-        <span className={cn('grid place-items-center rounded-2xl bg-panel shadow-[0_0_0_1px_var(--color-line-strong),0_0_0_10px_var(--color-sunken),0_0_0_11px_var(--color-line)]', page ? 'h-16 w-16' : 'h-14 w-14', tone === 'ok' ? 'text-ok-ink' : tone === 'bad' ? 'text-bad-ink' : 'text-ink-soft')}>
-          <Icon size={page ? 28 : 24} strokeWidth={1.75} />
-        </span>
+        <span className={cn('pointer-events-none absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2', page ? 'h-56 w-[26rem]' : 'h-44 w-80', live && 'motion-safe:animate-pulse')} style={EMPTY_FIELD} />
+        <span className={cn('grid place-items-center rounded-2xl bg-panel shadow-[0_0_0_1px_var(--color-line-strong),0_0_0_10px_var(--color-sunken),0_0_0_11px_var(--color-line)]', page ? 'h-16 w-16' : 'h-14 w-14', tileClass)}>{tile}</span>
       </span>
       <h3 className={cn('font-display font-extrabold tracking-[-0.02em] text-ink text-balance', page ? 'mt-8 text-2xl sm:text-[1.75rem] leading-tight' : 'mt-7 text-xl leading-snug')}>{title}</h3>
       {children && <div className="mt-2 max-w-md text-sm leading-relaxed text-ink-faint text-pretty">{children}</div>}
       {actions && <div className="mt-6 flex flex-wrap items-center justify-center gap-2">{actions}</div>}
     </div>
   );
+}
+
+/**
+ * What a page, a tab, a board or a card shows when there is nothing in it: the kind's icon on the placard's tile, a
+ * heading, a line on how something comes to be there, and the action that puts it there. `page`: a whole page's or tab's
+ * body, framed by a dashed line and tall; `card`: inside a card or a board, which is its frame. `tone`: `ok` where nothing
+ * is good news (nothing waits for you), `bad` where the page failed.
+ */
+export function EmptyState({ icon: Icon, title, children, actions, size = 'page', tone, className }: { icon: LucideIcon; title: ReactNode; children?: ReactNode; actions?: ReactNode; size?: 'page' | 'card'; tone?: 'ok' | 'bad'; className?: string }) {
+  return (
+    <Placard size={size} framed={size === 'page'} tile={<Icon size={size === 'page' ? 28 : 24} strokeWidth={1.75} />} tileClass={tone === 'ok' ? 'text-ok-ink' : tone === 'bad' ? 'text-bad-ink' : 'text-ink-soft'} title={title} actions={actions} className={className}>
+      {children}
+    </Placard>
+  );
+}
+
+/**
+ * While something loads: EmptyState's placard, its tile a turning spinner and its halo breathing, the heading saying what
+ * loads (with its "…"), the same on every page rather than a sketch of content it does not know yet. `page`: a whole
+ * page's body, in the page's frame; `section` (the default): a page's, a tab's or a list's body; `card`: inside a card or
+ * a viewer; `inline`: one line, where a placard has no room.
+ */
+export function Loading({ label = 'Loading…', size = 'section', className }: { label?: ReactNode; size?: 'page' | 'section' | 'card' | 'inline'; className?: string }) {
+  if (size === 'inline')
+    return (
+      <p role="status" aria-live="polite" className={cn('flex items-center gap-2 text-[13px] font-semibold text-ink-soft', className)}>
+        <LoaderCircle size={15} className="shrink-0 text-ink-faint motion-safe:animate-spin" aria-hidden="true" />
+        {label}
+      </p>
+    );
+  const card = size === 'card';
+  const placard = <Placard live tall={size === 'page'} size={card ? 'card' : 'page'} tile={<LoaderCircle size={card ? 24 : 28} strokeWidth={1.75} className="motion-safe:animate-spin" />} tileClass="text-ink-soft" title={label} className={size === 'page' ? undefined : className} />;
+  return size === 'page' ? <div className={cn('max-w-6xl mx-auto p-3 sm:p-4 md:p-6', className)}>{placard}</div> : placard;
 }
 
 /** how long ago, in the fewest words: 40 s, 7 min, 3 h, 2 d */

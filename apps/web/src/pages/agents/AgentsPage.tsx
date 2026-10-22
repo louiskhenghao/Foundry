@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type AgentProvider, type GoalRow } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { ago, BOARD_ROW, Board, Button, Card, chipClass, cn, code, ConfirmDialog, Empty, Input, Page, PageHeader, useAffix, EmptyState } from '../../ui.tsx';
+import { ago, BOARD_ROW, Board, Button, Card, chipClass, cn, code, ConfirmDialog, Input, Page, PageHeader, useAffix, EmptyState, Loading } from '../../ui.tsx';
 import { ContextGauge } from './ContextGauge.tsx';
 import { categoryPlate, categorySquare } from './marks.ts';
 import { SessionDetail, SubagentStatus } from './SessionDetail.tsx';
@@ -64,7 +64,7 @@ export function AgentsPage() {
     return (
       <Page width="lg">
         {warnings}
-        {selected ? <SessionDetail row={selected} agentId={selAgent ?? null} onOpen={openSession} onBack={() => nav({ hash: '' }, { replace: false })} /> : list ? <EmptyState icon={History} title="This session is no longer in the last-24h window" actions={<Button onClick={() => nav({ hash: '' }, { replace: false })}>All sessions</Button>} /> : <Empty>Loading…</Empty>}
+        {selected ? <SessionDetail row={selected} agentId={selAgent ?? null} onOpen={openSession} onBack={() => nav({ hash: '' }, { replace: false })} /> : list ? <EmptyState icon={History} title="This session is no longer in the last-24h window" actions={<Button onClick={() => nav({ hash: '' }, { replace: false })}>All sessions</Button>} /> : <Loading size="card" label="Loading the session…" />}
       </Page>
     );
   }
@@ -155,7 +155,7 @@ export function AgentsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 min-w-0">
           {list && <div className="mb-4 text-xs text-ink-faint" aria-live="polite">Showing {matching.length} of {sessions.length} sessions</div>}
-          {!list && <Empty>{error ? 'Session list unavailable; retrying…' : 'Loading…'}</Empty>}
+          {!list && <Loading label={error ? 'Session list unavailable; retrying…' : 'Loading the sessions…'} />}
           {list && matching.length === 0 && (sessions.length === 0 ? (
             <EmptyState icon={Bot} title="No agent sessions in the last 24 hours">
               Every Claude Code, Codex and Antigravity session on this computer shows here while it runs and for a day after, Foundry's and your own.

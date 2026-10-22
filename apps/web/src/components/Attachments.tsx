@@ -3,7 +3,7 @@ import { attachmentKindLabel } from '@foundry/core/browser';
 import { ExternalLink, File as FileIcon, FileText, Image as ImageIcon, Link2, Paperclip, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';
-import { Button, Input, Modal, chipClass, cn, code, focusFirst } from '../ui.tsx';
+import { Button, Input, Loading, Modal, chipClass, cn, code, focusFirst } from '../ui.tsx';
 import { MarkdownPanel } from './Markdown.tsx';
 
 /**
@@ -47,7 +47,7 @@ export function AttachmentViewer({ a, goalId, onClose }: { a: Attachment; goalId
         <>
           {inline === 'image' && <img src={original} alt={a.name} className="max-h-[70vh] max-w-full rounded border border-line mx-auto" />}
           {inline === 'pdf' && <iframe src={original} title={a.name} className="w-full h-[70vh] rounded border border-line bg-white" />}
-          {inline === 'text' && (text === null ? <div className="text-xs text-ink-faint">loading…</div> : <pre className="mono text-xs text-ink whitespace-pre-wrap max-h-[70vh] overflow-auto rounded-md border border-line bg-sunken p-3">{text}</pre>)}
+          {inline === 'text' && (text === null ? <Loading size="card" label="Loading the file…" /> : <pre className="mono text-xs text-ink whitespace-pre-wrap max-h-[70vh] overflow-auto rounded-md border border-line bg-sunken p-3">{text}</pre>)}
           {inline === null && (
             <div className="text-sm text-ink-soft">
               This file type cannot be previewed here.{' '}

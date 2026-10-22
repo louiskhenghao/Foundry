@@ -5,7 +5,7 @@ import { Blocks, FolderGit2, PackageCheck, Plug, RefreshCw, Search, SearchX, Squ
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { Board, Button, ConfirmDialog, Empty, EmptyState, Input, Modal, ago, chipClass, cn, code, useAffix, useFolds } from '../../ui.tsx';
+import { Board, Button, ConfirmDialog, Empty, EmptyState, Input, Loading, Modal, ago, chipClass, cn, code, useAffix, useFolds } from '../../ui.tsx';
 import { categorySquare, notice } from '../agents/marks.ts';
 import { OpsDock } from './OpsDock.tsx';
 import { startOp, useRunningOp, useSkillOps } from './ops.ts';
@@ -204,7 +204,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
       return n;
     });
 
-  if (!overview || !report) return <Empty>{msg?.text ?? 'Scanning skills…'}</Empty>;
+  if (!overview || !report) return msg?.kind === 'err' ? <Empty>{msg.text}</Empty> : <Loading size="page" label={msg?.text ?? 'Scanning skills…'} />;
 
   // the rows render from the update report; its rows and the overview's share `dir`
   const usageByDir = new Map<string, SkillUsage | null>(overview.installed.map((r) => [r.dir, r.usage ?? null]));
@@ -358,7 +358,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
 
       <Modal open={view !== null} title={view && view !== 'loading' ? <span className="mono">{view.invoke}</span> : 'Loading…'} onClose={() => setView(null)} wide>
         {view === 'loading' ? (
-          <div className="text-xs text-ink-faint">reading SKILL.md…</div>
+          <Loading size="card" label="Reading SKILL.md…" />
         ) : view ? (
           <div className="space-y-3">
             <div className="text-[11px] text-ink-faint mono break-all">{view.dir}</div>

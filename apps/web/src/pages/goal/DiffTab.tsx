@@ -1,7 +1,7 @@
 import { ChevronLeft, ChevronRight, GitCompare } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api, fileUrl } from '../../api.ts';
-import { BOARD_ROW, ButtonGroup, CopyButton, EmptyState, Modal, cn } from '../../ui.tsx';
+import { BOARD_ROW, ButtonGroup, CopyButton, EmptyState, Loading, Modal, cn } from '../../ui.tsx';
 
 interface FileDiff {
   path: string;
@@ -136,7 +136,7 @@ function WholeFile({ path, rows }: { path: string; rows: Row[] }) {
   }, [path]);
   const added = useMemo(() => new Set(rows.filter((r) => r.kind === 'add').map((r) => r.new)), [rows]);
   const text = got?.path === path ? got.text : null;
-  if (text === null) return <div className="text-xs text-ink-faint">loading…</div>;
+  if (text === null) return <Loading size="card" label="Loading the file…" />;
   if (text === 'missing') return <div className="text-xs text-ink-faint">The file is not in the goal's folder (deleted, or the folder was cleaned up).</div>;
   if (text === 'binary') return <div className="text-xs text-ink-faint">A binary file: nothing to show as text.</div>;
   if (!text) return <div className="text-xs text-ink-faint">The file is empty.</div>;
@@ -194,7 +194,7 @@ export function DiffTab({ goalId, baseBranch, branch, workspace }: { goalId: str
   }, [goalId]);
   const { files, cut } = useMemo(() => (raw ? parse(raw) : { files: [], cut: false }), [raw]);
 
-  if (raw === null) return <div className="text-sm text-ink-faint">Loading diff…</div>;
+  if (raw === null) return <Loading label="Loading the diff…" />;
   if (!files.length)
     return (
       <EmptyState icon={GitCompare} title="No changes yet">

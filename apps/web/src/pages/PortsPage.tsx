@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, CircleHelp, Container, Cpu, ExternalLink, Hammer, Lock, Plug, RefreshCw, Search, SearchX, Square, Waypoints, type LucideIcon } from 'lucide-react';
 import { api, type PortRow, type PortsView } from '../api.ts';
-import { BOARD_ROW, Board, Button, Card, ConfirmDialog, Empty, EmptyState, Input, PageHeader, Tabs, ago, buttonClass, chipClass, cn, code, useAffix } from '../ui.tsx';
+import { BOARD_ROW, Board, Button, Card, ConfirmDialog, EmptyState, Input, Loading, PageHeader, Tabs, ago, buttonClass, chipClass, cn, code, useAffix } from '../ui.tsx';
 import { categoryPlate, categorySquare, notice, statePlate } from './agents/marks.ts';
 import { FIGURE_LABEL } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
@@ -384,7 +384,7 @@ export function PortsPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 min-w-0">
-          {!view && <Empty>{error ? 'Ports unavailable; retrying…' : 'Scanning…'}</Empty>}
+          {!view && <Loading label={error ? 'Ports unavailable; retrying…' : 'Scanning the ports…'} />}
           {view && !matching.length && (all.length ? (
             <EmptyState icon={SearchX} title="Nothing matches">
               Clear the search, pick all, or untick development only.

@@ -1,7 +1,7 @@
 import { KeyRound, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type Person } from '../../api.ts';
-import { Button, Card, ConfirmDialog, CopyButton, EmptyState, Input, Modal, ago } from '../../ui.tsx';
+import { Button, Card, ConfirmDialog, CopyButton, EmptyState, Input, Loading, Modal, ago } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SettingsTitle } from './sections.tsx';
 
@@ -76,7 +76,7 @@ export function AccessCard() {
         <p className="text-xs text-ink-faint">
           Who may use this Foundry from another device. Each person gets a token, shown once: pasted on the login page it signs a browser in; set as <span className="mono">FOUNDRY_TOKEN</span> it signs the CLI in. Once anyone has a token, every request needs one — on this computer too — and a goal, a Brief approval or an Inbox answer is recorded under the person's name. Revoke everyone's to turn Access off again.
         </p>
-        {people ? <PeopleList people={people} busy={busy} onRevoke={setRevoking} /> : <p className="text-sm text-ink-faint">Reading…</p>}
+        {people ? <PeopleList people={people} busy={busy} onRevoke={setRevoking} /> : <Loading size="card" label="Reading who has a token…" />}
         <form
           className="flex flex-wrap items-center gap-2"
           onSubmit={(e) => {

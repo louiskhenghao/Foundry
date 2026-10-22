@@ -2,7 +2,7 @@ import type { ReleaseForecast, SuiteReleaseView } from '@foundry/engine/skills-t
 import { ChevronDown, ChevronRight, ExternalLink, Milestone, RefreshCw } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
 import { Markdown } from '../../components/Markdown.tsx';
-import { BOARD_ROW, Badge, Board, Button, Select, ago, cn } from '../../ui.tsx';
+import { BOARD_ROW, Badge, Board, Button, Loading, Select, ago, cn } from '../../ui.tsx';
 import { notice } from '../agents/marks.ts';
 import { INSTALLED_AS, forecastLine, pinnedBy, releaseState, usedBy, workflowLosses } from './release-notes.ts';
 
@@ -112,7 +112,7 @@ function SuiteRow({ v, forecast, busy, running, onMove }: { v: SuiteReleaseView;
             <span className="text-ink-faint">Not while a goal runs. A later Foundry release that pins a newer one takes over.</span>
           </div>
           {err && <div className="text-bad-ink">{err}</div>}
-          {!shown && !err && <div className="text-ink-faint">Reading {to}…</div>}
+          {!shown && !err && <Loading size="inline" label={`Reading ${to}…`} />}
           {shown && <Forecast f={shown} />}
         </div>
       )}

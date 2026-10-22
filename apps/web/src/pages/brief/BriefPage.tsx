@@ -10,7 +10,7 @@ import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { StageRail, StatePlate, markFill, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { useLive } from '../../store.ts';
-import { Button, Card, CopyButton, Empty, EmptyState, Input, PAGE_TITLE, Textarea, buttonClass, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
+import { Button, Card, CopyButton, EmptyState, Input, Loading, PAGE_TITLE, Textarea, buttonClass, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { ReferenceCard } from './ReferenceCard.tsx';
 import { AreasCard } from './AreasCard.tsx';
@@ -104,7 +104,7 @@ export function BriefPage() {
         </EmptyState>
       </div>
     );
-  if (!detail) return <Empty>Loading…</Empty>;
+  if (!detail) return <Loading size="page" label="Loading the Brief…" />;
   const g = detail.goal;
   /** the Clarifier's Brief without its tasks: read and edit it while the planner works; approval and the AI buttons wait for the plan */
   const skeleton = g.state === 'clarifying' && !!detail.brief?.skeleton;

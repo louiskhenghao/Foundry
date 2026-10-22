@@ -10,7 +10,7 @@ import { AgyQuotaCard } from '../components/AgyQuotaCard.tsx';
 import { AccountsUsageCard } from '../components/AccountsUsageCard.tsx';
 import { CodexQuotaCard } from '../components/CodexQuotaCard.tsx';
 import { useLive } from '../store.ts';
-import { BOARD_ROW, Badge, Button, Card, Empty, EmptyState, PageHeader, cn, code, fmtUsd } from '../ui.tsx';
+import { BOARD_ROW, Badge, Button, Card, Empty, EmptyState, Loading, PageHeader, cn, code, fmtUsd } from '../ui.tsx';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { ProviderBadge } from './agents/rows.tsx';
@@ -109,7 +109,7 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
       setBusy(false);
     }
   };
-  if (!u) return <Empty>{err ?? 'Loading usage…'}</Empty>;
+  if (!u) return err ? <Empty>{err}</Empty> : <Loading size="page" label="Loading usage…" />;
 
   return (
     <div className="space-y-4">

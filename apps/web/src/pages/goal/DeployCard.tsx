@@ -3,7 +3,7 @@ import { ExternalLink, Loader2, Rocket } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type DeployHost, type DeployInfo, type GoalDetail } from '../../api.ts';
-import { Button, Card, ConfirmDialog, ago, choiceClass, cn } from '../../ui.tsx';
+import { Button, Card, ConfirmDialog, Loading, ago, choiceClass, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SmokeView } from './DeploySmoke.tsx';
 
@@ -87,7 +87,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   return (
     <Card id="deploy" className="scroll-mt-16" title={<span className="flex items-center gap-1.5"><Rocket size={13} /> Deploy<HelpLink to="getting-the-result#deploy" className="ml-0.5" /></span>}>
       {!info ? (
-        <div className="text-xs text-ink-faint">{err ?? 'Reading the project…'}</div>
+        err ? <div className="text-xs text-ink-faint">{err}</div> : <Loading size="card" label="Reading the project…" />
       ) : !info.app.ok ? (
         <div className="text-xs text-ink-soft">Not deployed: {info.app.reason}</div>
       ) : (

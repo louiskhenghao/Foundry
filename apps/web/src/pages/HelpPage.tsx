@@ -6,7 +6,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import { headingAnchor } from '@foundry/core/browser';
 import { api } from '../api.ts';
-import { ButtonGroup, Empty, PageHeader, Select, buttonClass, cn, code, navItemClass } from '../ui.tsx';
+import { ButtonGroup, Empty, Loading, PageHeader, Select, buttonClass, cn, code, navItemClass } from '../ui.tsx';
 
 type Lang = 'en' | 'zh';
 const LANG_KEY = 'foundry.guide.lang';
@@ -190,7 +190,7 @@ export function HelpPage() {
             {lang === 'en' ? '中文' : 'EN'}
           </button>
         </div>
-        {err ? <Empty>{err}</Empty> : !page ? <div className="text-ink-faint text-sm">…</div> : (
+        {err ? <Empty>{err}</Empty> : !page ? <Loading size="card" label="Loading the page…" /> : (
           <>
             {title && <PageHeader title={<span id={headingAnchor(title)} className="scroll-mt-16">{title}</span>} />}
             {/* a note for your information: its mark in the signal's blue, on a calm box */}

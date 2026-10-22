@@ -17,7 +17,7 @@ import { DesignPacks } from '../components/DesignPacks.tsx';
 import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { AccessCard } from './settings/AccessCard.tsx';
-import { Button, Card, CopyButton, Empty, Field, Input, PageHeader, Select, cn } from '../ui.tsx';
+import { Button, Card, CopyButton, Empty, Field, Input, Loading, PageHeader, Select, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { AppearanceCard } from './settings/AppearanceCard.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
@@ -186,7 +186,7 @@ export function SettingsPage() {
   }, [view, draft]);
 
   if (err && !view) return <Empty>{err}</Empty>;
-  if (!view || !draft) return <Empty>Loading settings…</Empty>;
+  if (!view || !draft) return <Loading size="page" label="Loading settings…" />;
 
   const set = (path: Leaf, value: unknown) => {
     const next = structuredClone(draft);

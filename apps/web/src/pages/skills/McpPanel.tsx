@@ -2,7 +2,7 @@ import type { McpCatalogStatus, McpHealth, McpKey, McpServerRow } from '@foundry
 import { ExternalLink, HardDrive, RefreshCw, Server, Stethoscope } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider, type McpCustomServer, type McpView } from '../../api.ts';
-import { BOARD_ROW, Board, Badge, Button, Card, ConfirmDialog, Empty, Input, Select, cn, EmptyState } from '../../ui.tsx';
+import { BOARD_ROW, Board, Badge, Button, Card, ConfirmDialog, Empty, Input, Select, cn, EmptyState, Loading } from '../../ui.tsx';
 import { STATE_INK, categoryPlate, notice, statePlate, type Tone } from '../agents/marks.ts';
 import { HelpLink } from '../HelpPage.tsx';
 import { McpConnectDialog } from './McpConnectDialog.tsx';
@@ -72,7 +72,7 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
     startProviderOp({ kind: 'install', label: `${replace ? 'Change the key of' : 'Install'} MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpInstall(what, keys, opId, replace) });
   const remove = (name: string) => startProviderOp({ kind: 'uninstall', label: `Remove MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpRemove(name, opId) });
 
-  if (!view) return <Empty>{err ?? 'Reading MCP servers…'}</Empty>;
+  if (!view) return err ? <Empty>{err}</Empty> : <Loading size="page" label="Reading MCP servers…" />;
   const healthOf = (s: McpServerRow) => health?.find((h) => h.name === s.name) ?? null;
   const missing = view.catalog.filter((c) => !c.installed);
 

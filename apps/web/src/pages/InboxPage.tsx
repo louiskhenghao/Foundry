@@ -10,7 +10,7 @@ import { MarkdownPanel } from '../components/Markdown.tsx';
 import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { suggestEscalation, useEscalationDraft, useEscalationDrafts, useLive } from '../store.ts';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
-import { Button, Empty, EmptyState, Input, NEEDS_YOU_CARD, PageHeader, Textarea, YouStrip, ago, buttonClass, cn, stateLabel } from '../ui.tsx';
+import { Button, EmptyState, Input, Loading, NEEDS_YOU_CARD, PageHeader, Textarea, YouStrip, ago, buttonClass, cn, stateLabel } from '../ui.tsx';
 import { ProviderBadge } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
@@ -86,7 +86,7 @@ export function InboxPage() {
         }
       />
       {!list ? (
-        <Empty>Loading…</Empty>
+        <Loading label="Loading the Inbox…" />
       ) : list.length === 0 ? (
         // all clear: the tick in green, as everything settled
         <EmptyState icon={CheckCircle2} tone="ok" title="Nothing needs you">

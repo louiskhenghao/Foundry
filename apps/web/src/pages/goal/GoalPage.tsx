@@ -12,7 +12,7 @@ import { MilestoneCard } from './MilestoneCard.tsx';
 import { ImportedCard } from './ImportedCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, Empty, EmptyState, PAGE_TITLE, Tabs, buttonClass, cn, stateLabel } from '../../ui.tsx';
+import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, EmptyState, Loading, PAGE_TITLE, Tabs, buttonClass, cn, stateLabel } from '../../ui.tsx';
 import { StatePlate, StageRail, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { MoreMenu, type MoreItem } from '../../components/MoreMenu.tsx';
@@ -138,7 +138,7 @@ export function GoalPage() {
         </EmptyState>
       </div>
     );
-  if (!d) return <Empty>Loading…</Empty>;
+  if (!d) return <Loading size="page" label="Loading the goal…" />;
   const g = d.goal;
   // sessions that ended before Claude Code reported a cost: the meter's total leaves them out and says so
   const terminal = ['done', 'over_delivered', 'failed', 'cancelled'].includes(g.state);

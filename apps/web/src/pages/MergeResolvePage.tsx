@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, type FinishResult, type GoalDetail, type ResolveFile, type ResolveState } from '../api.ts';
 import { OpenMenu } from '../components/OpenMenu.tsx';
 import { markFill } from '../components/progress.tsx';
-import { Badge, Button, Empty, PageHeader, cn, navItemClass } from '../ui.tsx';
+import { Badge, Button, Empty, Loading, PageHeader, cn, navItemClass } from '../ui.tsx';
 import { CodeEditor } from '../components/CodeEditor.tsx';
 import { CodeView } from '../components/FilePreview.tsx';
 
@@ -84,7 +84,7 @@ export function MergeResolvePage() {
       </div>
     );
   }
-  if (!state || !detail) return <Empty>Preparing the conflict in a separate worktree…</Empty>;
+  if (!state || !detail) return <Loading size="page" label="Preparing the conflict in a separate worktree…" />;
   const resolvedCount = state.files.length - state.remaining;
   const repoPath = detail.goal.repoPath;
   const repoName = repoPath.replace(/\/+$/, '').split('/').pop() || repoPath;
