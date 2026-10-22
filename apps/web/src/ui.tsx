@@ -104,7 +104,7 @@ export function Field({ label, help, aside, children, className }: { label: Reac
         {aside && <span className="ml-auto flex items-center gap-1.5">{aside}</span>}
       </span>
       {children}
-      {help && <span className="block text-[11px] text-zinc-500 mt-1 leading-snug">{help}</span>}
+      {help && <span className="block text-[11px] text-ink-faint mt-1 leading-snug">{help}</span>}
     </label>
   );
 }
