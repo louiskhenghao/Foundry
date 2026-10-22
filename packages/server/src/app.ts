@@ -1367,6 +1367,22 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const op = ops.start('update', `Update ${id}${names?.length ? ` (${names.join(', ')})` : ''}`, { id: opId }, (say) => skillsFor(c).updateSource(id, { names, onLine: say }), (run) => ({ ok: !run.error, summary: run.error ?? `${id}: ${run.changed.length ? `${run.changed.length} changed (${run.changed.map((x) => x.name).join(', ')})` : 'no change'}` }));
     return c.json({ started: true, channel: op.channel, op }, 202);
   });
+  // workflow suite releases (ADR-0068): the release each suite sits at, a forecast of the newest, and a Move as an operation
+  const ReleaseTag = z.string().regex(/^v?\d+(\.\d+)*$/);
+  app.get('/api/skills/releases', async (c) => c.json({ releases: await skillsFor(c).releases({ refresh: c.req.query('refresh') === '1' }) }));
+  app.get('/api/skills/releases/:id/forecast', async (c) => {
+    const id = c.req.param('id');
+    if (!skillsFor(c).releaseIds().includes(id)) throw new HttpError(404, { error: `${id} is not a workflow suite at a release` });
+    return c.json(await skillsFor(c).forecastRelease(id, ReleaseTag.parse(c.req.query('to'))));
+  });
+  app.post('/api/skills/releases/:id/move', async (c) => {
+    const id = c.req.param('id');
+    const { to, opId } = z.object({ to: ReleaseTag, opId: OpId }).parse(await c.req.json());
+    // a suite's skills never change under a running goal
+    if (engine.busy().total > 0) throw new HttpError(409, { error: 'Wait for active work to finish before moving a workflow suite to another release.' });
+    const op = ops.start('update', `Move ${id} to ${to}`, { id: opId }, (say) => skillsFor(c).moveRelease(id, to, say), (run) => ({ ok: !run.error, summary: run.error ?? `${id} at ${to}${run.changed.length ? `: ${run.changed.map((x) => x.name).join(', ')}` : ''}` }));
+    return c.json({ started: true, channel: op.channel, op }, 202);
+  });
   app.post('/api/skills/adopt', async (c) => {
     const { names, opId } = z.object({ names: z.array(z.string()).min(1), opId: OpId }).parse(await c.req.json());
     const { op, result } = await ops.run('adopt', `Adopt ${names.join(', ')}`, { id: opId }, (say) => skillsFor(c).adopt(names, say), (runs) => {

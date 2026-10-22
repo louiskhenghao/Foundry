@@ -471,6 +471,12 @@ export class Engine {
       // user skills only load when user settings are in scope
       hintsEnabled: () => provider === 'codex' || !config.settingSources || config.settingSources.includes('user'),
       workflowProfile: () => config.workflowProfile ?? 'mattpocock',
+      // one choice per suite for every coding agent: a Move on any of their pages is saved in Settings
+      suiteReleases: () => config.suiteReleases ?? {},
+      onSuiteRelease: (id, ref) => {
+        const { [id]: _, ...rest } = config.suiteReleases ?? {};
+        this.updateSettings({ workflow: { suiteReleases: ref ? { ...rest, [id]: ref } : rest } });
+      },
       packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
       // a plugin that ships MCP servers (text-to-cad's `cad`) is allowed for sessions as soon as it is installed, under the prefix this coding agent gives it
       onPluginServers: (prefixes) => {

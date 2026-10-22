@@ -71,6 +71,8 @@ export const DEFAULT_MCP_ALLOWED = ['mcp__plugin_media-pipeline_media-pipeline']
 export const WorkflowSettings = z.object({
   /** the workflow suite new goals start with; each goal fixes its own at creation (ADR-0049) */
   profile: WorkflowProfile.default('mattpocock'),
+  /** the release each workflow suite was moved to on the Extensions page; the newer of it and the catalog's pin is used (ADR-0068) */
+  suiteReleases: z.record(z.string().min(1), z.string().regex(/^v?\d+(\.\d+)*$/)).default({}),
   /** TDD discipline new goals start with (Expert mode); Simple mode starts with `preferred` */
   tdd: Discipline.default('required'),
   /** Ponytail (the lazy senior dev: the smallest change that fully solves the task) for new goals; each goal has its own switch */

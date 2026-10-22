@@ -300,6 +300,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('sessions.attemptMaxCostUsd')) config.attemptMaxCostUsd = s.sessions.attemptMaxCostUsd;
   if (on('sessions.attemptTimeoutMin')) config.attemptTimeoutMs = s.sessions.attemptTimeoutMin * 60_000;
   if (on('workflow.profile')) config.workflowProfile = s.workflow.profile;
+  if (on('workflow.suiteReleases')) config.suiteReleases = s.workflow.suiteReleases;
   if (on('workflow.tdd')) config.workflowTdd = s.workflow.tdd;
   if (on('workflow.ponytail')) config.workflowPonytail = s.workflow.ponytail;
   if (on('workflow.audit')) config.workflowAudit = s.workflow.audit;

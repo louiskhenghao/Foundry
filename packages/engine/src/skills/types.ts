@@ -366,6 +366,56 @@ export const SkillsUpdateReport = z.object({
 });
 export type SkillsUpdateReport = z.infer<typeof SkillsUpdateReport>;
 
+// ---------- workflow suite releases (ADR-0068) ----------
+
+/** a skill a newer release no longer ships; `rules` are the workflow rules Foundry gives it, `inCatalog` that Foundry installs it */
+export const ForecastSkill = z.object({
+  name: z.string(),
+  /** still in the repository, under a `deprecated/` folder */
+  deprecated: z.boolean(),
+  inCatalog: z.boolean(),
+  rules: z.array(z.object({ role: SkillRole, mandate: z.enum(['must', 'prefer']) })),
+  /** the changelog lines between the two releases that mention it */
+  notes: z.array(z.string()),
+});
+export type ForecastSkill = z.infer<typeof ForecastSkill>;
+
+/** what moving a suite from one release to another changes in the skills it ships */
+export const ReleaseForecast = z.object({
+  from: z.string(),
+  to: z.string(),
+  removed: z.array(ForecastSkill),
+  added: z.array(z.string()),
+  /** how many skills both releases ship */
+  kept: z.number(),
+  /** the changelog's headings between the two releases, newest first */
+  headlines: z.array(z.string()),
+});
+export type ReleaseForecast = z.infer<typeof ReleaseForecast>;
+
+/** one workflow suite and the release it sits at: the catalog's pin, the person's choice, what is installed, what is newer */
+export const SuiteReleaseView = z.object({
+  id: z.string(),
+  label: z.string(),
+  kind: z.enum(['bundle', 'suite']),
+  repo: z.string(),
+  homepage: z.string().nullable(),
+  catalogRef: z.string(),
+  chosenRef: z.string().nullable(),
+  /** the release in use: the newer of the two */
+  ref: z.string(),
+  /** how this computer has it (null = not installed): Foundry's copies, a Claude plugin, the suite's copy; `ref` null = not pinned */
+  installed: z.object({ as: z.enum(['git', 'plugin', 'suite']), ref: z.string().nullable() }).nullable(),
+  /** releases a Move may go to (at or after the catalog's pin), newest first */
+  choices: z.array(z.string()),
+  latest: z.string().nullable(),
+  /** from the release in use to the latest, when the latest is newer */
+  forecast: ReleaseForecast.nullable(),
+  checkedAt: z.string().nullable(),
+  error: z.string().nullable(),
+});
+export type SuiteReleaseView = z.infer<typeof SuiteReleaseView>;
+
 /** One executed updater run (also the payload of the `skills.update_run` event). */
 export const SkillUpdateRun = z.object({
   sourceId: z.string(),

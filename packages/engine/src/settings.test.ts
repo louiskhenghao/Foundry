@@ -97,6 +97,21 @@ describe('engine + settings', () => {
     expect(engine.settingsView().restartNeeded).toEqual([]);
   });
 
+  test("a suite's release chosen by a Move is saved in Settings and reaches every coding agent's catalog (ADR-0068)", () => {
+    const dataDir = mkdtempSync(join(tmpdir(), 'foundry-settings-releases-'));
+    const engine = new Engine(defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'ch'), log: () => {} }), new FakeRunner(() => {}));
+    const pin = engine.skills.baseCatalog().suites.find((s) => s.id === 'pstack')!.ref;
+    const later = `v${pin.replace(/^v/, '').split('.').map((n, i, a) => (i === a.length - 1 ? Number(n) + 1 : n)).join('.')}`;
+    (engine.skills as any).opts.onSuiteRelease('pstack', later);
+    expect(engine.config.suiteReleases).toEqual({ pstack: later });
+    expect(JSON.parse(readFileSync(join(dataDir, 'settings.json'), 'utf8')).workflow.suiteReleases).toEqual({ pstack: later });
+    for (const p of ['claude', 'codex'] as const) expect(engine.skillsForProvider(p).catalog().suites.find((s) => s.id === 'pstack')!.ref).toBe(later);
+    // back at the pin: the choice is cleared
+    (engine.skills as any).opts.onSuiteRelease('pstack', null);
+    expect(engine.config.suiteReleases).toEqual({});
+    expect(engine.skills.catalog().suites.find((s) => s.id === 'pstack')!.ref).toBe(pin);
+  });
+
   /** the keys a setting adds: the constant part of every session's environment (cadgen quiet, desktop hand-offs closed) is left out */
   const keys = (env: Record<string, string>) => Object.fromEntries(Object.entries(env).filter(([k]) => !k.startsWith('CADGEN_') && !k.startsWith('FOUNDRY_')));
 

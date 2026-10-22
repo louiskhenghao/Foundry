@@ -56,6 +56,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'sessions.attemptTimeoutMin': { section: 'Models & limits', help: 'Wall-clock cap for one attempt session.' },
   // Skills
   'workflow.profile': { section: 'New goal defaults', help: "Workflow suite new goals start with — whose skills the roles follow: mattpocock (Matt Pocock's suite), pstack (with Matt Pocock's skills where it has none) or plain (the installed-skills hint only). Each goal fixes its own on the New goal form." },
+  'workflow.suiteReleases': { section: 'Skills', help: "The release each workflow suite was moved to (suite → tag, e.g. `{ \"pstack\": \"v0.9.101\" }`). Set with **Move** under Workflow suites on the Extensions page, after its forecast of the skills that release removes, deprecates and adds. The newer of this and the release Foundry's catalog pins is used, so a Foundry update never moves a suite back; empty = the catalog's pins." },
   'workflow.designPack': { section: 'Skills', help: 'Design skill set for UI tasks.' },
   'workflow.imagePack': { section: 'Skills', help: 'Image-generation skill set for image tasks.' },
   'workflow.videoPack': { section: 'Skills', help: 'Video skill set for video tasks.' },

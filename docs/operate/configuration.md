@@ -62,6 +62,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
+| `workflow.suiteReleases` | — | — | The release each workflow suite was moved to (suite → tag, e.g. `{ "pstack": "v0.9.101" }`). Set with **Move** under Workflow suites on the Extensions page, after its forecast of the skills that release removes, deprecates and adds. The newer of this and the release Foundry's catalog pins is used, so a Foundry update never moves a suite back; empty = the catalog's pins. |
 | `workflow.designPack` | `ui-ux-pro-max` | `FOUNDRY_DESIGN_PACK` | Design skill set for UI tasks. |
 | `workflow.imagePack` | `gpt-image-2` | `FOUNDRY_IMAGE_PACK` | Image-generation skill set for image tasks. |
 | `workflow.videoPack` | `web-video-presentation` | `FOUNDRY_VIDEO_PACK` | Video skill set for video tasks. |
