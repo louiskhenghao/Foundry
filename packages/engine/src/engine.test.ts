@@ -238,6 +238,27 @@ describe('Engine loop (fake runner)', () => {
     expect(kinds).toEqual(['rate_limit.paused', 'rate_limit.resumed']);
   });
 
+  test('a session the usage limit cuts is resumed after the pause; it costs no attempt and is never judged half-way', async () => {
+    const runner = new FakeRunner((spec, n) => {
+      runner.rateLimit = n === 1 ? { status: 'rejected', resetsAt: Math.floor(Date.now() / 1000) + 1, rateLimitType: 'five_hour', isUsingOverage: false, raw: {} } : null;
+      // the first session got as far as the check would need before the limit stopped it
+      writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
+    });
+    const engine = track(new Engine(cfg({ alwaysReviewTasks: true }), runner));
+    const goal = await engine.createGoal({ prompt: 'limited once', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    const attempts = listAttempts(engine.store.db, listTasks(engine.store.db, goal.id)[0]!.id);
+    expect(attempts).toHaveLength(1);
+    expect(attempts[0]!.state).toBe('passed');
+    const work = runner.calls.filter((c) => c.label?.startsWith('attempt'));
+    expect(work).toHaveLength(2);
+    expect(work[1]!.resumeSessionId).toBe('fake-1');
+    expect(work[1]!.prompt).toContain('usage limit');
+    // the cut session was not reviewed: only the resumed one's work was
+    expect(runner.calls.findIndex((c) => c.label?.startsWith('review'))).toBeGreaterThan(runner.calls.indexOf(work[1]!));
+  });
+
   test('event log replay reproduces the read models', async () => {
     const engine = track(new Engine(cfg(), new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok'))));
     const goal = await engine.createGoal({ prompt: 'replay', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });

@@ -600,7 +600,8 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'attempt.continued': {
       const a = getAttempt(db, e.payload.attemptId);
-      if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + 1, endedAt: null, pid: null });
+      // a usage limit's cut does not count towards the continuation cap
+      if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + (e.payload.reason === 'usage_limit' ? 0 : 1), endedAt: null, pid: null });
       break;
     }
     case 'check.finished':

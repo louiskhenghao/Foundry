@@ -3,7 +3,7 @@ import { dirname, join } from 'node:path';
 import { reportsDollars } from '@foundry/core';
 import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@foundry/core';
 import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
-import type { RunResult } from '@foundry/runner';
+import { LIMIT_TEXT, type RunResult } from '@foundry/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { buildAttemptPrompt, styleApplies, summarizeReport } from './attempt-prompt.ts';
 import type { CatchUp } from './catchup.ts';
@@ -32,7 +32,7 @@ export interface AttemptOutcome {
 }
 
 /** Why an attempt's session is resumed instead of a new attempt being started. */
-export type ContinueReason = 'orphaned' | 'max_turns' | 'max_budget' | 'timeout' | 'checks_failed';
+export type ContinueReason = 'orphaned' | 'max_turns' | 'max_budget' | 'timeout' | 'checks_failed' | 'usage_limit';
 
 export interface Continuation {
   attempt: Attempt;
@@ -43,6 +43,8 @@ export interface Continuation {
 /** The message that resumes a session. It never restates the task: the session still has all of that. */
 export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string } = {}): string {
   switch (reason) {
+    case 'usage_limit':
+      return 'Your session was stopped by a usage limit before you finished. The workspace is exactly as you left it (uncommitted edits were snapshotted). Continue from where you stopped; do not redo finished steps. When done, reply with the usual short summary.';
     case 'orphaned':
       return 'You were interrupted by an engine restart. The workspace is exactly as you left it (uncommitted edits were snapshotted). Continue from where you stopped; do not redo finished steps. When done, reply with the usual short summary.';
     case 'max_turns':
@@ -60,8 +62,19 @@ Fix them; everything else you did is kept. Do not start over. When done, reply w
   }
 }
 
+/**
+ * A usage limit stopped the session: its rate-limit report was rejected (an exhausted extra usage counts only for a
+ * session already on it), or it failed with a limit's error text.
+ */
+export function cutByLimit(result: Partial<Pick<RunResult, 'rateLimit' | 'isError' | 'errorMessage'>>): boolean {
+  const rl = result.rateLimit;
+  if (rl?.status === 'rejected' && (rl.rateLimitType !== 'overage' || rl.isUsingOverage)) return true;
+  return !!result.isError && LIMIT_TEXT.test(result.errorMessage ?? '');
+}
+
 /** A session ended because it was cut, not because it decided to stop. */
-export function interruptionOf(result: Pick<RunResult, 'subtype'>): ContinueReason | null {
+export function interruptionOf(result: Pick<RunResult, 'subtype'> & Partial<Pick<RunResult, 'rateLimit' | 'isError' | 'errorMessage'>>): ContinueReason | null {
+  if (cutByLimit(result)) return 'usage_limit';
   if (result.subtype === 'error_max_turns') return 'max_turns';
   if (result.subtype === 'error_max_budget_usd') return 'max_budget';
   if (result.subtype === 'killed_timeout' || result.subtype === 'killed_idle') return 'timeout';
@@ -71,11 +84,14 @@ export function interruptionOf(result: Pick<RunResult, 'subtype'>): ContinueReas
 /**
  * After a failed segment: resume the same session (cheap — it keeps its context) or start a fresh attempt?
  * Resume when the session was cut, or when it made progress (committed something and is not getting worse);
- * never beyond `maxContinuations`, never after a rollback.
+ * never beyond `maxContinuations`, never after a rollback. A usage limit's cut is no fault of the session's: it always
+ * resumes, and does not count towards the cap.
  */
-export function decideNext(i: { result: Pick<RunResult, 'subtype'>; committed: boolean; failedCount: number; prevFailedCount: number | null; continuations: number; maxContinuations: number; rolledBack: boolean; sessionId: string | null }): { kind: 'continue'; reason: ContinueReason } | { kind: 'new-attempt' } {
-  if (!i.sessionId || i.continuations >= i.maxContinuations || i.rolledBack) return { kind: 'new-attempt' };
+export function decideNext(i: { result: Parameters<typeof interruptionOf>[0]; committed: boolean; failedCount: number; prevFailedCount: number | null; continuations: number; maxContinuations: number; rolledBack: boolean; sessionId: string | null }): { kind: 'continue'; reason: ContinueReason } | { kind: 'new-attempt' } {
+  if (!i.sessionId || i.rolledBack) return { kind: 'new-attempt' };
   const cut = interruptionOf(i.result);
+  if (cut === 'usage_limit') return { kind: 'continue', reason: cut };
+  if (i.continuations >= i.maxContinuations) return { kind: 'new-attempt' };
   if (cut) return { kind: 'continue', reason: cut };
   if (i.committed && (i.prevFailedCount == null || i.failedCount <= i.prevFailedCount)) return { kind: 'continue', reason: 'checks_failed' };
   return { kind: 'new-attempt' };
@@ -216,9 +232,11 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     engine.unregisterInFlight(task.id);
   }
   const result = await handle.result;
+  // a session a usage limit stopped mid-work resumes (scheduler): it is neither reviewed nor judged done half-way
+  const limited = cutByLimit(result);
   store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: result.costUsd, source: `attempt:${attempt.id}` } });
   engine.recordSessionUsage(result, { goalId: goal.id, kind: 'attempt', model: attempt.model });
-  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'worker', segment: attempt.continuations, sessionId: initSession ?? attempt.sessionId, model: initModel ?? attempt.model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString(), costAvailable: result.costStatus !== 'unavailable' } } });
+  store.append({ type: 'attempt.session_finished', goalId: goal.id, payload: { attemptId: attempt.id, session: { role: 'worker', segment: (getAttempt(store.db, attempt.id) ?? attempt).sessions.filter((s) => s.role === 'worker').length, sessionId: initSession ?? attempt.sessionId, model: initModel ?? attempt.model, costUsd: result.costUsd, numTurns: result.numTurns, durationMs: result.durationMs, subtype: result.subtype, startedAt: segmentStart, endedAt: new Date().toISOString(), costAvailable: result.costStatus !== 'unavailable' } } });
   if (result.costStatus === 'unavailable' && reportsDollars(goal.provider)) {
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `attempt ${attempt.id}: the session ended (${result.subtype}) before Claude Code reported its cost — ${result.numTurns} turn${result.numTurns === 1 ? '' : 's'} and its tokens are counted, the dollars are unknown and missing from the goal's total` } });
   }
@@ -259,11 +277,11 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   let reviewerVerdict: ObservationReport['reviewerVerdict'] = null;
   const reviewerChecks = checks.filter((c) => c.spec.type === 'reviewer');
   const cumulativeChanged = await numstat(cwd, taskBaseRef);
-  if (objectivePassed && cumulativeChanged.length === 0) {
+  if (!limited && objectivePassed && cumulativeChanged.length === 0) {
     // Nothing changed across all attempts yet every objective check passes: the task is already
     // satisfied by the tree as-is. The reviewer has nothing to judge; checks are the truth.
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `task ${task.id}: no changes needed — objective checks pass on the current tree` } });
-  } else if (objectivePassed && (reviewerChecks.length || (engine.config.alwaysReviewTasks && goal.workflow.pace !== 'fast'))) {
+  } else if (!limited && objectivePassed && (reviewerChecks.length || (engine.config.alwaysReviewTasks && goal.workflow.pace !== 'fast'))) {
     reviewerVerdict = await reviewTaskDiff(engine, goal, task, attempt, cwd, taskBaseRef, reviewerChecks, workflow).catch((err) => {
       store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `task reviewer failed: ${String(err)}` } });
       return null;
@@ -291,8 +309,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
 
   const changedFiles = cumulativeChanged;
   const mustResults = results.filter((r) => checks.find((c) => c.id === r.checkId)?.tier === 'must');
-  const allMustPassed = mustResults.every((r) => r.status === 'pass' || r.status === 'skipped') && (reviewerVerdict ? reviewerVerdict.pass : true) && objectivePassed;
-  const failedCount = results.filter((r) => r.status !== 'pass' && r.status !== 'skipped').length + (result.isError && !allMustPassed ? 1 : 0);
+  const allMustPassed = !limited && mustResults.every((r) => r.status === 'pass' || r.status === 'skipped') && (reviewerVerdict ? reviewerVerdict.pass : true) && objectivePassed;
+  const failedCount = results.filter((r) => r.status !== 'pass' && r.status !== 'skipped').length + ((result.isError || limited) && !allMustPassed ? 1 : 0);
   const report: ObservationReport = {
     attemptId: attempt.id,
     taskId: task.id,
@@ -304,8 +322,9 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     allMustPassed,
     failedCount,
   };
-  const runNote =
-    result.subtype === 'error_max_budget_usd' || result.subtype === 'error_max_turns'
+  const runNote = limited
+    ? `The session was stopped by a usage limit before it finished${result.errorMessage ? ` (${result.errorMessage.slice(0, 200)})` : ''}; its edits so far are committed and it resumes where it stopped.\n`
+    : result.subtype === 'error_max_budget_usd' || result.subtype === 'error_max_turns'
       ? `The previous session hit its per-session ${result.subtype === 'error_max_turns' ? 'turn' : 'cost'} cap before finishing; its edits so far are committed in this workspace — continue from them, do not start over. Work in bigger steps: fewer, more complete edits; run the narrow test once, the full suite only at the end.\n`
       : result.isError || result.subtype !== 'success'
         ? `Session ended with ${result.subtype}${result.errorMessage ? `: ${result.errorMessage.slice(0, 300)}` : ''}.\n`
