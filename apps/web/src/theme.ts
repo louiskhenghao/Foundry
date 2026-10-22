@@ -1,11 +1,12 @@
-import { BUILTIN_THEMES, DEFAULT_THEME_ID, entryCss, type ThemeEntry, type ThemeProblem } from '@foundry/core/browser';
+import { BUILTIN_THEMES, DEFAULT_LAYOUT, DEFAULT_THEME_ID, LAYOUT_KEYS, entryCss, layoutOf, type Layout, type ThemeEntry, type ThemeProblem } from '@foundry/core/browser';
 import { create } from 'zustand';
 import { api } from './api.ts';
 
 /**
- * The look of this browser's Foundry (ADR-0066): which Theme, and light or dark. Both are kept in this browser only, so
- * each person and each device picks their own; the themes themselves come from the server (built-in ones and the files
- * in its data folder). The chosen theme's stylesheet is kept too, so index.html puts it in place before the first paint.
+ * The look of this browser's Foundry (ADR-0066, ADR-0067): which Theme, and light or dark. Both are kept in this browser
+ * only, so each person and each device picks their own; the themes themselves come from the server (built-in ones and the
+ * files in its data folder). The chosen theme's stylesheet and layout are kept too, so index.html puts them in place
+ * before the first paint.
  */
 export type Mode = 'light' | 'dark' | 'system';
 
@@ -13,6 +14,7 @@ export type Mode = 'light' | 'dark' | 'system';
 const MODE_KEY = 'foundry.theme';
 const ID_KEY = 'foundry.themeId';
 const CSS_KEY = 'foundry.themeCss';
+const LAYOUT_KEY = 'foundry.themeLayout';
 const STYLE_ID = 'foundry-theme';
 
 const read = (key: string) => {
@@ -36,6 +38,16 @@ const storedMode = (): Mode => {
 };
 const isLight = (mode: Mode) => (mode === 'system' ? !!systemQuery()?.matches : mode === 'light');
 
+/** the layout last painted (a custom theme's is known only once the server answers), else the chosen built-in's */
+const storedLayout = (): Layout => {
+  try {
+    const kept = JSON.parse(read(LAYOUT_KEY) ?? 'null');
+    if (kept && typeof kept === 'object') return { ...DEFAULT_LAYOUT, ...kept };
+  } catch {}
+  const builtIn = BUILTIN_THEMES.find((t) => t.id === (read(ID_KEY) ?? DEFAULT_THEME_ID));
+  return builtIn ? layoutOf(builtIn.theme) : DEFAULT_LAYOUT;
+};
+
 interface ThemeState {
   /** the built-in themes, then the server's theme files once they are read */
   themes: ThemeEntry[];
@@ -46,9 +58,14 @@ interface ThemeState {
   mode: Mode;
   /** what the page shows now: light, or dark */
   light: boolean;
+  /** how the chosen theme lays the pages out */
+  layout: Layout;
 }
 
-export const useTheme = create<ThemeState>(() => ({ themes: BUILTIN_THEMES, problems: [], dir: null, id: read(ID_KEY) ?? DEFAULT_THEME_ID, mode: storedMode(), light: isLight(storedMode()) }));
+export const useTheme = create<ThemeState>(() => ({ themes: BUILTIN_THEMES, problems: [], dir: null, id: read(ID_KEY) ?? DEFAULT_THEME_ID, mode: storedMode(), light: isLight(storedMode()), layout: storedLayout() }));
+
+/** the chosen theme's layout, for a component whose structure follows it (the navigation, the stages) */
+export const useLayout = () => useTheme((s) => s.layout);
 
 function paint(entry: ThemeEntry) {
   const css = entryCss(entry);
@@ -60,6 +77,10 @@ function paint(entry: ThemeEntry) {
   }
   if (style.textContent !== css) style.textContent = css;
   write(CSS_KEY, css || null);
+  const layout = layoutOf(entry.theme);
+  for (const k of LAYOUT_KEYS) document.documentElement.dataset[k] = layout[k];
+  write(LAYOUT_KEY, JSON.stringify(layout));
+  if (LAYOUT_KEYS.some((k) => useTheme.getState().layout[k] !== layout[k])) useTheme.setState({ layout });
 }
 
 export function selectTheme(id: string) {

@@ -69,7 +69,35 @@
   --color-agent-claude: #fdba74;
   --color-agent-codex: #93c5fd;
   --color-agent-agy: #5eead4;
+  /* eight category colours (ADR-0067) tell things of a kind apart — the Brief's sections, Areas, extension sources —
+     and never say how something stands; Classic's are the hues those had before themes */
+  --color-code-1: var(--color-sky-400);
+  --color-code-1-ink: var(--color-sky-300);
+  --color-on-code-1: #09090b;
+  --color-code-2: var(--color-emerald-400);
+  --color-code-2-ink: var(--color-emerald-300);
+  --color-on-code-2: #09090b;
+  --color-code-3: var(--color-violet-400);
+  --color-code-3-ink: var(--color-violet-300);
+  --color-on-code-3: #09090b;
+  --color-code-4: var(--color-amber-400);
+  --color-code-4-ink: var(--color-amber-300);
+  --color-on-code-4: #09090b;
+  --color-code-5: var(--color-rose-400);
+  --color-code-5-ink: var(--color-rose-300);
+  --color-on-code-5: #09090b;
+  --color-code-6: var(--color-teal-400);
+  --color-code-6-ink: var(--color-teal-300);
+  --color-on-code-6: #09090b;
+  --color-code-7: var(--color-fuchsia-400);
+  --color-code-7-ink: var(--color-fuchsia-300);
+  --color-on-code-7: #09090b;
+  --color-code-8: var(--color-lime-400);
+  --color-code-8-ink: var(--color-lime-300);
+  --color-on-code-8: #09090b;
   --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* page titles and large headings; a theme's `fonts.display`, else the text font */
+  --font-display: var(--font-sans);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
@@ -78,6 +106,46 @@
   /* how far a theme leans the stage plates, and how much grain it lays on the page */
   --slant: 0deg;
   --texture-opacity: 0;
+  /* card titles and small labels (the `caps` utility): in capitals, letter-spaced */
+  --label-case: uppercase;
+  --label-variant: normal;
+  --label-tracking: 0.1em;
+  /* what lifts a card or a board off the page */
+  --surface-shadow: 0 1px 2px rgb(0 0 0 / 0.06);
+}
+
+/*
+ * A theme's layout (ADR-0067) sits on <html> as data-nav, data-header, data-stages, data-labels, data-signs and
+ * data-surface: put there before the first paint by index.html and on every change of theme by theme.ts. Labels and
+ * surfaces follow here; a class follows the rest with a variant (header-compact:text-2xl, signs-card:bg-panel…).
+ */
+:root[data-labels='small-caps'] {
+  --label-case: none;
+  --label-variant: all-small-caps;
+  --label-tracking: 0.05em;
+}
+:root[data-labels='plain'] {
+  --label-case: none;
+  --label-variant: normal;
+  --label-tracking: 0;
+}
+:root[data-surface='flat'] {
+  --surface-shadow: 0 0 #0000;
+}
+@custom-variant header-compact (&:is([data-header='compact'] *));
+@custom-variant signs-card (&:is([data-signs='card'] *));
+@custom-variant nav-side (&:is([data-nav='side'] *));
+/* a card title or a small label, in the case the theme gives its labels */
+@utility caps {
+  text-transform: var(--label-case);
+  font-variant-caps: var(--label-variant);
+  letter-spacing: var(--label-tracking);
+}
+/* words inside a label that keep their own case (a count's note) */
+@utility no-caps {
+  text-transform: none;
+  font-variant-caps: normal;
+  letter-spacing: normal;
 }
 
 /* Keep native dropdown behavior, with a consistent inset for the indicator and its text. */
@@ -143,6 +211,10 @@ select:not([multiple]):is(:not([size]), [size='1']) {
   --color-teal-200: var(--color-teal-800);
   --color-teal-300: var(--color-teal-700);
   --color-teal-400: var(--color-teal-600);
+  /* the eighth category colour */
+  --color-lime-200: var(--color-lime-800);
+  --color-lime-300: var(--color-lime-700);
+  --color-lime-400: var(--color-lime-600);
   --color-sunken: #f4f4f5;
   /* Classic's top bar is white in light mode */
   --color-band: #ffffff;

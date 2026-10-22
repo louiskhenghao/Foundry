@@ -181,10 +181,10 @@ export function ButtonGroup<T extends string>({ value, onChange, options, label 
 /** `onClose` (a card shown as a panel) puts × in the header's top-right corner, where it stays however the actions wrap. */
 export function Card({ children, className, bodyClassName, title, actions, id, onClose }: { children: ReactNode; className?: string; bodyClassName?: string; title?: ReactNode; actions?: ReactNode; id?: string; onClose?: () => void }) {
   return (
-    <section id={id} className={cn('rounded-lg border border-line bg-panel shadow-[0_1px_2px_rgb(0_0_0/0.05)]', className)}>
+    <section id={id} className={cn('rounded-lg border border-line bg-panel shadow-[var(--surface-shadow)]', className)}>
       {(title || actions || onClose) && (
         <header className={cn('relative flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-line', onClose && 'pr-12')}>
-          <h3 className="text-[12.5px] font-extrabold uppercase tracking-[0.1em] text-ink min-w-0 grow shrink basis-56">{title}</h3>
+          <h3 className="text-[12.5px] font-extrabold caps text-ink min-w-0 grow shrink basis-56">{title}</h3>
           {actions && <div className="flex flex-wrap items-center gap-2 shrink-0 max-w-full ml-auto">{actions}</div>}
           {onClose && (
             <button type="button" className="absolute top-2 right-2 rounded-md p-1.5 text-ink-soft hover:text-ink hover:bg-sunken" onClick={onClose} aria-label="close">
@@ -281,28 +281,32 @@ export function Page({ children, className, width = 'lg' }: { children: ReactNod
 }
 
 /**
- * A page's head, the same on every page: its name in large type (with an optional "?" to the guide), one line on what it
- * is or where things stand, and its actions on the right.
+ * A page's head, the same on every page: its name in the theme's display font (with an optional "?" to the guide), one
+ * line on what it is or where things stand, and its actions on the right. Poster-size type, or a modest line where the
+ * theme's header is compact.
  */
 export function PageHeader({ title, help, summary, actions, className }: { title: ReactNode; help?: ReactNode; summary?: ReactNode; actions?: ReactNode; className?: string }) {
   return (
-    <header className={cn('flex flex-wrap items-end justify-between gap-x-10 gap-y-4 mb-6 md:mb-8', className)}>
+    <header className={cn('flex flex-wrap items-end justify-between gap-x-10 gap-y-4 mb-6 md:mb-8 header-compact:mb-4 header-compact:items-center', className)}>
       <div className="min-w-0">
-        <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[2rem] sm:text-[2.5rem] md:text-5xl font-extrabold leading-none tracking-[-0.035em] text-ink break-words">
+        <h1 className="flex flex-wrap items-center gap-x-3 gap-y-1 font-display text-[2rem] sm:text-[2.5rem] md:text-5xl font-extrabold leading-none tracking-[-0.035em] text-ink break-words header-compact:text-xl header-compact:font-bold header-compact:tracking-tight">
           {title}
-          {help && <span className="text-base font-normal tracking-normal [&_svg]:h-[18px] [&_svg]:w-[18px]">{help}</span>}
+          {help && <span className="font-sans text-base font-normal tracking-normal [&_svg]:h-[18px] [&_svg]:w-[18px]">{help}</span>}
         </h1>
-        {summary && <div className="mt-3 max-w-[80ch] text-[15px] leading-relaxed text-ink-faint">{summary}</div>}
+        {summary && <div className="mt-3 max-w-[80ch] text-[15px] leading-relaxed text-ink-faint header-compact:mt-1 header-compact:text-sm">{summary}</div>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </header>
   );
 }
 
+/** a page's own title where it is not a PageHeader (a goal, a Brief, a session): the theme's display font, poster or compact */
+export const PAGE_TITLE = 'font-display text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-extrabold leading-[1.05] tracking-[-0.035em] break-words header-compact:text-xl header-compact:sm:text-2xl header-compact:font-bold header-compact:tracking-tight';
+
 /** a board's row: hovering it tints it and raises a bar of ink at its left edge */
 export const BOARD_ROW = 'group relative transition-colors hover:bg-sunken before:absolute before:inset-y-0 before:left-0 before:w-1 before:origin-top before:scale-y-0 before:bg-ink before:transition-transform hover:before:scale-y-100';
 /** a board's row of column labels, when it has columns */
-export const BOARD_HEAD = 'border-b border-line bg-sunken px-5 py-2.5 text-[11px] font-extrabold uppercase tracking-[0.1em] text-ink-faint';
+export const BOARD_HEAD = 'border-b border-line bg-sunken px-5 py-2.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 
 /**
  * A board of rows (goals, sessions, ports…), as on the Goals page: a heading in capitals with its count and a note, then
@@ -311,13 +315,13 @@ export const BOARD_HEAD = 'border-b border-line bg-sunken px-5 py-2.5 text-[11px
 export function Board({ id, icon, title, count, note, head, children, className }: { id?: string; icon?: ReactNode; title: ReactNode; count?: ReactNode; note?: ReactNode; head?: ReactNode; children: ReactNode; className?: string }) {
   return (
     <section aria-labelledby={id} className={cn('mt-10 first:mt-0', className)}>
-      <h2 id={id} className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] font-extrabold uppercase tracking-[0.12em] text-ink">
+      <h2 id={id} className="mb-3 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] font-extrabold caps text-ink">
         {icon}
         {title}
         {count != null && <b className="mono text-[13px] tracking-normal">{count}</b>}
-        {note && <span className="w-full sm:w-auto sm:ml-auto text-[13px] font-semibold normal-case tracking-normal text-ink-faint">{note}</span>}
+        {note && <span className="w-full sm:w-auto sm:ml-auto text-[13px] font-semibold no-caps text-ink-faint">{note}</span>}
       </h2>
-      <div className="overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(0_0_0/0.06)]">
+      <div className="overflow-hidden rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)]">
         {head}
         <ul className="divide-y divide-line">{children}</ul>
       </div>
@@ -333,6 +337,25 @@ export const choiceClass = (selected: boolean) => (selected ? 'border-accent bg-
 
 /** an item of a page's side list of sections (Settings, the guide, the Brief): the one you are at marked by a bar */
 export const navItemClass = (active: boolean) => cn('block w-full rounded-md px-2.5 py-1.5 text-left text-[13px] transition-colors', active ? 'bg-panel font-bold text-ink shadow-[inset_3px_0_0_var(--color-accent),0_0_0_1px_var(--color-line)]' : 'text-ink-soft hover:bg-panel/70 hover:text-ink');
+
+/**
+ * The theme's eight category colours (ADR-0067), for what tells things of a kind apart — the Brief's sections, Areas,
+ * extension sources, groups of credits — and never for how something stands (that is the signals: you, work, ok, bad,
+ * extra). `ink`: coloured text or an icon on a panel; `dot`: a small fill; `chip`: a tinted tag; `bar`: an edge's colour
+ * (give it a width); `fill`: a solid plate with its text; `css`: the colour itself, for an SVG or a style.
+ */
+export const CODES = [
+  { ink: 'text-code-1-ink', dot: 'bg-code-1', chip: 'bg-code-1/12 text-code-1-ink ring-1 ring-inset ring-code-1/45', bar: 'border-code-1', fill: 'bg-code-1 text-on-code-1', css: 'var(--color-code-1)' },
+  { ink: 'text-code-2-ink', dot: 'bg-code-2', chip: 'bg-code-2/12 text-code-2-ink ring-1 ring-inset ring-code-2/45', bar: 'border-code-2', fill: 'bg-code-2 text-on-code-2', css: 'var(--color-code-2)' },
+  { ink: 'text-code-3-ink', dot: 'bg-code-3', chip: 'bg-code-3/12 text-code-3-ink ring-1 ring-inset ring-code-3/45', bar: 'border-code-3', fill: 'bg-code-3 text-on-code-3', css: 'var(--color-code-3)' },
+  { ink: 'text-code-4-ink', dot: 'bg-code-4', chip: 'bg-code-4/12 text-code-4-ink ring-1 ring-inset ring-code-4/45', bar: 'border-code-4', fill: 'bg-code-4 text-on-code-4', css: 'var(--color-code-4)' },
+  { ink: 'text-code-5-ink', dot: 'bg-code-5', chip: 'bg-code-5/12 text-code-5-ink ring-1 ring-inset ring-code-5/45', bar: 'border-code-5', fill: 'bg-code-5 text-on-code-5', css: 'var(--color-code-5)' },
+  { ink: 'text-code-6-ink', dot: 'bg-code-6', chip: 'bg-code-6/12 text-code-6-ink ring-1 ring-inset ring-code-6/45', bar: 'border-code-6', fill: 'bg-code-6 text-on-code-6', css: 'var(--color-code-6)' },
+  { ink: 'text-code-7-ink', dot: 'bg-code-7', chip: 'bg-code-7/12 text-code-7-ink ring-1 ring-inset ring-code-7/45', bar: 'border-code-7', fill: 'bg-code-7 text-on-code-7', css: 'var(--color-code-7)' },
+  { ink: 'text-code-8-ink', dot: 'bg-code-8', chip: 'bg-code-8/12 text-code-8-ink ring-1 ring-inset ring-code-8/45', bar: 'border-code-8', fill: 'bg-code-8 text-on-code-8', css: 'var(--color-code-8)' },
+] as const;
+/** the category colour at place `i`, counting round the eight */
+export const code = (i: number) => CODES[((i % CODES.length) + CODES.length) % CODES.length]!;
 
 export function CopyButton({ text }: { text: string }) {
   return (
@@ -351,7 +374,7 @@ const STATE_LABELS: Record<string, string> = {
 /** a state in words, as a badge or a caption shows it */
 export const stateLabel = (state: string) => STATE_LABELS[state] ?? state.replace(/_/g, ' ');
 export function Badge({ state, children, className }: { state: string; children?: ReactNode; className?: string }) {
-  return <span className={cn('inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)} title={state.replace(/_/g, ' ')}>{children ?? stateLabel(state)}</span>;
+  return <span className={cn('inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)} title={state.replace(/_/g, ' ')}>{children ?? stateLabel(state)}</span>;
 }
 
 /** Progress bar against a limit; `max` null = no limit (renders a neutral bar). */
@@ -480,13 +503,14 @@ export function waited(iso: string, now = Date.now()): string {
 }
 
 /** the frame of what waits for you: a panel whose head is a YouStrip */
-export const NEEDS_YOU_CARD = 'overflow-hidden rounded-lg bg-panel shadow-[0_0_0_1px_var(--color-line),0_1px_2px_rgb(0_0_0/0.06)]';
+export const NEEDS_YOU_CARD = 'overflow-hidden rounded-lg bg-panel shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)]';
 
 /**
  * The head of what waits for you (an Inbox item, a milestone to look at, a round of questions, a Brief to approve), a
  * strip in the yellow of the Goals page's signs: the kind's icon, the action in its largest words, how long it has
  * waited and where it leads; the details and the controls go on the panel under it. `quiet` once it no longer waits
- * (an answered item): the same head, without the yellow.
+ * (an answered item): the same head, without the yellow. A theme whose signs are cards keeps the panel and draws the
+ * yellow as its left edge, the icon's tile and the waiting chip (signs-card:).
  */
 export function YouStrip({ icon: Icon, title, tags, since, aside, children, quiet = false }: {
   icon: LucideIcon;
@@ -503,22 +527,22 @@ export function YouStrip({ icon: Icon, title, tags, since, aside, children, quie
 }) {
   const waiting = quiet ? null : since;
   return (
-    <header className={cn('grid grid-cols-[2.25rem_minmax(0,1fr)] sm:grid-cols-[2.75rem_minmax(0,1fr)_auto] items-start gap-x-3 sm:gap-x-4 gap-y-2.5 px-4 py-3.5 sm:px-5 sm:py-4', quiet ? 'border-b border-line' : 'bg-you text-on-you')}>
-      <span className={cn('grid h-9 w-9 sm:h-11 sm:w-11 place-items-center rounded-lg', quiet ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-soft' : 'bg-on-you text-you')} aria-hidden="true">
+    <header className={cn('grid grid-cols-[2.25rem_minmax(0,1fr)] sm:grid-cols-[2.75rem_minmax(0,1fr)_auto] items-start gap-x-3 sm:gap-x-4 gap-y-2.5 px-4 py-3.5 sm:px-5 sm:py-4', quiet ? 'border-b border-line' : 'bg-you text-on-you signs-card:border-b signs-card:border-line signs-card:bg-panel signs-card:text-ink signs-card:shadow-[inset_5px_0_0_var(--color-you)]')}>
+      <span className={cn('grid h-9 w-9 sm:h-11 sm:w-11 place-items-center rounded-lg', quiet ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-soft' : 'bg-on-you text-you signs-card:bg-you signs-card:text-on-you')} aria-hidden="true">
         <Icon size={18} strokeWidth={2.25} className="sm:h-[22px] sm:w-[22px]" />
       </span>
       <div className="min-w-0 self-center">
         <h3 className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
           <span className={cn('min-w-0 font-extrabold leading-tight tracking-[-0.02em] break-words', quiet ? 'text-lg sm:text-xl text-ink-soft' : 'text-xl sm:text-2xl')}>{title}</span>
           {/* a "?" link to the guide reads in the strip's ink */}
-          {tags && <span className={cn('flex flex-wrap items-center gap-1.5', !quiet && '[&_a]:text-on-you/60 [&_a:hover]:text-on-you')}>{tags}</span>}
+          {tags && <span className={cn('flex flex-wrap items-center gap-1.5', !quiet && '[&_a]:text-on-you/60 [&_a:hover]:text-on-you signs-card:[&_a]:text-ink-faint signs-card:[&_a:hover]:text-ink')}>{tags}</span>}
         </h3>
         {children}
       </div>
       {(waiting || aside) && (
         <div className="col-start-2 sm:col-start-3 flex flex-wrap items-center gap-x-4 gap-y-2 sm:flex-col sm:items-end">
           {waiting && (
-            <span className="mono inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-on-you px-2 py-1 text-[12.5px] font-bold text-you" title={new Date(waiting).toLocaleString()}>
+            <span className="mono inline-flex items-center gap-1.5 whitespace-nowrap rounded-md bg-on-you px-2 py-1 text-[12.5px] font-bold text-you signs-card:bg-you signs-card:text-on-you" title={new Date(waiting).toLocaleString()}>
               <Clock size={13} aria-hidden="true" />
               waiting {waited(waiting)}
             </span>
