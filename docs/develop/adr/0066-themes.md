@@ -1,6 +1,6 @@
 # ADR-0066: Themes: the web UI's colours, fonts and corners as data, Wayfinding by default
 
-**Status:** accepted · 2026-10-22
+**Status:** accepted · 2026-10-22 · amended by [ADR-0067](0067-theme-layout-and-colours.md) (layout is part of a theme; category colours; states in their signal colours)
 
 ## Context
 
