@@ -113,7 +113,7 @@ export abstract class ChatBot<S extends ChatState> {
       case 'round':
         return this.sendRound(t.goalId, t.round, links);
       case 'usage':
-        await this.post(text, links, usageKeyboard(t.provider), t);
+        await this.post(text, links, usageKeyboard(t.provider, this.host.nextAccount?.(t.provider) ?? null), t);
         return;
       default:
         await this.post(text, links, [], null);

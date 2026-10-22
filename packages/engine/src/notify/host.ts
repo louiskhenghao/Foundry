@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { getBrief, getEscalation, getGoal } from '@foundry/core';
+import { getBrief, getEscalation, getGoal, isPooled } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { classifyFeedback } from '../feedback.ts';
 import { type ActionHost, type Drafts, JsonDrafts } from './actions.ts';
@@ -20,6 +20,11 @@ export function engineHost(engine: Engine, drafts: Drafts): ActionHost {
       return classifyFeedback(engine, goal, text);
     },
     resumeNow: (provider) => engine.resumeNow(provider),
+    switchToNext: (provider) => (isPooled(provider) ? engine.switchToNext(provider) : null),
+    nextAccount: (provider) => {
+      const next = isPooled(provider) ? engine.accountPool.next(provider) : null;
+      return next && isPooled(provider) ? engine.accountPool.label(provider, next.id) : null;
+    },
     calibration: (goal) => engine.calibrationFor(goal),
     note: (goalId, message) => void engine.store.append({ type: 'engine.note', goalId, payload: { level: 'info', message } }),
     drafts,

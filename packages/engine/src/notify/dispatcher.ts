@@ -1,4 +1,4 @@
-import { PROVIDER_LABEL as AGENT_LABEL, reportsDollars } from '@foundry/core';
+import { PROVIDER_LABEL as AGENT_LABEL, isPooled, reportsDollars } from '@foundry/core';
 import type { AgentProvider } from '@foundry/core';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -35,7 +35,7 @@ const TRIGGER_COPY: Record<EscalationTrigger, string> = {
 };
 
 /** Event → message for the non-escalation families; null = nothing to say about this event. */
-export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => string, defaultProvider: AgentProvider = 'claude'): Composed | null {
+export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => string, defaultProvider: AgentProvider = 'claude', accountLabel: (provider: AgentProvider, id: string) => string = (_p, id) => id): Composed | null {
   switch (e.type) {
     case 'interview.round_asked': {
       const qs = e.payload.questions;
@@ -122,6 +122,10 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
       const provider = e.payload.provider ?? defaultProvider;
       return { family: 'rateLimit', text: `⏸️ ${AGENT_LABEL[provider ?? 'claude']} usage limit — new sessions paused; retry at ${localTime(e.payload.until)}`, path: `/usage?provider=${provider}` };
     }
+    case 'account.switched':
+      // a switch by hand is the person's own act; one a usage limit made is news (ADR-0065)
+      if (!e.payload.auto) return null;
+      return { family: 'rateLimit', text: `🔁 ${AGENT_LABEL[e.payload.provider]} usage limit of ${accountLabel(e.payload.provider, e.payload.from)} — new sessions run on ${accountLabel(e.payload.provider, e.payload.to)} now; the stopped session resumes there`, path: '/accounts' };
     case 'rate_limit.resumed': {
       const provider = e.payload.provider ?? defaultProvider;
       return { family: 'rateLimit', text: `▶️ ${AGENT_LABEL[provider ?? 'claude']} session retries resume`, path: `/usage?provider=${provider}` };
@@ -215,7 +219,7 @@ export class NotificationDispatcher {
       if (c) this.deliver(s, c.text, c.path, goal.id, [], null, { kind: 'brief', goalId: goal.id });
       return;
     }
-    const c = compose(e, this.goalTitle, this.engine.config.provider);
+    const c = compose(e, this.goalTitle, this.engine.config.provider, (p, id) => (isPooled(p) ? this.engine.accountPool.label(p, id) : id));
     if (!c) return;
     const s = this.settings();
     // a milestone is the same note whether the goal pauses for it (an escalation) or goes on

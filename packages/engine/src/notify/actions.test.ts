@@ -15,6 +15,7 @@ import {
   reply,
   roundKeyboard,
   textTargetOf,
+  usageKeyboard,
   type ActionHost,
   type Drafts,
   type Keyboard,
@@ -125,6 +126,7 @@ describe('buttons', () => {
       roundKeyboard(GOAL, 10),
       roundKeyboard(GOAL, 10, 'n'.repeat(300)),
       briefKeyboard(GOAL, brief()),
+      usageKeyboard('claude', 'someone.with.a.very.long.address@example-company.com'),
     ];
     for (const b of kbs.flat(2)) {
       expect(Buffer.byteLength(b.data)).toBeLessThanOrEqual(64);
@@ -332,6 +334,19 @@ describe('approving a Brief', () => {
     expect((await press(running.h, `b:${GOAL}:A`, via)).toast).toBe('The goal is running: nothing to approve.');
     expect([...blocked.calls, ...running.calls]).toEqual([]);
   });
+});
+
+test('Switch and continue moves new sessions to the next account; with none free the buttons stay', async () => {
+  const { h, calls, notes } = host();
+  expect(labels(usageKeyboard('claude'))).toEqual(['▶️ Resume now']);
+  expect(labels(usageKeyboard('claude', 'b@example.com'))).toEqual(['▶️ Resume now', '🔁 Switch to b@example.com']);
+  const moved = await press({ ...h, switchToNext: (p) => (calls.push({ fn: 'switchToNext', args: [p] }), 'b@example.com') }, 'u:claude:n', via);
+  expect(calls).toEqual([{ fn: 'switchToNext', args: ['claude'] }]);
+  expect(moved.toast).toContain('b@example.com');
+  expect(notes.at(-1)).toContain('moved to b@example.com');
+  const none = await press({ ...h, switchToNext: () => null }, 'u:claude:n', via);
+  expect(none.toast).toBe('No other account is free now.');
+  expect(parsePress('u:claude:x')).toBeNull();
 });
 
 test('Resume now starts the paused sessions again', async () => {
