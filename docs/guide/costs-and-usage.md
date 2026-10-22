@@ -72,6 +72,8 @@ When the current account's usage limit stops a session:
 
 Either way, the task whose session the limit stopped carries on where it stopped, on the account that is current then: its work is in its folder, its attempt costs no retry, and it is not reviewed half-way. If that account cannot pick the session up, a new session takes over and is told what the earlier one did. Work never moves to another coding agent.
 
+With more than one account, **Usage** shows the windows and quota of the current account, says which one it is, and adds an **Accounts** card: each account with its own 5-hour and 7-day windows as its own sessions last reported them and what Foundry spent on it in each (Claude Code), or its own quota and Foundry's activity on it (Codex). An account Foundry has not used yet shows **no signal yet**. The activity totals above still count every account.
+
 Before the switch turns on, Foundry shows what the provider's terms say. Anthropic writes that Pro and Max usage limits assume ordinary, individual use; OpenAI's terms forbid getting around rate limits. Going on past a limit with another account may be read as against them, and the provider may restrict or suspend the accounts. Add only accounts that are yours.
 
 ## Reports
