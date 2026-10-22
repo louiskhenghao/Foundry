@@ -41,10 +41,10 @@ const CODE_PROMPT = /paste[^\n]{0,40}code|enter[^\n]{0,40}code/i;
 /** the CLI says this and waits again (it never repeats the prompt when there is no TTY) */
 const CODE_REJECTED = /invalid code|code .{0,20}(expired|not valid)/i;
 
-export async function claudeAuthStatus(claudeBin: string | null, run: typeof exec = exec, claudeHome?: string): Promise<ClaudeAuthStatus> {
+export async function claudeAuthStatus(claudeBin: string | null, run: typeof exec = exec, claudeHome?: string, env: Record<string, string> = claudeConfigEnv(claudeHome)): Promise<ClaudeAuthStatus> {
   const checkedAt = new Date().toISOString();
   if (!claudeBin) return { loggedIn: false, authMethod: null, apiProvider: null, email: null, orgName: null, subscriptionType: null, checkedAt, error: 'claude not installed' };
-  const r = await run([claudeBin, 'auth', 'status', '--json'], process.cwd(), { timeoutMs: 20_000, env: claudeConfigEnv(claudeHome) }).catch((e) => ({ code: 1, stdout: '', stderr: String(e) }));
+  const r = await run([claudeBin, 'auth', 'status', '--json'], process.cwd(), { timeoutMs: 20_000, env }).catch((e) => ({ code: 1, stdout: '', stderr: String(e) }));
   try {
     const j = JSON.parse(r.stdout);
     return { loggedIn: !!j.loggedIn, authMethod: j.authMethod ?? null, apiProvider: j.apiProvider ?? null, email: j.email ?? null, orgName: j.orgName ?? null, subscriptionType: j.subscriptionType ?? null, checkedAt, error: null };
@@ -90,8 +90,12 @@ export class ClaudeAuth {
   private listeners = new Set<(s: LoginSession) => void>();
 
   constructor(
-    private opts: { provider?: AgentProvider; codexHome?: string; claudeHome?: string; claudeBin: string | null | (() => string | null); timeoutMs?: number; codeTimeoutMs?: number; run?: typeof exec; log?: (m: string) => void },
+    private opts: { provider?: AgentProvider; codexHome?: string; claudeHome?: string; claudeBin: string | null | (() => string | null); timeoutMs?: number; codeTimeoutMs?: number; run?: typeof exec; log?: (m: string) => void; /** an added account's home (ADR-0065): a token in the environment is the native sign-in's, never this one's */ ownHome?: boolean },
   ) {}
+  /** what the Claude CLI runs with: its config dir, and no token of the native sign-in in an added account's home (an empty one is ignored) */
+  private claudeEnv(): Record<string, string> {
+    return { ...claudeConfigEnv(this.opts.claudeHome), ...(this.opts.ownHome ? { CLAUDE_CODE_OAUTH_TOKEN: '' } : {}) };
+  }
 
   /** A CLI can be installed or moved while Foundry is running. Never cache its absence for the process lifetime. */
   private binary(): string | null {
@@ -108,7 +112,7 @@ export class ClaudeAuth {
     if (this.pending) return this.pending;
     if (!force && this.cached && Date.now() - Date.parse(this.cached.checkedAt) < 60_000) return this.cached;
     const generation = this.generation;
-    const read = this.opts.provider === 'codex' ? codexAuthStatus(bin, this.opts.run, this.opts.codexHome) : this.opts.provider === 'agy' ? agyAuthStatus(bin, this.opts.run) : claudeAuthStatus(bin, this.opts.run, this.opts.claudeHome);
+    const read = this.opts.provider === 'codex' ? codexAuthStatus(bin, this.opts.run, this.opts.codexHome) : this.opts.provider === 'agy' ? agyAuthStatus(bin, this.opts.run) : claudeAuthStatus(bin, this.opts.run, this.opts.claudeHome, this.claudeEnv());
     const pending = read.then(value => {
       // An earlier account poll must neither repopulate the cache nor return stale identity to the UI.
       if (generation !== this.generation) return this.status();
@@ -151,7 +155,7 @@ export class ClaudeAuth {
     let proc: ReturnType<typeof Bun.spawn>;
     try {
       // stdin stays open: on a machine without a browser the CLI asks for the code from the browser instead
-      proc = Bun.spawn(args, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...(this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : {}), ...(this.opts.provider === 'codex' ? {} : claudeConfigEnv(this.opts.claudeHome)), NO_COLOR: '1', FORCE_COLOR: '0' } });
+      proc = Bun.spawn(args, { stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', env: { ...process.env, ...(this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : {}), ...(this.opts.provider === 'codex' ? {} : this.claudeEnv()), NO_COLOR: '1', FORCE_COLOR: '0' } });
     } catch (err) {
       session.done = true;
       session.ok = false;
@@ -275,7 +279,7 @@ export class ClaudeAuth {
     if (!bin) throw new Error(`${this.opts.provider ?? 'claude'} CLI not installed`);
     if (this.opts.provider === 'agy') throw new Error('Sign out of Antigravity with /logout inside `agy`.');
     const run = this.opts.run ?? exec;
-    const r = await run([bin, ...(this.opts.provider === 'codex' ? ['logout'] : ['auth', 'logout'])], process.cwd(), { timeoutMs: 30_000, env: this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : claudeConfigEnv(this.opts.claudeHome) });
+    const r = await run([bin, ...(this.opts.provider === 'codex' ? ['logout'] : ['auth', 'logout'])], process.cwd(), { timeoutMs: 30_000, env: this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : this.claudeEnv() });
     this.invalidate();
     const st = await this.status(true);
     if (st.loggedIn && r.code !== 0) throw new Error(`logout failed: ${(r.stderr || r.stdout).trim().slice(0, 200)}`);

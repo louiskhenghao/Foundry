@@ -59,13 +59,18 @@ describe('a session on an added account', () => {
     const out = join(dir, 'session.jsonl');
     writeFileSync(out, JSON.stringify(init) + '\n');
     const bin = join(dir, 'fake-cli');
-    writeFileSync(bin, `#!/bin/sh\nprintf '%s' "$CLAUDE_CONFIG_DIR" > '${capture}'\ncat '${out}'\n`);
+    writeFileSync(bin, `#!/bin/sh\nprintf '%s|%s' "$CLAUDE_CONFIG_DIR" "$CLAUDE_CODE_OAUTH_TOKEN" > '${capture}'\ncat '${out}'\n`);
     chmodSync(bin, 0o755);
-    const runner = new ClaudeCliRunner({ claudeBin: bin, claudeHome: join(dir, 'native'), env: { CLAUDE_CONFIG_DIR: join(dir, 'native') } });
-    const handle = await runner.run({ prompt: 'x', cwd: dir, configHome: join(dir, 'acc_1') });
-    for await (const _ of handle.events) void _;
-    await handle.result;
-    expect(readFileSync(capture, 'utf8')).toBe(join(dir, 'acc_1'));
+    // the machine's sign-in may come as a token (claude setup-token): it must not take the account's place
+    const runner = new ClaudeCliRunner({ claudeBin: bin, claudeHome: join(dir, 'native'), env: { CLAUDE_CONFIG_DIR: join(dir, 'native'), CLAUDE_CODE_OAUTH_TOKEN: 'native-token' } });
+    const run = async (configHome?: string) => {
+      const handle = await runner.run({ prompt: 'x', cwd: dir, configHome });
+      for await (const _ of handle.events) void _;
+      await handle.result;
+      return readFileSync(capture, 'utf8');
+    };
+    expect(await run(join(dir, 'acc_1'))).toBe(`${join(dir, 'acc_1')}|`);
+    expect(await run()).toBe(`${join(dir, 'native')}|native-token`);
   });
 });
 

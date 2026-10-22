@@ -28,7 +28,7 @@ function fakeClaude(dir: string): string {
   writeFileSync(bin, `#!/bin/sh
 f="$CLAUDE_CONFIG_DIR/.signed"
 case "$2" in
-  status) if [ -f "$f" ]; then printf '{"loggedIn":true,"authMethod":"claude.ai","email":"%s","orgName":null,"subscriptionType":"max"}' "$(cat "$f")"; else echo '{"loggedIn":false}'; fi; exit 0;;
+  status) if [ -n "$CLAUDE_CODE_OAUTH_TOKEN" ]; then printf '{"loggedIn":true,"authMethod":"oauth_token","email":"me@example.com","orgName":null,"subscriptionType":"max"}'; elif [ -f "$f" ]; then printf '{"loggedIn":true,"authMethod":"claude.ai","email":"%s","orgName":null,"subscriptionType":"max"}' "$(cat "$f")"; else echo '{"loggedIn":false}'; fi; exit 0;;
   login) printf '%s' "$LOGIN_EMAIL" > "$f"; echo "Logged in"; exit 0;;
   logout) rm -f "$f"; exit 0;;
 esac
@@ -173,6 +173,8 @@ describe('adding an account', () => {
   test('a sign-in in a new home becomes an account; the same person twice leaves no trace', async () => {
     const { pool, dataDir } = setup();
     process.env.LOGIN_EMAIL = 'other@example.com';
+    // this computer signs in with a token (claude setup-token): an added account still reads as itself
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = 'native-token';
     try {
       const s = pool.startAdd('claude');
       await settle(() => pool.list('claude').length === 2);
@@ -194,6 +196,7 @@ describe('adding an account', () => {
       expect(readdirSync(join(dataDir, 'accounts', 'claude'))).toEqual([added.id]);
     } finally {
       delete process.env.LOGIN_EMAIL;
+      delete process.env.CLAUDE_CODE_OAUTH_TOKEN;
     }
   });
 });

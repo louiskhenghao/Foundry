@@ -128,8 +128,13 @@ export class ClaudeCliRunner implements ClaudeRunner {
     const env = { CLAUDE_BASH_MAINTAIN_PROJECT_WORKING_DIR: '1', ...process.env, ...(typeof this.opts.env === 'function' ? this.opts.env() : (this.opts.env ?? {})), ...(spec.env ?? {}) } as Record<string, string>;
     // Never inherit an API key by accident: the whole point is the host login.
     delete env.ANTHROPIC_API_KEY;
-    // an added account's home (ADR-0065): its own sign-in, the rest linked to the native home
-    if (spec.configHome) env.CLAUDE_CONFIG_DIR = spec.configHome;
+    // an added account's home (ADR-0065): its own sign-in, the rest linked to the native home. A token in the environment
+    // (`claude setup-token`) is the native sign-in's and would take precedence over the account's own
+    if (spec.configHome) {
+      env.CLAUDE_CONFIG_DIR = spec.configHome;
+      delete env.CLAUDE_CODE_OAUTH_TOKEN;
+      delete env.ANTHROPIC_AUTH_TOKEN;
+    }
 
     try {
       proc = Bun.spawn([this.bin, ...this.buildArgs(spec)], { cwd: spec.cwd, env, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe' });

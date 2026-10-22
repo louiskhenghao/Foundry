@@ -165,7 +165,7 @@ export class AccountPool {
     return auth;
   }
   private makeAuth(provider: PooledProvider, home: string): ClaudeAuth {
-    return new ClaudeAuth({ provider, claudeBin: () => this.d.bin(provider), ...(provider === 'codex' ? { codexHome: home } : { claudeHome: home }), log: this.d.log });
+    return new ClaudeAuth({ provider, claudeBin: () => this.d.bin(provider), ...(provider === 'codex' ? { codexHome: home } : { claudeHome: home }), ownHome: true, log: this.d.log });
   }
   /** a Codex account's own quota reader; the native one's is the engine's */
   codexQuota(id: string, native: CodexQuotaReader): CodexQuotaReader {
