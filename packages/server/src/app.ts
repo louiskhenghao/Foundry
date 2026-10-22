@@ -1,4 +1,4 @@
-import { AGENT_PROVIDERS, AgentProvider } from '@foundry/core';
+import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, POOLED_PROVIDERS, isPooled, type PooledProvider } from '@foundry/core';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -267,6 +267,16 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       events: engine.store.count(),
       pausedUntil: engine.rateLimitedUntilIso(),
       pausedUntilByProvider: Object.fromEntries(AGENT_PROVIDERS.map((p) => [p, engine.rateLimitedUntilIso(p)])),
+      // while a coding agent is paused: the account Switch and continue would move it to (ADR-0065)
+      switchToByProvider: Object.fromEntries(POOLED_PROVIDERS.map((p) => {
+        const next = engine.isRateLimited(p) ? engine.accountPool.next(p) : null;
+        return [p, next ? engine.accountPool.label(p, next.id) : null];
+      })),
+      // an added account new sessions run on (null: this computer's own sign-in)
+      currentAccountByProvider: Object.fromEntries(POOLED_PROVIDERS.map((p) => {
+        const id = engine.accountPool.currentId(p);
+        return [p, id === NATIVE_ACCOUNT ? null : engine.accountPool.label(p, id)];
+      })),
       restartNeeded: engine.settings.restartNeeded(),
       version: engine.updater.current(),
       webBuild: webBuild(),
@@ -1712,11 +1722,57 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.get('/api/doctor', async (c) => c.json(await engine.doctor(authProvider(c))));
   // Every account operation is explicitly scoped; omitted provider preserves CLI compatibility.
-  app.get('/api/accounts', async (c) => c.json({ defaultProvider: engine.config.provider, accounts: await Promise.all(AGENT_PROVIDERS.map(async (provider) => ({
-    provider, status: await engine.accounts[provider].status(c.req.query('force') === '1'),
-    installed: !!(provider === 'codex' ? engine.config.codexBin ?? Bun.which('codex') : provider === 'agy' ? engine.config.agyBin ?? Bun.which('agy') : engine.config.claudeBin ?? Bun.which('claude')),
-    capabilities: { dollarCosts: provider === 'claude', skillTelemetry: provider === 'claude', nativeSubagents: provider === 'claude', managedMcp: provider !== 'agy', externalSessions: provider !== 'agy' },
-  }))) }));
+  app.get('/api/accounts', async (c) => {
+    const force = c.req.query('force') === '1';
+    return c.json({ defaultProvider: engine.config.provider, accounts: await Promise.all(AGENT_PROVIDERS.map(async (provider) => {
+      const status = await engine.accounts[provider].status(force);
+      return {
+        provider, status,
+        installed: !!(provider === 'codex' ? engine.config.codexBin ?? Bun.which('codex') : provider === 'agy' ? engine.config.agyBin ?? Bun.which('agy') : engine.config.claudeBin ?? Bun.which('claude')),
+        capabilities: { dollarCosts: provider === 'claude', skillTelemetry: provider === 'claude', nativeSubagents: provider === 'claude', managedMcp: provider !== 'agy', externalSessions: provider !== 'agy' },
+        // Claude Code and Codex can hold several accounts (ADR-0065); their homes stay on this computer, never in the answer
+        pool: isPooled(provider) ? {
+          autoSwitch: engine.config.autoSwitch[provider],
+          accounts: await Promise.all(engine.accountPool.views(provider).map(async ({ home: _home, provider: _p, ...a }) => ({ ...a, status: a.id === NATIVE_ACCOUNT ? status : await engine.accountPool.auth(provider, a.id).status(force).catch(() => null) }))),
+        } : undefined,
+      };
+    })) });
+  });
+  // a coding agent's other accounts (ADR-0065): their sign-ins run in their own homes, so none is refused while work runs,
+  // except removing the account sessions run on
+  const pooled = (c: any): PooledProvider => {
+    const p = AgentProvider.parse(c.req.param('provider'));
+    if (!isPooled(p)) throw new HttpError(400, { error: 'Antigravity holds one account: sign in to another one with /logout inside agy, then agy again.' });
+    return p;
+  };
+  app.post('/api/accounts/:provider/add', async (c) => {
+    const body = z.object({ email: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
+    return c.json(engine.accountPool.startAdd(pooled(c), body));
+  });
+  app.get('/api/accounts/:provider/add', (c) => c.json(engine.accountPool.addSession(pooled(c))));
+  app.post('/api/accounts/:provider/add/code', async (c) => {
+    const { code } = z.object({ code: z.string().min(1) }).parse(await c.req.json());
+    return c.json(engine.accountPool.submitAddCode(pooled(c), code));
+  });
+  app.post('/api/accounts/:provider/add/cancel', (c) => { engine.accountPool.cancelAdd(pooled(c)); return c.json({ ok: true }); });
+  app.post('/api/accounts/:provider/order', async (c) => {
+    const { order } = z.object({ order: z.array(z.string()) }).parse(await c.req.json());
+    engine.accountPool.reorder(pooled(c), order);
+    return c.json({ ok: true });
+  });
+  app.post('/api/accounts/:provider/auto-switch', async (c) => {
+    const { on } = z.object({ on: z.boolean() }).parse(await c.req.json());
+    engine.updateSettings({ accounts: pooled(c) === 'claude' ? { autoSwitchClaude: on } : { autoSwitchCodex: on } });
+    return c.json({ ok: true });
+  });
+  app.post('/api/accounts/:provider/:id/use', (c) => { engine.switchAccount(pooled(c), c.req.param('id')); return c.json({ ok: true }); });
+  app.delete('/api/accounts/:provider/:id', async (c) => {
+    const provider = pooled(c);
+    const id = c.req.param('id');
+    if (engine.busy().total > 0 && engine.accountPool.currentId(provider) === id) throw new HttpError(409, { error: 'Sessions run on this account. Make another one current first, or wait for active work to finish.' });
+    await engine.accountPool.remove(provider, id);
+    return c.json({ ok: true });
+  });
   app.get('/api/auth', async (c) => { const provider = authProvider(c); const auth = engine.accounts[provider]; return c.json({ provider, status: await auth.status(c.req.query('force') === '1'), login: auth.loginSession() }); });
   app.post('/api/auth/login', async (c) => {
     const body = z.object({ email: z.string().optional() }).parse(await c.req.json().catch(() => ({})));
@@ -1782,6 +1838,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   // Resume now: the usage pause is lifted; a limit that still holds pauses the next session again
   app.post('/api/usage/resume', (c) => c.json({ resumed: engine.resumeNow(authProvider(c)) }));
+  // Switch and continue: the next account no limit holds becomes current and the pause lifts (ADR-0065)
+  app.post('/api/usage/switch', (c) => {
+    const provider = authProvider(c);
+    return c.json({ to: isPooled(provider) ? engine.switchToNext(provider) : null });
+  });
   app.get('/api/usage/minimax', async (c) => c.json(await engine.minimaxQuota(c.req.query('refresh') === '1')));
 
   app.post('/internal/boundary', async (c) => {
