@@ -1,6 +1,6 @@
-import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, reportsDollars, type PooledProvider } from '@foundry/core';
+import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
-import type { CodexQuota } from './usage/types.ts';
+import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
 import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { AgyQuotaReader } from './usage/agy-quota.ts';
@@ -1464,7 +1464,15 @@ export class Engine {
   rateLimitedUntilIso(provider = this.config.provider): string | null { return this.isRateLimited(provider) ? new Date(this.rateLimitedUntil.get(provider)!).toISOString() : null; }
 
   usage(provider = this.config.provider): UsageSummary & { pausedUntil: string | null } {
-    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: reportsDollars(provider), ...(provider === 'codex' ? { codexQuota: this.codexQuota.current(), note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the native account; activity totals count only Foundry sessions.' } : provider === 'agy' ? { agyQuota: this.agyQuota.current(), note: 'Antigravity reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The quota is the account\'s own, read from agy; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
+    const now = Date.now();
+    // with several accounts the windows, the signals and the quota are the current account's (ADR-0065); the activity
+    // totals stay every account's
+    const pooled = isPooled(provider) ? provider : null;
+    const current = pooled ? this.accountPool.currentId(pooled) : NATIVE_ACCOUNT;
+    const several = !!pooled && this.accountPool.list(pooled).length > 1;
+    const codexQuota = provider === 'codex' ? this.accountPool.codexQuota(current, this.codexQuota).current() : undefined;
+    const summary = usageSummary(this.store.db, now, provider, this.config.provider, pooled === 'claude' ? { state: this.accountSignals('claude', current) } : {});
+    return { ...summary, ...(several ? { currentAccount: this.accountPool.label(pooled!, current), accounts: this.accountUsage(pooled!, now) } : {}), provider, costAvailable: reportsDollars(provider), ...(provider === 'codex' ? { codexQuota, note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the current account; activity totals count only Foundry sessions, on every account.' } : provider === 'agy' ? { agyQuota: this.agyQuota.current(), note: 'Antigravity reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The quota is the account\'s own, read from agy; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
   }
 
   // ---------- models ----------
@@ -1502,8 +1510,26 @@ export class Engine {
     return buildReport(this, { days });
   }
 
+  /**
+   * One account's rate-limit windows (ADR-0065). The native sign-in's from before accounts existed are only in the coding
+   * agent's own table, so it stands in until the account has reported any of its own.
+   */
+  private accountSignals(provider: PooledProvider, id: string): RateLimitRow[] {
+    const own = listAccountRateLimits(this.store.db, provider, id);
+    return own.length || id !== NATIVE_ACCOUNT ? own : listRateLimitState(this.store.db);
+  }
+  /** each of the coding agent's accounts with its own windows (Claude) or quota (Codex), and Foundry's sessions on it */
+  private accountUsage(provider: PooledProvider, now: number): AccountUsage[] {
+    const win = (w: WindowSummary): AccountWindow => ({ status: w.status, resetsAt: w.resetsAt, lastSignalAt: w.lastSignalAt, isUsingOverage: w.isUsingOverage, sessions: w.sessions, costUsd: w.costUsd, outputTokens: w.outputTokens });
+    return this.accountPool.views(provider).map((a) => {
+      const s = usageSummary(this.store.db, now, provider, this.config.provider, { accountId: a.id, state: provider === 'claude' ? this.accountSignals(provider, a.id) : [] });
+      return { id: a.id, label: this.accountPool.label(provider, a.id), plan: a.plan, current: a.current, limitedUntil: a.limitedUntil, fiveHour: win(s.fiveHour), sevenDay: win(s.sevenDay), ...(provider === 'codex' ? { codexQuota: this.accountPool.codexQuota(a.id, this.codexQuota).current() } : {}) };
+    });
+  }
+
   async readUsage(provider = this.config.provider, force = false): Promise<UsageSummary & { pausedUntil: string | null }> {
-    if (provider === 'codex') await this.codexQuota.read(force);
+    // every Codex account's own quota: the current one's for the card, the others' for the accounts list
+    if (provider === 'codex') await Promise.all(this.accountPool.list('codex').map((a) => this.accountPool.codexQuota(a.id, this.codexQuota).read(force)));
     if (provider === 'agy') await this.agyQuota.read(force);
     return this.usage(provider);
   }

@@ -318,6 +318,13 @@ describe('Engine loop (fake runner)', () => {
       const usage = engine.store.listByType('session.usage', 10).map((e) => (e.payload as { accountId?: string }).accountId);
       expect(usage).toContain('acc_b');
       expect(usage).toContain('native');
+      // the Usage page: the windows are the current account's, and each account has its own
+      const u = engine.usage('claude');
+      expect(u.currentAccount).toBe('acc_b@example.com');
+      expect(u.fiveHour.status).not.toBe('rejected');
+      expect(u.accounts!.map((a) => [a.id, a.current, a.fiveHour.status])).toEqual([['native', false, 'rejected'], ['acc_b', true, null]]);
+      expect(u.accounts![0]!.limitedUntil).not.toBeNull();
+      expect(u.accounts![1]!.fiveHour.sessions).toBeGreaterThan(0);
     });
 
     test('auto switch off: the limit pauses; switching by hand lifts the pause and the work goes on there', async () => {

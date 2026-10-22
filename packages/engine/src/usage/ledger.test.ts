@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { EventStore, openDatabase } from '@foundry/core';
+import { EventStore, listAccountRateLimits, listRateLimitState, openDatabase } from '@foundry/core';
 import { usageSummary } from './ledger.ts';
 
 function store() {
@@ -28,6 +28,31 @@ describe('usage ledger', () => {
     const before = s.snapshotReadModels();
     s.replay();
     expect(s.snapshotReadModels()).toEqual(before);
+  });
+
+  test('one account: its own sessions and its own windows; the coding agent\'s table keeps the latest of any (ADR-0065)', () => {
+    const s = store();
+    const at = (hours: number) => Math.floor(Date.now() / 1000) + hours * 3600;
+    const on = (accountId: string | undefined, costUsd: number, status: string) =>
+      s.append({ type: 'session.usage', goalId: 'g1', payload: { provider: 'claude', sessionId: 's', kind: 'attempt', model: 'opus', inputTokens: 1, outputTokens: 10, cacheReadTokens: 0, cacheCreateTokens: 0, costUsd, durationMs: 5, subtype: 'success', rateLimit: { status, resetsAt: at(2), rateLimitType: 'five_hour', isUsingOverage: false }, skillsUsed: [], ...(accountId ? { accountId } : {}) } });
+    on(undefined, 0.4, 'allowed'); // before accounts: the native sign-in
+    on('native', 0.6, 'rejected');
+    on('acc_b', 0.25, 'allowed_warning');
+    expect(listRateLimitState(s.db)[0]!.status).toBe('allowed_warning');
+    expect(listAccountRateLimits(s.db, 'claude', 'native')[0]!.status).toBe('rejected');
+    const native = usageSummary(s.db, Date.now(), 'claude', 'claude', { accountId: 'native', state: listAccountRateLimits(s.db, 'claude', 'native') });
+    expect(native.fiveHour).toMatchObject({ sessions: 2, status: 'rejected' });
+    expect(native.fiveHour.costUsd).toBeCloseTo(1.0);
+    expect(native.limited?.rateLimitType).toBe('five_hour');
+    const b = usageSummary(s.db, Date.now(), 'claude', 'claude', { accountId: 'acc_b', state: listAccountRateLimits(s.db, 'claude', 'acc_b') });
+    expect(b.fiveHour).toMatchObject({ sessions: 1, costUsd: 0.25, status: 'allowed_warning' });
+    expect(b.limited).toBeNull();
+    // every account together, as the activity totals count
+    expect(usageSummary(s.db, Date.now(), 'claude').fiveHour.sessions).toBe(3);
+    const before = s.snapshotReadModels();
+    s.replay();
+    expect(s.snapshotReadModels()).toEqual(before);
+    expect(listAccountRateLimits(s.db, 'claude', 'acc_b')).toHaveLength(1);
   });
 
   test('a session cut before its cost was reported is counted as unmeasured, never as free', () => {

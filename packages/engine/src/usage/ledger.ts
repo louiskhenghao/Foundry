@@ -1,6 +1,6 @@
 import type { AgentProvider } from '@foundry/core';
 import type { Database } from 'bun:sqlite';
-import { listGoals, listRateLimitState, listUsageSince, type UsageRow } from '@foundry/core';
+import { NATIVE_ACCOUNT, listGoals, listRateLimitState, listUsageSince, type RateLimitRow, type UsageRow } from '@foundry/core';
 import type { UsageBucket, UsageSummary, WindowSummary, GroupMeasures } from './types.ts';
 
 export type { UsageBucket, UsageSummary, WindowSummary };
@@ -44,9 +44,11 @@ const dayLabel = (t: number) => new Date(t).toLocaleDateString(undefined, { week
 /**
  * Aggregate our own ledger into the two windows Claude subscriptions use. The 5-hour window is
  * aligned to the CLI's `resetsAt` when we have seen one; otherwise it is "the last 5 hours".
+ * `state`: the rate-limit signals the windows follow (one account's, ADR-0065) instead of the coding agent's latest;
+ * `accountId`: only the sessions that account ran (a session from before accounts ran on the native sign-in).
  */
-export function usageSummary(db: Database, now = Date.now(), provider?: AgentProvider, legacyProvider: AgentProvider = 'claude'): UsageSummary {
-  const state = provider === 'codex' || provider === 'agy' ? [] : listRateLimitState(db);
+export function usageSummary(db: Database, now = Date.now(), provider?: AgentProvider, legacyProvider: AgentProvider = 'claude', opts: { state?: RateLimitRow[]; accountId?: string } = {}): UsageSummary {
+  const state = opts.state ?? (provider === 'codex' || provider === 'agy' ? [] : listRateLimitState(db));
   const five = state.find((s) => s.rate_limit_type === 'five_hour') ?? null;
   const week = state.find((s) => /seven_day|weekly/.test(s.rate_limit_type)) ?? null;
 
@@ -55,7 +57,7 @@ export function usageSummary(db: Database, now = Date.now(), provider?: AgentPro
   const weekEnd = week?.resets_at && week.resets_at * 1000 > now ? week.resets_at * 1000 : now;
   const weekStart = weekEnd - SEVEN_DAYS_MS;
 
-  const rows = listUsageSince(db, new Date(Math.min(fiveStart, weekStart)).toISOString()).filter((r) => !provider || (r.provider ?? legacyProvider) === provider);
+  const rows = listUsageSince(db, new Date(Math.min(fiveStart, weekStart)).toISOString()).filter((r) => (!provider || (r.provider ?? legacyProvider) === provider) && (!opts.accountId || (r.account_id ?? NATIVE_ACCOUNT) === opts.accountId));
   // a Claude Code session cut before its result line: tokens counted, dollars unknown — the costs below leave it out, and say so
   const unmeasured = (rs: UsageRow[]) => rs.filter((r) => (r.provider ?? legacyProvider) === 'claude' && r.cost_status === 'unavailable').length;
   const inWin = (start: number, end: number) => rows.filter((r) => Date.parse(r.ts) >= start && Date.parse(r.ts) <= end);

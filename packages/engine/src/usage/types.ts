@@ -67,8 +67,29 @@ export interface AgyQuota {
   error: string | null;
 }
 
+/** a window as one account sees it: its own signal and what Foundry did on that account in it */
+export type AccountWindow = Pick<WindowSummary, 'status' | 'resetsAt' | 'lastSignalAt' | 'isUsingOverage' | 'sessions' | 'costUsd' | 'outputTokens'>;
+/** one of a coding agent's accounts on the Usage page (ADR-0065) */
+export interface AccountUsage {
+  id: string;
+  /** its email, or what the native sign-in is called without one */
+  label: string;
+  plan: string | null;
+  current: boolean;
+  /** its usage limit stopped a session and has not reset yet (ISO) */
+  limitedUntil: string | null;
+  /** Claude: the account's own window signals; Codex: Foundry's activity on it (its quota is `codexQuota`) */
+  fiveHour: AccountWindow;
+  sevenDay: AccountWindow;
+  codexQuota?: CodexQuota;
+}
+
 export interface UsageSummary {
   provider?: AgentProvider;
+  /** the coding agent's accounts when it has several (ADR-0065): the windows above are then the current one's */
+  accounts?: AccountUsage[];
+  /** the account whose signals and quota the windows show, when there are several */
+  currentAccount?: string;
   costAvailable?: boolean;
   codexQuota?: CodexQuota;
   agyQuota?: AgyQuota | null;
