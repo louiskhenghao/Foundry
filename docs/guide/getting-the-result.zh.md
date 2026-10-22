@@ -255,7 +255,7 @@ Codex 的 follow-up 会保留明确指定的全角色模型覆盖，即使 Setti
 - **从哪里开始：** 之前的工作已经在你的基础分支上时，就从基础分支开始；否则从之前那个 goal 的分支开始。这种情况下，Delivery 标签会说明之前那个 goal 的改动会随着这个 goal 的 pull request 一起交付。pull request 的目标仍然是你的基础分支。
 - **附件和风格**（除非你取消了勾选）：附件的副本，以及选定的风格方向和它的参考样图，在新的 Brief 上已经选好。
 
-之后 goal 页面会显示 **Follows: …**，之前那个 goal 上会显示 **Followed by: …**，都是链接。如果之前的 goal 被删除了，后续 goal 会显示 "follows a deleted goal" 和它的标题。在 goal 列表里，后续 goal 的标题下面有一小行 "↳ follows …"。
+之后 goal 页面会显示 **Follows: …**，之前那个 goal 上会显示 **Followed by: …**，都是链接。如果之前的 goal 被删除了，后续 goal 会显示 "follows a deleted goal" 和它的标题。在 goal 列表里，一个 goal 和它的后续 goal 合成一项，像 Agents 页面的分组那样折叠：显示第一个 goal 的标题和一个写着共几个 goal 的小标签、最新那个 goal 的状态（**latest: …**），以及所有这些 goal 的费用和时间。点它就展开其中每个 goal 的行，从早到晚排列，后续 goal 前面标着 ↳。其中有 goal 还在进行时它会自动展开；你折叠或展开过它，它会记住；列表上方的 **expand all** / **collapse all** 可以一次展开或折叠所有分组。之前的 goal 被删除的后续 goal 独立显示，标题下面有一小行 "↳ follows …"。
 
 在命令行里：`foundry goal new "<prompt>" --follows <goal id>`。
 
