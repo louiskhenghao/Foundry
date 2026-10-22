@@ -284,6 +284,72 @@ describe('Engine loop (fake runner)', () => {
     expect(listAttempts(engine.store.db, listTasks(engine.store.db, goal.id)[0]!.id)).toHaveLength(1);
   });
 
+  describe('several accounts (ADR-0065)', () => {
+    /** an account added beside the native one, as a finished sign-in adds it */
+    const addAccount = (engine: Engine, id: string) => {
+      const home = join(dataDir, 'accounts', 'claude', id);
+      mkdirSync(home, { recursive: true });
+      engine.store.append({ type: 'account.added', goalId: null, payload: { account: { provider: 'claude', id, home, email: `${id}@example.com`, orgName: null, plan: 'max', addedAt: new Date().toISOString() } } });
+      return home;
+    };
+    /** the first session hits the current account's limit (back in an hour); the next one finishes the task */
+    const limitedOnce = () => {
+      const runner = new FakeRunner((spec, n) => {
+        runner.rateLimit = n === 1 ? { status: 'rejected', resetsAt: Math.floor(Date.now() / 1000) + 3600, rateLimitType: 'five_hour', isUsingOverage: false, raw: {} } : null;
+        if (n >= 2) writeFileSync(join(spec.cwd, 'done.txt'), 'ok');
+      });
+      return runner;
+    };
+
+    test('auto switch: the limit moves new sessions to the next account, which resumes the cut session at once', async () => {
+      const runner = limitedOnce();
+      const engine = track(new Engine(cfg({ autoSwitch: { claude: true, codex: false } }), runner));
+      const home = addAccount(engine, 'acc_b');
+      const goal = await engine.createGoal({ prompt: 'switch', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+      await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+      expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+      const work = runner.calls.filter((c) => c.label?.startsWith('attempt'));
+      expect(work.map((c) => c.configHome)).toEqual([undefined, home]);
+      expect(work[1]!.resumeSessionId).toBe('fake-1');
+      expect(engine.accountPool.currentId('claude')).toBe('acc_b');
+      expect(engine.isRateLimited('claude')).toBe(false);
+      expect(engine.store.listByType('account.switched', 1)[0]!.payload).toMatchObject({ from: 'native', to: 'acc_b', auto: true });
+      // the session's usage names the account it ran on
+      const usage = engine.store.listByType('session.usage', 10).map((e) => (e.payload as { accountId?: string }).accountId);
+      expect(usage).toContain('acc_b');
+      expect(usage).toContain('native');
+    });
+
+    test('auto switch off: the limit pauses; switching by hand lifts the pause and the work goes on there', async () => {
+      const runner = limitedOnce();
+      const engine = track(new Engine(cfg(), runner));
+      const home = addAccount(engine, 'acc_b');
+      const goal = await engine.createGoal({ prompt: 'by hand', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+      await waitFor(() => engine.isRateLimited('claude'));
+      expect(engine.accountPool.currentId('claude')).toBe('native');
+      expect(engine.accountPool.next('claude')!.id).toBe('acc_b');
+      // Switch and continue, as the usage banner offers it
+      expect(engine.switchToNext('claude')).toBe('acc_b@example.com');
+      expect(engine.isRateLimited('claude')).toBe(false);
+      expect(engine.accountPool.currentId('claude')).toBe('acc_b');
+      await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+      expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+      expect(runner.calls.filter((c) => c.label?.startsWith('attempt')).map((c) => c.configHome)).toEqual([undefined, home]);
+    });
+
+    test('every account limited: the pause lasts until the first of them resets', async () => {
+      const runner = limitedOnce();
+      const engine = track(new Engine(cfg({ autoSwitch: { claude: true, codex: false } }), runner));
+      addAccount(engine, 'acc_b');
+      engine.accountPool.markLimited('claude', 'acc_b', Date.now() + 1800_000, 'test');
+      await engine.createGoal({ prompt: 'all limited', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+      await waitFor(() => engine.isRateLimited('claude'));
+      const until = Date.parse(engine.rateLimitedUntilIso('claude')!);
+      expect(Math.abs(until - (Date.now() + 1800_000))).toBeLessThan(60_000);
+      expect(engine.accountPool.currentId('claude')).toBe('native');
+    });
+  });
+
   test('event log replay reproduces the read models', async () => {
     const engine = track(new Engine(cfg(), new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok'))));
     const goal = await engine.createGoal({ prompt: 'replay', repoPath: repo, autoBrief: { mustChecks: ['test -f done.txt'] } });

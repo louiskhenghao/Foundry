@@ -1,4 +1,5 @@
-import { AGENT_PROVIDERS, AgentProvider, PROVIDER_NAME, reportsDollars } from '@foundry/core';
+import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, reportsDollars, type PooledProvider } from '@foundry/core';
+import { AccountPool } from './accounts/pool.ts';
 import type { CodexQuota } from './usage/types.ts';
 import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
@@ -261,6 +262,8 @@ export class Engine {
   readonly agents: AgentsMonitor;
   readonly auth: ClaudeAuth;
   readonly accounts: Record<AgentProvider, ClaudeAuth>;
+  /** each coding agent's sign-ins and the one new sessions run on (ADR-0065) */
+  readonly accountPool: AccountPool;
   private providerSkills: Record<AgentProvider, SkillsManager>;
   readonly gh: GhClient;
   /** who may use this Foundry from elsewhere (ADR-0061) */
@@ -422,9 +425,14 @@ export class Engine {
         run: async (spec) => {
           if (provider === 'codex') this.validateCodexChoice(spec.model, spec.effort);
           const suite = await this.suiteFor(spec, provider);
-          const full = { ...spec, ...suite, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
+          // the current account of the coding agent runs the session; an added one in its own home (ADR-0065), where
+          // Claude Code finds no user-scope MCP servers of the native sign-in unless handed them
+          const account = isPooled(provider) ? this.accountPool.forRun(provider) : null;
+          const home = account?.home ? { configHome: account.home, ...(provider === 'claude' && !spec.strictMcp ? { mcpConfig: this.nativeMcpServers() } : {}) } : {};
+          const full = { ...spec, ...suite, ...home, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
           // Claude Code reports a resumed session's whole cost; Codex reports none worth correcting
-          return provider === 'claude' ? sessionCosts.run(full, (s) => inner.run(s)) : inner.run(full);
+          const handle = await (provider === 'claude' ? sessionCosts.run(full, (s) => inner.run(s)) : inner.run(full));
+          return account ? { ...handle, result: handle.result.then((r) => ({ ...r, accountId: account.id })) } : handle;
         },
       };
       const fallback = new ModelFallbackRunner(checked, {
@@ -510,6 +518,15 @@ export class Engine {
       agy: new ClaudeAuth({ provider: 'agy', claudeBin: () => config.agyBin ?? Bun.which('agy'), log: config.log }),
     };
     this.accounts.codex.onLoginUpdate(() => { this.codexQuota.invalidate(); this.codexPlugins.invalidate(); });
+    this.accountPool = new AccountPool({
+      store: this.store,
+      dataDir: config.dataDir,
+      nativeHome: (p) => (p === 'codex' ? config.codexHome : config.claudeHome),
+      bin: (p) => (p === 'codex' ? config.codexBin ?? Bun.which('codex') : config.claudeBin ?? Bun.which('claude')),
+      nativeAuth: (p) => this.accounts[p],
+      autoSwitch: (p) => this.config.autoSwitch[p],
+      log: config.log,
+    });
     this.auth = this.accounts[config.provider];
     this.agents = new AgentsMonitor(
       { claudeHome: config.claudeHome, codexHome: config.codexHome, codexBin: config.codexBin, includeExternal: true, dataDir: config.dataDir, workspaceRoots: () => [...new Set(listGoals(this.store.db).flatMap((g) => (g.workspaceDir ? [dirname(g.workspaceDir)] : [])))] },
@@ -1211,6 +1228,7 @@ export class Engine {
   }
 
   private async reconcile(): Promise<void> {
+    this.accountPool.restore();
     this.restoreRateLimitPause();
     for (const a of listRunningAttempts(this.store.db)) {
       // an Imported Goal's sessions ran on another computer: the Transfer concluded them, this pid is not theirs
@@ -1332,6 +1350,7 @@ export class Engine {
         subtype: result.subtype,
         rateLimit: result.rateLimit ? { status: result.rateLimit.status, resetsAt: result.rateLimit.resetsAt, rateLimitType: result.rateLimit.rateLimitType, isUsingOverage: result.rateLimit.isUsingOverage } : null,
         skillsUsed: result.skillsUsed ?? [],
+        ...(result.accountId ? { accountId: result.accountId } : {}),
       },
     });
     this.observeRateLimit(result, provider);
@@ -1343,17 +1362,60 @@ export class Engine {
     const byStatus = limitPauseUntil(rl, now);
     const limitedByError = result.isError && LIMIT_TEXT.test(result.errorMessage ?? '');
     if (byStatus === null && !limitedByError) return;
-    const until = byStatus ?? resetsInAt(result.errorMessage, now) ?? now + 5 * 60_000;
-    this.pauseUntil(until, rl?.rateLimitType ?? null, byStatus !== null ? `rate_limit_event status=${rl!.status}` : `session error: ${(result.errorMessage ?? '').slice(0, 120)}`, provider);
+    let until = byStatus ?? resetsInAt(result.errorMessage, now) ?? now + 5 * 60_000;
+    const reason = byStatus !== null ? `rate_limit_event status=${rl!.status}` : `session error: ${(result.errorMessage ?? '').slice(0, 120)}`;
+    const accountId = result.accountId ?? NATIVE_ACCOUNT;
+    // an account's own limit (not the provider overloaded) is passed over until it resets; new sessions go on with the
+    // next account when auto switch is on, or never paused when the limit hit an account they had left already (ADR-0065)
+    const accountLimit = isPooled(provider) && (byStatus !== null || !/overloaded|\b529\b/i.test(result.errorMessage ?? ''));
+    if (accountLimit) {
+      this.accountPool.markLimited(provider, accountId, until, reason);
+      if (this.accountPool.afterLimit(provider, accountId)) return;
+      if (this.config.autoSwitch[provider]) until = this.accountPool.earliestReset(provider) ?? until;
+    }
+    this.pauseUntil(until, rl?.rateLimitType ?? null, reason, provider);
     // Codex reports no reset with the error: the account's quota windows say when the exhausted one comes back
     if (provider === 'codex' && byStatus === null)
-      void this.codexQuota
+      void this.accountPool
+        .codexQuota(accountId, this.codexQuota)
         .read(true)
         .then((q) => {
           const reset = codexResumeAt(q, Date.now());
-          if (reset) this.pauseUntil(reset, 'codex-quota', 'Codex quota window used up', 'codex');
+          if (!reset) return;
+          this.accountPool.markLimited('codex', accountId, reset, 'Codex quota window used up');
+          if (this.isRateLimited('codex')) this.pauseUntil(this.config.autoSwitch.codex ? (this.accountPool.earliestReset('codex') ?? reset) : reset, 'codex-quota', 'Codex quota window used up', 'codex');
         })
         .catch(() => {});
+  }
+
+  /**
+   * The user-scope MCP servers of the native Claude sign-in, for a session on an added account: they live in the native
+   * .claude.json, and an account's home has a .claude.json of its own (its sign-in is in it).
+   */
+  private nativeMcpServers(): { mcpServers: Record<string, unknown> } | undefined {
+    const dir = claudeConfigEnv(this.config.claudeHome).CLAUDE_CONFIG_DIR ?? process.env.CLAUDE_CONFIG_DIR;
+    try {
+      const servers = JSON.parse(readFileSync(dir ? join(dir, '.claude.json') : join(homedir(), '.claude.json'), 'utf8')).mcpServers;
+      return servers && typeof servers === 'object' && Object.keys(servers).length ? { mcpServers: servers } : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * New sessions of the coding agent run on `to` from now (Use now, or Switch and continue on a usage pause); sessions
+   * already running finish on their account. A pause the old account's limit set lifts when `to` is not limited.
+   */
+  switchAccount(provider: PooledProvider, to: string): void {
+    this.accountPool.switchTo(provider, to, { auto: false, reason: 'switched by hand' });
+    if (this.isRateLimited(provider) && !this.accountPool.isLimited(provider, to)) this.resume(provider, `switched to ${this.accountPool.label(provider, to)}`);
+  }
+  /** Switch and continue (the usage banner, a chat button): the next account no limit holds becomes current; null when there is none */
+  switchToNext(provider: PooledProvider): string | null {
+    const next = this.accountPool.next(provider);
+    if (!next) return null;
+    this.switchAccount(provider, next.id);
+    return this.accountPool.label(provider, next.id);
   }
 
   /** A limit on one account must not pause the other backend. */
@@ -1368,6 +1430,8 @@ export class Engine {
     this.resumeTimers.set(provider, setTimeout(() => this.resume(provider, 'retry time reached'), Math.max(0, until - Date.now()) + 1000));
   }
   private resume(provider: AgentProvider, reason: string): void {
+    // with auto switch on, sessions start again on an account whose limit is not holding
+    if (isPooled(provider)) this.accountPool.leaveLimited(provider);
     clearTimeout(this.resumeTimers.get(provider));
     this.rateLimitedUntil.delete(provider);
     this.resumeTimers.delete(provider);

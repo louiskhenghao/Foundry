@@ -118,6 +118,10 @@ export class ClaudeAuth {
     this.pending = pending;
     return pending;
   }
+  /** the last status read, without reading again (null before the first read) */
+  cachedStatus(): ClaudeAuthStatus | null {
+    return this.cached;
+  }
   invalidate(): void {
     this.generation++;
     this.cached = null;
