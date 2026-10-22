@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { chmodSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { getGoal } from '@foundry/core';
@@ -36,7 +36,7 @@ case "$host" in
   cloudflare)
     case "$*" in
       *"project create"*) if [ -f "${join(dir, 'PROJECT')}" ]; then echo "A project with this name already exists [code: 8000002]" >&2; exit 1; fi; touch "${join(dir, 'PROJECT')}"; echo "Successfully created the project" ;;
-      *) echo "✨ Deployment complete! Take a peek over at https://4f2a.site.pages.dev" ;;
+      *) if [ -f .wrangler/deploy/config.json ]; then echo 'There is a deploy configuration at ".wrangler/deploy/config.json".' >&2; exit 1; fi; echo "✨ Deployment complete! Take a peek over at https://4f2a.site.pages.dev" ;;
     esac ;;
 esac
 `,
@@ -105,7 +105,8 @@ describe('deploying a finished goal', () => {
   }, 60_000);
 
   test('Netlify uploads the folder as it is; Cloudflare Pages makes its project once and files a preview under the goal’s branch', async () => {
-    const { engine, goal } = await finishedGoal({ 'index.html': '<h1>studio</h1>' });
+    // Wrangler's own folder is ignored, as in the projects it sets up: the deploy folder's clean-up leaves it
+    const { engine, goal } = await finishedGoal({ 'index.html': '<h1>studio</h1>', '.gitignore': '.wrangler\n' });
     engine.deploy(goal.id, { provider: 'netlify', production: false });
     await waitFor(() => last(engine, goal.id)?.status === 'live');
     expect(last(engine, goal.id)!.url).toBe('https://d1--site.netlify.app');
@@ -115,14 +116,21 @@ describe('deploying a finished goal', () => {
     await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 2 && last(engine, goal.id)?.status === 'live');
     expect(last(engine, goal.id)!.url).toBe('https://4f2a.site.pages.dev');
     const cf = calls().filter((c) => c.startsWith('cloudflare|'));
-    expect(cf[0]).toMatch(/pages project create [a-z0-9-]+ --production-branch main\|.*cloudflare=set account=acc123/);
+    expect(cf[0]).toMatch(/pages project create [a-z0-9-]+ --production-branch main --force\|.*cloudflare=set account=acc123/);
     expect(cf[1]).toContain(`pages deploy . --project-name`);
     expect(cf[1]).toContain(`--branch ${goal.branch.replace(/[^A-Za-z0-9-]+/g, '-')}`);
     // again: the project exists, which is no failure
     engine.deploy(goal.id, { provider: 'cloudflare', production: true });
     await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 3 && last(engine, goal.id)?.status !== 'running');
-    expect(last(engine, goal.id)).toMatchObject({ status: 'live', production: true });
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', production: true, url: 'https://site.pages.dev' });
     expect(calls().at(-1)).toContain('--branch main');
+    // a redirect a Workers build left in the folder (Wrangler once handed new projects to Workers) is cleared first
+    const leftover = join(deployDir(engine, goal), '.wrangler', 'deploy');
+    mkdirSync(leftover, { recursive: true });
+    writeFileSync(join(leftover, 'config.json'), '{"configPath":"../../dist/wrangler.json"}');
+    engine.deploy(goal.id, { provider: 'cloudflare', production: false });
+    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 4 && last(engine, goal.id)?.status !== 'running');
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://4f2a.site.pages.dev' });
   }, 60_000);
 
   test('a failing host says why, its token blanked out', async () => {

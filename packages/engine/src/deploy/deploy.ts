@@ -145,6 +145,9 @@ async function run(engine: Engine, goal: Goal, dir: string, req: DeployRequest):
     const started = store.append({ type: 'deploy.started', goalId: goal.id, payload: { provider, production, ref, framework: d.app.framework, dir: d.app.dir } });
     for (const note of d.notes) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${note}` } });
     const cwd = join(dir, d.app.dir);
+    // a redirect to a Workers build's config, ignored by git so the checkout keeps it (Wrangler's hand-over of a new
+    // project to Workers leaves one); a build that makes it makes it again, and a stale one fails every Pages deploy
+    if (provider === 'cloudflare') rmSync(join(cwd, '.wrangler', 'deploy'), { recursive: true, force: true });
     const steps = deploySteps({
       provider,
       cwd,

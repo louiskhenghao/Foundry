@@ -2,7 +2,7 @@
 
 **Status:** accepted · 2026-10-18 · amends ADR-0003
 
-> Amended 2026-10-22: a Netlify or Vercel team slug the token cannot reach (Netlify answers it with a bare 404) fails with a reason that names the setting, and npm's own warnings and the CLIs' colours are left out of a failure's last lines. A deploy is recorded where the host put it: Vercel puts a new project's first deploy in production even when a preview was asked for, so `deploy.finished` carries `production` and a smoke asked for the preview is not run there.
+> Amended 2026-10-22: a Netlify or Vercel team slug the token cannot reach (Netlify answers it with a bare 404) fails with a reason that names the setting, and npm's own warnings and the CLIs' colours are left out of a failure's last lines. A deploy is recorded where the host put it: Vercel puts a new project's first deploy in production even when a preview was asked for, so `deploy.finished` carries `production` and a smoke asked for the preview is not run there. Wrangler 4 now hands a new Pages project to Workers (rewriting the app's files, needing a Workers permission), so the project is created with `--force` and stays on Pages; a stale `.wrangler/deploy` redirect in the deploy folder is removed before the build; production on Cloudflare records the project's own `pages.dev` address.
 
 ## Context
 

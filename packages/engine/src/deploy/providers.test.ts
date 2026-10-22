@@ -42,7 +42,8 @@ describe('deploy commands', () => {
 
   test('Cloudflare Pages: built here, the project created once (an existing one is fine), a preview under the goal branch', () => {
     const steps = deploySteps(plan({ provider: 'cloudflare' }));
-    expect(steps.map((s) => s.argv.slice(3).join(' '))).toEqual(['', '', 'pages project create site-abc123 --production-branch main', 'pages deploy dist --project-name site-abc123 --branch goal-g-1 --commit-dirty=true']);
+    // --force: a new project made on Pages itself, not handed to Workers (which rewrites the app and needs another permission)
+    expect(steps.map((s) => s.argv.slice(3).join(' '))).toEqual(['', '', 'pages project create site-abc123 --production-branch main --force', 'pages deploy dist --project-name site-abc123 --branch goal-g-1 --commit-dirty=true']);
     expect(steps.slice(0, 2).map((s) => s.argv.join(' '))).toEqual(['bun install', 'bun run build']);
     expect(steps[2]!.okIf!.test('A project with this name already exists [code: 8000002]')).toBe(true);
     expect(steps[3]!.env).toMatchObject({ CLOUDFLARE_API_TOKEN: 'cf_SECRET_TOKEN', CLOUDFLARE_ACCOUNT_ID: 'acc123' });
@@ -67,6 +68,9 @@ describe('what a deploy printed', () => {
   test("Vercel's and Wrangler's last host address, without trailing punctuation", () => {
     expect(deployedUrl('vercel', 'Vercel CLI 64.5.0\nInspect: https://vercel.com/studio/site/abc\nhttps://site-abc123-xyz.vercel.app\n', false)).toBe('https://site-abc123-xyz.vercel.app');
     expect(deployedUrl('cloudflare', '✨ Success! Uploaded 12 files\n✨ Deployment complete! Take a peek over at https://4f2a.site-abc123.pages.dev.\n', false)).toBe('https://4f2a.site-abc123.pages.dev');
+    // a preview's branch alias; production's own address rather than the one deploy's
+    expect(deployedUrl('cloudflare', '✨ Deployment complete! Take a peek over at https://81eda539.site-abc123.pages.dev\n✨ Deployment alias URL: https://goal-g-1.site-abc123.pages.dev\n', false)).toBe('https://goal-g-1.site-abc123.pages.dev');
+    expect(deployedUrl('cloudflare', '✨ Deployment complete! Take a peek over at https://1e0b891f.site-abc123.pages.dev\n', true)).toBe('https://site-abc123.pages.dev');
     expect(deployedUrl('vercel', 'nothing here', false)).toBeNull();
   });
 

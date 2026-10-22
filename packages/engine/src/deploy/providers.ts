@@ -101,7 +101,9 @@ export function deploySteps(i: DeployPlanInput): DeployStep[] {
         if (i.install) steps.push(at('install dependencies', i.install));
         if (i.build) steps.push(at('build', i.build));
       }
-      steps.push(at('create the Pages project (once)', [...i.cli('cloudflare'), 'pages', 'project', 'create', i.name, '--production-branch', i.productionBranch], env, /already exists|8000002/i));
+      // --force makes a new project on Pages itself: without it Wrangler hands it to Workers, which rewrites the app's
+      // files and needs a Workers permission; a project that exists stays on Pages and is deployed to without it
+      steps.push(at('create the Pages project (once)', [...i.cli('cloudflare'), 'pages', 'project', 'create', i.name, '--production-branch', i.productionBranch, '--force'], env, /already exists|8000002/i));
       steps.push(at('deploy to Cloudflare Pages', [...i.cli('cloudflare'), 'pages', 'deploy', i.outputDir, '--project-name', i.name, '--branch', i.production ? i.productionBranch : i.branch, '--commit-dirty=true'], env));
       break;
     }
@@ -141,7 +143,9 @@ export function deployedUrl(p: DeployProvider, stdout: string, production: boole
   }
   const urls = stdout.match(/https:\/\/[^\s"'<>)\]]+/g) ?? [];
   const hosted = urls.filter((u) => (p === 'vercel' ? /\.vercel\.app/.test(u) : p === 'netlify' ? /netlify\.app/.test(u) : /\.pages\.dev/.test(u)));
-  return (hosted.at(-1) ?? urls.at(-1) ?? null)?.replace(/[.,;]+$/, '') ?? null;
+  const url = (hosted.at(-1) ?? urls.at(-1) ?? null)?.replace(/[.,;]+$/, '') ?? null;
+  // Wrangler names the one deploy (<hash>.<project>.pages.dev); production's address is the project's own
+  return p === 'cloudflare' && production && url ? url.replace(/^https:\/\/[^./]+\.(?=[^./]+\.pages\.dev)/, 'https://') : url;
 }
 
 /** a CLI's text without its colours */
