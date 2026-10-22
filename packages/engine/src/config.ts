@@ -115,6 +115,8 @@ export interface EngineConfig {
    * and the engine records which skills each session used. `plain`: only the one-line "installed skills" hint.
    */
   workflowProfile: 'mattpocock' | 'pstack' | 'plain';
+  /** the release each workflow suite was moved to on the Extensions page (suite id → tag); absent = the catalog's pins */
+  suiteReleases?: Record<string, string>;
   /** TDD discipline new Expert-mode goals start with */
   workflowTdd: 'required' | 'preferred' | 'off';
   /** Ponytail (the lazy senior dev) for new goals */

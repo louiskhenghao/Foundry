@@ -17,6 +17,8 @@ export interface SkillsPaths {
   sessionViewFile: string;
   /** persisted SkillsUpdateReport (+ per-repo git facts) */
   updatesFile: string;
+  /** persisted release facts of the workflow suites: tags, each fetched tag's skills (ADR-0068) */
+  releasesFile: string;
   /** ~/.claude/plugins/known_marketplaces.json */
   marketplacesFile: string;
   /** the workflow suites' store: <dataDir>/suites/<id>/{clone,plugin} (ADR-0049) */
@@ -39,6 +41,7 @@ export function skillsPaths(claudeHome: string, dataDir: string, provider: Agent
     trashDir: join(dataDir, 'skills-trash'),
     sessionViewFile: join(dataDir, 'skills-last-seen.json'),
     updatesFile: join(dataDir, 'skills-updates.json'),
+    releasesFile: join(dataDir, 'skills-releases.json'),
     marketplacesFile: join(claudeHome, 'plugins', 'known_marketplaces.json'),
     suitesDir: join(dataDir, 'suites'),
   };

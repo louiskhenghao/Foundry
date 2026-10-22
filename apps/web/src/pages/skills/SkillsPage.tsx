@@ -1,6 +1,6 @@
 import type { EngineEvent } from '@foundry/core/browser';
 import { PROVIDER_LABEL } from '@foundry/core/browser';
-import type { InstalledSkill, SkillScope, SkillSourceRow, SkillTier, SkillUsage, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
+import type { InstalledSkill, SkillScope, SkillSourceRow, SkillTier, SkillUsage, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from '@foundry/engine/skills-types';
 import { Blocks, FolderGit2, PackageCheck, Plug, RefreshCw, Search, SquareTerminal, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
@@ -11,6 +11,7 @@ import { OpsDock } from './OpsDock.tsx';
 import { startOp, useRunningOp, useSkillOps } from './ops.ts';
 import { SessionLine, SidePanelTabs } from './SidePanels.tsx';
 import { MANAGER_CODE, SourceGroup, lastGoals } from './SourceGroup.tsx';
+import { SuiteReleases } from './SuiteReleases.tsx';
 
 type Report = SkillsUpdateReport & { updating: string | null; refreshing: boolean };
 type View = { name: string; dir: string; invoke: string; skillMd: string | null; files: { path: string; size: number }[] };
@@ -54,6 +55,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
   const startProviderOp = (operation: Parameters<typeof startOp>[0]) => startOp({ ...operation, label: `${backend} · ${operation.label}`, targets: operation.targets.map((target) => `${provider}:${target}`) });
   const [overview, setOverview] = useState<SkillsOverview | null>(null);
   const [report, setReport] = useState<Report | null>(null);
+  const [releases, setReleases] = useState<SuiteReleaseView[]>([]);
   const [trash, setTrash] = useState<TrashEntry[]>([]);
   const [runs, setRuns] = useState<(EngineEvent & { seq: number })[]>([]);
   const [scope, setScope] = useState<SkillScope | 'all'>('all');
@@ -74,6 +76,11 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
 
   const load = async (refresh = false) => {
     if (!alive.current) return null;
+    // the suites' releases come from upstream tags: they arrive on their own, never holding the page
+    void api.suiteReleases(refresh).then(
+      (r) => alive.current && setReleases(r.releases),
+      () => {},
+    );
     try {
       const [o, r, t, h] = await Promise.all([api.skills(), api.skillsUpdates(refresh), api.trash(), api.updateRuns().catch(() => [])]);
       if (!alive.current) return null;
@@ -142,6 +149,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
 
   const checkUpdates = () =>
     quick('refresh', 'Checking upstream repositories…', async () => {
+      void api.suiteReleases(true).then((r) => alive.current && setReleases(r.releases), () => {});
       setReport(await api.skillsUpdates(true));
       watch();
       return null;
@@ -159,6 +167,8 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
         return r;
       },
     });
+  // a workflow suite to another release: its own operation, after the forecast the row showed
+  const moveRelease = (v: SuiteReleaseView, to: string) => startProviderOp({ kind: 'update', label: to === v.ref ? `Re-sync ${v.label} at ${to}` : `Move ${v.label} to ${to}`, targets: [`release:${v.id}`], call: (opId) => api.moveRelease(v.id, to, opId) });
   const adopt = (names: string[]) => startProviderOp({ kind: 'adopt', label: `Adopt ${names.length === 1 ? names[0] : `${names.length} skills`}`, targets: names, call: (opId) => api.adoptSkills(names, opId) });
   // a plugin's skills go together: the CLI's own plugin uninstall
   const uninstallPlugin = (sourceId: string) => startProviderOp({ kind: 'uninstall', label: `Uninstall plugin ${sourceId.slice('plugin:'.length)}`, targets: [sourceId], call: (opId) => api.uninstallPlugin(sourceId, opId) });
@@ -279,6 +289,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-6 gap-y-8 items-start">
         {/* each kind of source on a board of its own, as the Goals page's boards: a source is a row, its skills rows under it */}
         <div className="lg:col-span-2 min-w-0">
+          <SuiteReleases releases={releases} forecast={(id, to) => api.releaseForecast(id, to)} busy={(id) => !!runningOp(`release:${id}`)} running={(id) => opLink(`release:${id}`)} onMove={(v, to) => void moveRelease(v, to)} />
           {MANAGER_ORDER.filter((m) => report.sources.some((s) => s.manager === m && s.skills.some(filter))).map((m) => {
             const Icon = MANAGER_ICON[m];
             return (

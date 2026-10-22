@@ -1,6 +1,6 @@
 # ADR-0049: Workflow suites — a goal fixes whose skills its roles follow
 
-**Status:** accepted · 2026-10-20 · amends ADR-0004 and ADR-0047
+**Status:** accepted · 2026-10-20 · amends ADR-0004 and ADR-0047 · amended by [ADR-0068](0068-moving-a-workflow-suite-to-another-release.md) (the person may move a suite to a later release)
 
 ## Context
 

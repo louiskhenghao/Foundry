@@ -10,11 +10,13 @@ import { runDoctor } from './doctor.ts';
 import { SkillsHints } from './hints.ts';
 import { InstallError, installEntry, readPluginMcpServer, updateEntry, warmupPlugin, type PluginMcpServer } from './installer.ts';
 import { skillsPaths, type SkillsPaths } from './paths.ts';
+import { RELEASE_TAG, SuiteReleaseChecker, compareVersions, effectiveRef, installedAs, repinPlugin, suiteReleases, withReleases, type ReleaseCheckerOptions } from './releases.ts';
 import { scanSkills } from './scanner.ts';
+import { installSuite } from './suites.ts';
 import { TrashError, listTrash, restoreSkill, trashSkill } from './trash.ts';
 import { SkillsUpdateChecker, type UpdateCheckerOptions } from './updates.ts';
 import { runSourceUpdate, spawnStreaming, type UpdaterContext } from './updaters.ts';
-import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, InstallResult, InstalledSkill, InstalledSuite, ScanResult, SessionView, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from './types.ts';
+import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, InstallResult, InstalledSkill, InstalledSuite, ReleaseForecast, ScanResult, SessionView, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from './types.ts';
 
 export interface BundleResult {
   id: string;
@@ -46,6 +48,11 @@ export interface SkillsManagerOptions {
   hintsEnabled?: () => boolean;
   /** which prompt section roles get (default mattpocock) */
   workflowProfile?: () => WorkflowProfile;
+  /** the release each workflow suite was moved to (Settings); the newer of it and the catalog's pin is used (ADR-0068) */
+  suiteReleases?: () => Record<string, string>;
+  /** a Move chose a release (null: back at the catalog's pin): the engine saves it in Settings */
+  onSuiteRelease?: (id: string, ref: string | null) => void;
+  releases?: ReleaseCheckerOptions;
   /** chosen option per mutually exclusive pack, e.g. { design: 'ui-ux-pro-max' } */
   packs?: () => Record<string, string | undefined>;
   /** Settings switches gated entries need (Safety → Desktop apps & printers) */
@@ -84,8 +91,11 @@ export class SkillsManager {
   readonly paths: SkillsPaths;
   readonly hints: SkillsHints;
   readonly checker: SkillsUpdateChecker;
-  private catalogCache: Catalog | null = null;
+  readonly releaseChecker: SuiteReleaseChecker;
+  private baseCache: Catalog | null = null;
   private catalogMtime = 0;
+  private catalogCache: Catalog | null = null;
+  private catalogKey = '';
   private chain: Promise<unknown> = Promise.resolve();
   private lastView: SessionView | null = null;
   private updating: string | null = null;
@@ -96,6 +106,7 @@ export class SkillsManager {
     this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}), ...(opts.suitesDir ? { suitesDir: opts.suitesDir } : {}) };
     this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs, gates: opts.gates, provider: opts.provider });
     this.checker = new SkillsUpdateChecker(this.paths, { log: opts.log, ...(opts.updates ?? {}) });
+    this.releaseChecker = new SuiteReleaseChecker(this.paths, { log: opts.log, ...(opts.releases ?? {}) });
     try {
       if (existsSync(this.paths.sessionViewFile)) this.lastView = JSON.parse(readFileSync(this.paths.sessionViewFile, 'utf8'));
     } catch {}
@@ -106,24 +117,37 @@ export class SkillsManager {
     return readSuite(this.paths, id);
   }
 
-  catalog(): Catalog {
+  /** the catalog as shipped, with this coding agent's entries: each suite at the catalog's own pin */
+  baseCatalog(): Catalog {
     // mtime-aware: editing catalog/skills.json takes effect without a restart (`bun --watch` only reloads imported code)
     let mtime = 0;
     try {
       mtime = statSync(this.opts.catalogPath).mtimeMs;
     } catch {}
-    if (!this.catalogCache || mtime !== this.catalogMtime) {
-      this.catalogCache = loadCatalog(this.opts.catalogPath);
+    if (!this.baseCache || mtime !== this.catalogMtime) {
+      this.baseCache = loadCatalog(this.opts.catalogPath);
       const provider = this.opts.provider ?? 'claude';
-      this.catalogCache.entries = this.catalogCache.entries
+      this.baseCache.entries = this.baseCache.entries
         .filter((entry) => !entry.providers || entry.providers.includes(provider))
         .map((entry) => ({ ...entry, source: entry.providerSources?.[provider] ?? entry.source }));
       this.catalogMtime = mtime;
+    }
+    return this.baseCache;
+  }
+  /** the catalog in use: each workflow suite at the release it was moved to, when that is newer than the pin (ADR-0068) */
+  catalog(): Catalog {
+    const base = this.baseCatalog();
+    const chosen = this.opts.suiteReleases?.() ?? {};
+    const key = `${this.catalogMtime}|${JSON.stringify(chosen)}|${this.releaseChecker.version}`;
+    if (!this.catalogCache || key !== this.catalogKey) {
+      this.catalogCache = withReleases(base, chosen, (repo, ref) => this.releaseChecker.pathsAt(repo, ref));
+      this.catalogKey = key;
       this.hints.invalidate();
     }
     return this.catalogCache;
   }
   reloadCatalog(): Catalog {
+    this.baseCache = null;
     this.catalogCache = null;
     return this.catalog();
   }
@@ -324,6 +348,113 @@ export class SkillsManager {
       if (trashed.length) this.opts.onRun?.({ sourceId: 'shadows', updater: 'none', command: ['foundry', 'cleanup-shadows', ...trashed.map((t) => t.name)], cwd: this.paths.skillsDir, exitCode: 0, durationMs: 0, outputTail: trashed.map((t) => `trashed ${t.name} → ${t.path}`).join('\n'), changed: [], error: null, at: new Date().toISOString() });
       await this.checker.report(this.scan(), this.catalog(), { offline: true }).catch(() => {});
       return { trashed, skipped };
+    });
+  }
+
+  // ---------- workflow suite releases (ADR-0068) ----------
+
+  /**
+   * Each workflow suite with the release it sits at, what is installed, the releases it may move to and a forecast of the
+   * newest. `refresh` asks upstream for its tags; otherwise a tag list is reused for hours. A forecast fetches the two
+   * releases it compares once; later ones read them from the probe repository.
+   */
+  async releases(opts: { refresh?: boolean } = {}): Promise<SuiteReleaseView[]> {
+    const base = this.baseCatalog();
+    const chosen = this.opts.suiteReleases?.() ?? {};
+    const scan = this.scan();
+    const out: SuiteReleaseView[] = [];
+    for (const rel of suiteReleases(base)) {
+      if (opts.refresh || this.releaseChecker.stale(rel.id)) await this.releaseChecker.refresh(rel);
+      const facts = this.releaseChecker.of(rel.id);
+      const ref = effectiveRef(rel.catalogRef, chosen[rel.id]);
+      const latest = facts?.tags[0] ?? null;
+      const inst = installedAs(rel, scan, this.paths);
+      let error = facts?.error ?? null;
+      const forecast = latest && compareVersions(latest, ref) > 0 ? await this.releaseChecker.forecast(rel, base, ref, latest).catch((e) => ((error = String((e as Error).message ?? e)), null)) : null;
+      const choices = [...new Set([...(facts?.tags ?? []), ref, rel.catalogRef])].filter((t) => compareVersions(t, rel.catalogRef) >= 0).sort((a, b) => compareVersions(b, a));
+      out.push({ id: rel.id, label: rel.label, kind: rel.kind, repo: rel.repo, homepage: rel.homepage, catalogRef: rel.catalogRef, chosenRef: chosen[rel.id] ?? null, ref, installed: inst ? { as: inst.as, ref: inst.ref } : null, choices, latest, forecast, checkedAt: facts?.checkedAt ?? null, error });
+    }
+    return out;
+  }
+
+  /** the workflow suites that sit at a release */
+  releaseIds(): string[] {
+    return suiteReleases(this.baseCatalog()).map((r) => r.id);
+  }
+
+  /** what moving a suite to `to` changes on this computer: from what is installed (else the release in use) */
+  async forecastRelease(id: string, to: string): Promise<ReleaseForecast> {
+    const base = this.baseCatalog();
+    const rel = suiteReleases(base).find((r) => r.id === id);
+    if (!rel) throw new Error(`${id} is not a workflow suite at a release`);
+    return this.releaseChecker.forecast(rel, base, this.releaseFrom(rel), to);
+  }
+
+  private releaseFrom(rel: ReturnType<typeof suiteReleases>[number]): string {
+    const inst = installedAs(rel, this.scan(), this.paths);
+    return inst?.ref && RELEASE_TAG.test(inst.ref) ? inst.ref : effectiveRef(rel.catalogRef, this.opts.suiteReleases?.()[rel.id]);
+  }
+
+  /**
+   * Move a workflow suite to a release (at or after the catalog's pin): the choice is saved, then what is installed follows
+   * — the suite's copy re-syncs, Foundry's copies update and the ones the release no longer ships go to the trash, a Claude
+   * plugin's marketplace is re-pinned to the tag and the plugin updated. Moving to the release in use re-syncs.
+   */
+  moveRelease(id: string, to: string, onLine?: (l: string) => void): Promise<SkillUpdateRun> {
+    return this.serial(async () => {
+      const t0 = Date.now();
+      const say = onLine ?? (() => {});
+      const base = this.baseCatalog();
+      const rel = suiteReleases(base).find((r) => r.id === id);
+      if (!rel) throw new Error(`${id} is not a workflow suite at a release`);
+      if (!RELEASE_TAG.test(to) || compareVersions(to, rel.catalogRef) < 0) throw new Error(`${rel.label} moves to ${rel.catalogRef} or a later release, not ${to}`);
+      if (!this.releaseChecker.of(id)?.tags.includes(to)) await this.releaseChecker.refresh(rel);
+      if (!this.releaseChecker.of(id)?.tags.includes(to)) throw new Error(`${rel.repo} has no release ${to}${this.releaseChecker.of(id)?.error ? ` (${this.releaseChecker.of(id)!.error})` : ''}`);
+      const inst = installedAs(rel, this.scan(), this.paths);
+      const forecast = await this.releaseChecker.forecast(rel, base, this.releaseFrom(rel), to);
+      say(`${rel.label}: ${forecast.from} → ${to} — ${forecast.removed.length} removed, ${forecast.added.length} added, ${forecast.kept} kept`);
+      this.opts.onSuiteRelease?.(id, compareVersions(to, rel.catalogRef) > 0 ? to : null);
+      const catalog = this.catalog();
+      const changed: SkillUpdateRun['changed'] = [];
+      let error: string | null = null;
+      const lines: string[] = [];
+      const line = (l: string) => (lines.push(l), say(l));
+      try {
+        if (inst?.as === 'suite') {
+          const suite = catalog.suites.find((s) => s.id === id)!;
+          const r = await installSuite(suite, { paths: this.paths, log: this.opts.log }, { refresh: true });
+          line(r.changed ? `✓ ${rel.label} copy: ${r.from?.slice(0, 7) ?? '?'} → ${r.commit?.slice(0, 7) ?? '?'} (${suite.ref})` : `= ${rel.label} copy already at ${suite.ref}`);
+          if (r.changed) changed.push({ name: id, from: r.from, to: r.commit });
+        } else if (inst?.as === 'git') {
+          const copies = this.scan().installed.filter((r) => r.scope === 'user' && r.managedBy === 'foundry' && r.marker?.repo === rel.repo);
+          for (const e of catalog.entries.filter((x) => x.bundle === id && x.source.type === 'git' && copies.some((c) => c.marker?.catalogId === x.id))) {
+            if (forecast.removed.some((r) => r.name === e.name)) {
+              const t = trashSkill(e.name, this.paths, `not in ${rel.label} ${to}`);
+              line(`✗ ${e.name}: not in ${to} — moved to the trash (${t.path})`);
+              changed.push({ name: e.name, from: null, to: null });
+              continue;
+            }
+            const u = await updateEntry(e, { paths: this.paths, log: this.opts.log });
+            line(u.changed ? `✓ ${e.name}: ${u.from?.slice(0, 7) ?? '?'} → ${u.to?.slice(0, 7) ?? '?'}` : `= ${e.name}: already at ${to}`);
+            if (u.changed) changed.push({ name: u.name, from: u.from, to: u.to });
+          }
+        } else if (inst?.as === 'plugin') {
+          if (this.opts.provider && this.opts.provider !== 'claude') throw new Error(`move ${rel.label}'s plugin in ${this.opts.provider} itself`);
+          const claude = this.opts.claudeBin ?? Bun.which('claude');
+          if (!claude) throw new Error('claude not found on PATH');
+          const r = await repinPlugin({ settingsJson: this.paths.settingsJson, claude, repo: rel.repo, marketplace: inst.marketplace!, pluginId: inst.pluginId!, to, cwd: homedir(), spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine: line });
+          if (!r.ok) throw new Error(r.error ?? 'the plugin did not move');
+          line(`✓ ${inst.pluginId} at ${to} — restart Claude sessions to apply`);
+          changed.push({ name: inst.pluginId!, from: inst.ref, to });
+        } else line(`${rel.label} is not installed here: an install takes ${to}`);
+      } catch (e) {
+        error = String((e as Error).message ?? e);
+        line(`✗ ${error}`);
+      }
+      const run: SkillUpdateRun = { sourceId: `release:${id}`, updater: inst?.as === 'plugin' ? 'plugin' : inst?.as === 'suite' ? 'suite' : 'foundry', command: ['foundry', 'suite', 'move', id, to], cwd: this.paths.skillsDir, exitCode: error ? 1 : 0, durationMs: Date.now() - t0, outputTail: lines.slice(-60).join('\n'), changed, error, at: new Date().toISOString() };
+      this.opts.onRun?.(run);
+      await this.checker.report(this.scan(), this.catalog(), { offline: true }).catch(() => {});
+      return run;
     });
   }
 

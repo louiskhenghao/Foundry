@@ -278,7 +278,7 @@ export interface FsRecent {
   nativePicker: boolean;
 }
 import type { AgentLogChunk, AgentsList, AgentsSummary } from '@foundry/engine/agents-types';
-import type { DoctorReport, InstallResult, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, TrashEntry } from '@foundry/engine/skills-types';
+import type { DoctorReport, InstallResult, ReleaseForecast, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from '@foundry/engine/skills-types';
 import type { MinimaxQuota, Report, UsageSummary } from '@foundry/engine/usage-types';
 
 export type Usage = UsageSummary & { pausedUntil: string | null };
@@ -771,6 +771,10 @@ export function apiForProvider(provider?: AgentProvider) {
   trash: () => req<TrashEntry[]>('/api/skills/trash'),
   skillsUpdates: (refresh = false, repo?: string) => req<SkillsUpdateReport & { updating: string | null; refreshing: boolean }>(`/api/skills/updates?${new URLSearchParams({ ...(refresh ? { refresh: '1' } : {}), ...(repo ? { repo } : {}) })}`),
   updateSource: (id: string, names?: string[], opId?: string) => req<{ started: true; channel: string; op: SkillOp }>(`/api/skills/sources/${encodeURIComponent(id)}/update`, { method: 'POST', body: JSON.stringify({ names, opId }) }),
+  // workflow suite releases (ADR-0068)
+  suiteReleases: (refresh = false) => req<{ releases: SuiteReleaseView[] }>(`/api/skills/releases${refresh ? '?refresh=1' : ''}`),
+  releaseForecast: (id: string, to: string) => req<ReleaseForecast>(`/api/skills/releases/${encodeURIComponent(id)}/forecast?to=${encodeURIComponent(to)}`),
+  moveRelease: (id: string, to: string, opId?: string) => req<{ started: true; channel: string; op: SkillOp }>(`/api/skills/releases/${encodeURIComponent(id)}/move`, { method: 'POST', body: JSON.stringify({ to, opId }) }),
   adoptSkills: (names: string[], opId?: string) => req<{ runs: SkillUpdateRun[]; op: SkillOp }>('/api/skills/adopt', { method: 'POST', body: JSON.stringify({ names, opId }) }),
   skillOp: (id: string) => req<SkillOp>(`/api/skills/ops/${encodeURIComponent(id)}`),
   skillOps: () => req<{ ops: SkillOp[] }>('/api/skills/ops'),

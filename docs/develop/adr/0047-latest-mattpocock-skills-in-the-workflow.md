@@ -1,6 +1,6 @@
 # ADR-0047: The latest mattpocock skills, pinned, in Foundry's workflow
 
-**Status:** accepted · 2026-10-20 · amends ADR-0004 and ADR-0040
+**Status:** accepted · 2026-10-20 · amends ADR-0004 and ADR-0040 · amended by [ADR-0068](0068-moving-a-workflow-suite-to-another-release.md) (the person may move the suite to a later release)
 
 ## Context
 
