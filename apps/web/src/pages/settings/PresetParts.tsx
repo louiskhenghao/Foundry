@@ -1,7 +1,7 @@
 import { MODEL_NATURES, NATURE_LABEL, type ModelNature } from '@foundry/core/browser';
-import { Plus, RefreshCw, RotateCcw, Trash2 } from 'lucide-react';
+import { CodeXml, FileText, Image as ImageIcon, Plus, RefreshCw, RotateCcw, Trash2, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Button, Field, Input, Select, chipClass, cn } from '../../ui.tsx';
+import { Button, Field, Input, Select, chipClass, cn, code } from '../../ui.tsx';
 
 /**
  * The building blocks both coding agents' Models panels share, so they read the same: a sync row, one card per goal
@@ -11,8 +11,22 @@ import { Button, Field, Input, Select, chipClass, cn } from '../../ui.tsx';
 
 export const NATURE_HINT: Record<ModelNature, string> = { code: 'software and CAD goals, and goals not yet classified', docs: 'documents and cited research reports', media: 'image and video goals' };
 
-/** a fact about a preset (modified, a newer default) as a quiet plate: no signal colour, nothing here waits for you */
-const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line-strong';
+/** each goal type's icon and category colour, as the New goal page draws its kinds of goal: code blue, documents green, images magenta */
+const NATURE_STYLE: Record<ModelNature, { Icon: LucideIcon; ink: string; dot: string }> = {
+  code: { Icon: CodeXml, ink: code(0).ink, dot: code(0).dot },
+  docs: { Icon: FileText, ink: code(1).ink, dot: code(1).dot },
+  media: { Icon: ImageIcon, ink: code(6).ink, dot: code(6).dot },
+};
+const NatureIcon = ({ nature }: { nature: ModelNature }) => {
+  const { Icon, ink } = NATURE_STYLE[nature];
+  return <Icon size={15} strokeWidth={2.25} className={cn('shrink-0', ink)} aria-hidden="true" />;
+};
+
+/**
+ * how a preset stands against the one Foundry ships (modified, a newer default out) as a plate in the information blue,
+ * as the role's • and an edited skill's "modified" are: news about it, nothing that waits for you
+ */
+const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] bg-work/10 text-work-ink ring-1 ring-inset ring-work/45';
 
 export function SectionTitle({ children, className }: { children: ReactNode; className?: string }) {
   return <div className={cn('text-sm font-bold text-ink', className)}>{children}</div>;
@@ -28,7 +42,8 @@ export function SyncRow({ syncing, onSync, title, status, aside, help, message }
       <span>{status}</span>
       {aside && <span className="ml-auto">{aside}</span>}
       {help && <p className="w-full text-[11px] text-ink-faint">{help}</p>}
-      {message && <p role="status" className="w-full text-[11px] text-ink-faint">{message}</p>}
+      {/* how the last sync went, in its signal colour: failed red, models found green */}
+      {message && <p role="status" className={cn('w-full text-[11px] font-semibold', /^(✘|Sync failed|Unable)/.test(message) ? 'text-bad-ink' : 'text-ok-ink')}>{message}</p>}
     </div>
   );
 }
@@ -43,9 +58,14 @@ export function GoalTypePresets({ picks, options, onPick, summary, onEdit, selec
       <SectionTitle>Preset per goal type</SectionTitle>
       {MODEL_NATURES.map((n) => (
         <div key={n} className="rounded-lg border border-line bg-sunken p-3 space-y-2">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-ink text-sm font-bold w-40">{NATURE_LABEL[n]}</span>
-            <span className="w-48">
+          {/* on a phone: the goal type with Edit preset beside it, the dropdown full width under them, then what the type
+              covers; from sm on, one line in the order of the markup */}
+          <div className="flex items-center gap-x-2 gap-y-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1.5 text-ink text-sm font-bold sm:w-40">
+              <NatureIcon nature={n} />
+              {NATURE_LABEL[n]}
+            </span>
+            <span className="order-3 w-full sm:order-none sm:w-48">
               <Select className="text-xs py-1" aria-label={selectLabel?.(n) ?? `${NATURE_LABEL[n]} preset`} value={picks[n]} onChange={(e) => onPick(n, e.target.value)}>
                 {options.map((o) => (
                   <option key={o.id} value={o.id}>
@@ -55,8 +75,8 @@ export function GoalTypePresets({ picks, options, onPick, summary, onEdit, selec
                 ))}
               </Select>
             </span>
-            <span className="text-[11px] text-ink-faint">{NATURE_HINT[n]}</span>
-            <Button size="sm" variant="ghost" className="ml-auto" onClick={() => onEdit(n)}>
+            <span className="order-4 w-full text-[11px] text-ink-faint sm:order-none sm:w-auto">{NATURE_HINT[n]}</span>
+            <Button size="sm" variant="ghost" className="order-2 ml-auto sm:order-none" onClick={() => onEdit(n)}>
               Edit preset
             </Button>
           </div>
@@ -132,12 +152,16 @@ export function PresetDetails({ label, description, own, status, onLabel, onDesc
   );
 }
 
-/** which goal type's table the editor shows, as a segmented control (ButtonGroup's look): the one shown filled with the accent */
+/**
+ * which goal type's table the editor shows, as a segmented control (ButtonGroup's look): the one shown filled with the
+ * accent; each type's colour as a square before its name, which reads on the accent fill as on the panel
+ */
 export function NatureTabs({ value, onChange }: { value: ModelNature; onChange: (n: ModelNature) => void }) {
   return (
     <div className="inline-flex max-w-full flex-wrap gap-0.5 rounded-md bg-panel p-0.5 text-xs ring-1 ring-inset ring-line-strong">
       {MODEL_NATURES.map((n) => (
-        <button key={n} type="button" aria-pressed={value === n} onClick={() => onChange(n)} className={cn('grow rounded-sm px-2.5 py-1 font-semibold whitespace-nowrap', value === n ? 'bg-accent text-on-accent' : 'text-ink-soft hover:bg-sunken hover:text-ink')}>
+        <button key={n} type="button" aria-pressed={value === n} onClick={() => onChange(n)} className={cn('grow inline-flex items-center justify-center gap-1.5 rounded-sm px-2.5 py-1 font-semibold whitespace-nowrap', value === n ? 'bg-accent text-on-accent' : 'text-ink-soft hover:bg-sunken hover:text-ink')}>
+          <span className={cn('h-2 w-2 shrink-0 rounded-[2px]', NATURE_STYLE[n].dot)} aria-hidden="true" />
           {NATURE_LABEL[n]}
         </button>
       ))}

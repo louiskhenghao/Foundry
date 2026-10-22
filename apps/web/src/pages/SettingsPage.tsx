@@ -2,8 +2,8 @@ import type { AgentProvider } from '../api.ts';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
-import { Check, RotateCcw } from 'lucide-react';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Check, CheckCircle2, CircleDashed, LoaderCircle, RotateCcw, XCircle } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
@@ -11,10 +11,12 @@ import { ModelPresetsSection } from './settings/ModelPresets.tsx';
 import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
 import { AgyModelsSection } from './settings/AgyModels.tsx';
 import { SectionTitle } from './settings/PresetParts.tsx';
+import { SectionDot, SettingsTitle } from './settings/sections.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
+import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { AccessCard } from './settings/AccessCard.tsx';
-import { Button, Card, CopyButton, Empty, Field, Input, PageHeader, Select, cn, navItemClass } from '../ui.tsx';
+import { Button, Card, CopyButton, Empty, Field, Input, PageHeader, Select, chipClass, cn, navItemClass } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { AppearanceCard } from './settings/AppearanceCard.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
@@ -32,7 +34,10 @@ const SEED_MODELS: { id: string; label: string }[] = [
 ];
 const get = (o: any, path: string) => path.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
 
-/** left-hand index; the ids are the Card ids further down */
+/**
+ * left-hand index (a row of chips on a phone or a tablet); the ids are the Card ids further down, and each section's
+ * colour and icon are in settings/sections.tsx
+ */
 const SECTIONS: { id: string; label: string }[] = [
   { id: 'goals', label: 'New goal defaults' },
   { id: 'models', label: 'Models & limits' },
@@ -41,6 +46,7 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'tools', label: 'Tools & keys' },
   { id: 'preview', label: 'Preview & self-check' },
   { id: 'notifications', label: 'Notifications' },
+  { id: 'access', label: 'Access' },
   { id: 'safety', label: 'Safety' },
   { id: 'engine', label: 'Engine (install)' },
   { id: 'appearance', label: 'Appearance' },
@@ -48,20 +54,38 @@ const SECTIONS: { id: string; label: string }[] = [
 ];
 
 /**
- * a small fact beside a setting (where its value comes from, a restart it needs) as a quiet plate: no signal colour. Its
- * outline is an inset-ring: with ring-inset the theme's colour named inset would win over ring-accent.
+ * a small fact beside a setting (where its value comes from, a restart it needs) as a plate. Its outline is an
+ * inset-ring: with ring-inset the theme's colour named inset would win over the ring's own colour.
  */
 const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.08em] inset-ring';
+/** a setting that applies only after a restart, told apart from the rest in orange (a kind of setting, not a state) */
+const RESTART_TAG = 'bg-code-4/12 text-code-4-ink inset-ring-code-4/45';
 
-/** where a setting's value comes from: saved (outlined in the accent), the environment, or the default */
+/** where a setting's value comes from, told apart by colour as before themes: saved green, the environment blue, the default hollow */
 function SourceBadge({ view, path }: { view: SettingsView; path: string }) {
   const m = view.meta[path];
   if (!m) return null;
   const label = m.source === 'file' ? 'saved' : m.source === 'env' ? 'env' : 'default';
   const title = m.source === 'env' ? `from ${m.env}` : m.env ? `set ${m.env} to seed this value (default ${JSON.stringify(m.default)})` : `default ${JSON.stringify(m.default)}`;
   return (
-    <span className={cn(TAG, m.source === 'file' ? 'text-ink inset-ring-accent' : m.source === 'env' ? 'text-ink-soft inset-ring-line-strong' : 'text-ink-faint inset-ring-line')} title={title}>
+    <span className={cn(TAG, m.source === 'file' ? 'bg-code-2/12 text-code-2-ink inset-ring-code-2/45' : m.source === 'env' ? 'bg-code-1/12 text-code-1-ink inset-ring-code-1/45' : 'text-ink-faint inset-ring-line')} title={title}>
       {label}
+    </span>
+  );
+}
+
+type Tone = 'ok' | 'work' | 'bad' | 'none';
+const TONE_INK: Record<Tone, string> = { ok: 'text-ok-ink', work: 'text-work-ink', bad: 'text-bad-ink', none: 'text-ink-soft' };
+/** a line that reports how something went: ✘ failed (red), still going… (blue), ✓ done (green), anything else plain */
+const toneOf = (line: string): Tone => (line.includes('✘') ? 'bad' : line.endsWith('…') ? 'work' : line.includes('✓') || line.startsWith('→') ? 'ok' : 'none');
+
+/** how an install stands, in its signal colour: in place (green), being read (blue), broken (red), not there yet (hollow) */
+function InstallState({ tone, children }: { tone: Tone; children: ReactNode }) {
+  const Icon = tone === 'ok' ? CheckCircle2 : tone === 'work' ? LoaderCircle : tone === 'bad' ? XCircle : CircleDashed;
+  return (
+    <span className={cn('inline-flex items-center gap-1.5 font-semibold', TONE_INK[tone])}>
+      <Icon size={13} strokeWidth={2.25} aria-hidden="true" className={cn('shrink-0', tone === 'work' && 'animate-spin')} />
+      {children}
     </span>
   );
 }
@@ -123,12 +147,16 @@ export function SettingsPage() {
     loadModels();
     loadUpdate();
   }, []);
-  // highlight the section the page is on; the scroller is <main>, not the window
+  // highlight the section the page is on; the scroller is <main>, not the window. At the very top and the very end the
+  // first and last sections may never reach the band the observer watches: there they are where you are
   useEffect(() => {
     if (!draft) return;
     const root = document.querySelector('main');
+    const edge = () => (!root ? null : root.scrollTop <= 0 ? SECTIONS[0]!.id : root.scrollTop + root.clientHeight >= root.scrollHeight - 2 ? SECTIONS[SECTIONS.length - 1]!.id : null);
     const io = new IntersectionObserver(
       (entries) => {
+        const at = edge();
+        if (at) return setActive(at);
         const top = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top)[0];
         if (top?.target.id) setActive(top.target.id);
       },
@@ -138,7 +166,15 @@ export function SettingsPage() {
       const el = document.getElementById(s.id);
       if (el) io.observe(el);
     }
-    return () => io.disconnect();
+    const onScroll = () => {
+      const at = edge();
+      if (at) setActive(at);
+    };
+    root?.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      io.disconnect();
+      root?.removeEventListener('scroll', onScroll);
+    };
   }, [draft]);
   const testModel = async (name: string) => {
     setProbe((p) => ({ ...p, [name]: 'testing…' }));
@@ -230,7 +266,7 @@ export function SettingsPage() {
     <>
       <SourceBadge view={view} path={path} />
       {view.meta[path]?.restart && (
-        <span className={cn(TAG, 'text-ink-soft inset-ring-line-strong')} title="takes effect after the engine restarts">
+        <span className={cn(TAG, RESTART_TAG)} title="takes effect after the engine restarts">
           restart
         </span>
       )}
@@ -279,14 +315,17 @@ export function SettingsPage() {
             Test
           </Button>
         </div>
-        {/* a failed test or a model that last failed in red; "never seen resolving" is a note */}
-        {(probe[v] || warn) && <div className={cn('text-[11px]', probe[v] ? (probe[v]!.startsWith('✘') ? 'text-bad-ink' : 'text-ink-soft') : warn!.startsWith('last failed') ? 'text-bad-ink' : 'text-work-ink')}>{probe[v] ?? warn}</div>}
+        {/* a test in its signal colour (testing… blue, resolved green, failed red), a model that last failed in red;
+            "never seen resolving" is unknown, so plain */}
+        {(probe[v] || warn) && <div className={cn('text-[11px]', probe[v] ? TONE_INK[toneOf(probe[v]!)] : warn!.startsWith('last failed') ? 'text-bad-ink' : 'text-ink-soft')}>{probe[v] ?? warn}</div>}
       </div>
     );
   };
   const list = (path: Leaf, placeholder: string) => <Input className="mono" value={((get(draft, path) as string[] | null) ?? []).join(', ')} placeholder={placeholder} onChange={(e) => set(path, e.target.value.trim() ? e.target.value.split(',').map((s) => s.trim()).filter(Boolean) : null)} />;
 
   const grid = (children: ReactNode) => <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">{children}</div>;
+  const go = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const agent = PROVIDER_STYLE[draft.engine.provider];
 
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16">
@@ -294,36 +333,45 @@ export function SettingsPage() {
         title="Settings"
         summary={
           <>
-            Saved to <span className="mono break-all text-ink-soft">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className={cn(TAG, 'align-[2px] text-ink-soft inset-ring-line-strong')}>restart</span> after the engine restarts.
+            Saved to <span className="mono break-all text-ink-soft">{view.file}</span>. Precedence: saved value › environment variable › default. Most settings apply immediately; the ones marked <span className={cn(TAG, 'align-[2px]', RESTART_TAG)}>restart</span> after the engine restarts.
           </>
         }
       />
       <div className="grid lg:grid-cols-[11rem_minmax(0,1fr)] gap-x-8">
-        <nav className="hidden lg:block sticky top-0 self-start max-h-screen overflow-auto py-2 space-y-0.5">
+        <nav aria-label="Settings sections" className="hidden lg:block sticky top-0 self-start max-h-screen overflow-auto py-2 space-y-0.5">
           {SECTIONS.map((s) => (
-            <button key={s.id} onClick={() => document.getElementById(s.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })} className={navItemClass(active === s.id)}>
-              {s.label}
+            <button key={s.id} onClick={() => go(s.id)} aria-current={active === s.id ? 'location' : undefined} className={navItemClass(active === s.id)}>
+              <span className="flex items-center gap-2">
+                <SectionDot id={s.id} />
+                <span className="min-w-0 flex-1">{s.label}</span>
+              </span>
             </button>
           ))}
         </nav>
-        <div className="min-w-0 space-y-4">
-          {/* the save bar follows you down the page: settings are long and the change you just made is at the bottom */}
-          <div className="sticky top-0 z-20 py-2.5 bg-page border-b border-line flex items-center gap-2">
-            <span className="text-[13px] text-ink-faint mr-auto">{changed.length ? <><b className="mono font-bold text-ink">{changed.length}</b> unsaved</> : 'no changes'}</span>
-            <Button size="sm" variant="ghost" disabled={!changed.length || busy} onClick={() => setDraft(structuredClone(view.values))}>
-              Discard
-            </Button>
-            <Button size="sm" variant="primary" disabled={!changed.length || busy} onClick={save}>
-              {busy ? 'Saving…' : 'Save'}
-            </Button>
+        {/* a section jumped to stops clear of the sticky bar above it, taller where the row of sections rides in it (the
+            parent's rule outranks each card's own scroll margin) */}
+        <div className="min-w-0 space-y-4 [&>section]:scroll-mt-28 lg:[&>section]:scroll-mt-16">
+          {/* the save bar follows you down the page: settings are long and the change you just made is at the bottom. On a
+              phone or a tablet the sections ride in it too, as the side list's row of chips */}
+          <div className="sticky top-0 z-20 bg-page border-b border-line">
+            <SectionChips active={active} onGo={go} />
+            <div className="py-2.5 flex items-center gap-2">
+              <span className="text-[13px] text-ink-faint mr-auto">{changed.length ? <><b className="mono font-bold text-ink">{changed.length}</b> unsaved</> : 'no changes'}</span>
+              <Button size="sm" variant="ghost" disabled={!changed.length || busy} onClick={() => setDraft(structuredClone(view.values))}>
+                Discard
+              </Button>
+              <Button size="sm" variant="primary" disabled={!changed.length || busy} onClick={save}>
+                {busy ? 'Saving…' : 'Save'}
+              </Button>
+            </div>
           </div>
       {view.restartNeeded.length > 0 && (
-        // the engine waits for you to restart it: a yellow strip, the action first
-        <div className="flex items-start gap-2.5 rounded-lg bg-you/10 px-3 py-2.5 text-xs text-ink ring-1 ring-inset ring-you/60">
+        // the engine waits for you to restart it: on a plain panel, its sign square yellow with a thin yellow edge
+        <div className="flex items-start gap-2.5 rounded-lg bg-panel py-2.5 pl-4 pr-3 text-xs text-ink inset-ring inset-ring-line shadow-[inset_4px_0_0_var(--color-you)]">
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-you text-on-you" aria-hidden="true">
             <RotateCcw size={13} strokeWidth={2.5} />
           </span>
-          <span className="pt-1">
+          <span className="min-w-0 break-words pt-1">
             <b className="font-bold">Restart the engine to apply:</b> <span className="mono">{view.restartNeeded.join(', ')}</span> — stop it (Ctrl-C) and run <span className="mono">bun run serve</span> <CopyButton text="bun run serve" />
           </span>
         </div>
@@ -334,9 +382,15 @@ export function SettingsPage() {
           {msg}
         </div>
       )}
-      {err && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-xs text-bad-ink">{err}</div>}
+      {/* a failure in red words with its mark, on a plain box: no red panel */}
+      {err && (
+        <div className="flex items-start gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-xs text-bad-ink">
+          <XCircle size={13} className="mt-px shrink-0" aria-hidden="true" />
+          <span className="min-w-0 break-words">{err}</span>
+        </div>
+      )}
 
-      <Card id="goals" title={<>New goal defaults<HelpLink to="settings#new-goal-defaults" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="goals" title={<SettingsTitle id="goals">New goal defaults<HelpLink to="settings#new-goal-defaults" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-4">
           {grid(
             <>
@@ -431,7 +485,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="models" title={<>Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="models" title={<SettingsTitle id="models">Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <ProviderSelector className="mb-5" value={modelProvider} onChange={setModelProvider} controls={{ claude: 'models-claude', codex: 'models-codex', agy: 'models-agy' }} />
         <div id="models-codex" role="region" aria-label="Codex models" hidden={modelProvider !== 'codex'}>
           <CodexModelPresetsSection draft={draft} setFields={(patch) => setDraft((previous) => previous ? { ...previous, models: { ...previous.models, ...patch } } : previous)} />
@@ -486,8 +540,9 @@ export function SettingsPage() {
                 {num('engine.maxConcurrent', { min: 1, max: 16 })}
               </Field>
               <Field label="Account switch on a usage limit" help="With several accounts of a coding agent, new sessions can move to the next one when the current one's usage limit stops a session. It is turned on per coding agent on the Accounts page, which says first what the provider's terms say about it.">
+                {/* each switch's state in its colour: on green, off plain */}
                 <p className="text-xs text-ink-soft">
-                  Claude Code {get(draft, 'accounts.autoSwitchClaude') ? 'on' : 'off'} · Codex {get(draft, 'accounts.autoSwitchCodex') ? 'on' : 'off'} — <Link className="underline text-work-ink" to="/accounts">change on Accounts</Link>
+                  Claude Code <b className={get(draft, 'accounts.autoSwitchClaude') ? 'text-ok-ink' : 'font-semibold text-ink-faint'}>{get(draft, 'accounts.autoSwitchClaude') ? 'on' : 'off'}</b> · Codex <b className={get(draft, 'accounts.autoSwitchCodex') ? 'text-ok-ink' : 'font-semibold text-ink-faint'}>{get(draft, 'accounts.autoSwitchCodex') ? 'on' : 'off'}</b> — <Link className="underline text-work-ink" to="/accounts">change on Accounts</Link>
                 </p>
               </Field>
             </>,
@@ -495,7 +550,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="skills" title={<>Skills<HelpLink to="settings#skills" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="skills" title={<SettingsTitle id="skills">Skills<HelpLink to="settings#skills" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-4">
           <div>
             <ProviderSelector value={modelProvider} onChange={setModelProvider} />
@@ -537,7 +592,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="git" title={<>Git &amp; delivery<HelpLink to="settings#git--delivery" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="git" title={<SettingsTitle id="git">Git &amp; delivery<HelpLink to="settings#git--delivery" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-3">
           {bool('sync.fetchBeforeGoal', 'Fetch the base branch before a goal starts', 'Only remote-tracking refs are updated — your checkout is never touched. The Clarifier explores, and the goal branch starts from, the freshest tip.')}
           {grid(
@@ -609,7 +664,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="tools" title={<>Tools &amp; keys<HelpLink to="settings#tools--keys" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="tools" title={<SettingsTitle id="tools">Tools &amp; keys<HelpLink to="settings#tools--keys" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-3">
           {bool('tools.useGraphify', 'Use graphify for relevant-file discovery', 'When the graphify CLI is installed, sessions get a code-graph based context instead of grep.')}
           {grid(
@@ -644,7 +699,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="preview" title={<>Preview &amp; self-check<HelpLink to="settings#preview--self-check" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="preview" title={<SettingsTitle id="preview">Preview &amp; self-check<HelpLink to="settings#preview--self-check" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-3">
           <p className="text-xs text-ink-faint">At a milestone, and on request from a goal's page, the engine starts the goal's dev server in its progress folder and links you to it. With the self-check on, it also opens that preview in headless Chromium after every task lands, takes a screenshot and fails the goal's must checks on console or network errors.</p>
           {grid(
@@ -665,7 +720,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="notifications" title={<>Notifications<HelpLink to="settings#notifications" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="notifications" title={<SettingsTitle id="notifications">Notifications<HelpLink to="settings#notifications" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-4">
           <p className="text-xs text-ink-faint">Get pinged outside the app the moment a goal needs you or finishes. Every enabled event goes to every configured channel; leave a channel's fields empty to keep it off.</p>
           {grid(
@@ -716,13 +771,13 @@ export function SettingsPage() {
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => sendTestNotification({ telegramBotToken: draft.notifications.telegramBotToken, telegramChatId: draft.notifications.telegramChatId, discordWebhookUrl: draft.notifications.discordWebhookUrl, discordBotToken: draft.notifications.discordBotToken })} title="Sends a test message with the values above (saved or not)">
               Send test message
             </Button>
-            {notifMsg && <span className={cn('text-[11px]', notifMsg.includes('✘') ? 'text-bad-ink' : 'text-ink-soft')}>{notifMsg}</span>}
+            {notifMsg && <span className={cn('text-[11px] font-semibold', TONE_INK[toneOf(notifMsg)])}>{notifMsg}</span>}
           </div>
         </div>
       </Card>
 
       <AccessCard />
-      <Card id="safety" title={<>Safety<HelpLink to="settings#safety" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="safety" title={<SettingsTitle id="safety">Safety<HelpLink to="settings#safety" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         {grid(
           <>
             <Field label="Extra boundary patterns" aside={aside('safety.extraBoundaryPatterns')} help="Additional ERE patterns the boundary hook blocks, '|'-separated (e.g. `terraform apply|kubectl`).">
@@ -738,7 +793,7 @@ export function SettingsPage() {
         </div>
       </Card>
 
-      <Card id="engine" title={<>Engine (install)<HelpLink to="settings#engine-install" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="engine" title={<SettingsTitle id="engine">Engine (install)<HelpLink to="settings#engine-install" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         {grid(
           <>
             <Field label="Port" aside={aside('engine.port')} help="HTTP port of the local server and of the boundary hook callback.">
@@ -748,7 +803,11 @@ export function SettingsPage() {
               {text('engine.host')}
             </Field>
             <Field label="Default coding agent" help="Default for new goals in this data directory. Choose any coding agent on New goal; existing goals keep theirs.">
-              <div className="text-sm font-semibold text-ink">{PROVIDER_LABEL[draft.engine.provider]}</div>
+              {/* the coding agent in its own colour and icon, as everywhere it is named */}
+              <div className={cn('inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm font-semibold', agent.chip)}>
+                <agent.Icon size={14} strokeWidth={2} aria-hidden="true" />
+                {PROVIDER_LABEL[draft.engine.provider]}
+              </div>
             </Field>
             {<>
               <Field label="Codex binary" aside={aside('engine.codexBin')} help="Empty = codex on PATH.">{text('engine.codexBin', 'codex', true)}</Field>
@@ -769,7 +828,7 @@ export function SettingsPage() {
 
       <AppearanceCard />
 
-      <Card id="about" title={<>About & updates<HelpLink to="settings#about--updates" className="ml-1.5" /></>} className="scroll-mt-16">
+      <Card id="about" title={<SettingsTitle id="about">About & updates<HelpLink to="settings#about--updates" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <div className="space-y-3">
           <div className="flex items-center gap-3 flex-wrap text-sm">
             <span className="font-bold text-ink">
@@ -781,7 +840,11 @@ export function SettingsPage() {
                 Update to {upd.latest}
               </Button>
             ) : (
-              upd?.checkedAt && <span className="text-[11px] text-ink-faint">up to date · checked <span className="mono">{new Date(upd.checkedAt).toLocaleString()}</span></span>
+              upd?.checkedAt && (
+                <span className="text-[11px] text-ink-faint">
+                  <InstallState tone="ok">up to date</InstallState> · checked <span className="mono">{new Date(upd.checkedAt).toLocaleString()}</span>
+                </span>
+              )
             )}
             <Button size="sm" variant="ghost" disabled={updBusy} onClick={checkUpdate} title="Asks the release registry for the newest version right now (the engine also checks once a day)">
               {updBusy ? 'Checking…' : 'Check now'}
@@ -815,6 +878,31 @@ export function SettingsPage() {
   );
 }
 
+/**
+ * The side list's place on a phone or a tablet: the sections as a row of chips, each with its colour, the one you are
+ * at filled. As the page scrolls the row slides sideways (itself only, never the page) to keep that chip in view.
+ */
+function SectionChips({ active, onGo }: { active: string; onGo: (id: string) => void }) {
+  const row = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = row.current;
+    const chip = nav?.querySelector<HTMLElement>(`[data-section="${active}"]`);
+    if (!nav || !chip || nav.scrollWidth <= nav.clientWidth) return;
+    nav.scrollTo({ left: chip.offsetLeft - (nav.clientWidth - chip.offsetWidth) / 2, behavior: 'smooth' });
+  }, [active]);
+  return (
+    // edge to edge on the screen, so the chips scroll under its sides; relative: the chips' offsets are the row's
+    <nav ref={row} aria-label="Settings sections" className="lg:hidden relative -mx-3 sm:-mx-4 md:-mx-6 px-3 sm:px-4 md:px-6 pt-2.5 flex gap-1.5 overflow-x-auto whitespace-nowrap">
+      {SECTIONS.map((s) => (
+        <button key={s.id} type="button" data-section={s.id} onClick={() => onGo(s.id)} aria-current={active === s.id ? 'location' : undefined} className={cn(chipClass(active === s.id), 'shrink-0 inline-flex items-center gap-1.5')}>
+          <SectionDot id={s.id} />
+          {s.label}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
 /** VS Code in the browser (code-server): what Open ▾ → VS Code (web) starts, installed once into ~/.local */
 function CodeServerInstall() {
   const [st, setSt] = useState<{ installed: boolean; running: boolean } | null>(null);
@@ -839,7 +927,7 @@ function CodeServerInstall() {
       <div className="text-sm font-bold text-ink">VS Code in the browser (code-server)</div>
       <p className="text-[11px] text-ink-faint">Open ▾ → <b>VS Code (web)</b> opens a repository or a goal's folder in VS Code in a browser tab, also on your phone over Tailscale. It starts when first used, listens on this computer only behind a password the menu shows, and stops after two idle hours.</p>
       <div className="flex items-center gap-2 flex-wrap">
-        <span className={cn('font-semibold', st?.installed ? 'text-ok-ink' : 'text-ink-soft')}>{st ? (st.installed ? `installed${st.running ? ' · running' : ''}` : 'not installed') : '…'}</span>
+        <InstallState tone={!st ? 'work' : st.installed ? 'ok' : 'none'}>{st ? (st.installed ? `installed${st.running ? ' · running' : ''}` : 'not installed') : '…'}</InstallState>
         {st && !st.installed && (
           <Button
             size="sm"
@@ -877,7 +965,8 @@ function PlaywrightInstall() {
   return (
     <div className="text-xs text-ink-soft space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
-        <span className={cn('font-semibold', st?.browser ? 'text-ok-ink' : 'text-ink-soft')}>{st ? (st.browser ? 'Chromium installed' : st.installed ? 'Chromium not downloaded yet' : 'Playwright unavailable') : '…'}</span>
+        {/* Playwright ships with Foundry, so its absence is a fault; a browser not downloaded yet is only not there yet */}
+        <InstallState tone={!st ? 'work' : st.browser ? 'ok' : st.installed ? 'none' : 'bad'}>{st ? (st.browser ? 'Chromium installed' : st.installed ? 'Chromium not downloaded yet' : 'Playwright unavailable') : '…'}</InstallState>
         {st && <span className="text-ink-faint">{st.detail}</span>}
         {st && !st.browser && (
           <Button

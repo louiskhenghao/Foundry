@@ -77,7 +77,8 @@ export function CodexModelPresetsSection({ draft, setFields }: { draft: Settings
   const testButton = (choice: CodexModelChoice, label: string, nativeDefault = false) => <Button size="sm" className="shrink-0" variant="ghost" aria-label={`Test ${label}`} disabled={!resolvedModel(choice.model, nativeDefault).trim() || probe[probeKey(choice, nativeDefault)]?.busy} onClick={() => test(choice, nativeDefault)} title="Runs one short Codex session and consumes account quota.">{probe[probeKey(choice, nativeDefault)]?.busy ? 'Testing…' : 'Test'}</Button>;
   const testStatus = (choice: CodexModelChoice, nativeDefault = false) => {
     const result = probe[probeKey(choice, nativeDefault)];
-    return result && <p role="status" className={cn('text-[11px] mt-1 break-words', result.ok === false ? 'text-bad-ink' : 'text-ink-soft')}>{result.text}</p>;
+    // in its signal colour: testing blue, available green, failed red
+    return result && <p role="status" className={cn('text-[11px] mt-1 break-words', result.busy ? 'text-work-ink' : result.ok === false ? 'text-bad-ink' : result.ok ? 'text-ok-ink' : 'text-ink-soft')}>{result.text}</p>;
   };
   const reorder = (index: number, direction: -1 | 1) => {
     const next = [...fallbacks];

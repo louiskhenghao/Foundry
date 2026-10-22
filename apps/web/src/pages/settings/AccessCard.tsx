@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { api, type Person } from '../../api.ts';
 import { Button, Card, ConfirmDialog, CopyButton, Input, Modal, ago } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { SettingsTitle } from './sections.tsx';
 
 /** The people with a token, each with when they last used it, and a Revoke. */
 export function PeopleList({ people, busy, onRevoke }: { people: Person[]; busy?: boolean; onRevoke: (p: Person) => void }) {
@@ -10,10 +11,11 @@ export function PeopleList({ people, busy, onRevoke }: { people: Person[]; busy?
   return (
     <ul className="divide-y divide-line text-sm">
       {people.map((p) => (
+        // a token in use has a green key; one never used yet is not set, so plain
         <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2">
-          <KeyRound size={13} className="text-ink-faint" />
+          <KeyRound size={13} className={p.lastUsedAt ? 'text-ok-ink' : 'text-ink-faint'} />
           <span className="font-bold text-ink">{p.name}</span>
-          <span className="text-xs text-ink-faint">since {p.createdAt.slice(0, 10)} · {p.lastUsedAt ? `last used ${ago(p.lastUsedAt)}` : 'never used'}</span>
+          <span className="text-xs text-ink-faint">since {p.createdAt.slice(0, 10)} · {p.lastUsedAt ? <span className="font-semibold text-ok-ink">last used {ago(p.lastUsedAt)}</span> : 'never used'}</span>
           <Button size="sm" variant="ghost" className="ml-auto" disabled={busy} onClick={() => onRevoke(p)} title={`Take ${p.name}'s token back: it stops working at once`}>
             <Trash2 size={13} /> Revoke
           </Button>
@@ -64,7 +66,7 @@ export function AccessCard() {
   };
   const on = !!people?.length;
   return (
-    <Card id="access" title={<>Access<HelpLink to="settings#access" className="ml-1.5" /></>} className="scroll-mt-16">
+    <Card id="access" title={<SettingsTitle id="access">Access<HelpLink to="settings#access" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
       <div className="space-y-3">
         <p className="text-xs text-ink-faint">
           Who may use this Foundry from another device. Each person gets a token, shown once: pasted on the login page it signs a browser in; set as <span className="mono">FOUNDRY_TOKEN</span> it signs the CLI in. Once anyone has a token, every request needs one — on this computer too — and a goal, a Brief approval or an Inbox answer is recorded under the person's name. Revoke everyone's to turn Access off again.

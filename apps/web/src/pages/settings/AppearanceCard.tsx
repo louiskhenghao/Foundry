@@ -5,6 +5,7 @@ import { api, type OpenTarget } from '../../api.ts';
 import { loadThemes, selectTheme, setMode, useTheme, type Mode } from '../../theme.ts';
 import { Button, ButtonGroup, Card, CopyButton, Menu, MenuItem, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { SettingsTitle } from './sections.tsx';
 
 /**
  * Settings → Appearance (ADR-0066): the theme and light or dark, for this browser only, applied at once. Under them, how
@@ -34,7 +35,7 @@ export function Appearance({ themes, problems, dir, id, mode, light }: Pick<Retu
   };
 
   return (
-    <Card id="appearance" title={<>Appearance<HelpLink to="themes" className="ml-1.5" /></>} className="scroll-mt-16">
+    <Card id="appearance" title={<SettingsTitle id="appearance">Appearance<HelpLink to="themes" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
       <div className="space-y-5">
         <p className="text-xs text-ink-faint">How Foundry looks in this browser. Each person and each device picks their own; a change applies at once and needs no Save.</p>
 
