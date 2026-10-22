@@ -627,6 +627,11 @@ function project(db: Database, e: EngineEvent): void {
           'INSERT INTO rate_limit_state (rate_limit_type, status, resets_at, is_using_overage, seen_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(rate_limit_type) DO UPDATE SET status = excluded.status, resets_at = excluded.resets_at, is_using_overage = excluded.is_using_overage, seen_at = excluded.seen_at WHERE excluded.seen_at >= rate_limit_state.seen_at',
           [p.rateLimit.rateLimitType ?? 'unknown', p.rateLimit.status, p.rateLimit.resetsAt, p.rateLimit.isUsingOverage ? 1 : 0, e.ts],
         );
+        // the same signal under the account that sent it; a session from before accounts ran on the native sign-in
+        db.run(
+          'INSERT INTO account_rate_limits (provider, account_id, rate_limit_type, status, resets_at, is_using_overage, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(provider, account_id, rate_limit_type) DO UPDATE SET status = excluded.status, resets_at = excluded.resets_at, is_using_overage = excluded.is_using_overage, seen_at = excluded.seen_at WHERE excluded.seen_at >= account_rate_limits.seen_at',
+          [p.provider ?? 'claude', p.accountId ?? NATIVE_ACCOUNT, p.rateLimit.rateLimitType ?? 'unknown', p.rateLimit.status, p.rateLimit.resetsAt, p.rateLimit.isUsingOverage ? 1 : 0, e.ts],
+        );
       }
       break;
     }
@@ -888,6 +893,8 @@ export function getStatAvg(db: Database, key: string): number | null {
 
 export interface UsageRow {
   provider?: AgentProvider;
+  /** the account the session ran on (ADR-0065); null = the native sign-in, or a session from before accounts */
+  account_id?: string | null;
   ts: string;
   goal_id: string | null;
   kind: string;
@@ -903,7 +910,7 @@ export interface UsageRow {
   cost_status?: 'reported' | 'unavailable' | null;
 }
 export function listUsageSince(db: Database, sinceIso: string): UsageRow[] {
-  return db.query(`SELECT u.*, COALESCE(json_extract(e.payload, '$.provider'), json_extract(g.data, '$.provider')) AS provider FROM usage_ledger u LEFT JOIN events e ON e.id = u.event_id LEFT JOIN goals g ON g.id = u.goal_id WHERE u.ts >= ? ORDER BY u.ts`).all(sinceIso) as UsageRow[];
+  return db.query(`SELECT u.*, COALESCE(json_extract(e.payload, '$.provider'), json_extract(g.data, '$.provider')) AS provider, json_extract(e.payload, '$.accountId') AS account_id FROM usage_ledger u LEFT JOIN events e ON e.id = u.event_id LEFT JOIN goals g ON g.id = u.goal_id WHERE u.ts >= ? ORDER BY u.ts`).all(sinceIso) as UsageRow[];
 }
 export interface RateLimitRow {
   rate_limit_type: string;
@@ -914,6 +921,10 @@ export interface RateLimitRow {
 }
 export function listRateLimitState(db: Database): RateLimitRow[] {
   return db.query('SELECT rate_limit_type, status, resets_at, is_using_overage, seen_at FROM rate_limit_state ORDER BY rate_limit_type').all() as RateLimitRow[];
+}
+/** one account's rate-limit windows, as its own sessions last reported them (ADR-0065) */
+export function listAccountRateLimits(db: Database, provider: AgentProvider, accountId: string): RateLimitRow[] {
+  return db.query('SELECT rate_limit_type, status, resets_at, is_using_overage, seen_at FROM account_rate_limits WHERE provider = ? AND account_id = ? ORDER BY rate_limit_type').all(provider, accountId) as RateLimitRow[];
 }
 
 /** a repository's Learnings (null when it has none) */
@@ -945,7 +956,7 @@ export function currentAccountId(db: Database, provider: AgentProvider): string 
   return (db.query('SELECT account_id FROM current_accounts WHERE provider = ?').get(provider) as { account_id: string } | null)?.account_id ?? NATIVE_ACCOUNT;
 }
 
-const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules', 'accounts', 'current_accounts'];
+const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules', 'accounts', 'current_accounts', 'account_rate_limits'];
 
 export function clearReadModels(db: Database): void {
   for (const t of READ_MODEL_TABLES) db.exec(`DELETE FROM ${t}`);

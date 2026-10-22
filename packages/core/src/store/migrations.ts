@@ -102,4 +102,13 @@ export const MIGRATIONS: Migration[] = [
       CREATE TABLE IF NOT EXISTS current_accounts (provider TEXT PRIMARY KEY, account_id TEXT NOT NULL);
     `,
   },
+  {
+    // each account's own rate-limit windows, as its sessions last reported them (ADR-0065); rate_limit_state stays the
+    // coding agent's latest, whichever account sent it
+    id: '0010-account-rate-limits',
+    sql: `CREATE TABLE IF NOT EXISTS account_rate_limits (
+      provider TEXT NOT NULL, account_id TEXT NOT NULL, rate_limit_type TEXT NOT NULL, status TEXT NOT NULL, resets_at INTEGER, is_using_overage INTEGER NOT NULL, seen_at TEXT NOT NULL,
+      PRIMARY KEY (provider, account_id, rate_limit_type)
+    );`,
+  },
 ];
