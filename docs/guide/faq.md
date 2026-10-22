@@ -14,7 +14,7 @@ What each one means and what to press: [When Foundry needs you](./when-foundry-n
 
 Probably not. Check in this order:
 
-1. **A yellow banner "Usage limit reached"?** The named coding agent reached its usage limit. Goals on the other coding agent can continue. Foundry retries at the reported time, or after a delay when no reset is supplied; a retry time does not guarantee recovered quota.
+1. **A yellow banner "Usage limit reached"?** The named coding agent reached its usage limit. Goals on the other coding agent can continue. Foundry retries at the reported time, or after a delay when no reset is supplied; a retry time does not guarantee recovered quota. With another account of that coding agent free, **Switch to *account* and continue** on the banner goes on there ([Several accounts](./costs-and-usage.md#several-accounts)).
 2. **The Inbox.** A number on the tray icon next to **New goal** means something waits for you.
 3. **The task's live log** (goal page → **Tasks** → click the running task). Claude sessions can show `⏱ sub-agent still working · 5m 10s`; Codex uses separate Foundry-managed Planner sessions and does not emit that native sub-agent heartbeat. Planning often takes 2 to 8 minutes with little output.
 4. **The Agents page.** Foundry-owned running sessions show known activity. External Codex history can show **status unknown**; it cannot prove a process is running.

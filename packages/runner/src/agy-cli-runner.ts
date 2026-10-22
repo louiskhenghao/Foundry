@@ -319,7 +319,8 @@ export class AgyCliRunner implements AgentRunner {
           if (structuredError) {
             try {
               const e = JSON.parse(structuredError[1]!);
-              errorMessage ??= String(e.message ?? e.error ?? e.status ?? structuredError[1]);
+              // the CLI writes the reason as `short_error` ("RESOURCE_EXHAUSTED (code 429): Individual quota reached. … Resets in 1h1m35s.")
+              errorMessage ??= String(e.short_error ?? e.message ?? e.error ?? e.status ?? structuredError[1]);
             } catch {
               errorMessage ??= structuredError[1]!;
             }

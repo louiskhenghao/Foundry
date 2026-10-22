@@ -121,7 +121,7 @@ Brief 出来之前，goal 页面可能显示 **Round N — K questions**。这�
 | `[reviewer] ✗ Output does not match required schema …` | 审查员的结论格式不对，会重新发送。无害。 |
 | `■ success · $0.420 · 7 turns — …` | 会话结束了。破折号后面是 worker 最后说的话；点这一行可以看全文。 |
 | `■ error_max_turns`、`■ error_max_budget_usd`、`■ killed_timeout`（琥珀色） | 会话碰到了上限。在任务的 worker 会话里，这一行以 *the engine resumes this session* 结尾：Foundry 会给它新的额度续接，最多两次，然后才开新的尝试。`error_max_budget_usd` 指的是**每个会话的 Claude 费用上限**（Settings → Models & limits），不是 goal 的预算：goal 预算设成不限，单个会话到了这个上限还是会停。 |
-| `⏳ rate limit rejected` | 会话所属编码智能体达到用量上限。Foundry 暂停该编码智能体并稍后重试，另一个编码智能体仍可继续；重试时间不保证额度已经恢复。 |
+| `⏳ rate limit rejected` | 会话所用账号达到用量上限。Foundry 暂停该编码智能体并稍后重试，或者转到它的下一个账号继续（[多个账号](./costs-and-usage.zh.md#多个账号)），另一个编码智能体仍可继续；重试时间不保证额度已经恢复。之后这个任务会续接原来的会话，不占重试次数。 |
 | `⏱ sub-agent still working · 3m 30s` | 一个助手会话还在忙。这一行在更新时，日志长时间没动静是正常的。 |
 | `[claude-code:unrecognized_model] …` | 你的 Claude Code 比你选的模型旧。会话照常工作；更新 Claude Code 就不会再出现。 |
 

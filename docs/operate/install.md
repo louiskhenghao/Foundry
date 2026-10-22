@@ -283,6 +283,11 @@ With Compose, add this under `services.foundry` in `docker-compose.yml`:
 
 Treat the token like a password: it is your subscription.
 
+The token is this Foundry's own sign-in (account 1). More Claude or Codex accounts are added on the **Accounts** page,
+each signed in through the web UI into a folder of its own under the data volume (`data/accounts/`); sessions on an
+added account never use the token. A backup of the data volume therefore holds those accounts' credential files,
+readable by their owner only. See [ADR-0065](../develop/adr/0065-several-accounts-per-coding-agent.md).
+
 > **Linux only:** instead of the `claude-home` volume you can mount the credentials you already have:
 > `-v ~/.claude:/home/node/.claude`. On Linux, Claude Code keeps them in `~/.claude/.credentials.json`, so they
 > travel with the mount. The container also writes its sessions and skills there. **On macOS this does not work**:

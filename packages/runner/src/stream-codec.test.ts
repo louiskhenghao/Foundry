@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { LineSplitter, decodeLine } from './stream-codec.ts';
-import { classifyFailure } from './types.ts';
+import { classifyFailure, resumeRefused } from './types.ts';
 
 describe('failure classification', () => {
   test('model errors, rate limits, auth, other, success', () => {
@@ -9,11 +9,28 @@ describe('failure classification', () => {
     expect(classifyFailure('Unknown model alias: fable2')).toBe('model_unavailable');
     expect(classifyFailure('Error: invalid model "claude-x"')).toBe('model_unavailable');
     expect(classifyFailure('rate_limit_error: too many requests')).toBe('rate_limit');
+    // what each coding agent says when an account's usage runs out
+    for (const said of [
+      "You've hit your session limit · resets 3:45pm",
+      'You’ve hit your usage limit. Visit https://chatgpt.com/settings/usage to purchase more credits or try again at 3:04 PM.',
+      'Your workspace is out of credits. Add credits to continue.',
+      'You hit your spend cap set in your workspace.',
+      'RESOURCE_EXHAUSTED (code 429): Individual quota reached. Resets in 2h39m52s.',
+      'Your AI credits balance is too low to continue.',
+    ]) expect(classifyFailure(said)).toBe('rate_limit');
+    expect(classifyFailure('wrote 14290 lines')).toBe('other');
     expect(classifyFailure('Not logged in · please run claude login')).toBe('auth');
     expect(classifyFailure('Tool execution failed: ENOENT')).toBe('other');
     expect(classifyFailure(null, 'success')).toBeNull();
     expect(classifyFailure(null, 'error_max_turns')).toBe('other');
     expect(classifyFailure('The file model.ts could not be parsed')).toBe('other');
+  });
+  test('a resume the coding agent refused: the session is not there, or the API rejects its earlier turns', () => {
+    for (const said of ['No conversation found with session ID: 7c2e', 'No saved session found with ID 019a', 'thread 019a not found', 'messages.1.content.0: Invalid `signature` in `thinking` block', 'The encrypted content for item rs_1 could not be verified.']) {
+      expect(resumeRefused({ isError: true, errorMessage: said })).toBe(true);
+    }
+    expect(resumeRefused({ isError: false, errorMessage: 'No conversation found' })).toBe(false);
+    expect(resumeRefused({ isError: true, errorMessage: 'Tool execution failed: ENOENT' })).toBe(false);
   });
   test('result events carry failureClass', () => {
     const [ev] = decodeLine(JSON.stringify({ type: 'result', subtype: 'error_during_execution', is_error: true, errors: ['model: nope-9 not found'], session_id: 's' }));

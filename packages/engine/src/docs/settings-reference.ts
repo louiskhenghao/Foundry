@@ -97,6 +97,9 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'preview.portTo': { section: 'Preview & self-check', help: 'Last port handed to goal previews (Docker: publish the range).' },
   'preview.idleMinutes': { section: 'Preview & self-check', help: 'A preview nobody opened for this long is stopped (never while a goal waits for your look).' },
   'checks.selfCheck': { section: 'Preview & self-check', help: 'New goals open their preview in headless Chromium after each task, screenshot it and fail on console or network errors.' },
+  // shown under Models & limits, switched on the Accounts page (ADR-0065)
+  'accounts.autoSwitchClaude': { section: 'Models & limits', help: 'When the current Claude account\'s usage limit stops a session, new sessions move to the next signed-in Claude account and the stopped session resumes there; off = new sessions pause until the limit resets. Turned on from the Accounts page, which quotes the provider\'s terms first.' },
+  'accounts.autoSwitchCodex': { section: 'Models & limits', help: 'The same for Codex accounts.' },
   // Notifications
   'notifications.telegramBotToken': { section: 'Notifications', help: 'Telegram bot token.' },
   'notifications.telegramChatId': { section: 'Notifications', help: 'Telegram chat id (the Detect button finds it).' },

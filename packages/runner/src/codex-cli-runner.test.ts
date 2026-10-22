@@ -22,7 +22,7 @@ if (process.env.TEST_GUARD) {
   hook.stdin.write(JSON.stringify({tool_name:'mcp__example__search',tool_input:{token:'private-fixture-secret'}}));hook.stdin.end();
   await Promise.all([new Response(hook.stdout).text(),new Response(hook.stderr).text(),hook.exited]);
 }
-if (process.env.CAPTURE) fs.writeFileSync(process.env.CAPTURE, JSON.stringify({args, prompt:await Bun.stdin.text(), policy, schema:args.includes('--output-schema') ? JSON.parse(fs.readFileSync(args[args.indexOf('--output-schema')+1],'utf8')) : null}));
+if (process.env.CAPTURE) fs.writeFileSync(process.env.CAPTURE, JSON.stringify({args, home:process.env.CODEX_HOME, prompt:await Bun.stdin.text(), policy, schema:args.includes('--output-schema') ? JSON.parse(fs.readFileSync(args[args.indexOf('--output-schema')+1],'utf8')) : null}));
 for(const event of JSON.parse(process.env.EVENTS ?? '[]')) console.log(JSON.stringify(event));
 if(process.env.HANG) await Bun.sleep(60000);
 process.exit(Number(process.env.EXIT_CODE ?? 0));
@@ -101,6 +101,12 @@ describe('Codex CLI adapter', () => {
     expect(invocation.prompt).toBe('task');
     expect(existsSync(invocation.policy.canary)).toBe(false);
     expect(runner.active()).toBe(0);
+    // a session on an added account runs in that account's home (ADR-0065), the runner's own otherwise
+    const homed = new CodexCliRunner({ codexBin: bin, codexHome: join(dir, 'native'), env: { EVENTS: JSON.stringify(stream), CAPTURE: capture } });
+    await collect(homed, dir, { configHome: join(dir, 'acc_1') });
+    expect(JSON.parse(readFileSync(capture, 'utf8')).home).toBe(join(dir, 'acc_1'));
+    await collect(homed, dir);
+    expect(JSON.parse(readFileSync(capture, 'utf8')).home).toBe(join(dir, 'native'));
   });
   test('failure, bad JSON and nonzero exit cannot be mistaken for successful work', async () => {
     const { dir, bin } = fixture();

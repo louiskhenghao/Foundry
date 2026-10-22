@@ -55,6 +55,8 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `sessions.attemptTimeoutMin` | `20` | — | Wall-clock cap for one attempt session. |
 | `workflow.investigationMaxCostUsd` | `3` | `FOUNDRY_INVESTIGATION_MAX_COST` | Cost cap of the session that investigates a goal's reference with REA before Clarify. |
 | `workflow.investigationMaxMinutes` | `20` | `FOUNDRY_INVESTIGATION_MAX_MINUTES` | Time cap of that investigation, in minutes. |
+| `accounts.autoSwitchClaude` | `false` | — | When the current Claude account's usage limit stops a session, new sessions move to the next signed-in Claude account and the stopped session resumes there; off = new sessions pause until the limit resets. Turned on from the Accounts page, which quotes the provider's terms first. |
+| `accounts.autoSwitchCodex` | `false` | — | The same for Codex accounts. |
 
 ## Skills
 

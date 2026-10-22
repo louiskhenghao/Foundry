@@ -39,6 +39,10 @@ export interface RunSpec {
   addDirs?: string[];
   /** Claude Code plugin directories loaded for this session (`--plugin-dir`): a workflow suite's hook-less copy (ADR-0049) */
   pluginDirs?: string[];
+  /** MCP servers handed to Claude Code for this session (`--mcp-config`), beside the ones it configures itself */
+  mcpConfig?: { mcpServers: Record<string, unknown> };
+  /** the coding agent's config dir for this session (CLAUDE_CONFIG_DIR, CODEX_HOME): an added account's home (ADR-0065); omitted = the runner's own */
+  configHome?: string;
   resumeSessionId?: string;
   /** Claude Code effort level (`--effort`); omitted = the CLI default */
   effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
@@ -110,13 +114,29 @@ export interface PermissionDenial {
 /** Why a session failed, as far as the CLI's error text tells: drives model fallback and doctor hints. */
 export type FailureClass = 'model_unavailable' | 'auth' | 'rate_limit' | 'other';
 
+/**
+ * The error text of a session a limit stopped: an account's usage limit (Claude Code's "You've hit your session limit",
+ * Codex's "You’ve hit your usage limit", "out of credits" and "spend cap", Antigravity's "RESOURCE_EXHAUSTED … Individual
+ * quota reached" and "credits balance is too low") or the provider's rate limiting (429, overloaded).
+ */
+export const LIMIT_TEXT = /rate[ _-]?limit|usage[ _-]?limit|hit your [\w ]{0,20}limit|overloaded|too many requests|\b429\b|resource[ _-]?exhausted|quota (?:reached|exceeded|exhausted)|out of credits|spend cap|credits balance is too low/i;
+
+/**
+ * A resumed session its coding agent could not pick up: the conversation is not where it looks (another account's home,
+ * a cleaned record) or the API refused its earlier turns (another account's thinking signatures or encrypted reasoning).
+ */
+export const RESUME_REFUSED = /no conversation found|\b(session|thread|conversation)\b.{0,40}not found|could not resume|no saved session|invalid\W{0,3}signature|signature\W{0,3}in\W{0,3}thinking|encrypted content.{0,80}(could not|cannot) be (verified|decrypted)/i;
+export function resumeRefused(r: Pick<RunResult, 'isError' | 'errorMessage'>): boolean {
+  return r.isError && RESUME_REFUSED.test(r.errorMessage ?? '');
+}
+
 const MODEL_UNAVAILABLE = /(model|alias)[^.\n]{0,80}?(not found|does not exist|not supported|unsupported|deprecated|retired|invalid|unknown|no longer (available|supported)|not available)|(not found|does not exist|unknown|invalid|deprecated|unsupported)[^.\n]{0,40}?\bmodel\b|not_found_error[^.\n]{0,80}model/i;
 
 export function classifyFailure(errorMessage: string | null | undefined, subtype?: string): FailureClass | null {
   const text = (errorMessage ?? '').trim();
   if (!text && (!subtype || subtype === 'success')) return null;
   if (MODEL_UNAVAILABLE.test(text)) return 'model_unavailable';
-  if (/rate[ _-]?limit|usage[ _-]?limit|overloaded|429/i.test(text)) return 'rate_limit';
+  if (LIMIT_TEXT.test(text)) return 'rate_limit';
   if (/authentication|unauthori[sz]ed|not logged in|invalid api key|401|403/i.test(text)) return 'auth';
   return text || (subtype && subtype !== 'success') ? 'other' : null;
 }
@@ -149,6 +169,8 @@ export interface RunResult {
   skillsUsed: string[];
   /** tool name → number of calls */
   toolsUsed: Record<string, number>;
+  /** which of the coding agent's accounts ran the session (ADR-0065); set by the engine, never by a runner */
+  accountId?: string;
 }
 
 export interface RunHandle {

@@ -94,4 +94,21 @@ export const MIGRATIONS: Migration[] = [
     id: '0008-schedules',
     sql: `CREATE TABLE IF NOT EXISTS schedules (id TEXT PRIMARY KEY, data TEXT NOT NULL);`,
   },
+  {
+    // a coding agent's sign-ins beside the machine's own, and the one new sessions run on (ADR-0065)
+    id: '0009-accounts',
+    sql: `
+      CREATE TABLE IF NOT EXISTS accounts (provider TEXT NOT NULL, id TEXT NOT NULL, position INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (provider, id));
+      CREATE TABLE IF NOT EXISTS current_accounts (provider TEXT PRIMARY KEY, account_id TEXT NOT NULL);
+    `,
+  },
+  {
+    // each account's own rate-limit windows, as its sessions last reported them (ADR-0065); rate_limit_state stays the
+    // coding agent's latest, whichever account sent it
+    id: '0010-account-rate-limits',
+    sql: `CREATE TABLE IF NOT EXISTS account_rate_limits (
+      provider TEXT NOT NULL, account_id TEXT NOT NULL, rate_limit_type TEXT NOT NULL, status TEXT NOT NULL, resets_at INTEGER, is_using_overage INTEGER NOT NULL, seen_at TEXT NOT NULL,
+      PRIMARY KEY (provider, account_id, rate_limit_type)
+    );`,
+  },
 ];

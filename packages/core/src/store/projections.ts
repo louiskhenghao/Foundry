@@ -1,7 +1,7 @@
 import type { AgentProvider } from '../schema/provider.ts';
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { FINAL_WALK, IDLE_COMPLETION, IDLE_DELIVERY, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
+import { AgentAccount, NATIVE_ACCOUNT, FINAL_WALK, IDLE_COMPLETION, IDLE_DELIVERY, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 import { applySubjectEvent } from '../machine/subjects.ts';
 
@@ -600,7 +600,8 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'attempt.continued': {
       const a = getAttempt(db, e.payload.attemptId);
-      if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + 1, endedAt: null, pid: null });
+      // a usage limit's cut does not count towards the continuation cap
+      if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + (e.payload.reason === 'usage_limit' ? 0 : 1), endedAt: null, pid: null });
       break;
     }
     case 'check.finished':
@@ -626,6 +627,11 @@ function project(db: Database, e: EngineEvent): void {
           'INSERT INTO rate_limit_state (rate_limit_type, status, resets_at, is_using_overage, seen_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(rate_limit_type) DO UPDATE SET status = excluded.status, resets_at = excluded.resets_at, is_using_overage = excluded.is_using_overage, seen_at = excluded.seen_at WHERE excluded.seen_at >= rate_limit_state.seen_at',
           [p.rateLimit.rateLimitType ?? 'unknown', p.rateLimit.status, p.rateLimit.resetsAt, p.rateLimit.isUsingOverage ? 1 : 0, e.ts],
         );
+        // the same signal under the account that sent it; a session from before accounts ran on the native sign-in
+        db.run(
+          'INSERT INTO account_rate_limits (provider, account_id, rate_limit_type, status, resets_at, is_using_overage, seen_at) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(provider, account_id, rate_limit_type) DO UPDATE SET status = excluded.status, resets_at = excluded.resets_at, is_using_overage = excluded.is_using_overage, seen_at = excluded.seen_at WHERE excluded.seen_at >= account_rate_limits.seen_at',
+          [p.provider ?? 'claude', p.accountId ?? NATIVE_ACCOUNT, p.rateLimit.rateLimitType ?? 'unknown', p.rateLimit.status, p.rateLimit.resetsAt, p.rateLimit.isUsingOverage ? 1 : 0, e.ts],
+        );
       }
       break;
     }
@@ -643,6 +649,22 @@ function project(db: Database, e: EngineEvent): void {
       if (sch) db.run('INSERT OR REPLACE INTO schedules (id, data) VALUES (?, ?)', [sch.id, JSON.stringify({ ...sch, lastRun: { at: e.payload.at, goalId: e.goalId ?? sch.lastRun?.goalId ?? null, skipped: e.payload.skipped }, runs: sch.runs + 1 })]);
       break;
     }
+    case 'account.added': {
+      const a = e.payload.account;
+      const last = db.query('SELECT MAX(position) AS p FROM accounts WHERE provider = ?').get(a.provider) as { p: number | null };
+      db.run('INSERT OR REPLACE INTO accounts (provider, id, position, data) VALUES (?, ?, ?, ?)', [a.provider, a.id, (last.p ?? 0) + 1, JSON.stringify(a)]);
+      break;
+    }
+    case 'account.removed':
+      db.run('DELETE FROM accounts WHERE provider = ? AND id = ?', [e.payload.provider, e.payload.accountId]);
+      db.run('DELETE FROM current_accounts WHERE provider = ? AND account_id = ?', [e.payload.provider, e.payload.accountId]);
+      break;
+    case 'account.reordered':
+      e.payload.order.forEach((id, i) => db.run('UPDATE accounts SET position = ? WHERE provider = ? AND id = ?', [i + 1, e.payload.provider, id]));
+      break;
+    case 'account.switched':
+      db.run('INSERT OR REPLACE INTO current_accounts (provider, account_id) VALUES (?, ?)', [e.payload.provider, e.payload.to]);
+      break;
     case 'learnings.set': {
       const p = e.payload;
       if (p.learnings.length) db.run('INSERT OR REPLACE INTO repo_learnings (repo_path, data) VALUES (?, ?)', [p.repoPath, JSON.stringify({ repoPath: p.repoPath, learnings: p.learnings, updatedAt: e.ts })]);
@@ -871,6 +893,8 @@ export function getStatAvg(db: Database, key: string): number | null {
 
 export interface UsageRow {
   provider?: AgentProvider;
+  /** the account the session ran on (ADR-0065); null = the native sign-in, or a session from before accounts */
+  account_id?: string | null;
   ts: string;
   goal_id: string | null;
   kind: string;
@@ -886,7 +910,7 @@ export interface UsageRow {
   cost_status?: 'reported' | 'unavailable' | null;
 }
 export function listUsageSince(db: Database, sinceIso: string): UsageRow[] {
-  return db.query(`SELECT u.*, COALESCE(json_extract(e.payload, '$.provider'), json_extract(g.data, '$.provider')) AS provider FROM usage_ledger u LEFT JOIN events e ON e.id = u.event_id LEFT JOIN goals g ON g.id = u.goal_id WHERE u.ts >= ? ORDER BY u.ts`).all(sinceIso) as UsageRow[];
+  return db.query(`SELECT u.*, COALESCE(json_extract(e.payload, '$.provider'), json_extract(g.data, '$.provider')) AS provider, json_extract(e.payload, '$.accountId') AS account_id FROM usage_ledger u LEFT JOIN events e ON e.id = u.event_id LEFT JOIN goals g ON g.id = u.goal_id WHERE u.ts >= ? ORDER BY u.ts`).all(sinceIso) as UsageRow[];
 }
 export interface RateLimitRow {
   rate_limit_type: string;
@@ -897,6 +921,10 @@ export interface RateLimitRow {
 }
 export function listRateLimitState(db: Database): RateLimitRow[] {
   return db.query('SELECT rate_limit_type, status, resets_at, is_using_overage, seen_at FROM rate_limit_state ORDER BY rate_limit_type').all() as RateLimitRow[];
+}
+/** one account's rate-limit windows, as its own sessions last reported them (ADR-0065) */
+export function listAccountRateLimits(db: Database, provider: AgentProvider, accountId: string): RateLimitRow[] {
+  return db.query('SELECT rate_limit_type, status, resets_at, is_using_overage, seen_at FROM account_rate_limits WHERE provider = ? AND account_id = ? ORDER BY rate_limit_type').all(provider, accountId) as RateLimitRow[];
 }
 
 /** a repository's Learnings (null when it has none) */
@@ -919,7 +947,16 @@ export function listRepoLearnings(db: Database): RepoLearnings[] {
   return (db.query('SELECT data FROM repo_learnings').all() as { data: string }[]).map((r) => JSON.parse(r.data) as RepoLearnings).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
-const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules'];
+/** a coding agent's added accounts (never the native one), in the order they are tried */
+export function listAccounts(db: Database, provider: AgentProvider): AgentAccount[] {
+  return (db.query('SELECT data FROM accounts WHERE provider = ? ORDER BY position, id').all(provider) as { data: string }[]).map((r) => AgentAccount.parse(JSON.parse(r.data)));
+}
+/** the account new sessions of the coding agent run on */
+export function currentAccountId(db: Database, provider: AgentProvider): string {
+  return (db.query('SELECT account_id FROM current_accounts WHERE provider = ?').get(provider) as { account_id: string } | null)?.account_id ?? NATIVE_ACCOUNT;
+}
+
+const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules', 'accounts', 'current_accounts', 'account_rate_limits'];
 
 export function clearReadModels(db: Database): void {
   for (const t of READ_MODEL_TABLES) db.exec(`DELETE FROM ${t}`);

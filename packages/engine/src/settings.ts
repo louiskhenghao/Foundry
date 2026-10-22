@@ -281,6 +281,8 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('preview.portTo')) config.preview.portTo = s.preview.portTo;
   if (on('preview.idleMinutes')) config.preview.idleMinutes = s.preview.idleMinutes;
   if (on('checks.selfCheck')) config.selfCheck = s.checks.selfCheck;
+  if (on('accounts.autoSwitchClaude')) config.autoSwitch.claude = s.accounts.autoSwitchClaude;
+  if (on('accounts.autoSwitchCodex')) config.autoSwitch.codex = s.accounts.autoSwitchCodex;
   if (on('workflow.interview')) config.interview = s.workflow.interview;
   if (on('workflow.interviewDepth') && s.workflow.interviewDepth != null) config.interviewDepth = s.workflow.interviewDepth;
   if (on('workflow.milestonePause')) config.milestonePause = s.workflow.milestonePause;

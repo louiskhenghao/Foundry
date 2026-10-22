@@ -76,7 +76,7 @@ export class CodexCliRunner implements AgentRunner {
     config('features.hooks', true);
     // Claude's --strict-mcp-config: start none of the MCP servers config.toml defines. Only those: switching off a
     // server Codex gets elsewhere (a plugin) leaves a table without a command, and Codex then refuses to start.
-    if (spec.strictMcp) for (const name of configuredMcpServers(join(this.opts.codexHome ?? join(homedir(), '.codex'), 'config.toml'))) config(`mcp_servers.${tomlKey(name)}.enabled`, false);
+    if (spec.strictMcp) for (const name of configuredMcpServers(join(spec.configHome ?? this.opts.codexHome ?? join(homedir(), '.codex'), 'config.toml'))) config(`mcp_servers.${tomlKey(name)}.enabled`, false);
     // Foundry orchestrates role sessions; native delegation stays disabled.
     config('features.multi_agent', false);
     config('hooks.SessionStart', [{ hooks: [{ type: 'command', command: `cat > ${shellQuote(files.canary)}` }] }]);
@@ -133,7 +133,7 @@ export class CodexCliRunner implements AgentRunner {
       if (spec.transcriptPath) mkdirSync(dirname(spec.transcriptPath), { recursive: true });
       let lineNo = spec.transcriptPath && existsSync(spec.transcriptPath) ? readFileSync(spec.transcriptPath, 'utf8').split('\n').length - 1 : 0;
       const args = this.buildArgs(spec, { canary, schema, guard: join(hooksDir, 'codex-guard.ts') });
-      const env: Record<string, string | undefined> = { ...process.env, ...(typeof this.opts.env === 'function' ? this.opts.env() : this.opts.env), ...spec.env, ...(this.opts.codexHome ? { CODEX_HOME: this.opts.codexHome } : {}), FOUNDRY_CODEX_POLICY: policy };
+      const env: Record<string, string | undefined> = { ...process.env, ...(typeof this.opts.env === 'function' ? this.opts.env() : this.opts.env), ...spec.env, ...(spec.configHome ?? this.opts.codexHome ? { CODEX_HOME: spec.configHome ?? this.opts.codexHome } : {}), FOUNDRY_CODEX_POLICY: policy };
       // Image tools can still receive OPENAI_API_KEY. Codex itself must use the saved ChatGPT login.
       delete env.CODEX_API_KEY;
       proc = Bun.spawn([this.opts.codexBin ?? Bun.which('codex') ?? 'codex', ...args], { cwd: spec.cwd, env, stdin: 'pipe', stdout: 'pipe', stderr: 'pipe', detached: process.platform !== 'win32' });

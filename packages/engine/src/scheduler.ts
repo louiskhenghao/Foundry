@@ -1,7 +1,7 @@
 import { PROVIDER_NAME } from '@foundry/core';
 import type { Goal, Task } from '@foundry/core';
 import { ARTIFACT_SCENARIOS, listTasks, getTask, getGoal, listAttempts, getObservation } from '@foundry/core';
-import { type Continuation, continuationMessage, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
+import { type Continuation, type ContinueReason, continuationMessage, cutByLimit, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';
 import { runAudit } from './audit.ts';
@@ -235,15 +235,17 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     // docs/artifacts/ manifests stay tracked
     if (ARTIFACT_SCENARIOS.includes(task.scenario) || listArtifacts(cwd).length) await excludeFromGit(cwd, ['/artifacts/'], (m) => config.log(m));
     task = getTask(store.db, task.id)!;
-    // an attempt cut by an engine restart is resumed (its session keeps its context) instead of being redone
+    // an attempt cut by an engine restart or a usage limit is resumed (its session keeps its context) instead of being
+    // redone; a usage limit's cut is no fault of the session's and resumes past the continuation cap
     const last = listAttempts(store.db, task.id).filter((a) => a.kind === 'work').at(-1);
-    let resume: Continuation | null = last && last.state === 'interrupted' && last.sessionId && last.continuations < config.maxContinuations ? { attempt: last, reason: 'orphaned', message: continuationMessage('orphaned') } : null;
+    const cutBy: ContinueReason = last?.resultSubtype === 'usage_limit' ? 'usage_limit' : 'orphaned';
+    let resume: Continuation | null = last && last.state === 'interrupted' && last.sessionId && (cutBy === 'usage_limit' || last.continuations < config.maxContinuations) ? { attempt: last, reason: cutBy, message: continuationMessage(cutBy) } : null;
     const attemptsSoFar = engine.attemptCount(task.id);
     if (!resume && attemptsSoFar >= maxAttemptsFor(task)) {
       raiseEscalation(engine, { goal, task, trigger: 'retries_exhausted', message: `Task "${task.title}" used ${attemptsSoFar} attempts without passing its Must checks.`, payload: { attempts: attemptsSoFar } });
       return;
     }
-    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: resume ? `resuming attempt ${resume.attempt.index} after the engine restart` : `attempt ${attemptsSoFar + 1}` } });
+    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: resume ? `resuming attempt ${resume.attempt.index} after ${cutBy === 'usage_limit' ? 'the usage limit' : 'the engine restart'}` : `attempt ${attemptsSoFar + 1}` } });
 
     // a task in its own worktree first catches up with what other tasks landed on the goal branch (not while another
     // task's merge holds the goal workspace: the catch-up before its landing brings that)
@@ -258,6 +260,15 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     while (!outcome.passed) {
       const next = decideNext({ result: outcome.result, committed: outcome.committed, failedCount: outcome.report.failedCount, prevFailedCount: prevFailed, continuations: outcome.attempt.continuations, maxContinuations: config.maxContinuations, rolledBack: false, sessionId: outcome.attempt.sessionId });
       if (next.kind !== 'continue') break;
+      if (next.reason === 'usage_limit') {
+        // it waits as interrupted while sessions are paused; the start path above resumes it once they run again (on the
+        // next account, or on this one after its reset), after an engine restart too
+        const a = outcome.attempt;
+        store.append({ type: 'attempt.finished', goalId: goal.id, payload: { attemptId: a.id, state: 'interrupted', resultSubtype: 'usage_limit', costUsd: a.costUsd, numTurns: a.numTurns, endRef: a.endRef, permissionDenials: [], skillsUsed: a.skillsUsed, toolsUsed: {} } });
+        store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: a.id, state: 'interrupted', reason: 'stopped by a usage limit — its session resumes when sessions run again' } });
+        store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'ready', reason: `attempt ${a.index} was stopped by a usage limit; its session resumes when sessions run again` } });
+        return;
+      }
       if (next.reason === 'checks_failed' && outcome.nonBoundaryDenials.length) break; // a denied tool will not resolve itself
       prevFailed = outcome.report.failedCount;
       const message = continuationMessage(next.reason, { timeoutMin: Math.round(config.attemptTimeoutMs / 60_000), report: outcome.report.summary.slice(0, 4000) });
@@ -298,6 +309,11 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       return;
     }
 
+    // a usage limit that stopped the session before it began leaves nothing to resume: the attempt is given back
+    if (cutByLimit(outcome.result)) {
+      store.append({ type: 'task.hint_set', goalId: goal.id, payload: { taskId: task.id, hint: fresh.hint, extraAttempts: 1 } });
+      fresh = getTask(store.db, task.id)!;
+    }
     const used = engine.attemptCount(task.id);
     const max = maxAttemptsFor(fresh);
     if (outcome.nonBoundaryDenials.length && used >= max) {

@@ -1,5 +1,5 @@
 import type { AgentSessionRow, AgentStatus } from '@foundry/engine/agents-types';
-import { Sparkle, SquareTerminal, Orbit } from 'lucide-react';
+import { PROVIDER_STYLE } from '../../components/ProviderMark.tsx';
 import { cn } from '../../ui.tsx';
 
 export function StatusDot({ status }: { status: AgentStatus }) {
@@ -8,18 +8,13 @@ export function StatusDot({ status }: { status: AgentStatus }) {
   return <span className={cn('inline-block h-2 w-2 rounded-full shrink-0', cls)} role="img" aria-label={label} title={label} />;
 }
 
-const PROVIDERS = {
-  claude: { label: 'Claude Code', Icon: Sparkle, cls: 'border-orange-500/40 bg-orange-500/10 text-orange-300' },
-  codex: { label: 'Codex', Icon: SquareTerminal, cls: 'border-blue-500/40 bg-blue-500/10 text-blue-300' },
-  agy: { label: 'Antigravity', Icon: Orbit, cls: 'border-teal-500/40 bg-teal-500/10 text-teal-300' },
-} as const;
 
 /** The coding agent, with an icon and colour of its own so Claude Code and Codex tell apart at a glance; `compact` keeps the icon only. */
 export function ProviderBadge({ provider, compact = false }: { provider: AgentSessionRow['provider']; compact?: boolean }) {
-  const p = provider ? PROVIDERS[provider] : null;
+  const p = provider ? PROVIDER_STYLE[provider] : null;
   const label = p?.label ?? 'Agent unknown';
   return (
-    <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] leading-none shrink-0', p?.cls ?? 'border-zinc-700 text-zinc-400')} title={`Coding agent: ${label}`} aria-label={compact ? label : undefined}>
+    <span className={cn('inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] leading-none shrink-0', p?.chip ?? 'border-zinc-700 text-zinc-400')} title={`Coding agent: ${label}`} aria-label={compact ? label : undefined}>
       {p && <p.Icon size={11} aria-hidden="true" className="shrink-0" />}
       {!compact && label}
     </span>

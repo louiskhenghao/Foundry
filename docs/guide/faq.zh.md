@@ -14,7 +14,7 @@ goal 运行起来后，Foundry 只在少数几种情况下停下来问你：一�
 
 多半没有。按这个顺序检查：
 
-1. **有黄色横幅 "Usage limit reached" 吗？** 横幅所指的编码智能体到了用量上限，另一个编码智能体仍可继续。Foundry 按报告的时间重试；没有重置信号时延后重试，重试时间不保证额度已经恢复。
+1. **有黄色横幅 "Usage limit reached" 吗？** 横幅所指的编码智能体到了用量上限，另一个编码智能体仍可继续。Foundry 按报告的时间重试；没有重置信号时延后重试，重试时间不保证额度已经恢复。这个编码智能体的另一个账号可用时，点横幅上的 **Switch to *账号* and continue** 就在那个账号上继续（[多个账号](./costs-and-usage.zh.md#多个账号)）。
 2. **Inbox。** **New goal** 旁边的托盘图标上有数字，说明有事在等你。
 3. **任务的实时日志**（goal 页面 → **Tasks** → 点正在运行的任务）。Claude 会话可能显示 `⏱ sub-agent still working · 5m 10s`；Codex 使用 Foundry 单独管理的 Planner 会话，不会发出这种原生子代理心跳。规划常常要 2 到 8 分钟，期间输出很少。
 4. **Agents 页面。** Foundry 自己运行的会话显示已知活动；外部 Codex 历史可能显示 **status unknown**，不能用它判断进程是否正在运行。

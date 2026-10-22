@@ -42,4 +42,6 @@ export const IdPrefix = {
   schedule: 'sch',
   /** a Revert of a merged delivery (ADR-0059) */
   revert: 'rvt',
+  /** a coding agent's sign-in beside the machine's own (ADR-0065) */
+  account: 'acc',
 } as const;

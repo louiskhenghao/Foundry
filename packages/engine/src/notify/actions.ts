@@ -66,7 +66,8 @@ export type Press =
   | { kind: 'round'; goalId: string; round: number; code: 'a' | 's' | 'e' | 'n' }
   | { kind: 'brief'; goalId: string; code: 'a' | 'A' | 'n' }
   | { kind: 'plan'; escId: string; code: 'a' | 'n' }
-  | { kind: 'usage'; provider: AgentProvider };
+  /** `next`: Switch and continue on the next account (ADR-0065), else Resume now */
+  | { kind: 'usage'; provider: AgentProvider; next?: true };
 
 const ID = /^[a-z]+_[0-9a-z]+$/;
 const num = (s: string | undefined) => (s && /^\d{1,3}$/.test(s) ? Number(s) : null);
@@ -95,7 +96,8 @@ export function parsePress(data: string): Press | null {
     case 'p':
       return p.length === 3 && id && (p[2] === 'a' || p[2] === 'n') ? { kind: 'plan', escId: id, code: p[2] } : null;
     case 'u':
-      return p.length === 2 && AgentProvider.safeParse(p[1]).success ? { kind: 'usage', provider: p[1] as AgentProvider } : null;
+      if (!AgentProvider.safeParse(p[1]).success) return null;
+      return p.length === 2 ? { kind: 'usage', provider: p[1] as AgentProvider } : p.length === 3 && p[2] === 'n' ? { kind: 'usage', provider: p[1] as AgentProvider, next: true } : null;
     default:
       return null;
   }
@@ -178,7 +180,8 @@ export function briefKeyboard(goalId: string, brief: Brief | null): Keyboard {
 }
 
 export const planKeyboard = (escId: string): Keyboard => [[btn('✅ Apply', `p:${escId}:a`), btn('↩︎ Drop', `p:${escId}:n`)]];
-export const usageKeyboard = (provider: AgentProvider): Keyboard => [[btn('▶️ Resume now', `u:${provider}`)]];
+/** Resume now, and Switch and continue when another account of the coding agent is not limited (ADR-0065) */
+export const usageKeyboard = (provider: AgentProvider, next: string | null = null): Keyboard => [[btn('▶️ Resume now', `u:${provider}`)], ...(next ? [[btn(`🔁 Switch to ${clip(next, 40)}`, `u:${provider}:n`)]] : [])];
 
 /**
  * The budget a Brief is approved with, as the Brief page does it: an Auto goal with no limits yet takes the estimate ×2
@@ -221,6 +224,10 @@ export interface ActionHost {
   approveBrief(goalId: string, budgets?: Partial<Budgets>): Promise<void>;
   classifyFeedback(goalId: string, text: string): Promise<FeedbackPlan>;
   resumeNow(provider: AgentProvider): boolean;
+  /** Switch and continue: the account new sessions move to, or null when none is free (ADR-0065) */
+  switchToNext?(provider: AgentProvider): string | null;
+  /** the account Switch and continue would move to now */
+  nextAccount?(provider: AgentProvider): string | null;
   /** how far earlier goals ran from their estimate, for the budget a Brief is approved with (ADR-0056) */
   calibration?(goal: Goal): Calibration | null;
   /** an entry in the activity: what was answered, from where, by whom */
@@ -290,6 +297,11 @@ export async function press(host: ActionHost, data: string, via: Via): Promise<O
     case 'plan':
       return pressPlan(host, p, via);
     case 'usage': {
+      if (p.next) {
+        const to = host.switchToNext?.(p.provider) ?? null;
+        if (to) host.note(null, `${PROVIDER_LABEL[p.provider]} sessions moved to ${to} ${fromVia(via)}`);
+        return to ? { toast: `New sessions run on ${to}; the stopped session resumes there.`, buttons: statusRow(`✓ On ${clip(to, 30)} · ${clock()}`) } : { toast: 'No other account is free now.', buttons: usageKeyboard(p.provider) };
+      }
       const resumed = host.resumeNow(p.provider);
       if (resumed) host.note(null, `${PROVIDER_LABEL[p.provider]} sessions resumed ${fromVia(via)}`);
       return { toast: resumed ? 'Sessions start again now. If the limit still holds, the next one pauses them again.' : 'Not paused any more.', buttons: statusRow(`✓ Resumed · ${clock()}`) };

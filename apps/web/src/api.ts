@@ -335,7 +335,10 @@ export interface LoginSession {
 }
 import type { AgentProvider } from '@foundry/core/browser';
 export type { AgentProvider } from '@foundry/core/browser';
-export interface AccountInfo { provider: AgentProvider; installed: boolean; status: ClaudeAuthStatus; capabilities: { dollarCosts: boolean; skillTelemetry: boolean; nativeSubagents: boolean; managedMcp: boolean; externalSessions: boolean } }
+/** one sign-in of a coding agent (ADR-0065): this computer's own (`native`) or one added in Foundry */
+export interface PoolAccount { id: string; email: string | null; orgName: string | null; plan: string | null; addedAt: string; current: boolean; limitedUntil: string | null; status: ClaudeAuthStatus | null }
+export interface AccountPoolInfo { autoSwitch: boolean; accounts: PoolAccount[] }
+export interface AccountInfo { provider: AgentProvider; installed: boolean; status: ClaudeAuthStatus; capabilities: { dollarCosts: boolean; skillTelemetry: boolean; nativeSubagents: boolean; managedMcp: boolean; externalSessions: boolean }; pool?: AccountPoolInfo }
 export interface AccountsInfo { defaultProvider: AgentProvider; accounts: AccountInfo[] }
 export interface AuthInfo {
   provider: AgentProvider;
@@ -786,7 +789,7 @@ export function apiForProvider(provider?: AgentProvider) {
   resetSettings: () => req<SettingsView>('/api/settings/reset', { method: 'POST' }),
   notifyTest: (override: { telegramBotToken?: string | null; telegramChatId?: string | null; discordWebhookUrl?: string | null; discordBotToken?: string | null }) => req<{ results: { channel: string; ok: boolean; error: string | null }[] }>('/api/notifications/test', { method: 'POST', body: JSON.stringify(override) }),
   telegramChatId: (token: string | null) => req<{ chatId: string; who: string }>('/api/notifications/telegram/chat-id', { method: 'POST', body: JSON.stringify({ token }) }),
-  health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; pausedUntilByProvider: Record<AgentProvider, string | null>; restartNeeded: string[]; version: string; webBuild?: string | null; updateAvailable: boolean; updating: boolean }>('/api/health'),
+  health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; pausedUntilByProvider: Record<AgentProvider, string | null>; switchToByProvider?: Partial<Record<AgentProvider, string | null>>; currentAccountByProvider?: Partial<Record<AgentProvider, string | null>>; restartNeeded: string[]; version: string; webBuild?: string | null; updateAvailable: boolean; updating: boolean }>('/api/health'),
   updateStatus: () => req<UpdateStatusView>('/api/update'),
   updateCheck: () => req<UpdateReportView>('/api/update/check', { method: 'POST' }),
   updateApply: (force = false) => req<{ started: true; channel: string }>('/api/update/apply', { method: 'POST', body: JSON.stringify({ force }) }),
@@ -797,6 +800,15 @@ export function apiForProvider(provider?: AgentProvider) {
   cancelLogin: (provider?: AgentProvider) => req<{ ok: true }>(`/api/auth/login/cancel${provider ? '?provider=' + provider : ''}`, { method: 'POST' }),
   submitLoginCode: (code: string, provider?: AgentProvider) => req<LoginSession>(`/api/auth/login/code${provider ? '?provider=' + provider : ''}`, { method: 'POST', body: JSON.stringify({ code }) }),
   logout: (provider?: AgentProvider) => req<ClaudeAuthStatus>(`/api/auth/logout${provider ? '?provider=' + provider : ''}`, { method: 'POST' }),
+  // a coding agent's other accounts (ADR-0065)
+  addAccount: (provider: AgentProvider, body: { email?: string }) => req<LoginSession>(`/api/accounts/${provider}/add`, { method: 'POST', body: JSON.stringify(body) }),
+  addAccountSession: (provider: AgentProvider) => req<LoginSession | null>(`/api/accounts/${provider}/add`),
+  addAccountCode: (provider: AgentProvider, code: string) => req<LoginSession>(`/api/accounts/${provider}/add/code`, { method: 'POST', body: JSON.stringify({ code }) }),
+  addAccountCancel: (provider: AgentProvider) => req<{ ok: true }>(`/api/accounts/${provider}/add/cancel`, { method: 'POST' }),
+  useAccount: (provider: AgentProvider, id: string) => req<{ ok: true }>(`/api/accounts/${provider}/${id}/use`, { method: 'POST' }),
+  removeAccount: (provider: AgentProvider, id: string) => req<{ ok: true }>(`/api/accounts/${provider}/${id}`, { method: 'DELETE' }),
+  orderAccounts: (provider: AgentProvider, order: string[]) => req<{ ok: true }>(`/api/accounts/${provider}/order`, { method: 'POST', body: JSON.stringify({ order }) }),
+  setAutoSwitch: (provider: AgentProvider, on: boolean) => req<{ ok: true }>(`/api/accounts/${provider}/auto-switch`, { method: 'POST', body: JSON.stringify({ on }) }),
   usage: (provider?: AgentProvider) => req<Usage>(`/api/usage${provider ? '?provider=' + provider : ''}`),
   /** Reports (ADR-0060): the last `days`, or all time with null */
   report: (days: number | null) => req<Report>(`/api/reports?days=${days ?? 'all'}`),
@@ -808,6 +820,8 @@ export function apiForProvider(provider?: AgentProvider) {
   accessAdd: (name: string) => req<{ person: Person; token: string }>('/api/access/people', { method: 'POST', body: JSON.stringify({ name }) }),
   accessRevoke: (id: string) => req<{ person: Person }>(`/api/access/people/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   resumeUsage: (provider?: AgentProvider) => req<{ resumed: boolean }>(`/api/usage/resume${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
+  /** Switch and continue: new sessions go to the next account whose limit is not holding, and the pause lifts */
+  switchUsageAccount: (provider: AgentProvider) => req<{ to: string | null }>(`/api/usage/switch?provider=${provider}`, { method: 'POST' }),
   probeUsage: (provider?: AgentProvider) => req<Usage>(`/api/usage/probe${provider ? `?provider=${provider}` : ''}`, { method: 'POST' }),
   minimaxQuota: (refresh = false) => req<MinimaxQuota>(`/api/usage/minimax${refresh ? '?refresh=1' : ''}`),
   transferExport: (body: { categories: TransferCategories; goalIds: 'all' | string[]; password?: string }) => req<{ downloadId: string; bytes: number; goals: number; categories: TransferCategories }>('/api/transfer/export', { method: 'POST', body: JSON.stringify(body) }),

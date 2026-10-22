@@ -231,6 +231,13 @@ export const PreviewSettings = z.object({
   /** a preview nobody has opened for this long is stopped */
   idleMinutes: z.number().int().min(5).max(1440).default(60),
 });
+/** a coding agent's several sign-ins (ADR-0065): what happens when the current account's usage limit stops a session */
+export const AccountSettings = z.object({
+  /** switch Claude Code to the next signed-in account and go on there; off = new sessions pause until the limit resets */
+  autoSwitchClaude: z.boolean().default(false),
+  /** switch Codex to the next signed-in account and go on there; off = new sessions pause until the limit resets */
+  autoSwitchCodex: z.boolean().default(false),
+});
 export const ChecksSettings = z.object({
   /** default for new goals: after each integration, open the preview headless, screenshot it, fail on console/network errors */
   selfCheck: z.boolean().default(false),
@@ -249,6 +256,7 @@ export const Settings = z.object({
   safety: SafetySettings.default({}),
   preview: PreviewSettings.default({}),
   checks: ChecksSettings.default({}),
+  accounts: AccountSettings.default({}),
 });
 export type Settings = z.infer<typeof Settings>;
 export const DEFAULT_SETTINGS: Settings = Settings.parse({});
@@ -267,6 +275,7 @@ export const SettingsPatch = z.object({
   safety: SafetySettings.partial().optional(),
   preview: PreviewSettings.partial().optional(),
   checks: ChecksSettings.partial().optional(),
+  accounts: AccountSettings.partial().optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatch>;
 

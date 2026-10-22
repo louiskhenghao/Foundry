@@ -1,5 +1,6 @@
-import { AgentProvider, PROVIDER_NAME, reportsDollars } from '@foundry/core';
-import type { CodexQuota } from './usage/types.ts';
+import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow } from '@foundry/core';
+import { AccountPool } from './accounts/pool.ts';
+import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
 import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { AgyQuotaReader } from './usage/agy-quota.ts';
@@ -36,7 +37,7 @@ import {
   Brief as BriefSchema,
 } from '@foundry/core';
 import { ProviderRunner } from './provider-runner.ts';
-import { AgyCliRunner, CodexCliRunner, ClaudeCliRunner, type ClaudeRunner, type RunHandle } from '@foundry/runner';
+import { AgyCliRunner, CodexCliRunner, ClaudeCliRunner, LIMIT_TEXT, type ClaudeRunner, type RunHandle } from '@foundry/runner';
 import { McpManager } from './mcp/manager.ts';
 import { CodexMcpManager } from './mcp/codex-manager.ts';
 import { mmxConfigDir, mmxSignedIn, writeMmxConfig } from './mmx.ts';
@@ -235,6 +236,13 @@ export function codexResumeAt(q: CodexQuota, now: number): number | null {
   return resets.length ? Math.min(Math.max(...resets), now + MAX_PAUSE_MS) : null;
 }
 
+/** when a limit the error text names comes back ("… Individual quota reached. Resets in 2h39m52s.", Antigravity), capped like any pause */
+export function resetsInAt(text: string | null | undefined, now: number): number | null {
+  const m = /resets in\s+(?:(\d+)\s*h)?\s*(?:(\d+)\s*m(?!s))?\s*(?:(\d+)\s*s)?/i.exec(text ?? '');
+  const ms = m ? (Number(m[1] ?? 0) * 3600 + Number(m[2] ?? 0) * 60 + Number(m[3] ?? 0)) * 1000 : 0;
+  return ms > 0 ? Math.min(now + ms, now + MAX_PAUSE_MS) : null;
+}
+
 export function limitPauseUntil(rl: RunResult['rateLimit'], now: number): number | null {
   if (!rl || rl.status !== 'rejected' || !rl.resetsAt || rl.resetsAt * 1000 <= now) return null;
   if (rl.rateLimitType === 'overage' && !rl.isUsingOverage) return null;
@@ -254,6 +262,8 @@ export class Engine {
   readonly agents: AgentsMonitor;
   readonly auth: ClaudeAuth;
   readonly accounts: Record<AgentProvider, ClaudeAuth>;
+  /** each coding agent's sign-ins and the one new sessions run on (ADR-0065) */
+  readonly accountPool: AccountPool;
   private providerSkills: Record<AgentProvider, SkillsManager>;
   readonly gh: GhClient;
   /** who may use this Foundry from elsewhere (ADR-0061) */
@@ -415,9 +425,14 @@ export class Engine {
         run: async (spec) => {
           if (provider === 'codex') this.validateCodexChoice(spec.model, spec.effort);
           const suite = await this.suiteFor(spec, provider);
-          const full = { ...spec, ...suite, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
+          // the current account of the coding agent runs the session; an added one in its own home (ADR-0065), where
+          // Claude Code finds no user-scope MCP servers of the native sign-in unless handed them
+          const account = isPooled(provider) ? this.accountPool.forRun(provider) : null;
+          const home = account?.home ? { configHome: account.home, ...(provider === 'claude' && !spec.strictMcp ? { mcpConfig: this.nativeMcpServers() } : {}) } : {};
+          const full = { ...spec, ...suite, ...home, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
           // Claude Code reports a resumed session's whole cost; Codex reports none worth correcting
-          return provider === 'claude' ? sessionCosts.run(full, (s) => inner.run(s)) : inner.run(full);
+          const handle = await (provider === 'claude' ? sessionCosts.run(full, (s) => inner.run(s)) : inner.run(full));
+          return account ? { ...handle, result: handle.result.then((r) => ({ ...r, accountId: account.id })) } : handle;
         },
       };
       const fallback = new ModelFallbackRunner(checked, {
@@ -503,6 +518,15 @@ export class Engine {
       agy: new ClaudeAuth({ provider: 'agy', claudeBin: () => config.agyBin ?? Bun.which('agy'), log: config.log }),
     };
     this.accounts.codex.onLoginUpdate(() => { this.codexQuota.invalidate(); this.codexPlugins.invalidate(); });
+    this.accountPool = new AccountPool({
+      store: this.store,
+      dataDir: config.dataDir,
+      nativeHome: (p) => (p === 'codex' ? config.codexHome : config.claudeHome),
+      bin: (p) => (p === 'codex' ? config.codexBin ?? Bun.which('codex') : config.claudeBin ?? Bun.which('claude')),
+      nativeAuth: (p) => this.accounts[p],
+      autoSwitch: (p) => this.config.autoSwitch[p],
+      log: config.log,
+    });
     this.auth = this.accounts[config.provider];
     this.agents = new AgentsMonitor(
       { claudeHome: config.claudeHome, codexHome: config.codexHome, codexBin: config.codexBin, includeExternal: true, dataDir: config.dataDir, workspaceRoots: () => [...new Set(listGoals(this.store.db).flatMap((g) => (g.workspaceDir ? [dirname(g.workspaceDir)] : [])))] },
@@ -1204,6 +1228,7 @@ export class Engine {
   }
 
   private async reconcile(): Promise<void> {
+    this.accountPool.restore();
     this.restoreRateLimitPause();
     for (const a of listRunningAttempts(this.store.db)) {
       // an Imported Goal's sessions ran on another computer: the Transfer concluded them, this pid is not theirs
@@ -1325,6 +1350,7 @@ export class Engine {
         subtype: result.subtype,
         rateLimit: result.rateLimit ? { status: result.rateLimit.status, resetsAt: result.rateLimit.resetsAt, rateLimitType: result.rateLimit.rateLimitType, isUsingOverage: result.rateLimit.isUsingOverage } : null,
         skillsUsed: result.skillsUsed ?? [],
+        ...(result.accountId ? { accountId: result.accountId } : {}),
       },
     });
     this.observeRateLimit(result, provider);
@@ -1334,19 +1360,62 @@ export class Engine {
     const rl = result.rateLimit;
     const now = Date.now();
     const byStatus = limitPauseUntil(rl, now);
-    const limitedByError = result.isError && /rate.?limit|usage limit|overloaded|too many requests|\b429\b/i.test(result.errorMessage ?? '');
+    const limitedByError = result.isError && LIMIT_TEXT.test(result.errorMessage ?? '');
     if (byStatus === null && !limitedByError) return;
-    const until = byStatus ?? now + 5 * 60_000;
-    this.pauseUntil(until, rl?.rateLimitType ?? null, byStatus !== null ? `rate_limit_event status=${rl!.status}` : `session error: ${(result.errorMessage ?? '').slice(0, 120)}`, provider);
+    let until = byStatus ?? resetsInAt(result.errorMessage, now) ?? now + 5 * 60_000;
+    const reason = byStatus !== null ? `rate_limit_event status=${rl!.status}` : `session error: ${(result.errorMessage ?? '').slice(0, 120)}`;
+    const accountId = result.accountId ?? NATIVE_ACCOUNT;
+    // an account's own limit (not the provider overloaded) is passed over until it resets; new sessions go on with the
+    // next account when auto switch is on, or never paused when the limit hit an account they had left already (ADR-0065)
+    const accountLimit = isPooled(provider) && (byStatus !== null || !/overloaded|\b529\b/i.test(result.errorMessage ?? ''));
+    if (accountLimit) {
+      this.accountPool.markLimited(provider, accountId, until, reason);
+      if (this.accountPool.afterLimit(provider, accountId)) return;
+      if (this.config.autoSwitch[provider]) until = this.accountPool.earliestReset(provider) ?? until;
+    }
+    this.pauseUntil(until, rl?.rateLimitType ?? null, reason, provider);
     // Codex reports no reset with the error: the account's quota windows say when the exhausted one comes back
     if (provider === 'codex' && byStatus === null)
-      void this.codexQuota
+      void this.accountPool
+        .codexQuota(accountId, this.codexQuota)
         .read(true)
         .then((q) => {
           const reset = codexResumeAt(q, Date.now());
-          if (reset) this.pauseUntil(reset, 'codex-quota', 'Codex quota window used up', 'codex');
+          if (!reset) return;
+          this.accountPool.markLimited('codex', accountId, reset, 'Codex quota window used up');
+          if (this.isRateLimited('codex')) this.pauseUntil(this.config.autoSwitch.codex ? (this.accountPool.earliestReset('codex') ?? reset) : reset, 'codex-quota', 'Codex quota window used up', 'codex');
         })
         .catch(() => {});
+  }
+
+  /**
+   * The user-scope MCP servers of the native Claude sign-in, for a session on an added account: they live in the native
+   * .claude.json, and an account's home has a .claude.json of its own (its sign-in is in it).
+   */
+  private nativeMcpServers(): { mcpServers: Record<string, unknown> } | undefined {
+    const dir = claudeConfigEnv(this.config.claudeHome).CLAUDE_CONFIG_DIR ?? process.env.CLAUDE_CONFIG_DIR;
+    try {
+      const servers = JSON.parse(readFileSync(dir ? join(dir, '.claude.json') : join(homedir(), '.claude.json'), 'utf8')).mcpServers;
+      return servers && typeof servers === 'object' && Object.keys(servers).length ? { mcpServers: servers } : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  /**
+   * New sessions of the coding agent run on `to` from now (Use now, or Switch and continue on a usage pause); sessions
+   * already running finish on their account. A pause the old account's limit set lifts when `to` is not limited.
+   */
+  switchAccount(provider: PooledProvider, to: string): void {
+    this.accountPool.switchTo(provider, to, { auto: false, reason: 'switched by hand' });
+    if (this.isRateLimited(provider) && !this.accountPool.isLimited(provider, to)) this.resume(provider, `switched to ${this.accountPool.label(provider, to)}`);
+  }
+  /** Switch and continue (the usage banner, a chat button): the next account no limit holds becomes current; null when there is none */
+  switchToNext(provider: PooledProvider): string | null {
+    const next = this.accountPool.next(provider);
+    if (!next) return null;
+    this.switchAccount(provider, next.id);
+    return this.accountPool.label(provider, next.id);
   }
 
   /** A limit on one account must not pause the other backend. */
@@ -1361,6 +1430,8 @@ export class Engine {
     this.resumeTimers.set(provider, setTimeout(() => this.resume(provider, 'retry time reached'), Math.max(0, until - Date.now()) + 1000));
   }
   private resume(provider: AgentProvider, reason: string): void {
+    // with auto switch on, sessions start again on an account whose limit is not holding
+    if (isPooled(provider)) this.accountPool.leaveLimited(provider);
     clearTimeout(this.resumeTimers.get(provider));
     this.rateLimitedUntil.delete(provider);
     this.resumeTimers.delete(provider);
@@ -1374,7 +1445,7 @@ export class Engine {
     return true;
   }
   private restoreRateLimitPause(): void {
-    for (const provider of ['claude', 'codex'] as const) {
+    for (const provider of AGENT_PROVIDERS) {
       const paused = this.store.listByType('rate_limit.paused', 100).find((e) => (('provider' in e.payload ? e.payload.provider : undefined) ?? this.config.provider) === provider);
       const resumed = this.store.listByType('rate_limit.resumed', 100).find((e) => (('provider' in e.payload ? e.payload.provider : undefined) ?? this.config.provider) === provider);
       if (!paused || (resumed && resumed.seq > paused.seq)) continue;
@@ -1393,7 +1464,15 @@ export class Engine {
   rateLimitedUntilIso(provider = this.config.provider): string | null { return this.isRateLimited(provider) ? new Date(this.rateLimitedUntil.get(provider)!).toISOString() : null; }
 
   usage(provider = this.config.provider): UsageSummary & { pausedUntil: string | null } {
-    return { ...usageSummary(this.store.db, Date.now(), provider, this.config.provider), provider, costAvailable: reportsDollars(provider), ...(provider === 'codex' ? { codexQuota: this.codexQuota.current(), note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the native account; activity totals count only Foundry sessions.' } : provider === 'agy' ? { agyQuota: this.agyQuota.current(), note: 'Antigravity reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The quota is the account\'s own, read from agy; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
+    const now = Date.now();
+    // with several accounts the windows, the signals and the quota are the current account's (ADR-0065); the activity
+    // totals stay every account's
+    const pooled = isPooled(provider) ? provider : null;
+    const current = pooled ? this.accountPool.currentId(pooled) : NATIVE_ACCOUNT;
+    const several = !!pooled && this.accountPool.list(pooled).length > 1;
+    const codexQuota = provider === 'codex' ? this.accountPool.codexQuota(current, this.codexQuota).current() : undefined;
+    const summary = usageSummary(this.store.db, now, provider, this.config.provider, pooled === 'claude' ? { state: this.accountSignals('claude', current) } : {});
+    return { ...summary, ...(several ? { currentAccount: this.accountPool.label(pooled!, current), accounts: this.accountUsage(pooled!, now) } : {}), provider, costAvailable: reportsDollars(provider), ...(provider === 'codex' ? { codexQuota, note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the current account; activity totals count only Foundry sessions, on every account.' } : provider === 'agy' ? { agyQuota: this.agyQuota.current(), note: 'Antigravity reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The quota is the account\'s own, read from agy; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
   }
 
   // ---------- models ----------
@@ -1431,8 +1510,26 @@ export class Engine {
     return buildReport(this, { days });
   }
 
+  /**
+   * One account's rate-limit windows (ADR-0065). The native sign-in's from before accounts existed are only in the coding
+   * agent's own table, so it stands in until the account has reported any of its own.
+   */
+  private accountSignals(provider: PooledProvider, id: string): RateLimitRow[] {
+    const own = listAccountRateLimits(this.store.db, provider, id);
+    return own.length || id !== NATIVE_ACCOUNT ? own : listRateLimitState(this.store.db);
+  }
+  /** each of the coding agent's accounts with its own windows (Claude) or quota (Codex), and Foundry's sessions on it */
+  private accountUsage(provider: PooledProvider, now: number): AccountUsage[] {
+    const win = (w: WindowSummary): AccountWindow => ({ status: w.status, resetsAt: w.resetsAt, lastSignalAt: w.lastSignalAt, isUsingOverage: w.isUsingOverage, sessions: w.sessions, costUsd: w.costUsd, outputTokens: w.outputTokens });
+    return this.accountPool.views(provider).map((a) => {
+      const s = usageSummary(this.store.db, now, provider, this.config.provider, { accountId: a.id, state: provider === 'claude' ? this.accountSignals(provider, a.id) : [] });
+      return { id: a.id, label: this.accountPool.label(provider, a.id), plan: a.plan, current: a.current, limitedUntil: a.limitedUntil, fiveHour: win(s.fiveHour), sevenDay: win(s.sevenDay), ...(provider === 'codex' ? { codexQuota: this.accountPool.codexQuota(a.id, this.codexQuota).current() } : {}) };
+    });
+  }
+
   async readUsage(provider = this.config.provider, force = false): Promise<UsageSummary & { pausedUntil: string | null }> {
-    if (provider === 'codex') await this.codexQuota.read(force);
+    // every Codex account's own quota: the current one's for the card, the others' for the accounts list
+    if (provider === 'codex') await Promise.all(this.accountPool.list('codex').map((a) => this.accountPool.codexQuota(a.id, this.codexQuota).read(force)));
     if (provider === 'agy') await this.agyQuota.read(force);
     return this.usage(provider);
   }

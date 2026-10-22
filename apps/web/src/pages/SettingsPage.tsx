@@ -466,6 +466,11 @@ export function SettingsPage() {
               <Field label="Concurrent agent sessions" aside={aside('engine.maxConcurrent')} help="Global cap across all goals (workers, reviewers, clarify) — the throughput knob, and the one that decides how fast the bill grows. Applies immediately.">
                 {num('engine.maxConcurrent', { min: 1, max: 16 })}
               </Field>
+              <Field label="Account switch on a usage limit" help="With several accounts of a coding agent, new sessions can move to the next one when the current one's usage limit stops a session. It is turned on per coding agent on the Accounts page, which says first what the provider's terms say about it.">
+                <p className="text-xs text-zinc-300">
+                  Claude Code {get(draft, 'accounts.autoSwitchClaude') ? 'on' : 'off'} · Codex {get(draft, 'accounts.autoSwitchCodex') ? 'on' : 'off'} — <Link className="underline text-emerald-400" to="/accounts">change on Accounts</Link>
+                </p>
+              </Field>
             </>,
           )}
         </div>

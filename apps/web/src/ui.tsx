@@ -340,7 +340,7 @@ export function InfoDot({ label, children, tone = 'amber' }: { label: string; ch
 }
 
 /** Modal confirm. Renders nothing when `open` is false. */
-export function ConfirmDialog({ open, title, children, confirmLabel = 'Confirm', danger, busy, onConfirm, onClose }: { open: boolean; title: ReactNode; children?: ReactNode; confirmLabel?: string; danger?: boolean; busy?: boolean; onConfirm: () => void; onClose: () => void }) {
+export function ConfirmDialog({ open, title, children, confirmLabel = 'Confirm', danger, busy, confirmDisabled, onConfirm, onClose }: { open: boolean; title: ReactNode; children?: ReactNode; confirmLabel?: string; danger?: boolean; busy?: boolean; /** the confirm button waits for something in `children` (a box to tick) */ confirmDisabled?: boolean; onConfirm: () => void; onClose: () => void }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
@@ -351,7 +351,7 @@ export function ConfirmDialog({ open, title, children, confirmLabel = 'Confirm',
           <Button size="sm" variant="ghost" disabled={busy} onClick={onClose}>
             Cancel
           </Button>
-          <Button size="sm" variant={danger ? 'danger' : 'primary'} disabled={busy} onClick={onConfirm}>
+          <Button size="sm" variant={danger ? 'danger' : 'primary'} disabled={busy || confirmDisabled} onClick={onConfirm}>
             {busy ? 'Working…' : confirmLabel}
           </Button>
         </div>

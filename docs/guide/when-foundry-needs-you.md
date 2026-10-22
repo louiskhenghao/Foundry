@@ -121,7 +121,7 @@ The dollar/turn and native sub-agent examples below describe Claude output. Code
 | `[reviewer] ✗ Output does not match required schema …` | The reviewer sent its verdict in the wrong shape and resends it. Harmless. |
 | `■ success · $0.420 · 7 turns — …` | The session finished. The text after the dash is the worker's final message; click the line to read all of it. |
 | `■ error_max_turns`, `■ error_max_budget_usd`, `■ killed_timeout` (amber) | The session hit a limit. In a task's worker session the line ends with *the engine resumes this session*: Foundry resumes it with a fresh allowance, up to twice, before starting a new attempt. `error_max_budget_usd` is the **Claude cost cap per session** (Settings → Models & limits), not the goal's budget: an unlimited goal budget still stops one session at that cap. |
-| `⏳ rate limit rejected` | The session’s coding agent reached a usage limit. Foundry pauses that coding agent and retries later; other coding agents can continue. A retry time is not proof of recovered quota. |
+| `⏳ rate limit rejected` | The session’s account reached its usage limit. Foundry pauses that coding agent and retries later, or goes on with its next account ([Several accounts](./costs-and-usage.md#several-accounts)); other coding agents can continue. A retry time is not proof of recovered quota. The task resumes its session later without spending a retry. |
 | `⏱ sub-agent still working · 3m 30s` | A helper session is still busy. Long pauses in the log are normal while this line updates. |
 | `[claude-code:unrecognized_model] …` | Your Claude Code is older than the model you picked. The session works; updating Claude Code removes the line. |
 

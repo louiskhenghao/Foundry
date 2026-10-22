@@ -1,4 +1,5 @@
 import { AgentProvider } from './schema/provider.ts';
+import { AgentAccount } from './schema/account.ts';
 import { z } from 'zod';
 import { Attachment, AttachmentMarkdown } from './schema/attachment.ts';
 import { FeedbackPlan } from './schema/feedback.ts';
@@ -324,6 +325,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     subtype: z.string(),
     rateLimit: z.object({ status: z.string(), resetsAt: z.number().nullable(), rateLimitType: z.string().nullable(), isUsingOverage: z.boolean() }).nullable(),
     skillsUsed: z.array(z.string()).default([]),
+    /** which of the coding agent's accounts ran the session (ADR-0065); absent = the native login, or written before accounts */
+    accountId: z.string().optional(),
   }),
   /** sets the policy and (unless one runs) starts a delivery; `resume` carries on with open PRs, `start-over` follows closing them */
   /** `review` = a run the engine started itself to address review comments on an open pull request (ADR-0053) */
@@ -378,6 +381,15 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('delivery.failed', { step: DeliveryStep, reason: z.string() }),
   ev('rate_limit.paused', { provider: AgentProvider.optional(), rateLimitType: z.string().nullable(), until: z.string(), reason: z.string() }),
   ev('rate_limit.resumed', { provider: AgentProvider.optional(), reason: z.string() }),
+  // a coding agent's sign-ins beside the machine's own, and which one new sessions run on (ADR-0065)
+  ev('account.added', { account: AgentAccount }),
+  ev('account.removed', { provider: AgentProvider, accountId: z.string() }),
+  /** the order the added accounts are tried in after the native one */
+  ev('account.reordered', { provider: AgentProvider, order: z.array(z.string()) }),
+  /** new sessions of the coding agent run on `to` from now; `auto` = a usage limit moved them (auto switch) */
+  ev('account.switched', { provider: AgentProvider, from: z.string(), to: z.string(), auto: z.boolean(), reason: z.string() }),
+  /** an account's usage limit stopped a session: it is passed over until `until` */
+  ev('account.limited', { provider: AgentProvider, accountId: z.string(), until: z.string(), reason: z.string() }),
   /** a Release newer than this instance appeared on the version source (announced once per version) */
   ev('update.available', { current: z.string(), latest: z.string(), mode: z.enum(['docker', 'local', 'unknown']) }),
   /** one self-update attempt ran to its end (success or rolled back) */

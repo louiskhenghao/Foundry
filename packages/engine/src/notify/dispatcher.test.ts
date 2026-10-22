@@ -51,6 +51,16 @@ describe('compose', () => {
     expect(compose(ev('rate_limit.resumed', { reason: 'legacy' }, null), title, 'codex')!.path).toBe('/usage?provider=codex');
   });
 
+  test('an account switch a usage limit made is told; one made by hand is not', () => {
+    const label = (_p: string, id: string) => (id === 'native' ? 'me@example.com' : 'b@example.com');
+    const auto = compose(ev('account.switched', { provider: 'claude', from: 'native', to: 'acc_b', auto: true, reason: 'limit' }, null), title, 'claude', label)!;
+    expect(auto.family).toBe('rateLimit');
+    expect(auto.text).toContain('me@example.com');
+    expect(auto.text).toContain('b@example.com');
+    expect(auto.path).toBe('/accounts');
+    expect(compose(ev('account.switched', { provider: 'claude', from: 'native', to: 'acc_b', auto: false, reason: 'switched by hand' }, null), title)).toBeNull();
+  });
+
   test('unrelated events stay silent', () => {
     expect(compose(ev('engine.note', { level: 'warn', message: 'notification via telegram failed' }, null), title)).toBeNull();
     expect(compose(ev('task.state_changed', { taskId: 't1', from: 'running', to: 'blocked', reason: 'escalation retries_exhausted' }), title)).toBeNull();

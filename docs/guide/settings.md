@@ -186,6 +186,7 @@ On by default. When a task is allowed two or more attempts, its last attempt, an
 | **Concurrent agent sessions** | 3 | Total simultaneous sessions across both providers and all goals. |
 | **Reference investigation: cost cap** | $3 | The session that studies a goal's reference with REA before Clarify stops at this cost and writes up what it found so far. |
 | **Reference investigation: minutes** | 20 | Its time cap. |
+| **Account switch on a usage limit** | off | Whether a usage limit moves new sessions to the coding agent's next account. Shown here, switched on the Accounts page: see [Several accounts](./costs-and-usage.md#several-accounts). |
 
 When to change: raise the timeout or Claude cost cap if big tasks keep getting cut off; lower **Concurrent agent sessions** if you hit your plan's usage limit often.
 
@@ -307,7 +308,7 @@ The eight switches, all on by default:
 | **Schedule fired** | A [Schedule](./schedules.md) fired: the goal it made, or why none was made (its previous run still going). | Nothing, unless a run was skipped you expected. |
 | **Goal finished** | A goal ended done, over-delivered or failed. Never when you cancelled it yourself. | Look at the result, or at what failed. |
 | **Delivery** | A pull request was opened or merged, the delivery failed, a deploy ended, its smoke passed or failed, or a revert of a merged goal was opened, merged, closed or failed. | Review the pull request, or look at the Delivery tab. |
-| **Usage pause** | A coding agent’s usage limit paused its new sessions, and again when retrying resumes. Other coding agents can continue. | Foundry retries automatically; check Accounts and Usage if failures persist. |
+| **Usage pause** | A coding agent’s usage limit paused its new sessions, and again when retrying resumes; also when a usage limit moved new sessions to another account. Other coding agents can continue. | Foundry retries automatically; check Accounts and Usage if failures persist. |
 | **New version** | A newer Foundry version is out (once per version). | Update when convenient, see [About & updates](#about--updates). |
 
 Turn off what you do not want. The switches apply to every channel alike.
