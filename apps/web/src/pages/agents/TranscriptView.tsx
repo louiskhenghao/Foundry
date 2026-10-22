@@ -38,8 +38,11 @@ function fullOf(it: AgentLogItem, resultFor: Map<string, ToolResult>): FullText 
 
 const oneLine = (s: string) => s.slice(0, 400).replace(/\s+/g, ' ');
 
-/** who speaks, as a small plate before the line: you in solid ink; a tool call or a command outlined, in mono */
-const ROLE = 'shrink-0 rounded-sm px-1.5 py-px text-[10.5px] font-bold uppercase tracking-[0.08em] leading-4';
+/**
+ * who speaks, as a small plate before the line: you in solid ink; a tool call or a command outlined, in mono, each kind
+ * of line in a category colour of its own (tool calls blue, commands violet, as before themes; a failed call red)
+ */
+const ROLE = 'shrink-0 rounded-sm px-1.5 py-px text-[11px] font-bold uppercase tracking-[0.08em] leading-4';
 const TOOL = 'shrink-0 max-w-[45%] truncate rounded-sm px-1.5 py-px mono text-[11px] font-semibold leading-4 inset-ring-1';
 
 /**
@@ -117,7 +120,7 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
             );
           };
           if (it.kind === 'user') return line('my-1 py-1 bg-sunken font-medium text-ink', oneLine(it.text), <span className={cn(ROLE, 'bg-ink text-on-ink')}>you</span>);
-          if (it.kind === 'command') return line('mono text-[12px] text-ink-soft', it.args && oneLine(it.args), <span className={cn(TOOL, 'inset-ring-extra/50 text-extra-ink')}>/{it.name}</span>);
+          if (it.kind === 'command') return line('mono text-[12px] text-ink-soft', it.args && oneLine(it.args), <span className={cn(TOOL, 'inset-ring-code-3/55 text-code-3-ink')}>/{it.name}</span>);
           if (it.kind === 'notice') return line('italic text-ink-faint', oneLine(it.text));
           if (it.kind === 'assistant') return line('text-ink', oneLine(it.text));
           if (it.kind === 'thinking') return line('italic text-ink-faint', oneLine(it.text));
@@ -126,14 +129,15 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
             const plate = (
               <>
                 {result?.isError && <span className="shrink-0 font-bold text-bad-ink">✗</span>}
-                <span className={cn(TOOL, result?.isError ? 'inset-ring-bad/60 text-bad-ink' : 'inset-ring-line-strong text-ink')}>⚙ {it.name}</span>
+                <span className={cn(TOOL, result?.isError ? 'inset-ring-bad/60 text-bad-ink' : 'inset-ring-code-1/55 text-code-1-ink')}>⚙ {it.name}</span>
               </>
             );
             return line('mono text-[12px] text-ink-faint', oneLine(it.input), plate);
           }
           // a result whose call is on the page is shown with that call
           if (it.kind === 'tool_result') return it.forId && called.has(it.forId) ? null : line(cn('mono text-[12px]', it.isError ? 'text-bad-ink' : 'text-ink-faint'), <>{it.isError ? '✗ ' : '↳ '}{oneLine(it.content)}</>);
-          if (it.kind === 'compact') return line('mono text-[12px] text-ink-soft border-t border-dashed border-line-strong rounded-none pt-1 mt-1.5', <>⇅ context compacted · {Math.round(it.preTokens / 1000)}k → {Math.round(it.postTokens / 1000)}k tokens</>);
+          // where the context was compacted: a dashed rule and its words in a category colour of their own (amber before themes)
+          if (it.kind === 'compact') return line('mono text-[12px] text-code-4-ink border-t border-dashed border-code-4/60 rounded-none pt-1 mt-1.5', <>⇅ context compacted · {Math.round(it.preTokens / 1000)}k → {Math.round(it.postTokens / 1000)}k tokens</>);
           return null;
         })}
         {status && status !== 'finished' && (
@@ -142,8 +146,8 @@ export function TranscriptView({ sessionId, agentId, className }: { sessionId: s
               'Live process state unknown · checking for new history periodically'
             ) : (
               <>
-                {/* still working: the dot pulses in ink */}
-                <span className={cn(status === 'busy' ? 'text-ink animate-pulse' : 'text-ink-faint')}>●</span> {status === 'busy' ? 'working…' : 'waiting for input…'}
+                {/* still working: the dot pulses in the work colour; waiting for input is no signal */}
+                <span className={cn(status === 'busy' ? 'text-work animate-pulse' : 'text-ink-faint')}>●</span> <span className={cn(status === 'busy' && 'font-semibold text-work-ink')}>{status === 'busy' ? 'working…' : 'waiting for input…'}</span>
               </>
             )}
           </div>

@@ -2,11 +2,21 @@ import type { SkillSource, SkillSourceRow, SkillUsage } from '@foundry/engine/sk
 import { ChevronDown, ChevronRight, ExternalLink, Eye, RefreshCw } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { BOARD_ROW, Badge, Button, CopyButton, ago, cn } from '../../ui.tsx';
+import { categoryPlate, stateDot, type Tone } from '../agents/marks.ts';
 
 const MANAGER_LABEL: Record<SkillSource['manager'], string> = { 'foundry': 'Foundry', 'agents-cli': 'npx skills', plugin: 'Claude plugin', hand: 'hand-installed', project: 'project' };
+/**
+ * Each kind of source in a category colour of its own (code(i)), on its board's icon and its rows' plates: Foundry's
+ * green, plugins violet, npx skills teal, what you put there by hand blue (as "yours" on the MCP tab), a project's fuchsia.
+ */
+export const MANAGER_CODE: Record<SkillSource['manager'], number> = { foundry: 1, plugin: 2, 'agents-cli': 5, hand: 0, project: 6 };
 const STATUS_LABEL: Record<SkillSourceRow['status'], string> = { 'up-to-date': 'up to date', outdated: 'outdated', unreleased: 'unreleased', modified: 'modified', unknown: 'unknown', broken: 'broken' };
-/** a status's dot, in the colour of its badge: outdated is yellow because an update waits for you to press it */
-const DOT: Record<string, string> = { 'up-to-date': 'bg-ok', outdated: 'bg-you', unreleased: 'bg-extra', modified: 'bg-work', broken: 'bg-bad', unknown: 'bg-line-strong' };
+/**
+ * A status's dot, in the signal of its badge (the kit's Badge draws the plates): up to date green, broken red, outdated
+ * yellow because an update waits for you to press it, a copy that differs blue (information); changes not released yet
+ * and what could not be checked ask nothing of you: hollow.
+ */
+const STATUS_TONE: Record<SkillSourceRow['status'], Tone> = { 'up-to-date': 'ok', outdated: 'you', unreleased: 'none', modified: 'work', unknown: 'none', broken: 'bad' };
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: new Date(iso).getFullYear() === new Date().getFullYear() ? undefined : 'numeric' }) : null);
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 /** the usage window in words: the goals actually counted, not the limit asked for */
@@ -65,12 +75,17 @@ export function SourceGroup({ s, busy, updating, running, filter, a, usage, wind
       {(['outdated', 'unreleased', 'modified', 'up-to-date', 'unknown', 'broken'] as const)
         .filter((k) => counts[k])
         .map((k) => (
-          <span key={k}>
-            <span className={cn('inline-block h-1.5 w-1.5 rounded-full mr-1', DOT[k])} />
+          <span key={k} className="inline-flex items-center gap-1">
+            <span className={stateDot(STATUS_TONE[k])} />
             {counts[k]} {STATUS_LABEL[k]}
           </span>
         ))}
     </div>
+  );
+  const managerPlate = (
+    <span className={categoryPlate(MANAGER_CODE[s.manager])} title={s.manager}>
+      {MANAGER_LABEL[s.manager]}
+    </span>
   );
   const actions = (
     <>
@@ -121,10 +136,8 @@ export function SourceGroup({ s, busy, updating, running, filter, a, usage, wind
           {removable.length > 0 && <input type="checkbox" className="shrink-0" checked={allSelected} onChange={(e) => a.onSelect(removable, e.target.checked)} title="select all removable skills in this source" />}
           <button className="flex items-center gap-2 min-w-0 flex-1 text-left" onClick={() => setOpen(!open)} title={open ? 'collapse' : 'expand'}>
             {open ? <ChevronDown size={14} className="text-ink-faint shrink-0" /> : <ChevronRight size={14} className="text-ink-faint shrink-0" />}
-            {/* a wrapper hides it on a phone (the badge's own inline-flex would win over hidden); the row under it shows it there */}
-            <span className="hidden sm:inline-flex shrink-0">
-              <Badge state={s.manager}>{MANAGER_LABEL[s.manager]}</Badge>
-            </span>
+            {/* a wrapper hides it on a phone (the plate's own inline-flex would win over hidden); the row under it shows it there */}
+            <span className="hidden sm:inline-flex shrink-0">{managerPlate}</span>
             <span className="text-[15px] font-bold text-ink truncate">{s.label}</span>
           </button>
           {s.homepage && (
@@ -136,7 +149,7 @@ export function SourceGroup({ s, busy, updating, running, filter, a, usage, wind
         </div>
         {/* mobile: manager + state + counts, then actions */}
         <div className="sm:hidden flex items-center gap-2 flex-wrap">
-          <Badge state={s.manager}>{MANAGER_LABEL[s.manager]}</Badge>
+          {managerPlate}
           {stateBadge}
           {countsEl}
           {running && <span className="text-[11px]">{running}</span>}
@@ -161,7 +174,8 @@ export function SourceGroup({ s, busy, updating, running, filter, a, usage, wind
           </span>
         </div>
       </header>
-      {unreleased && s.updater.hint && <div className="px-4 pb-2 sm:pl-10 text-xs text-extra-ink">{s.updater.hint}</div>}
+      {/* why the update waits (upstream changed, the version did not): nothing for you to do yet */}
+      {unreleased && s.updater.hint && <div className="px-4 pb-2 sm:pl-10 text-xs text-ink-soft">{s.updater.hint}</div>}
       {s.updater.command && open && canUpdate && (
         <div className="px-4 pb-2 sm:pl-10 text-[11px] text-ink-faint mono truncate">
           {s.updater.command.join(' ')} <CopyButton text={s.updater.command.join(' ')} />
@@ -179,23 +193,27 @@ export function SourceGroup({ s, busy, updating, running, filter, a, usage, wind
   );
 }
 
-/** One skill: checkbox · name + status · description · actions, a row under its source. */
+/**
+ * One skill, a row under its source: checkbox · name and status over its facts and its description · actions. The
+ * description stays under the name from a tablet up too, where a column of its own beside the name was squeezed to a
+ * few words; the actions keep a column of one width, so every status plate lines up.
+ */
 function Row({ r, usage, windowGoals, busy, selected, onSelect, onView, onAdopt, onTrashShadow, onUninstall, onUpdate }: { r: SkillSourceRow; usage?: SkillUsage | null; windowGoals: number; busy: boolean; selected: boolean; onSelect: (on: boolean) => void; onView: () => void; onAdopt: () => void; onTrashShadow: () => void; onUninstall: () => void; onUpdate?: () => void }) {
   const removable = r.actions.includes('uninstall');
   return (
-    <li className={cn(BOARD_ROW, 'pl-5 sm:pl-10 pr-4 py-2.5 grid grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_17rem_minmax(0,1fr)_15rem] gap-x-3 gap-y-1 items-start text-xs', selected && 'bg-accent/[0.06]')}>
+    <li className={cn(BOARD_ROW, 'pl-5 sm:pl-10 pr-4 py-2.5 grid grid-cols-[auto_minmax(0,1fr)] md:grid-cols-[auto_minmax(0,1fr)_15rem] gap-x-3 gap-y-1 items-start text-xs', selected && 'bg-accent/[0.06]')}>
       <div className="pt-0.5 w-4">{removable ? <input type="checkbox" checked={selected} onChange={(e) => onSelect(e.target.checked)} /> : <span className="inline-block w-3" />}</div>
       <div className="min-w-0">
         <div className="flex items-center gap-2">
-          <span className={cn('inline-block h-1.5 w-1.5 rounded-full shrink-0', DOT[r.status])} title={STATUS_LABEL[r.status]} />
+          <span className={stateDot(STATUS_TONE[r.status])} title={STATUS_LABEL[r.status]} />
           <button className="mono text-[13px] font-semibold text-ink truncate hover:underline text-left" title={`${r.invoke} — view`} onClick={onView}>
             {r.invoke}
           </button>
-          <Badge state={r.status} className="ml-auto w-[5.5rem] justify-center shrink-0">
+          <Badge state={r.status} className="ml-auto w-[6.5rem] justify-center shrink-0">
             {STATUS_LABEL[r.status]}
           </Badge>
         </div>
-        <div className="text-[11px] text-ink-faint mt-0.5 pl-3.5 flex flex-wrap gap-x-2">
+        <div className="text-[11px] text-ink-faint mt-0.5 pl-4 flex flex-wrap gap-x-2">
           {r.local.installedAt && <span>installed {fmtDate(r.local.installedAt)}</span>}
           {r.upstream && (
             <span title={r.upstream.exact ? `upstream commit ${r.upstream.commit}` : 'history truncated — repo HEAD date'}>
@@ -222,10 +240,10 @@ function Row({ r, usage, windowGoals, busy, selected, onSelect, onView, onAdopt,
           {r.keptBecause && <span title={r.keptBecause}>can't uninstall here: {r.keptBecause}</span>}
         </div>
       </div>
-      <div className="col-start-2 md:col-start-3 text-ink-soft line-clamp-2 min-w-0" title={r.description}>
+      <div className="col-start-2 pl-4 text-ink-soft line-clamp-2 min-w-0" title={r.description}>
         {r.description || <span className="text-ink-faint">no description</span>}
       </div>
-      <div className="col-start-2 md:col-start-4 flex items-center gap-1.5 justify-start md:justify-end flex-wrap">
+      <div className="col-start-2 md:col-start-3 md:row-start-1 md:row-span-2 flex items-center gap-1.5 justify-start md:justify-end flex-wrap">
         <Button size="sm" variant="info" onClick={onView} title="open SKILL.md">
           <Eye size={12} /> View
         </Button>

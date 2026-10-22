@@ -5,10 +5,11 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type AgentProvider, type GoalRow } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { ago, BOARD_ROW, Board, Button, Card, chipClass, cn, ConfirmDialog, Empty, Input, Page, PageHeader, useAffix } from '../../ui.tsx';
+import { ago, BOARD_ROW, Board, Button, Card, chipClass, cn, code, ConfirmDialog, Empty, Input, Page, PageHeader, useAffix } from '../../ui.tsx';
 import { ContextGauge } from './ContextGauge.tsx';
+import { categoryPlate, categorySquare } from './marks.ts';
 import { SessionDetail, SubagentStatus } from './SessionDetail.tsx';
-import { AttemptChip, EmptyPanel, FIGURE_LABEL, PLATE, ProviderBadge, ranFor, SourceBadge, StatusDot, shortCwd, shortModel, traitChip } from './rows.tsx';
+import { AttemptChip, EmptyPanel, FIGURE_LABEL, ProviderBadge, ranFor, SourceBadge, StatusDot, shortCwd, shortModel, traitChip } from './rows.tsx';
 
 /** Foundry agent sessions, grouped by goal, and external native sessions; outside sessions are only observed. */
 export function AgentsPage() {
@@ -111,9 +112,9 @@ export function AgentsPage() {
           <>
             {sum && (
               <span className="block">
-                {/* the sessions at work lead, in ink with the running hatch; every count in mono */}
-                <span className={cn(sum.busy > 0 && 'font-bold text-ink')}>
-                  {sum.busy > 0 && <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-[2px] align-[-1px] hatch text-ink inset-ring-1 inset-ring-ink" aria-hidden="true" />}
+                {/* the sessions at work lead, in the work colour with the running hatch; every count in mono */}
+                <span className={cn(sum.busy > 0 && 'font-bold text-work-ink')}>
+                  {sum.busy > 0 && <i className="mr-1.5 inline-block h-2.5 w-2.5 rounded-[2px] align-[-1px] hatch text-work inset-ring-1 inset-ring-work" aria-hidden="true" />}
                   <span className="mono">{sum.busy}</span> working
                 </span>{' '}
                 · <span className="mono">{sum.idle}</span> idle · <span className="mono">{sum.finished}</span> finished{(sum.unknown ?? 0) > 0 && <> · <span className="mono">{sum.unknown}</span> unknown</>} (24h)
@@ -159,12 +160,12 @@ export function AgentsPage() {
           {/* the boards in a box of their own, so the first sits right under the line above */}
           <div>
             {goalGroups.length > 0 && (
-              <Board id="foundry-agents" icon={<Bot size={14} aria-hidden="true" />} title="Foundry agents" count={goalGroups.reduce((n, g) => n + g.rows.length, 0)}>
+              <Board id="foundry-agents" icon={<Bot size={14} strokeWidth={2.25} className={code(ORIGIN_CODE.goal).ink} aria-hidden="true" />} title="Foundry agents" count={goalGroups.reduce((n, g) => n + g.rows.length, 0)}>
                 {goalGroups.map((g) => <GroupCard key={g.id} g={g} open={isOpen(g)} onToggle={() => toggle(g)} onOpen={openSession} onKill={kill} />)}
               </Board>
             )}
             {folderGroups.length > 0 && (
-              <Board id="your-sessions" icon={<User size={14} aria-hidden="true" />} title="Your sessions" count={folderGroups.reduce((n, g) => n + g.rows.length, 0)}>
+              <Board id="your-sessions" icon={<User size={14} strokeWidth={2.25} className={code(ORIGIN_CODE.folder).ink} aria-hidden="true" />} title="Your sessions" count={folderGroups.reduce((n, g) => n + g.rows.length, 0)}>
                 {folderGroups.map((g) => <GroupCard key={g.id} g={g} open={isOpen(g)} onToggle={() => toggle(g)} onOpen={openSession} onKill={kill} />)}
               </Board>
             )}
@@ -191,10 +192,13 @@ function readCollapsed(): Record<string, boolean> {
 
 /** one group of sessions, a row of its board: a goal's (Foundry's), or the ones the person opened in one folder */
 type SessionGroup = { id: string; kind: 'goal' | 'folder'; title: string | null; goal: GoalRow | null; dir: string | null; rows: AgentSessionRow[] };
+/** whose sessions, a category colour each, on the board's icon and the rows' plates: Foundry's green, yours blue (as elsewhere) */
+const ORIGIN_CODE: Record<SessionGroup['kind'], number> = { goal: 1, folder: 0 };
 
 /**
  * A goal's or a folder's sessions as one row of its board: fold, plate, name and coding agent, then the folder and the
- * counts (the working ones in ink); open, its sessions are listed under it, indented.
+ * counts (the working ones in the work colour); open, its sessions are listed under it, indented. On a phone the
+ * coding agents go under the name rather than squeeze it to a few letters.
  */
 function GroupCard({ g, open, onToggle, onOpen, onKill }: { g: SessionGroup; open: boolean; onToggle: () => void; onOpen: (sessionId: string, agentId?: string) => void; onKill: (row: AgentSessionRow) => void }) {
   const busy = g.rows.filter((r) => r.status === 'busy').length;
@@ -207,20 +211,20 @@ function GroupCard({ g, open, onToggle, onOpen, onKill }: { g: SessionGroup; ope
       <div className={cn(BOARD_ROW, 'px-4 md:px-5 py-3.5')}>
         <div className="flex items-center gap-2.5 min-w-0">
           {/* the fold button covers the row, as a goal's title link covers its row */}
-          <button className="flex items-center gap-2.5 min-w-0 flex-1 text-left rounded after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-accent" aria-expanded={open} aria-controls={panel} onClick={onToggle} title={open ? 'collapse' : 'expand'}>
+          <button className="flex flex-wrap sm:flex-nowrap items-center gap-x-2.5 gap-y-1.5 min-w-0 flex-1 text-left rounded after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-accent" aria-expanded={open} aria-controls={panel} onClick={onToggle} title={open ? 'collapse' : 'expand'}>
             {open ? <ChevronDown size={14} className="text-ink-faint shrink-0" /> : <ChevronRight size={14} className="text-ink-faint shrink-0" />}
-            <span className={cn(PLATE, 'shrink-0')}>{g.kind === 'goal' ? 'Foundry' : 'Yours'}</span>
-            <span className="min-w-0 text-[15px] font-bold leading-snug text-ink break-words line-clamp-2 sm:line-clamp-1 group-hover:underline decoration-2 underline-offset-[3px]">{g.title ?? (g.kind === 'goal' ? 'Goal no longer exists' : 'No folder')}</span>
+            <span className={cn(categoryPlate(ORIGIN_CODE[g.kind]), 'shrink-0')}>{g.kind === 'goal' ? 'Foundry' : 'Yours'}</span>
+            <span className="min-w-0 grow basis-40 sm:grow-0 sm:basis-auto text-[15px] font-bold leading-snug text-ink break-words line-clamp-2 sm:line-clamp-1 group-hover:underline decoration-2 underline-offset-[3px]">{g.title ?? (g.kind === 'goal' ? 'Goal no longer exists' : 'No folder')}</span>
             {providers.map((p) => <ProviderBadge key={p ?? 'none'} provider={p} />)}
           </button>
-          {g.goal && <Link to={`/goals/${g.id}`} className="relative z-10 shrink-0 text-xs font-semibold text-ink-soft hover:text-ink hover:underline underline-offset-2" aria-label="Open goal"><span className="hidden sm:inline">Open goal </span>→</Link>}
+          {g.goal && <Link to={`/goals/${g.id}`} className="relative z-10 shrink-0 py-2 -my-2 px-1.5 -mx-1.5 text-xs font-semibold text-ink-soft hover:text-ink hover:underline underline-offset-2" aria-label="Open goal"><span className="hidden sm:inline">Open goal </span>→</Link>}
         </div>
         {/* from sm up the folder gives way to the counts; a phone puts the counts on a line of their own */}
         <div className="mt-1.5 flex flex-wrap sm:flex-nowrap items-center gap-x-4 gap-y-1 pl-6 text-xs text-ink-faint min-w-0">
           {g.dir && <span className="flex items-center gap-1.5 min-w-0 max-w-full"><Folder size={12} className="shrink-0" aria-hidden="true" /><span className="mono truncate" title={g.dir}>{shortCwd(g.dir)}</span></span>}
           <span className="sm:ml-auto shrink-0 whitespace-nowrap">
             <span className="mono">{g.rows.length}</span> session{g.rows.length === 1 ? '' : 's'}
-            {busy > 0 && <> · <b className="font-bold text-ink"><span className="mono">{busy}</span> working</b></>}
+            {busy > 0 && <> · <b className="font-bold text-work-ink"><span className="mono">{busy}</span> working</b></>}
             {idle > 0 && <> · <span className="mono">{idle}</span> idle</>}
             {last && <> · <span className="mono">{ago(last)}</span></>}
           </span>
@@ -271,7 +275,11 @@ function Overview({ sessions }: { sessions: AgentSessionRow[] }) {
             </li>
           ))}
           <li className="flex items-center gap-2">
-            <span className={FIGURE_LABEL}>Foundry · yours</span>
+            <span className={cn(FIGURE_LABEL, 'inline-flex items-center gap-1.5')}>
+              <i className={categorySquare(ORIGIN_CODE.goal)} aria-hidden="true" />
+              Foundry · <i className={categorySquare(ORIGIN_CODE.folder)} aria-hidden="true" />
+              yours
+            </span>
             <span className="ml-auto mono text-sm font-bold text-ink tabular-nums">{sessions.filter((s) => s.source === 'foundry').length} · {sessions.filter((s) => s.source === 'external').length}</span>
           </li>
         </ul>
@@ -322,7 +330,7 @@ function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSess
                 {s.foundry ? <AttemptChip kind={s.foundry.kind} attempt={s.foundry.attempt} /> : null}
                 {s.foundry && s.foundry.taskTitle && s.title && s.title.replace(/^#+\s*/, '') !== s.foundry.taskTitle && <span className="truncate" title={s.title}>{s.title.replace(/^#+\s*/, '')}</span>}
                 {!s.foundry && s.cwd && <span className="mono truncate" title={s.cwd}>{shortCwd(s.cwd)}{s.gitBranch ? <span className="text-ink-soft"> · {s.gitBranch}</span> : null}</span>}
-                {s.status === 'unknown' && <span className="text-work-ink whitespace-nowrap">status unknown</span>}
+                {s.status === 'unknown' && <span className="text-ink-soft whitespace-nowrap">status unknown</span>}
                 {s.subagents.length > 0 && (
                   <button
                     type="button"
@@ -334,19 +342,19 @@ function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSess
                   >
                     {subsOpen(s) ? <ChevronDown size={11} aria-hidden="true" /> : <ChevronRight size={11} aria-hidden="true" />}
                     {s.subagents.length} subagent{s.subagents.length === 1 ? '' : 's'}
-                    {s.subagents.some((a) => a.status === 'running') && <span className="font-bold text-ink"> · running</span>}
+                    {s.subagents.some((a) => a.status === 'running') && <span className="font-bold text-work-ink"> · running</span>}
                   </button>
                 )}
               </div>
             </div>
-            <div className="min-w-0 space-y-1.5">
+            <div className={CELL}>
               <div className="flex items-center gap-1.5 min-w-0">
                 {!inGoal && <ProviderBadge provider={s.provider} compact />}
                 <span className="mono text-xs text-ink-soft truncate">{s.model ? shortModel(s.model) : '—'}</span>
               </div>
               <ContextGauge used={s.contextUsedTokens} window={s.contextWindowTokens} />
             </div>
-            <div className="text-xs text-ink-faint space-y-1.5 sm:text-right">
+            <div className={cn(CELL, 'text-xs text-ink-faint sm:text-right')}>
               <div className="mono whitespace-nowrap" title={s.startedAt ? `started ${ago(s.startedAt)}` : undefined}>{s.lastActivityAt ? ago(s.lastActivityAt) : '—'}</div>
               <div className="flex sm:justify-end">{s.source === 'external' ? <SourceBadge row={s} /> : <span className="mono text-[11px] whitespace-nowrap">{ranFor(s.startedAt, s.endedAt ?? s.lastActivityAt) ?? ''}</span>}</div>
             </div>
@@ -371,11 +379,11 @@ function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSess
                         <div className="mt-1 flex items-center gap-2 text-[11px]"><span className={traitChip()}>{a.agentType}</span><SubagentStatus status={a.status} /></div>
                       </div>
                     </div>
-                    <div className="min-w-0 space-y-1.5">
+                    <div className={CELL}>
                       <span className="mono text-[11px] text-ink-soft truncate block">{a.model ? shortModel(a.model) : ''}</span>
                       <ContextGauge used={a.contextUsedTokens ?? null} window={a.contextWindowTokens ?? null} />
                     </div>
-                    <div className="mono text-[11px] text-ink-faint space-y-1.5 sm:text-right">
+                    <div className={cn(CELL, 'mono text-[11px] text-ink-faint sm:text-right')}>
                       <div className="whitespace-nowrap">{a.lastActivityAt ? ago(a.lastActivityAt) : ''}</div>
                       <div className="whitespace-nowrap">{ranFor(a.startedAt, a.lastActivityAt) ?? ''}</div>
                     </div>
@@ -396,3 +404,5 @@ function SessionList({ rows, inGoal = false, onOpen, onKill }: { rows: AgentSess
  * their group's row; a subagent indents further inside its own cell.
  */
 const ROW = cn(BOARD_ROW, 'grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[auto_minmax(0,1fr)_10rem_6rem_4.5rem] gap-x-3 gap-y-1.5 items-start pl-8 sm:pl-10 pr-4 md:pr-5 [&>*:nth-child(n+3)]:col-start-2 sm:[&>*:nth-child(n+3)]:col-start-auto');
+/** a row's model and its times: two lines in a column of their own from sm up, one line each on a phone, where they stack */
+const CELL = 'min-w-0 flex flex-wrap items-center gap-x-3 gap-y-1 sm:block sm:space-y-1.5';

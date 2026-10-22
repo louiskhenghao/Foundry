@@ -2,6 +2,7 @@ import { ChevronDown, ChevronUp, Maximize2, SquareTerminal, X } from 'lucide-rea
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Modal, cn } from '../../ui.tsx';
+import { notice } from '../agents/marks.ts';
 import { LiveLog } from '../LiveLog.tsx';
 import { type OpTab, useOpsPoller, useSkillOps } from './ops.ts';
 
@@ -41,7 +42,7 @@ export function OpsDock() {
         </span>
       )}
       {ok > 0 && (
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-1 text-ok-ink">
           <span className="h-1.5 w-1.5 rounded-full bg-ok" /> {ok} done
         </span>
       )}
@@ -120,7 +121,7 @@ function OpBody({ t, logClass }: { t: OpTab; logClass: string }) {
         <span className={cn('font-semibold', STATUS_TEXT[t.status])}>· {t.status === 'running' ? 'running…' : t.status}</span>
         {t.summary && <span className={cn('min-w-0 break-words basis-full sm:basis-auto', t.status === 'failed' ? 'text-bad-ink' : 'text-ink-soft')}>{t.summary}</span>}
       </div>
-      {t.refused ? <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-xs text-bad-ink">The server did not start this operation, so there is no output.</div> : <LiveLog key={t.channel} attemptId={t.channel} className={logClass} />}
+      {t.refused ? <div className={cn(notice('bad'), 'px-3 py-2 text-xs text-bad-ink')}>The server did not start this operation, so there is no output.</div> : <LiveLog key={t.channel} attemptId={t.channel} className={logClass} />}
     </div>
   );
 }

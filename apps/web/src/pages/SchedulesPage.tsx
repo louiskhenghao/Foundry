@@ -3,12 +3,26 @@ import { Pencil, Play, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type ScheduleRow } from '../api.ts';
-import { BOARD_ROW, Button, ConfirmDialog, PageHeader, ago, cn } from '../ui.tsx';
-import { BOARD_PANEL, EmptyPanel, PLATE, shortCwd, traitChip } from './agents/rows.tsx';
+import { BOARD_ROW, Button, ConfirmDialog, PageHeader, ago, cn, code } from '../ui.tsx';
+import { STATE_INK, stateDot, statePlate, type Tone } from './agents/marks.ts';
+import { BOARD_PANEL, EmptyPanel, shortCwd } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
-/** a schedule that fires, as a solid plate of ink (the colour of what Foundry does); one turned off stays a quiet outline */
-const ON = 'inline-flex items-center whitespace-nowrap rounded-sm border border-ink bg-ink px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.08em] text-on-ink';
+/** a schedule that approves its own Briefs: a trait, in the category green it had before themes */
+const AUTO = cn('inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[11px] font-semibold leading-tight', code(1).chip);
+
+/**
+ * What the last run came to, as its goal stands: done green, failed red, waiting for you (a Brief to approve, a result
+ * to look at, a block) yellow, still at work blue; cancelled, skipped or gone is no signal.
+ */
+function lastTone(s: Pick<ScheduleRow, 'lastRun' | 'lastGoal'>): Tone {
+  const state = s.lastRun && !s.lastRun.skipped ? s.lastGoal?.state : undefined;
+  if (!state || state === 'cancelled' || state === 'draft') return 'none';
+  if (state === 'done' || state === 'over_delivered') return 'ok';
+  if (state === 'failed') return 'bad';
+  if (state === 'awaiting_brief_approval' || state === 'awaiting_feedback' || state === 'blocked') return 'you';
+  return 'work';
+}
 
 /** when a schedule fires next, as this computer shows times; a disabled one has no next run */
 export function nextRunLabel(iso: string | null, now = new Date()): string {
@@ -79,38 +93,43 @@ export function SchedulesPage() {
         <div className={BOARD_PANEL}>
           <ul className="divide-y divide-line">
             {rows.map((s) => (
-              <li key={s.id} className={cn(BOARD_ROW, 'px-4 md:px-5 py-4 space-y-2', !s.enabled && 'opacity-70')}>
-                <div className="flex items-center gap-x-2.5 gap-y-1.5 flex-wrap">
-                  <span className="text-[15px] font-bold text-ink">{s.name}</span>
-                  <span className={s.enabled ? ON : PLATE}>{s.enabled ? 'on' : 'off'}</span>
-                  {s.autoApprove && <span className={traitChip()}>approves its Briefs</span>}
-                  <span className="text-xs text-ink-soft">{cadenceLabel(s.cadence)}</span>
-                  <span className="ml-auto flex items-center gap-1">
-                    <Button size="sm" variant="ghost" disabled={busy === s.id} onClick={() => act(s.id, () => api.runSchedule(s.id))} title="Fire it now: one goal from the recipe (refused while its previous run is still going)">
-                      <Play size={12} /> Run now
-                    </Button>
-                    <Link to={`/goals/new?schedule=${s.id}`}>
-                      <Button size="sm" variant="ghost" title="Open the New goal form filled with this schedule's recipe; Save schedule writes it back">
-                        <Pencil size={12} /> Edit
-                      </Button>
-                    </Link>
-                    <Button size="sm" variant="ghost" disabled={busy === s.id} onClick={() => act(s.id, () => api.setScheduleEnabled(s.id, !s.enabled))} title={s.enabled ? 'Stop it from firing; the recipe stays' : 'Let it fire again, counting from now'}>
-                      {s.enabled ? 'Turn off' : 'Turn on'}
-                    </Button>
-                    <Button size="sm" variant="ghost" disabled={busy === s.id} onClick={() => setDel(s)} title="Delete the schedule; the goals it made stay">
-                      <Trash2 size={12} />
-                    </Button>
-                  </span>
+              // what it is on the left, its buttons in a column of their own on the right; under it all on a phone
+              <li key={s.id} className={cn(BOARD_ROW, 'px-4 md:px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-x-6 gap-y-3', !s.enabled && 'opacity-70')}>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="flex items-center gap-x-2.5 gap-y-1.5 flex-wrap">
+                    <span className="min-w-0 break-words text-[15px] font-bold text-ink">{s.name}</span>
+                    {/* on: it fires by itself (at work, blue); off: hollow */}
+                    <span className={statePlate(s.enabled ? 'work' : 'none')}>{s.enabled ? 'on' : 'off'}</span>
+                    {s.autoApprove && <span className={AUTO}>approves its Briefs</span>}
+                    <span className="text-xs text-ink-soft">{cadenceLabel(s.cadence)}</span>
+                  </div>
+                  <div className="text-xs text-ink-faint flex items-center gap-x-4 gap-y-1 flex-wrap">
+                    <span className="mono min-w-0 max-w-full truncate" title={s.recipe.repoPath}>{shortCwd(s.recipe.repoPath)}</span>
+                    <span>next: <span className="text-ink-soft">{nextRunLabel(s.nextRunAt)}</span></span>
+                    <span className="inline-flex items-center gap-1.5">
+                      last: {s.lastRun && <span className={stateDot(lastTone(s))} />}
+                      {s.lastGoal ? <Link to={`/goals/${s.lastGoal.id}`} className={cn('font-semibold hover:underline', lastTone(s) === 'none' ? 'text-ink' : STATE_INK[lastTone(s)])} title={s.lastGoal.title}>{lastRunLabel(s)}</Link> : <span className="text-ink-soft">{lastRunLabel(s)}</span>}
+                    </span>
+                    {s.runs > 0 && <span><span className="mono">{s.runs}</span> run{s.runs === 1 ? '' : 's'}</span>}
+                  </div>
+                  <div className="text-[13px] text-ink-soft line-clamp-2" title={s.recipe.prompt}>{s.recipe.prompt}</div>
                 </div>
-                <div className="text-xs text-ink-faint flex items-center gap-x-4 gap-y-1 flex-wrap">
-                  <span className="mono min-w-0 max-w-full truncate" title={s.recipe.repoPath}>{shortCwd(s.recipe.repoPath)}</span>
-                  <span>next: <span className="text-ink-soft">{nextRunLabel(s.nextRunAt)}</span></span>
-                  <span>
-                    last: {s.lastGoal ? <Link to={`/goals/${s.lastGoal.id}`} className="font-semibold text-ink hover:underline" title={s.lastGoal.title}>{lastRunLabel(s)}</Link> : <span className="text-ink-soft">{lastRunLabel(s)}</span>}
-                  </span>
-                  {s.runs > 0 && <span><span className="mono">{s.runs}</span> run{s.runs === 1 ? '' : 's'}</span>}
-                </div>
-                <div className="text-[13px] text-ink-soft line-clamp-2" title={s.recipe.prompt}>{s.recipe.prompt}</div>
+                <span className="flex flex-wrap items-center gap-1 shrink-0 -ml-2.5 sm:ml-0">
+                  <Button size="sm" variant="ghost" disabled={busy === s.id} onClick={() => act(s.id, () => api.runSchedule(s.id))} title="Fire it now: one goal from the recipe (refused while its previous run is still going)">
+                    <Play size={12} /> Run now
+                  </Button>
+                  <Link to={`/goals/new?schedule=${s.id}`}>
+                    <Button size="sm" variant="ghost" title="Open the New goal form filled with this schedule's recipe; Save schedule writes it back">
+                      <Pencil size={12} /> Edit
+                    </Button>
+                  </Link>
+                  <Button size="sm" variant="ghost" disabled={busy === s.id} onClick={() => act(s.id, () => api.setScheduleEnabled(s.id, !s.enabled))} title={s.enabled ? 'Stop it from firing; the recipe stays' : 'Let it fire again, counting from now'}>
+                    {s.enabled ? 'Turn off' : 'Turn on'}
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={busy === s.id} onClick={() => setDel(s)} title="Delete the schedule; the goals it made stay">
+                    <Trash2 size={12} />
+                  </Button>
+                </span>
               </li>
             ))}
           </ul>

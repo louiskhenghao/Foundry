@@ -2,20 +2,33 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, CircleHelp, Container, Cpu, ExternalLink, Hammer, Lock, RefreshCw, Search, Square, Waypoints, type LucideIcon } from 'lucide-react';
 import { api, type PortRow, type PortsView } from '../api.ts';
-import { BOARD_ROW, Board, Button, Card, ConfirmDialog, Empty, Input, PageHeader, Tabs, ago, buttonClass, chipClass, cn, useAffix } from '../ui.tsx';
-import { EmptyPanel, FIGURE_LABEL, PLATE } from './agents/rows.tsx';
+import { BOARD_ROW, Board, Button, Card, ConfirmDialog, Empty, Input, PageHeader, Tabs, ago, buttonClass, chipClass, cn, code, useAffix } from '../ui.tsx';
+import { categoryPlate, categorySquare, notice, statePlate } from './agents/marks.ts';
+import { EmptyPanel, FIGURE_LABEL } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 type Category = PortRow['category'];
-/** each group of holders: its filter chip, its board's heading and icon (no colour: what holds a port is no signal) */
-const CATEGORIES: { id: Category; label: string; heading: string; icon: LucideIcon }[] = [
-  { id: 'foundry', label: 'foundry', heading: 'Foundry', icon: Hammer },
-  { id: 'tailscale', label: 'tailscale', heading: 'Tailscale serve', icon: Waypoints },
-  { id: 'docker', label: 'docker', heading: 'Docker', icon: Container },
-  { id: 'process', label: 'processes', heading: 'Other processes', icon: Cpu },
-  { id: 'unknown', label: 'unknown', heading: 'Unknown holders', icon: CircleHelp },
+/**
+ * each group of holders: its filter chip, its board's heading and icon, and a category colour (code(i)) on its icon, its
+ * rows' plates and its squares in the filters and the overview, as before themes: Foundry green, Tailscale blue, Docker
+ * teal. Other processes keep plain grey; an unknown holder is no signal and nothing is known of it: hollow.
+ */
+const CATEGORIES: { id: Category; label: string; heading: string; icon: LucideIcon; code: number | null }[] = [
+  { id: 'foundry', label: 'foundry', heading: 'Foundry', icon: Hammer, code: 1 },
+  { id: 'tailscale', label: 'tailscale', heading: 'Tailscale serve', icon: Waypoints, code: 0 },
+  { id: 'docker', label: 'docker', heading: 'Docker', icon: Container, code: 5 },
+  { id: 'process', label: 'processes', heading: 'Other processes', icon: Cpu, code: null },
+  { id: 'unknown', label: 'unknown', heading: 'Unknown holders', icon: CircleHelp, code: null },
 ];
 const BADGE_LABEL: Record<Category, string> = { foundry: 'Foundry', tailscale: 'Tailscale', docker: 'Docker', process: 'Process', unknown: 'Unknown' };
+const codeOf = (c: Category) => CATEGORIES.find((x) => x.id === c)!.code;
+/** a holder's square before its name in the filters and the overview */
+const holderSquare = (c: Category) => (c === 'unknown' ? 'inline-block h-2 w-2 shrink-0 rounded-[2px] inset-ring-[1.5px] inset-ring-ink-faint' : categorySquare(codeOf(c)));
+/** a holder's plate on its rows: in its colour, or hollow where it has none */
+const holderPlate = (c: Category) => {
+  const i = codeOf(c);
+  return i == null ? statePlate('none') : categoryPlate(i);
+};
 
 /** the ports, read now and every five seconds while the page is in front */
 export function usePorts(): { view: PortsView | null; error: string | null; loading: boolean; refresh: () => Promise<void> } {
@@ -169,11 +182,12 @@ function GroupCard({ g, onRelease, wanted, open, onToggle }: { g: Group; onRelea
           {/* the fold button covers the row, as a goal's title link covers its row */}
           <button type="button" className="flex items-center gap-2.5 min-w-0 flex-1 text-left rounded after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-accent" onClick={onToggle} aria-expanded={open} title={open ? 'collapse' : 'expand'}>
             {open ? <ChevronDown size={14} className="text-ink-faint shrink-0" /> : <ChevronRight size={14} className="text-ink-faint shrink-0" />}
-            <span className={cn(PLATE, 'shrink-0')}>{BADGE_LABEL[g.category]}</span>
+            <span className={cn(holderPlate(g.category), 'shrink-0')}>{BADGE_LABEL[g.category]}</span>
             <span className="min-w-0 text-[15px] font-bold leading-snug text-ink break-words line-clamp-2 sm:line-clamp-1 group-hover:underline decoration-2 underline-offset-[3px]">{g.title}</span>
           </button>
           {g.goalId && (
-            <Link to={`/goals/${g.goalId}`} className="relative z-10 shrink-0 text-xs font-semibold text-ink-soft hover:text-ink hover:underline underline-offset-2">
+            // the padding gives a phone's thumb a 32px target; the negative margin keeps the row where it was
+            <Link to={`/goals/${g.goalId}`} className="relative z-10 shrink-0 py-2 -my-2 px-1.5 -mx-1.5 text-xs font-semibold text-ink-soft hover:text-ink hover:underline underline-offset-2">
               Open goal →
             </Link>
           )}
@@ -214,7 +228,10 @@ function SidePanel({ view, scoped }: { view: PortsView; scoped: PortRow[] }) {
                 const total = view.rows.filter((r) => r.category === c.id).length;
                 return (
                   <div key={c.id} className="min-w-0">
-                    <dt className={cn(FIGURE_LABEL, 'leading-tight')}>{c.heading}</dt>
+                    <dt className={cn(FIGURE_LABEL, 'flex items-center gap-1.5 leading-tight')}>
+                      <i className={holderSquare(c.id)} aria-hidden="true" />
+                      {c.heading}
+                    </dt>
                     <dd className="mt-1 flex items-baseline gap-1.5 leading-none">
                       <span className="text-2xl font-bold mono text-ink tabular-nums">{n}</span>
                       {total !== n && <span className="mono text-xs text-ink-faint tabular-nums">of {total}</span>}
@@ -333,7 +350,8 @@ export function PortsPage() {
 
       <div className="flex items-center gap-2 flex-wrap">
         {(['all', ...CATEGORIES.map((c) => c.id)] as const).map((c) => (
-          <button key={c} onClick={() => setScope(c)} className={chipClass(scope === c)}>
+          <button key={c} onClick={() => setScope(c)} className={cn(chipClass(scope === c), 'inline-flex items-center gap-1.5')}>
+            {c !== 'all' && <i className={holderSquare(c)} aria-hidden="true" />}
             {c === 'all' ? 'all' : CATEGORIES.find((x) => x.id === c)!.label} <span className="mono opacity-60">{count(c)}</span>
           </button>
         ))}
@@ -361,8 +379,8 @@ export function PortsPage() {
       </div>
 
       {/* in its Docker image Foundry sees only its own container: information, not a warning */}
-      {view?.inContainer && <div className="rounded-md border border-work/30 bg-work/5 px-3 py-2 text-xs text-work-ink">Foundry runs in its Docker image: only ports inside its container show here, not the host's.</div>}
-      {error && view && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-xs text-bad-ink">The last scan failed: {error}</div>}
+      {view?.inContainer && <div className={cn(notice('work'), 'px-3 py-2 text-xs text-work-ink')}>Foundry runs in its Docker image: only ports inside its container show here, not the host's.</div>}
+      {error && view && <div className={cn(notice('bad'), 'px-3 py-2 text-xs text-bad-ink')}>The last scan failed: {error}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 min-w-0">
@@ -371,7 +389,7 @@ export function PortsPage() {
           {CATEGORIES.filter((c) => groups.some((g) => g.category === c.id)).map((c) => {
             const list = groups.filter((g) => g.category === c.id);
             return (
-              <Board key={c.id} id={`ports-${c.id}`} icon={<c.icon size={14} aria-hidden="true" />} title={c.heading} count={list.reduce((n, g) => n + g.rows.length, 0)}>
+              <Board key={c.id} id={`ports-${c.id}`} icon={<c.icon size={14} strokeWidth={2.25} className={c.code == null ? undefined : code(c.code).ink} aria-hidden="true" />} title={c.heading} count={list.reduce((n, g) => n + g.rows.length, 0)}>
                 {list.map((g) => (
                   <GroupCard key={g.key} g={g} onRelease={ask} wanted={wanted} open={isOpen(g)} onToggle={() => toggle(g)} />
                 ))}

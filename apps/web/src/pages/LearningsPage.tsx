@@ -7,11 +7,18 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../api.ts';
 import { useLive } from '../store.ts';
 import { useUnsaved } from '../unsaved.ts';
-import { BOARD_ROW, Board, Button, Empty, Field, Input, Modal, PageHeader, Select, Textarea, ago, chipClass, cn, focusFirst } from '../ui.tsx';
-import { BOARD_PANEL, EmptyPanel, shortCwd, traitChip } from './agents/rows.tsx';
+import { BOARD_ROW, Board, Button, Empty, Field, Input, Modal, PageHeader, Select, Textarea, ago, chipClass, cn, code, focusFirst } from '../ui.tsx';
+import { categorySquare } from './agents/marks.ts';
+import { BOARD_PANEL, EmptyPanel, shortCwd } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
 
 const KINDS: LearningKind[] = ['build', 'test', 'run', 'structure', 'convention', 'preference', 'pitfall'];
+/**
+ * Each kind of learning in a category colour of its own (code(i)), on its chip and its filter's square, in the hues it
+ * had before themes: build blue, test green, run teal, convention violet, preference amber, pitfall rose; structure,
+ * grey then, takes the eighth so every kind tells apart.
+ */
+const KIND_CODE: Record<LearningKind, number> = { build: 0, test: 1, run: 5, structure: 7, convention: 2, preference: 3, pitfall: 4 };
 const MAX_CHARS = 300;
 const COLLAPSED_KEY = 'foundry.learnings.collapsed';
 
@@ -117,7 +124,7 @@ export function LearningsPage() {
         }
         actions={
           only && (
-            <Link to="/learnings" className="text-sm font-semibold text-ink-soft hover:text-ink hover:underline underline-offset-2">
+            <Link to="/learnings" className="inline-flex min-h-8 items-center text-sm font-semibold text-ink-soft hover:text-ink hover:underline underline-offset-2">
               ← every folder
             </Link>
           )
@@ -126,7 +133,8 @@ export function LearningsPage() {
 
       <div className="flex items-center gap-2 flex-wrap">
         {(['all', ...KINDS] as const).map((k) => (
-          <button key={k} type="button" onClick={() => setKind(k)} className={chipClass(kind === k)}>
+          <button key={k} type="button" onClick={() => setKind(k)} className={cn(chipClass(kind === k), 'inline-flex items-center gap-1.5')}>
+            {k !== 'all' && <i className={categorySquare(KIND_CODE[k])} aria-hidden="true" />}
             {k} <span className="mono opacity-60">{shown ? (k === 'all' ? all.length : counts[k]) : ''}</span>
           </button>
         ))}
@@ -174,9 +182,9 @@ export function LearningsPage() {
   );
 }
 
-/** a learning's kind as a quiet chip in small letters; a pitfall, what goes wrong, in the failures' red */
+/** a learning's kind as a chip in small letters, tinted in the kind's category colour */
 function KindBadge({ kind }: { kind: LearningKind }) {
-  return <span className={cn(traitChip(kind === 'pitfall' ? 'bad' : undefined), 'shrink-0')}>{kind}</span>;
+  return <span className={cn('inline-flex shrink-0 items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[11px] font-semibold leading-tight', code(KIND_CODE[kind]).chip)}>{kind}</span>;
 }
 
 /**

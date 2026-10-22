@@ -4,12 +4,13 @@ export const fmtTokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)}k` 
 
 /**
  * Context-window usage bar. The denominator is a hardcoded model→window guess, so raw tokens stay visible. A thin bar of
- * ink like every meter's: yellow past 70 %, red past 90 %.
+ * ink like every meter's, red past 90 %: a filling window asks nothing of the person (the agent compacts it), so it
+ * never turns the yellow of what waits for them.
  */
 export function ContextGauge({ used, window: win, className }: { used: number | null; window: number | null; className?: string }) {
   if (used == null) return null;
   const pct = win ? Math.min(100, (used / win) * 100) : 0;
-  const tone = pct > 90 ? 'bg-bad' : pct > 70 ? 'bg-you' : 'bg-ink';
+  const tone = pct > 90 ? 'bg-bad' : 'bg-ink';
   return (
     <span className={cn('inline-flex items-center gap-1.5', className)} title={win ? `${used.toLocaleString()} of ~${win.toLocaleString()} tokens in context` : `${used.toLocaleString()} tokens in context`}>
       {win != null && (

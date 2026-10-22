@@ -3,6 +3,7 @@ import { ExternalLink, HardDrive, RefreshCw, Server, Stethoscope } from 'lucide-
 import { useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider, type McpCustomServer, type McpView } from '../../api.ts';
 import { BOARD_ROW, Board, Badge, Button, Card, ConfirmDialog, Empty, Input, Select, cn } from '../../ui.tsx';
+import { STATE_INK, categoryPlate, notice, statePlate, type Tone } from '../agents/marks.ts';
 import { HelpLink } from '../HelpPage.tsx';
 import { McpConnectDialog } from './McpConnectDialog.tsx';
 import { OpsDock } from './OpsDock.tsx';
@@ -10,7 +11,10 @@ import { startOp, useRunningOp, useSkillOps } from './ops.ts';
 import { BottomDock } from './SkillsPage.tsx';
 
 const SOURCE_LABEL: Record<McpServerRow['source'], string> = { user: 'yours', plugin: 'plugin', connector: 'claude.ai' };
-const HEALTH_STATE: Record<McpHealth['status'], string> = { connected: 'pass', failed: 'fail', 'needs-auth': 'warn', pending: 'pending', unknown: 'pending' };
+/** where a server is configured, a category colour each: yours blue (as hand-installed skills), a plugin's violet (as on the Skills tab), claude.ai's lime */
+const SOURCE_CODE: Record<McpServerRow['source'], number> = { user: 0, plugin: 2, connector: 7 };
+/** a server's health: connected green, still starting blue, failed red, a sign-in yellow (yours to do), unknown hollow */
+const HEALTH_TONE: Record<McpHealth['status'], Tone> = { connected: 'ok', failed: 'bad', 'needs-auth': 'you', pending: 'work', unknown: 'none' };
 
 /** Native MCP servers for the selected backend, allowed goal access and installation controls. */
 export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) {
@@ -88,7 +92,7 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
       <p className="text-[13px] leading-relaxed text-ink-faint max-w-[80ch] -mt-1">
         Goals run without asking you, so they only use the servers switched to <span className="font-semibold text-ink-soft">Allowed in goals</span>, and only in the sessions that do the work (never in Clarify or reviews). Servers installed here go to your {backend} user configuration and also work in its CLI. Only the selected backend is changed.
       </p>
-      {err && <div className="rounded-md border border-bad/40 bg-bad/5 px-3 py-2 text-xs text-bad-ink">{err}</div>}
+      {err && <div className={cn(notice('bad'), 'px-3 py-2 text-xs text-bad-ink')}>{err}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-6 gap-y-8 items-start">
         <div className="lg:col-span-2 min-w-0 space-y-4">
@@ -157,17 +161,17 @@ function ServerRow({ s, health, running, onAllow, onRemove, onConnect, keys, onC
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="mono text-sm font-bold text-ink">{s.name}</span>
-          <span className="rounded-sm px-1 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft inset-ring inset-ring-line-strong">{SOURCE_LABEL[s.source]}</span>
+          <span className={categoryPlate(SOURCE_CODE[s.source])}>{SOURCE_LABEL[s.source]}</span>
           {s.transport && <span className="mono text-[11px] text-ink-faint">{s.transport}</span>}
           {health && (
-            <span title={health.detail}>
-              <Badge state={HEALTH_STATE[health.status]}>{health.status.replace('-', ' ')}</Badge>
+            <span className={statePlate(HEALTH_TONE[health.status])} title={health.detail}>
+              {health.status.replace('-', ' ')}
             </span>
           )}
           {running && <span className="text-[11px] font-semibold text-work-ink">working…</span>}
         </div>
-        {/* signing in is yours to do (yellow); a server that fails is red */}
-        {health && health.status !== 'connected' && <div className={cn('text-xs', needsAuth ? 'text-you-ink' : health.status === 'failed' ? 'text-bad-ink' : 'text-ink-faint')}>{health.detail}{needsAuth ? ' — press Set up to connect it' : ''}</div>}
+        {/* what the check said, in the health's colour: signing in is yours to do (yellow), a server that fails is red */}
+        {health && health.status !== 'connected' && <div className={cn('text-xs', STATE_INK[HEALTH_TONE[health.status]])}>{health.detail}{needsAuth ? ' — press Set up to connect it' : ''}</div>}
         <div className="mono text-[11px] text-ink-faint truncate" title={s.target ?? undefined}>
           {s.source === 'plugin' ? `from plugin ${s.plugin}` : s.source === 'connector' ? 'connected in your claude.ai account' : s.target}
         </div>

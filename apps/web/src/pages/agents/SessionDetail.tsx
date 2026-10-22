@@ -70,9 +70,12 @@ export function SessionDetail({ row, agentId, onOpen, onBack }: { row: AgentSess
   );
 }
 
-/** Native history can identify a child without proving whether its process is still alive. */
+/**
+ * A helper agent's state in its signal colour: running blue, done green. Native history can identify a child without
+ * proving whether its process is still alive: that stays unknown, and no signal.
+ */
 export function SubagentStatus({ status }: { status: AgentSubagentRow['status'] }) {
-  return status === 'running' ? <span className="font-bold text-ink">● running</span> : status === 'unknown' ? <span className="text-work-ink" title="Live process state unknown">status unknown</span> : <span className="text-ink-faint">done</span>;
+  return status === 'running' ? <span className="font-bold text-work-ink">● running</span> : status === 'unknown' ? <span className="text-ink-soft" title="Live process state unknown">status unknown</span> : <span className="font-semibold text-ok-ink">done</span>;
 }
 
 /** which log to read, as a chip; on the chosen one (filled with the accent) the status takes the chip's own colour */

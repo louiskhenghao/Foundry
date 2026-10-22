@@ -5,11 +5,12 @@ import { Blocks, FolderGit2, PackageCheck, Plug, RefreshCw, Search, SquareTermin
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
-import { Board, Button, ConfirmDialog, Empty, Input, Modal, ago, chipClass, cn, useAffix } from '../../ui.tsx';
+import { Board, Button, ConfirmDialog, Empty, Input, Modal, ago, chipClass, cn, code, useAffix } from '../../ui.tsx';
+import { categorySquare, notice } from '../agents/marks.ts';
 import { OpsDock } from './OpsDock.tsx';
 import { startOp, useRunningOp, useSkillOps } from './ops.ts';
 import { SessionLine, SidePanelTabs } from './SidePanels.tsx';
-import { SourceGroup, lastGoals } from './SourceGroup.tsx';
+import { MANAGER_CODE, SourceGroup, lastGoals } from './SourceGroup.tsx';
 
 type Report = SkillsUpdateReport & { updating: string | null; refreshing: boolean };
 type View = { name: string; dir: string; invoke: string; skillMd: string | null; files: { path: string; size: number }[] };
@@ -23,7 +24,9 @@ const MANAGER_HEADING: Record<(typeof MANAGER_ORDER)[number], string> = {
   hand: 'Hand-installed',
   project: 'Project skills',
 };
-/** each kind of source's mark beside its board's name */
+/** where a skill lives, its filter's square in the colour of the kit's plates for it: user blue, plugin violet, project fuchsia */
+const SCOPE_CODE: Record<SkillScope, number> = { user: 0, plugin: 2, project: 6 };
+/** each kind of source's mark beside its board's name, in the kind's category colour (as its rows' plates) */
 const MANAGER_ICON: Record<(typeof MANAGER_ORDER)[number], LucideIcon> = { foundry: PackageCheck, plugin: Plug, 'agents-cli': SquareTerminal, hand: Wrench, project: FolderGit2 };
 
 /** The rows the list shows: the scope buttons, the search, `needs attention` and `unused only` all apply. */
@@ -248,7 +251,8 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
 
       <div className="flex items-center gap-2 flex-wrap">
         {(['all', 'user', 'plugin', 'project'] as const).map((s) => (
-          <button key={s} onClick={() => setScope(s)} className={chipClass(scope === s)}>
+          <button key={s} onClick={() => setScope(s)} className={cn(chipClass(scope === s), 'inline-flex items-center gap-1.5')}>
+            {s !== 'all' && <i className={categorySquare(SCOPE_CODE[s])} aria-hidden="true" />}
             {s} <span className={cn('mono', scope === s ? 'opacity-70' : 'text-ink-faint')}>{counts[s]}</span>
           </button>
         ))}
@@ -269,7 +273,8 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
         </button>
       </div>
 
-      {msg && <div className={cn('rounded-md border px-3 py-2 text-xs', msg.kind === 'ok' ? 'border-ok/40 bg-ok/5 text-ok-ink' : msg.kind === 'info' ? 'border-work/40 bg-work/5 text-work-ink' : 'border-bad/40 bg-bad/5 text-bad-ink')}>{msg.text}</div>}
+      {/* what a quick action came to: its state on the notice's edge and in its words, the panel left as it is */}
+      {msg && <div className={cn(notice(msg.kind === 'ok' ? 'ok' : msg.kind === 'info' ? 'work' : 'bad'), 'px-3 py-2 text-xs', msg.kind === 'ok' ? 'text-ok-ink' : msg.kind === 'info' ? 'text-work-ink' : 'text-bad-ink')}>{msg.text}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-6 gap-y-8 items-start">
         {/* each kind of source on a board of its own, as the Goals page's boards: a source is a row, its skills rows under it */}
@@ -277,7 +282,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
           {MANAGER_ORDER.filter((m) => report.sources.some((s) => s.manager === m && s.skills.some(filter))).map((m) => {
             const Icon = MANAGER_ICON[m];
             return (
-              <Board key={m} id={`skills-${m}`} icon={<Icon size={14} aria-hidden="true" />} title={m === 'plugin' ? `${backend} plugins` : MANAGER_HEADING[m]} count={report.sources.filter((s) => s.manager === m).reduce((n, s) => n + s.skills.length, 0)}>
+              <Board key={m} id={`skills-${m}`} icon={<Icon size={14} strokeWidth={2.25} className={code(MANAGER_CODE[m]).ink} aria-hidden="true" />} title={m === 'plugin' ? `${backend} plugins` : MANAGER_HEADING[m]} count={report.sources.filter((s) => s.manager === m).reduce((n, s) => n + s.skills.length, 0)}>
                 {report.sources
                   .filter((s) => s.manager === m)
                   .map((s) => (

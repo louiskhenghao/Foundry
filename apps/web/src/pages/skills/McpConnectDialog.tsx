@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { apiForProvider, type AgentProvider, type McpLoginSession } from '../../api.ts';
 import { Button, CopyButton, Input, buttonClass, cn, focusFirst } from '../../ui.tsx';
+import { notice } from '../agents/marks.ts';
 
 /**
  * Connect a claude.ai connector (open its claude.ai link and authorize there) or sign in to an HTTP MCP server
@@ -84,7 +85,8 @@ export function McpConnectDialog({ provider = 'claude', name, onClose }: { provi
       );
     return (
       <div className="space-y-3">
-        <div className={cn('rounded-md border p-3 text-sm', s.done ? (s.ok ? 'border-ok/40 bg-ok/5 text-ok-ink' : 'border-bad/40 bg-bad/5 text-bad-ink') : s.needsCode ? 'border-work/40 bg-work/5 text-ink' : 'border-line text-ink-soft')}>
+        {/* how the sign-in stands, on the box's edge: signed in green, failed red, the sign-in yours to do yellow, starting blue */}
+        <div className={cn(notice(s.done ? (s.ok ? 'ok' : 'bad') : s.needsCode ? 'you' : 'work'), 'p-3 text-sm', s.done ? (s.ok ? 'text-ok-ink' : 'text-bad-ink') : s.needsCode ? 'text-ink' : 'text-ink-soft')}>
           {s.done ? (s.ok ? `✔ Signed in to ${name}.` : `✘ ${s.error ?? 'Sign-in failed'}`) : s.needsCode ? 'Open the link below and sign in. If a browser on this computer finishes it, this updates by itself; otherwise the browser lands on an address that may not load: copy that whole address and paste it here.' : 'Starting the sign-in…'}
         </div>
         {s.needsCode && !s.done && (
@@ -99,8 +101,8 @@ export function McpConnectDialog({ provider = 'claude', name, onClose }: { provi
           <div className="text-xs">
             <div className="text-ink-faint mb-1">{s.needsCode ? 'Sign-in link:' : 'If no browser opened, use this link:'}</div>
             <div className="flex items-center gap-2">
-              <a className="font-semibold underline underline-offset-2 text-work-ink truncate flex items-center gap-1" href={s.url} target="_blank" rel="noreferrer">
-                <ExternalLink size={12} /> {s.url}
+              <a className="font-semibold underline underline-offset-2 text-work-ink min-w-0 flex items-center gap-1" href={s.url} target="_blank" rel="noreferrer" title={s.url}>
+                <ExternalLink size={12} className="shrink-0" /> <span className="truncate">{s.url}</span>
               </a>
               <CopyButton text={s.url} />
             </div>
@@ -108,7 +110,7 @@ export function McpConnectDialog({ provider = 'claude', name, onClose }: { provi
         )}
         {err && <div className="text-xs text-bad-ink">{err}</div>}
         {/* the way out when it cannot finish here: the same sign-in in the user's own terminal (yellow once it is the only way: yours to do) */}
-        <div className={cn('text-xs rounded-md border px-3 py-2', s.done && !s.ok ? 'border-you/50 bg-you/10 text-ink' : 'border-line text-ink-soft')}>
+        <div className={cn('text-xs px-3 py-2', s.done && !s.ok ? cn(notice('you'), 'text-ink') : 'rounded-md border border-line text-ink-soft')}>
           <div className="mb-1">{s.done && !s.ok ? 'Sign in from a terminal instead: run this, open the link it prints, and paste back the address when it asks.' : 'Or run it in a terminal yourself:'}</div>
           <div className="flex items-center gap-2">
             <code className="mono text-ink bg-sunken border border-line rounded-sm px-2 py-1 break-all">{s.command}</code>
@@ -125,7 +127,7 @@ export function McpConnectDialog({ provider = 'claude', name, onClose }: { provi
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="w-full sm:max-w-lg max-h-[calc(100dvh-1.5rem)] overflow-auto rounded-xl border border-line bg-panel shadow-2xl p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-extrabold tracking-tight text-ink">Connect {name} · {backend}</h2>
+          <h2 className="min-w-0 break-words text-lg font-extrabold tracking-tight text-ink">Connect {name} · {backend}</h2>
           <Button size="sm" variant="ghost" onClick={close} aria-label="close">
             <X size={14} />
           </Button>

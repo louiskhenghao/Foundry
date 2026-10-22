@@ -3,15 +3,22 @@ import type { CatalogEntryStatus, SessionView, SkillTier, TrashEntry } from '@fo
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 import { KeyMissing } from '../../components/KeyMissing.tsx';
-import { Badge, Button, Card, CopyButton, Modal, Tabs, ago, cn } from '../../ui.tsx';
+import { Badge, Button, Card, CopyButton, Modal, Tabs, ago, cn, code } from '../../ui.tsx';
+import { stateDot } from '../agents/marks.ts';
 
 const TIERS: SkillTier[] = ['required', 'recommended', 'optional'];
 const TIER_LABEL: Record<SkillTier, string> = { required: 'Required — the engine is noticeably weaker without these', recommended: 'Recommended — improves worker / reviewer / clarifier quality', optional: 'Optional — situational' };
 
 type SideTab = 'catalog' | 'trash' | 'history';
 
-/** a catalog entry's bundle (mattpocock, ponytail…): a quiet tag, not a signal */
-const BUNDLE = 'shrink-0 rounded-sm px-1 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft inset-ring inset-ring-line-strong';
+/**
+ * Where a catalog entry comes from (its bundle: mattpocock, ponytail, pstack…), a category colour each so the entries of
+ * one source tell apart down the list: the known ones a fixed colour, all different within a tier and none the rose of
+ * Required; a new one a colour from its name, the same every time.
+ */
+const BUNDLE_CODE: Record<string, number> = { mattpocock: 0, garden: 1, pstack: 2, hyperframes: 3, ponytail: 5, 'text-to-cad': 6, bencium: 7 };
+const bundleCode = (name: string) => BUNDLE_CODE[name] ?? [...name].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7);
+const bundleChip = (name: string) => cn('shrink-0 rounded-sm px-1 text-[11px] font-bold uppercase tracking-[0.08em]', code(bundleCode(name)).chip);
 
 /** is something running on this key (catalog id, `tier`, `restore:<path>`)? */
 type Busy = (key: string) => boolean;
@@ -118,10 +125,9 @@ function CatalogRow({ c, busy, running, onInstall, onInstallTool }: { c: Catalog
     <div className="rounded-md border border-line bg-sunken p-2.5">
       <div className="flex items-center gap-2">
         <Badge state={c.status}>{c.status.replace(/-/g, ' ')}</Badge>
-        <button className="mono text-[13px] font-semibold text-ink text-left flex-1 truncate hover:underline" onClick={() => setOpen(!open)} title={c.entry.summary}>
+        <button className="mono text-[13px] font-semibold text-ink text-left flex-1 min-w-0 truncate hover:underline" onClick={() => setOpen(!open)} title={c.entry.summary}>
           {c.entry.name}
         </button>
-        {c.entry.bundle && <span className={BUNDLE}>{c.entry.bundle}</span>}
         {(type === 'git' || type === 'plugin' || type === 'suite') &&
           (satisfied ? (
             c.status === 'installed-unmanaged' && type === 'git' && (
@@ -146,7 +152,11 @@ function CatalogRow({ c, busy, running, onInstall, onInstallTool }: { c: Catalog
       </div>
       {type === 'manual' && !satisfied && c.manual && <div className="text-xs text-you-ink mt-1">manual install — copy the command/instructions and run them yourself</div>}
       {running && <div className="mt-1">{running}</div>}
-      <div className="text-xs text-ink-faint mt-1">{c.entry.summary}</div>
+      {/* the bundle leads the summary's line: beside the name it left the name a few letters in a narrow column */}
+      <div className="text-xs text-ink-faint mt-1">
+        {c.entry.bundle && <span className={cn(bundleChip(c.entry.bundle), 'mr-1.5')}>{c.entry.bundle}</span>}
+        {c.entry.summary}
+      </div>
       {satisfied && <KeyMissing keys={c.missingEnv} envFor={c.entry.envFor} />}
       <CatalogEntryDialog c={c} open={open} onClose={() => setOpen(false)} />
     </div>
@@ -176,11 +186,12 @@ function CatalogEntryDialog({ c, open, onClose }: { c: CatalogEntryStatus; open:
       open={open}
       onClose={onClose}
       title={
-        <span className="flex items-center gap-2">
+        // its plates go under the name when a phone's window has no room beside it
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="mono">{c.entry.name}</span>
           <Badge state={c.status}>{c.status.replace(/-/g, ' ')}</Badge>
           <Badge state={c.entry.tier} />
-          {c.entry.bundle && <span className={BUNDLE}>{c.entry.bundle}</span>}
+          {c.entry.bundle && <span className={bundleChip(c.entry.bundle)}>{c.entry.bundle}</span>}
         </span>
       }
     >
@@ -257,12 +268,12 @@ function HistoryBody({ runs }: { runs: (EngineEvent & { seq: number })[] }) {
         return (
           <div key={e.seq}>
             <button className="w-full text-left flex items-center gap-2" onClick={() => setOpenSeq(openSeq === e.seq ? null : e.seq)}>
-              <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', ok ? 'bg-ok' : 'bg-bad')} />
+              <span className={stateDot(ok ? 'ok' : 'bad')} />
               <span className="mono text-ink-faint w-16 shrink-0">{ago(e.ts)}</span>
               <span className="font-semibold text-ink truncate flex-1">
                 {p.sourceId} <span className="font-normal text-ink-faint">· {p.updater}</span>
               </span>
-              <span className="text-ink-faint">{p.changed?.length ? `${p.changed.length} changed` : ok ? 'no change' : 'failed'}</span>
+              <span className={cn('shrink-0', ok ? 'text-ink-faint' : 'font-semibold text-bad-ink')}>{p.changed?.length ? `${p.changed.length} changed` : ok ? 'no change' : 'failed'}</span>
             </button>
             {openSeq === e.seq && (
               <pre className="mono text-[11px] text-ink-soft bg-sunken border border-line rounded-md p-2 mt-1 max-h-40 overflow-auto whitespace-pre-wrap">
