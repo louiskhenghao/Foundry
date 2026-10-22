@@ -167,7 +167,9 @@ export function App() {
         )}
       </header>
       <BuildWatch connected={connected} />
-      <main className="flex-1 overflow-auto">
+      {/* relative: what is positioned inside the pages (a hidden input, a radio's peer) belongs to this scroller, not to the
+          window, which it would otherwise make taller than the screen (the whole app then scrolled past a page's end) */}
+      <main className="relative flex-1 overflow-auto">
         <Routes>
           <Route path="/" element={<GoalsPage />} />
           <Route path="/goals/new" element={<NewGoalPage />} />

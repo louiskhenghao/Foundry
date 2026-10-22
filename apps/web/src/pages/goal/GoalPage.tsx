@@ -152,7 +152,7 @@ export function GoalPage() {
         <span aria-hidden="true">/</span>
         <span className="mono truncate" title={g.repoPath}>{repoName}</span>
       </nav>
-      <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:gap-8 md:items-start">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:gap-8 lg:items-start">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
             <StatePlate state={g.state} label={stateLabel(g.state)} />
@@ -214,9 +214,11 @@ export function GoalPage() {
             </div>
           )}
         </div>
-        {/* the goal's actions, large: what it spent and how long it worked are the Overview's Budget & time */}
-        <div className="md:max-w-[27rem]">
-          <div className="flex items-center gap-2.5 flex-wrap md:justify-end">
+        {/* the goal's actions, large: what it spent and how long it worked are the Overview's Budget & time. Under the
+            title below 1024 px; beside it, a row wide enough for every state's actions but a finished goal's, which wrap
+            as two groups */}
+        <div className="lg:max-w-[30rem]">
+          <div className="flex items-center gap-2.5 flex-wrap lg:justify-end">
             {/* in the header, not in the tabs row or the simple view's status line: switching views must not move it */}
             <ButtonGroup
               size="lg"
