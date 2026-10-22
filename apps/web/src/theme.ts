@@ -29,7 +29,7 @@ const write = (key: string, value: string | null) => {
   } catch {}
 };
 
-const systemQuery = () => window.matchMedia?.('(prefers-color-scheme: light)');
+const systemQuery = () => (typeof window === 'undefined' ? undefined : window.matchMedia?.('(prefers-color-scheme: light)'));
 const storedMode = (): Mode => {
   const m = read(MODE_KEY);
   return m === 'light' || m === 'dark' ? m : 'system';

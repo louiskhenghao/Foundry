@@ -1,5 +1,5 @@
 import { AccountsPage } from './pages/AccountsPage.tsx';
-import { ArrowLeftRight, ArrowUpCircle, BarChart3, Bot, Inbox, ListTodo, LogOut, Menu, Moon, Network, NotebookPen, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
+import { ArrowLeftRight, ArrowUpCircle, BarChart3, Bot, Inbox, ListTodo, LogOut, Menu, Moon, Network, NotebookPen, Palette, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
 import { HelpPage } from './pages/HelpPage.tsx';
 import { TransferPage } from './pages/TransferPage.tsx';
 import { PortsPage } from './pages/PortsPage.tsx';
@@ -240,6 +240,9 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
           <div className="my-1 border-t border-zinc-800" />
           <MenuItem icon={light ? <Moon size={13} /> : <Sun size={13} />} onClick={toggleTheme}>
             {light ? 'Dark mode' : 'Light mode'}
+          </MenuItem>
+          <MenuItem icon={<Palette size={13} />} hint="Themes, and how to make your own" onClick={() => go(close, '/settings#appearance')}>
+            Appearance
           </MenuItem>
           <div className="flex items-center gap-2 px-2 py-1.5 text-[11px] text-zinc-500">
             <Radio size={12} className={connected ? 'text-emerald-400' : 'text-rose-400'} />

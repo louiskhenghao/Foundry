@@ -16,6 +16,7 @@ import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { AccessCard } from './settings/AccessCard.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Select, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
+import { AppearanceCard } from './settings/AppearanceCard.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 
 type Section = keyof Settings;
@@ -42,6 +43,7 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'safety', label: 'Safety' },
   { id: 'engine', label: 'Engine (install)' },
+  { id: 'appearance', label: 'Appearance' },
   { id: 'about', label: 'About & updates' },
 ];
 
@@ -747,6 +749,8 @@ export function SettingsPage() {
           </>,
         )}
       </Card>
+
+      <AppearanceCard />
 
       <Card id="about" title={<>About & updates<HelpLink to="settings#about--updates" className="ml-1.5" /></>} className="scroll-mt-16">
         <div className="space-y-3">
