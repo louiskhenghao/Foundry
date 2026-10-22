@@ -255,7 +255,7 @@ What the follow-up gets from the earlier goal:
 - **Where it starts:** from your base branch when the earlier work is already there, otherwise from the earlier goal's branch. In that case the Delivery tab says that the earlier goal's changes go along in this goal's pull request. The pull request still targets your base branch.
 - **Attachments and style,** unless you unticked them: copies of the attachments, and the chosen style direction with its reference sample, already picked on the new Brief.
 
-The goal page then shows **Follows: …** and, on the earlier goal, **Followed by: …**, as links. If the earlier goal was deleted, the follow-up says "follows a deleted goal" with its title. In the goals list, a follow-up has a small "↳ follows …" line under its title.
+The goal page then shows **Follows: …** and, on the earlier goal, **Followed by: …**, as links. If the earlier goal was deleted, the follow-up says "follows a deleted goal" with its title. In the goals list, a goal and its follow-ups are one entry, folded like a group on the Agents page: the first goal's title with a chip saying how many goals it holds, the newest goal's state (**latest: …**), and the spend and time of all of them. Click it to open the rows of every goal in it, oldest first, each follow-up marked ↳. It opens by itself while one of its goals is under way, remembers when you fold or open it, and **expand all** / **collapse all** above the list fold every group at once. A follow-up whose earlier goal was deleted stays on its own, with a small "↳ follows …" line under its title.
 
 From the command line: `foundry goal new "<prompt>" --follows <goal id>`.
 

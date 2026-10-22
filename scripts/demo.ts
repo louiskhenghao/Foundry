@@ -518,6 +518,32 @@ export async function seedImportedGoal(engine: Engine, like: string): Promise<st
   return id;
 }
 
+/**
+ * A finished goal with two follow-ups, each continuing the one before: the Goals list folds them into one entry. Seeded
+ * for the list's shot only (the newest member just now, so the entry leads the list), then deleted again.
+ */
+export async function seedFollowUpChain(engine: Engine, like: string): Promise<string[]> {
+  const { getGoal, newId } = await import('../packages/core/src/index.ts');
+  const base = getGoal(engine.store.db, like)!;
+  const at = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+  const steps = [
+    { title: 'Order history page', costUsd: 2.14, minutes: 26, ago: 3 * 24 * 60 },
+    { title: 'Order history: filter by status', costUsd: 1.32, minutes: 18, ago: 2 * 24 * 60 },
+    { title: 'Order history: export the filtered list', costUsd: 0.94, minutes: 12, ago: 0 },
+  ];
+  const ids: string[] = [];
+  for (const [i, step] of steps.entries()) {
+    const id = newId('g');
+    const prev = i ? { id: ids[i - 1]!, title: steps[i - 1]!.title } : null;
+    const createdAt = at(step.ago);
+    const follows = prev ? { goalId: prev.id, title: prev.title, via: 'created', startFrom: 'base', branch: `goal/${prev.id}`, context: '', style: null, at: createdAt } : null;
+    const goal = { ...base, id, title: step.title, prompt: step.title, branch: `goal/${id}`, workspaceDir: null, state: 'done', follows, costUsd: step.costUsd, createdAt, updatedAt: at(Math.max(0, step.ago - step.minutes)) };
+    engine.store.importGoalEvents(id, [{ id: newId('evt'), ts: goal.createdAt, goalId: id, type: 'goal.created', payload: { goal } }]);
+    ids.push(id);
+  }
+  return ids;
+}
+
 /** start the demo; resolves once every seeded goal reached its state */
 export async function startDemo(): Promise<{ url: string; goals: Record<string, string>; engine: Engine; stop: () => Promise<void> }> {
   const tmp = mkdtempSync(join(tmpdir(), 'foundry-demo-'));

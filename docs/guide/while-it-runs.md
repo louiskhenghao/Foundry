@@ -97,7 +97,7 @@ While the delegated goal needs you — an interview question, a Brief to approve
 
 Once a delegated goal has landed, the planner reads what it delivered and may touch up the tasks after it that have not started yet: their spec, start files and deliverables, never the plan's shape or its checks. A task touched up says **Touched up after a step landed** under its spec, with the reason; the Activity tab has the line too.
 
-The goals list folds delegated goals under their main goal: a line **▸ 2 delegated goals** under the main goal opens them, indented. A delegated goal's own page says **Delegated from: …** under its title (a link to the main goal's task), and the main goal's page lists its **Delegated goals**. If the main goal is deleted, the delegated goal stays in the list on its own and says whose it was.
+The goals list folds delegated goals under their main goal: a line **▸ 2 delegated goals** under the main goal opens them, indented. A delegated goal's own page says **Delegated from: …** under its title (a link to the main goal's task), and the main goal's page lists its **Delegated goals**. If the main goal is deleted, the delegated goal stays in the list on its own and says whose it was. A goal and its follow-ups fold into one entry in the same list (see [Continue with a follow-up](./getting-the-result.md#continue-with-a-follow-up)).
 
 ### Inside a task
 

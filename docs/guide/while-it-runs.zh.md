@@ -97,7 +97,7 @@ kind 是 **goal** 的任务不由 worker 来做：由它自己的一个*委派 g
 
 委派 goal 落地之后，planner 会读它交付了什么，并可能微调之后尚未开始的任务：它们的 spec、起始文件和交付物，绝不改计划的结构或检查。被微调过的任务会在 spec 下面写 **Touched up after a step landed** 和原因；Activity 标签里也有这一行。
 
-goals 列表把委派 goal 折叠在它的主 goal 下面：主 goal 下的一行 **▸ 2 delegated goals** 可以展开它们，缩进显示。委派 goal 自己的页面在标题下写着 **Delegated from: …**（链接到主 goal 的那个任务），主 goal 的页面列出它的 **Delegated goals**。如果主 goal 被删除，委派 goal 会独立留在列表里，并写明它曾属于谁。
+goals 列表把委派 goal 折叠在它的主 goal 下面：主 goal 下的一行 **▸ 2 delegated goals** 可以展开它们，缩进显示。委派 goal 自己的页面在标题下写着 **Delegated from: …**（链接到主 goal 的那个任务），主 goal 的页面列出它的 **Delegated goals**。如果主 goal 被删除，委派 goal 会独立留在列表里，并写明它曾属于谁。一个 goal 和它的后续 goal 在同一个列表里合成一项折叠显示（见 [Continue with a follow-up](./getting-the-result.zh.md#continue-with-a-follow-up)）。
 
 ### 任务内部
 

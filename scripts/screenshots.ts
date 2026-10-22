@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { buildTimeline, getGoal, type EngineEvent } from '@foundry/core';
 import { addSubject, addSubjectPicture, subjectsDir } from '../packages/engine/src/subjects.ts';
-import { seedImportedGoal, startDemo } from './demo.ts';
+import { seedFollowUpChain, seedImportedGoal, startDemo } from './demo.ts';
 
 const ROOT = resolve(import.meta.dir, '..');
 const OUT = join(ROOT, 'docs/guide/images');
@@ -137,11 +137,14 @@ const partShot = async (name: string, path: string, part: () => ReturnType<typeo
 
 try {
   const g = demo.goals;
-  // the README's first picture: every goal of the demo, one in each state. The Setup banner reports this machine's
-  // missing tools, not the demo's, and the empty page below the list is cut off.
+  // the README's first picture: every goal of the demo, one in each state, under a goal and its two follow-ups folded
+  // into one entry (seeded for this shot only). The Setup banner reports this machine's missing tools, not the demo's,
+  // and the empty page below the list is cut off.
+  const chain = await seedFollowUpChain(demo.engine, g.done!);
   await shot('goals', '/', async () => {
     await page.evaluate(() => Array.from(document.querySelectorAll('div')).find((d) => d.textContent?.startsWith('Setup incomplete') && d.parentElement?.textContent !== d.textContent)?.remove());
-  }, 560);
+  }, 630);
+  for (const id of chain) await demo.engine.deleteGoal(id);
   await shot('new-goal', '/goals/new', async () => {
     await page.getByRole('button', { name: 'Expert', exact: false }).click();
     await page.locator('textarea').first().fill('Add CSV export to the orders page, with the date range the user is looking at.');
