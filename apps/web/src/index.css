@@ -181,6 +181,27 @@ select:not([multiple]):is(:not([size]), [size='1']) {
 :root.light ::-webkit-scrollbar-thumb {
   background-color: var(--color-line-strong);
 }
+/* work under way: a diagonal hatch in the text colour that flows; done is solid, not started is hollow */
+@utility hatch {
+  background-image: linear-gradient(135deg, currentColor 0 25%, transparent 25% 50%, currentColor 50% 75%, transparent 75%);
+  background-size: 6px 6px;
+  animation: hatch-flow 0.8s linear infinite;
+}
+/* the theme's lean: Wayfinding's stage plates are parallelograms, Classic's stand upright */
+@utility slant {
+  transform: skewX(var(--slant));
+}
+@keyframes hatch-flow {
+  to {
+    background-position: 6px 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hatch {
+    animation: none;
+  }
+}
+
 html,
 body,
 #root {

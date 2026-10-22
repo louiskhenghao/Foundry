@@ -7,7 +7,7 @@ export const cn = (...xs: (string | false | null | undefined)[]) => xs.filter(Bo
 
 export function Select({ className, children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select className={cn('w-full min-w-0 rounded-md bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm text-zinc-100 focus:outline-none focus:border-emerald-500 disabled:opacity-50', className)} {...props}>
+    <select className={cn('w-full min-w-0 rounded-md bg-panel border border-line-strong px-3 py-1.5 text-sm text-ink focus:outline-none focus:border-accent disabled:opacity-50', className)} {...props}>
       {children}
     </select>
   );
@@ -86,7 +86,7 @@ export function Menu({ trigger, children, width = 'w-56', align = 'right', class
       {trigger({ open, toggle: () => setOpen(!open) })}
       {open &&
         createPortal(
-          <div ref={panel} style={pos ?? { top: 0, left: 0, visibility: 'hidden' }} className={cn('fixed rounded-lg border border-zinc-800 bg-zinc-950 shadow-xl p-1.5 z-[65] text-xs max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] overflow-auto', width)}>
+          <div ref={panel} style={pos ?? { top: 0, left: 0, visibility: 'hidden' }} className={cn('fixed rounded-lg border border-line bg-panel shadow-xl p-1.5 z-[65] text-xs max-w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] overflow-auto', width)}>
             {typeof children === 'function' ? children(close) : children}
           </div>,
           document.body,
@@ -127,13 +127,13 @@ type ButtonVariant = 'default' | 'primary' | 'danger' | 'info' | 'ghost';
 /** a button's look, for a link that acts as one (an address that opens in a new tab) */
 export function buttonClass(variant: ButtonVariant = 'default', size: 'sm' | 'md' = 'md', className?: string): string {
   return cn(
-    'inline-flex items-center gap-1.5 rounded-md font-medium transition disabled:opacity-40 disabled:cursor-not-allowed',
+    'inline-flex items-center gap-1.5 rounded-md font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed',
     size === 'sm' ? 'px-2.5 py-1 text-xs' : 'px-3.5 py-1.5 text-sm',
-    variant === 'primary' && 'bg-emerald-500 text-zinc-950 hover:bg-emerald-400',
-    variant === 'default' && 'bg-zinc-800 text-zinc-100 hover:bg-zinc-700 border border-zinc-700',
+    variant === 'primary' && 'bg-accent text-on-accent hover:bg-accent/85',
+    variant === 'default' && 'bg-panel text-ink hover:bg-zinc-800 border border-line-strong',
     variant === 'danger' && 'bg-rose-600/20 text-rose-300 border border-rose-700/50 hover:bg-rose-600/30',
     variant === 'info' && 'bg-sky-600/20 text-sky-300 border border-sky-700/50 hover:bg-sky-600/30',
-    variant === 'ghost' && 'text-zinc-300 hover:bg-zinc-800',
+    variant === 'ghost' && 'text-ink-soft hover:text-ink hover:bg-zinc-800',
     className,
   );
 }
@@ -149,18 +149,17 @@ export function Button({ variant = 'default', size = 'md', className, ...props }
 export const focusFirst: boolean = typeof window !== 'undefined' && !!window.matchMedia?.('(hover: hover) and (pointer: fine)').matches;
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn('w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-1.5 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500 disabled:opacity-50', className)} {...props} />;
+  return <input className={cn('w-full rounded-md bg-panel border border-line-strong px-3 py-1.5 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent disabled:opacity-50', className)} {...props} />;
 }
 export function Textarea({ className, ...props }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn('w-full rounded-md bg-zinc-900 border border-zinc-700 px-3 py-2 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:border-emerald-500', className)} {...props} />;
+  return <textarea className={cn('w-full rounded-md bg-panel border border-line-strong px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:outline-none focus:border-accent', className)} {...props} />;
 }
 
 /** A row of mutually exclusive buttons for a short list of choices: every option visible, one click to pick. */
 export function ButtonGroup<T extends string>({ value, onChange, options, label }: { value: T; onChange: (v: T) => void; options: { id: T; label: ReactNode; title?: string; /** shown, not choosable (the title says why) */ disabled?: boolean }[]; label: string }) {
   return (
-    // the 1px gaps show the border colour through, so the dividers stay clean when a narrow screen wraps the row;
-    // wrapped buttons grow to fill their row
-    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap gap-px max-w-full rounded-md border border-zinc-700 bg-zinc-700 overflow-hidden text-xs">
+    // a segmented control: the chosen option filled with the accent; wrapped buttons grow to fill their row
+    <div role="radiogroup" aria-label={label} className="inline-flex flex-wrap gap-0.5 max-w-full rounded-md p-0.5 bg-panel ring-1 ring-inset ring-line-strong text-xs">
       {options.map((o) => (
         <button
           key={o.id}
@@ -170,7 +169,7 @@ export function ButtonGroup<T extends string>({ value, onChange, options, label 
           aria-disabled={o.disabled || undefined}
           title={o.title}
           onClick={() => !o.disabled && onChange(o.id)}
-          className={cn('grow px-2.5 py-1 whitespace-nowrap bg-zinc-900', o.disabled && 'opacity-40 cursor-not-allowed', value === o.id ? 'shadow-[inset_0_0_0_999px_rgb(16_185_129/0.15)] text-emerald-200 font-medium' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800')}
+          className={cn('grow rounded-sm px-2.5 py-1 whitespace-nowrap font-semibold', o.disabled && 'opacity-40 cursor-not-allowed', value === o.id ? 'bg-accent text-on-accent' : 'text-ink-soft hover:text-ink hover:bg-zinc-800')}
         >
           {o.label}
         </button>
@@ -182,10 +181,10 @@ export function ButtonGroup<T extends string>({ value, onChange, options, label 
 /** `onClose` (a card shown as a panel) puts × in the header's top-right corner, where it stays however the actions wrap. */
 export function Card({ children, className, bodyClassName, title, actions, id, onClose }: { children: ReactNode; className?: string; bodyClassName?: string; title?: ReactNode; actions?: ReactNode; id?: string; onClose?: () => void }) {
   return (
-    <section id={id} className={cn('rounded-lg border border-zinc-800 bg-zinc-900/60', className)}>
+    <section id={id} className={cn('rounded-lg border border-line bg-panel shadow-[0_1px_2px_rgb(0_0_0/0.05)]', className)}>
       {(title || actions || onClose) && (
-        <header className={cn('relative flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-zinc-800', onClose && 'pr-12')}>
-          <h3 className="text-sm font-semibold text-zinc-200 min-w-0 grow shrink basis-56">{title}</h3>
+        <header className={cn('relative flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-2.5 border-b border-line', onClose && 'pr-12')}>
+          <h3 className="text-sm font-bold text-ink min-w-0 grow shrink basis-56">{title}</h3>
           {actions && <div className="flex flex-wrap items-center gap-2 shrink-0 max-w-full ml-auto">{actions}</div>}
           {onClose && (
             <button type="button" className="absolute top-2 right-2 rounded p-1.5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800" onClick={onClose} aria-label="close">
@@ -261,9 +260,10 @@ const STATE_COLORS: Record<string, string> = {
 export function Tabs<T extends string>({ tabs, value, onChange, right }: { tabs: { id: T; label: ReactNode; badge?: ReactNode }[]; value: T; onChange: (t: T) => void; right?: ReactNode }) {
   return (
     // the hairline is an inset shadow, not a border the tabs overlap with -mb-px: that 1px overflow gave the row a vertical scrollbar
-    <div className="flex items-center gap-1 shadow-[inset_0_-1px_0_var(--color-zinc-800)] overflow-x-auto overflow-y-hidden whitespace-nowrap -mx-1 px-1">
+    <div className="flex items-center gap-1 shadow-[inset_0_-1px_0_var(--color-line)] overflow-x-auto overflow-y-hidden whitespace-nowrap -mx-1 px-1">
       {tabs.map((t) => (
-        <button key={t.id} onClick={() => onChange(t.id)} className={cn('px-3 py-2 text-sm border-b-2 flex items-center gap-1.5 shrink-0', value === t.id ? 'border-emerald-500 text-zinc-100' : 'border-transparent text-zinc-400 hover:text-zinc-200')}>
+        // every tab as bold as the chosen one, so choosing one never shifts the row
+        <button key={t.id} onClick={() => onChange(t.id)} className={cn('px-3 py-2 text-sm font-semibold border-b-[3px] flex items-center gap-1.5 shrink-0', value === t.id ? 'border-accent text-ink' : 'border-transparent text-ink-soft hover:text-ink')}>
           {t.label}
           {t.badge}
         </button>
@@ -294,7 +294,7 @@ const STATE_LABELS: Record<string, string> = {
   awaiting_feedback: 'have a look',
 };
 export function Badge({ state, children, className }: { state: string; children?: ReactNode; className?: string }) {
-  return <span className={cn('inline-flex items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wide border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)} title={state.replace(/_/g, ' ')}>{children ?? STATE_LABELS[state] ?? state.replace(/_/g, ' ')}</span>;
+  return <span className={cn('inline-flex items-center whitespace-nowrap rounded-sm border px-1.5 py-0.5 text-[10.5px] font-bold uppercase tracking-[0.07em] border-transparent', STATE_COLORS[state] ?? 'bg-zinc-800 text-zinc-300', className)} title={state.replace(/_/g, ' ')}>{children ?? STATE_LABELS[state] ?? state.replace(/_/g, ' ')}</span>;
 }
 
 /** Progress bar against a limit; `max` null = no limit (renders a neutral bar). */
@@ -311,8 +311,8 @@ export function Meter({ value, max, label, warn, note }: { value: number; max: n
         </span>
         <span className="mono shrink-0 whitespace-nowrap">{unlimited ? 'no limit' : `${pct.toFixed(0)}%`}</span>
       </div>
-      <div className="h-1.5 rounded bg-zinc-800 overflow-hidden">
-        <div className={cn('h-full', unlimited ? 'bg-zinc-600' : warn || pct > 90 ? 'bg-rose-500' : pct > 70 ? 'bg-amber-500' : 'bg-emerald-500')} style={{ width: `${unlimited ? 100 : pct}%`, opacity: unlimited ? 0.35 : 1 }} />
+      <div className="h-1.5 rounded-xs bg-line overflow-hidden">
+        <div className={cn('h-full', unlimited ? 'bg-zinc-600' : warn || pct > 90 ? 'bg-bad' : pct > 70 ? 'bg-you' : 'bg-accent')} style={{ width: `${unlimited ? 100 : pct}%`, opacity: unlimited ? 0.35 : 1 }} />
       </div>
     </div>
   );
@@ -330,7 +330,7 @@ export function InfoDot({ label, children, tone = 'amber' }: { label: string; ch
       trigger={({ open, toggle }) => (
         // 16px in the line (a phone's 32px button height would push the meter's line apart); the ::before is the thumb's target
         <button type="button" onClick={toggle} aria-expanded={open} aria-label={label} title={label} className="relative inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full hover:bg-zinc-800 before:absolute before:-inset-2 before:content-['']" style={{ minHeight: 0 }}>
-          <span className={cn('h-2 w-2 rounded-full', tone === 'rose' ? 'bg-rose-500' : 'bg-amber-400')} />
+          <span className={cn('h-2 w-2 rounded-full', tone === 'rose' ? 'bg-bad' : 'bg-you')} />
         </button>
       )}
     >
@@ -344,8 +344,8 @@ export function ConfirmDialog({ open, title, children, confirmLabel = 'Confirm',
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && !busy && onClose()}>
-      <div className="w-full sm:max-w-md rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl p-4 space-y-3">
-        <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
+      <div className="w-full sm:max-w-md rounded-xl border border-line bg-panel shadow-2xl p-4 space-y-3">
+        <h3 className="text-sm font-bold text-ink">{title}</h3>
         {children && <div className="text-xs text-zinc-300 space-y-2">{children}</div>}
         <div className="flex justify-end gap-2 pt-1">
           <Button size="sm" variant="ghost" disabled={busy} onClick={onClose}>
@@ -365,9 +365,9 @@ export function Modal({ open, title, onClose, children, wide }: { open: boolean;
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-3 sm:p-4" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={cn('w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[85vh] rounded-xl border border-zinc-800 bg-zinc-950 shadow-2xl flex flex-col', wide ? 'sm:max-w-4xl' : 'sm:max-w-2xl')}>
-        <header className="flex items-center gap-2 px-4 py-3 border-b border-zinc-800">
-          <h3 className="text-sm font-semibold text-zinc-100 min-w-0 truncate">{title}</h3>
+      <div className={cn('w-full max-h-[calc(100dvh-1.5rem)] sm:max-h-[85vh] rounded-xl border border-line bg-panel shadow-2xl flex flex-col', wide ? 'sm:max-w-4xl' : 'sm:max-w-2xl')}>
+        <header className="flex items-center gap-2 px-4 py-3 border-b border-line">
+          <h3 className="text-sm font-bold text-ink min-w-0 truncate">{title}</h3>
           <button className="ml-auto text-zinc-400 hover:text-zinc-100 text-lg leading-none px-1" onClick={onClose} aria-label="close">
             ×
           </button>
