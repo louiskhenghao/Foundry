@@ -125,8 +125,12 @@ export function RepoCard({ path, info, onPath, onValidation }: { path: string; i
                 </Row>
                 {info.lastCommit && (
                   <Row icon={<GitCommitHorizontal size={12} />} label="last commit">
-                    <span className="mono">{info.lastCommit.sha.slice(0, 7)}</span> <span className="text-ink-soft truncate">{info.lastCommit.subject}</span>
-                    {info.lastCommit.date && <span className="text-ink-faint"> · <span className="mono">{ago(info.lastCommit.date)}</span></span>}
+                    {/* the subject is cut with an ellipsis (whole on hover), so a long one neither runs out of the card nor pushes the age off the line */}
+                    <span className="flex items-baseline gap-1 min-w-0">
+                      <span className="mono shrink-0">{info.lastCommit.sha.slice(0, 7)}</span>
+                      <span className="text-ink-soft truncate" title={info.lastCommit.subject}>{info.lastCommit.subject}</span>
+                      {info.lastCommit.date && <span className="text-ink-faint shrink-0 whitespace-nowrap">· <span className="mono">{ago(info.lastCommit.date)}</span></span>}
+                    </span>
                   </Row>
                 )}
                 <Row icon={<Globe size={12} />} label="remote">
