@@ -104,6 +104,7 @@ A preset is a table: for each job, which model does it. The jobs are:
 | **Documenter** | Writes the completion documents. |
 | **Feedback triage** | Turns what you write at a milestone into a plan. |
 | **Suggest a hint** | The AI diagnosis for a blocked task in the Inbox. |
+| **Conversation** | The Explainer that answers your questions on the goal page ([Conversation](./while-it-runs.md#conversation), beta). |
 | **Style samples** | The sample images on the Brief. |
 
 Four presets come with Foundry:
@@ -339,6 +340,12 @@ While Access is on, what a person does is recorded under their name: the goal pa
 - **Extra boundary patterns**: commands Foundry must never let a session run on its own, on top of the built-in ones (pushes, pull requests, releases, publishing, deploys, cloud tools), for example `terraform apply|kubectl`. A blocked command comes to your Inbox for approval.
 - **Folder browser roots**: which folders the **Select folder…** picker may open. Empty means your home folder and external drives.
 - **Desktop apps & printers**: off by default. On, sessions may open desktop apps and hand files to printers on this computer — text-to-cad's Bambu hand-off (Bambu Connect, Bambu Studio), `open …`, `xdg-open`, the slicers' windows. Off, the boundary guard refuses those commands and the hand-off skill (Foundry does not point sessions at it either); headless slicing, preflight reports and part lookups still work. A refused command comes to your Inbox, where you can run it once yourself; a refused skill is noted on the goal page and the work goes on without it.
+
+## Beta
+
+Features on trial. Each is off until you switch it on here, may change or go away in a later release, and is marked **Beta** where it appears while it is on.
+
+- **Conversation on the goal page**: a bubble at the bottom right of a goal's page and its Brief page opens a Conversation with the goal's **Explainer**, a read-only session of the goal's coding agent that answers your questions about the goal's code and Foundry's records of it, in a window beside the page. Its model is the preset's **Conversation** row. Off: no bubble and no Conversation tab; the Conversations already had are kept and come back when it is switched on again. See [Conversation](./while-it-runs.md#conversation).
 
 ## Engine (install)
 

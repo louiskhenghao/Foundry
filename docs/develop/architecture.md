@@ -47,6 +47,7 @@ Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `cata
 | `skills-*` | skills cache, trash and update state (`engine/src/skills/*`) |
 | `worktrees/<goal>/` | the **legacy** workspace layout, from before progress folders (ADR-0011) |
 | `transfer/` | Transfer working space (`engine/src/transfer/*`): `staging/` while exporting, `outgoing/` files to download, `incoming/` unpacked files awaiting import, `goals/<id>/` the branch bundle and git-excluded files an Imported Goal brought, `pending-preview-env.json` preview variables waiting for a repository to be mapped |
+| `conversations/<goal>/` | the Explainer's folder for a goal whose repository is not on this computer: Foundry's records of the goal and no code (`engine/src/conversation/workspace.ts`) |
 
 ## The event log is the source of truth
 
@@ -209,7 +210,7 @@ flowchart LR
 - **EffortRunner** resolves the goal-wide override before the selected role effort. Codex preserves native effort names; a null role effort delegates to native configuration. Legacy goals retain the earlier compatibility mapping.
 - **ModelFallbackRunner** retries only model-unavailability failures before productive work. Authentication, quota and invalid effort are not fallback triggers. Recorded substitutions let later sessions skip an unavailable model. Claude and Codex registries and fallback lists are separate.
 
-**Claude Model Presets** (`core/src/schema/model-presets.ts`) contain twelve actions: Clarifier, Planner, simple/standard/complex Worker, Merger, Goal reviewer, Task reviewer, Documenter, Feedback, Suggestion and Style Sample. Code, Docs & research and Media each select a default Max, Production, Balanced, Economy or custom preset. `tableFor` reads the selected preset when each session starts, so Settings edits apply to later Claude sessions of existing goals.
+**Claude Model Presets** (`core/src/schema/model-presets.ts`) contain thirteen actions: Clarifier, Planner, simple/standard/complex Worker, Merger, Goal reviewer, Task reviewer, Documenter, Feedback, Suggestion, Conversation (the Explainer, ADR-0073; a saved preset without the row takes its Suggestion row) and Style Sample. Code, Docs & research and Media each select a default Max, Production, Balanced, Economy or custom preset. `tableFor` reads the selected preset when each session starts, so Settings edits apply to later Claude sessions of existing goals.
 
 **Codex Model Presets** (`core/src/schema/codex-model-presets.ts`) add Housekeeping and a model/effort choice for each role. A new goal captures all three nature tables and the fallback order; changing or deleting Settings presets does not alter that snapshot. An explicit all-role override is stored separately so a Follow-up can preserve that intent without flattening distinct preset roles. Captured `codex-default` entries still delegate to native Codex configuration. Model discovery reads the local app-server catalog without inference; a probe consumes quota and verifies the chosen model/effort. Discovery alone does not prove account entitlement.
 
@@ -231,6 +232,7 @@ flowchart LR
         resolve/<taskId>/              # Manual Resolution worktrees
         baseline/                      # baseline must checks (checks/baseline.ts)
         screenshots/  review/          # self-check screenshots, long goal-review diffs
+        conversation/                  # the Explainer's read-only checkout for the goal's Conversations (ADR-0073)
 ```
 
 - `goalWorkspacePath` returns `goal.workspaceDir`, or `<data>/worktrees/<id>/_goal` for legacy goals. `internalWorkspaceDir` is the hidden sibling. Engine worktrees never live inside the progress folder, because docs generation and merges run `git add -A` there.
@@ -245,6 +247,7 @@ flowchart LR
 | Prefix | Purpose |
 |---|---|
 | `/api/goals`, `/api/goals/:id/...` | create, read, follow-up draft and link (`/follow-up-draft`, `/follows`), brief edit/draft/approve, style samples, reclarify, interview answer, feedback classify, cancel/restart/delete, diff, deliver and delivery plan, preview, self-check, attachments, screenshots, artifacts, workspace, open-in-editor, manual resolve (`/tasks/:taskId/resolve/*`) |
+| `/api/goals/:id/conversations`, `.../conversations/ask`, `.../conversations/:cid/stop` | the goal's Conversations with what is being answered; a question, kept at once and answered in the background (`202`) on the `conversation-<conversationId>` channel; Stop ([ADR-0073](adr/0073-a-conversation-about-a-goal.md)) |
 | `/api/escalations` | list, `:id/suggest`, `:id/answer` |
 | `/api/stream/:id/history` | decoded transcript tail for a live channel (the Live log after a page refresh) |
 | `/api/transcripts/:file/event?line=&block=` | one live-log event in full, read back from the transcript line its `ref` names |
@@ -260,7 +263,7 @@ flowchart LR
 | `/internal/boundary` | the boundary hook's callback |
 | `*` | static files from `apps/web/dist` (`index.html` revalidated, `/assets/*` immutable) |
 
-**WebSocket.** `startServer` (`packages/server/src/index.ts`) upgrades `/ws` and broadcasts two kinds of message to every client:
+**WebSocket.** `startServer` (`packages/server/src/index.ts`) upgrades `/ws` (with Access on, the token comes as the usual header or cookie, or as `?token=` for a client that cannot set headers, such as `foundry ask` and `foundry watch`) and broadcasts two kinds of message to every client:
 
 - `{ kind: 'event', event }` for every appended engine event
 - `{ kind: 'stream', stream }` for every live session event from `Engine.broadcast`, slimmed down by `slimEvent` (`packages/server/src/transcripts.ts`): thinking truncated to 300 characters and tool results to 1500, each flagged `truncated: true`; unknown events dropped
@@ -275,6 +278,7 @@ flowchart LR
 | `clarify-<goalId>` | nature classification, Clarify, interview rounds |
 | `draft-<goalId>` | Draft and Revise on the Brief page |
 | `goal-review-<goalId>-<fixCycles>` | the Goal reviewer, one channel per review round |
+| `conversation-<conversationId>` | the Explainer answering a Conversation's questions, one channel per Conversation; its `text_delta` events carry the answer's words as they are written (ADR-0073) |
 | `docs-<goalId>`, `feedback-<goalId>`, `suggest-<escalationId>`, `style-sample-<goalId>` | Documenter, feedback triage, Suggestion, Style Samples |
 | `autoskills-<goalId>`, `preview-<goalId>-<appKey>` | autoskills install output, one preview app's server output |
 | `skills-op:<opId>` | one Skills page operation: a catalog install, tier install, adoption, bulk uninstall, tool install or source update |
@@ -343,6 +347,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Chat Answers (Telegram buttons and replies by long polling; Discord buttons and forms by a bot on the gateway) | `engine/src/notify/{actions,chat-bot,telegram-bot,discord-bot,host}.ts` |
 | Learnings: written when a goal ends, given to Clarify and attempts, edited on the Learnings page | `engine/src/learnings.ts`, `core/src/schema/learnings.ts`, `apps/web/src/pages/LearningsPage.tsx` |
 | Memory (ADR-0072): a folder's bank on a Hindsight server, written when the goal's events say so, asked before each stage; the Hindsight card, the folder switch, the goal page's Remembered panel | `engine/src/memory/*`, `core/src/schema/settings.ts` (`memory`), `apps/web/src/pages/skills/McpPanel.tsx` (`HindsightCard`), `apps/web/src/pages/goal/OverviewTab.tsx` (`Remembered`) |
+| Conversation (ADR-0073): the Explainer's questions and answers on the goal page, its worktree and records, the read-only shell, the bubble and the tab, `foundry ask` | `engine/src/conversation/*`, `roles/explainer.md`, `core/src/schema/conversation.ts`, `runner/hooks/readonly-bash.ts`, `apps/web/src/components/conversation/*`, `apps/web/src/pages/goal/ConversationTab.tsx`, `apps/cli/src/main.ts` (`ask`) |
 | Schedules: the cadence, the firing, the engine's approval of a run's Brief, the page | `core/src/schema/schedule.ts`, `core/src/machine/schedule.ts`, `engine/src/schedules.ts`, `apps/web/src/pages/SchedulesPage.tsx`, `apps/web/src/components/ScheduleDialog.tsx` |
 | Self-update, Update Check, Drain | `engine/src/update/updater.ts`, `Engine.beginUpdateDrain` |
 | Agents monitor | `engine/src/agents/*`, `apps/web/src/pages/agents/AgentsPage.tsx` |

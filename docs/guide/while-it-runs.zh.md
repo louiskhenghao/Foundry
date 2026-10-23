@@ -70,6 +70,7 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
 | **Activity** | 发生过的所有事，最新的在前。 |
 | **Diff** | 相对 goal 起点的全部改动。 |
 | **Delivery** | 结果会怎样处理，以及进度。见 [拿到结果](./getting-the-result.zh.md#the-delivery-tab)。 |
+| **Conversation** | 你对这个 goal 提的问题和 Explainer 的回答：goal 的每一条 Conversation。Beta，见 [Conversation](#conversation)。 |
 
 ## Overview
 
@@ -318,6 +319,20 @@ goal 相对起点改过的每个文件，以及各自新增和删除了多少行
 点一个文件，会在弹窗里打开它的改动：代码按语言着色，新增的行为绿色（+），删除的行为红色（−），并标出在旧文件和新文件中的行号。**Whole file** 显示文件现在的完整内容，goal 改动的行带底色（goal 的文件夹还在时可用）。顶部的箭头，或 ← 和 →，切换到上一个或下一个文件。
 
 ![Diff 标签：goal 改动的每个文件，以及新增和删除的行数](images/goal-diff.png)
+
+## Conversation
+
+*Beta：在 [Settings → Beta](./settings.zh.md#beta) 打开。* 在 goal 自己的页面上，什么都可以问它：某个任务为什么这样做、某样东西现在在代码的哪里、什么时候出了什么问题、Brief 上的一个决定带来了什么。回答的是 **Explainer**：goal 所用编码智能体的一个只读会话，读 goal 的代码（它自己的一份 checkout，每次回答前都先更新到最新），也读 Foundry 对这个 goal 的记录：Brief 和你的 Decisions、每个任务及其尝试和审查、时间线、goal 在哪里等过你、审查、交付，以及每个会话说过什么。它什么都不改，不改代码，也不改 goal。让它改东西，它会告诉你这件事在 Foundry 的哪里做，并替你把话拟好。
+
+goal 页面（以及 Brief 页面）右下角的小泡泡，会在页面旁边的小窗里打开 goal 最新的一条 Conversation；页面照常可用。回答边写边显示，下面有一行写着 Explainer 正在读什么。**Stop** 保留已经说出的部分。回答进行中可以继续发问，后面的问题排队等候。回答进行中泡泡会脉动；窗口关着时来了回答，泡泡上会出现一个点。Esc 关闭窗口；在手机上窗口占满整屏。
+
+窗口标题栏里的 **+** 开始一条新的 Conversation。之前的留在 **Conversation** 标签页（Expert view）里可以读：它列出 goal 的每一条 Conversation，最新的在前，以第一个问题为标题。只有最新的一条可以继续问；更早的只能读，不能续。打开这个 goal 的每个人看到的是同样的 Conversation，开了 [Access](./settings.zh.md#access) 时还能看到每个问题是谁问的。
+
+一次回答最多 50 回合、$3、8 分钟；到了上限的回答会说明，并保留已有的部分。Conversation 的花费计入 goal 的总花费（鼠标停在花费上可以看到拆分），但不计入 Budget；在 Usage 和 Reports 页面上显示为 **Conversation** 会话。Explainer 用的是模型预设里的 **Conversation** 一行（[Settings](./settings.zh.md#presets)）。goal 处于任何状态都可以问，正在运行或早已结束都行，就算 goal 的分支已经合并并删除也可以：基础分支里有它的提交。在终端里，`foundry ask <goalId> "你的问题"` 提问并边写边打印回答；`--new` 开始一条新的 Conversation。
+
+![Conversation 标签页：左边是 goal 的各条 Conversation，右边是选中的那条，有两个问题和它们的回答](images/goal-conversation.png)
+
+![goal 页面上泡泡打开的小窗：最新的一条 Conversation，底部是输入框](images/conversation-bubble.png)
 
 ## 取消、重启、删除
 
