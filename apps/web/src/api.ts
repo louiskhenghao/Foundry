@@ -2,6 +2,8 @@ import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, D
 import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 import type { IssueRead } from './pages/new-goal-issue.ts';
 import type { Calibration, GoalRecipe, Schedule, ScheduleCadence, ThemeEntry, ThemeProblem } from '@foundry/core/browser';
+import type { Conversation } from '@foundry/core/browser';
+export type { Conversation, ConversationMessage } from '@foundry/core/browser';
 
 /** a Schedule as the Schedules page lists it (ADR-0054): with its next run and the goal of its last run */
 export type ScheduleRow = Schedule & { nextRunAt: string | null; lastGoal: { id: string; title: string; state: GoalState } | null };
@@ -367,6 +369,8 @@ export class ApiError extends Error {
 export type EscalationRow = Escalation & { provider: AgentProvider | null; goalTitle?: string; taskTitle?: string | null; taskState?: string | null };
 
 export interface BudgetStatus {
+  /** what the goal's Conversations cost (ADR-0073): in the goal's total, outside this budget and its `costUsd` */
+  conversationUsd?: number;
   costUsd: number;
   maxCostUsd: number | null;
   elapsedMin: number;
@@ -421,6 +425,19 @@ export interface DelegatedView {
   taskCounts: Record<string, number>;
   /** why it waits for the person, or null while it works or is finished */
   needsYou: string | null;
+}
+
+/** Mirrors the engine's ConversationsView (conversation/conversations.ts, ADR-0073): a goal's Conversations and what is live in each */
+export interface ConversationLive {
+  /** the question being answered now */
+  answering: string | null;
+  /** the questions waiting their turn */
+  queued: string[];
+}
+export interface ConversationsView {
+  enabled: boolean;
+  conversations: Conversation[];
+  live: Record<string, ConversationLive>;
 }
 
 export interface GoalDetail {
@@ -673,6 +690,10 @@ export function apiForProvider(provider?: AgentProvider) {
   editBrief: (id: string, brief: Brief, skeleton = false) => req<Brief>(`/api/goals/${id}/brief`, { method: 'PATCH', body: JSON.stringify(skeleton ? { ...brief, skeleton: true } : brief) }),
   /** starts one (202): the goal detail carries it from here — secondOpinionRunning, then secondOpinion or secondOpinionFailed */
   secondOpinion: (id: string) => req<{ started: true }>(`/api/goals/${id}/brief/second-opinion`, { method: 'POST' }),
+  /** Conversations on the goal's page (ADR-0073): the view; a question, kept at once (202) and answered in the background on `channel`; Stop */
+  conversations: (id: string) => req<ConversationsView>(`/api/goals/${id}/conversations`),
+  ask: (id: string, body: { text: string; conversationId?: string | null; fresh?: boolean }) => req<{ conversationId: string; messageId: string; channel: string }>(`/api/goals/${id}/conversations/ask`, { method: 'POST', body: JSON.stringify(body) }),
+  stopConversation: (id: string, conversationId: string) => req<{ stopped: boolean }>(`/api/goals/${id}/conversations/${encodeURIComponent(conversationId)}/stop`, { method: 'POST' }),
   draftBrief: (id: string, body: DraftRequest) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/draft`, { method: 'POST', body: JSON.stringify(body) }),
   /** the answers to the round a Revise asked: the proposal, or one more round */
   reviseAnswer: (id: string, body: { brief: Omit<Brief, 'goalId'>; answers: Record<string, string>; finish: boolean; note: string | null }) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/revise/answer`, { method: 'POST', body: JSON.stringify(body) }),

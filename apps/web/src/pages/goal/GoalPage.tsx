@@ -28,9 +28,12 @@ import { TaskList } from './TaskList.tsx';
 import { SimpleOverview } from './SimpleOverview.tsx';
 import { UsagePausedBanner } from '../../components/UsageBanner.tsx';
 import { ProviderBadge } from '../agents/rows.tsx';
+import { BetaChip, ConversationBubble } from '../../components/conversation/ConversationBubble.tsx';
+import { useConversations } from '../../components/conversation/store.ts';
+import { ConversationTab } from './ConversationTab.tsx';
 
-type Tab = 'overview' | 'tasks' | 'timeline' | 'activity' | 'diff' | 'delivery';
-const TABS: Tab[] = ['overview', 'tasks', 'timeline', 'activity', 'diff', 'delivery'];
+type Tab = 'overview' | 'tasks' | 'timeline' | 'activity' | 'diff' | 'delivery' | 'conversation';
+const TABS: Tab[] = ['overview', 'tasks', 'timeline', 'activity', 'diff', 'delivery', 'conversation'];
 
 /** the Tasks tab as the graph of which task waits for which, or as a list in planned order: kept in this browser for every goal */
 type TaskView = 'graph' | 'list';
@@ -48,6 +51,8 @@ export function GoalPage() {
   const loc = useLocation();
   const nav = useNavigate();
   const version = useLive((s) => s.goalVersion[id] ?? 0);
+  // the goal's Conversations (ADR-0073): the tab shows only while the feature is on
+  const talk = useConversations(id);
   const [d, setD] = useState<GoalDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
@@ -376,6 +381,7 @@ export function GoalPage() {
           { id: 'activity', label: 'Activity' },
           { id: 'diff', label: 'Diff' },
           { id: 'delivery', label: 'Delivery' },
+          ...(talk?.enabled ? [{ id: 'conversation' as Tab, label: 'Conversation', badge: <BetaChip /> }] : []),
         ]}
       />
       </div>
@@ -413,9 +419,11 @@ export function GoalPage() {
       {tab === 'activity' && <ActivityTab d={d} />}
       {tab === 'diff' && <DiffTab goalId={id} baseBranch={g.baseBranch} branch={g.branch} workspace={d.paths.workspace} />}
       {tab === 'delivery' && <DeliveryTab d={d} />}
+      {tab === 'conversation' && <ConversationTab goalId={id} />}
       </div>
         </div>
       )}
+      <ConversationBubble goalId={id} />
     </div>
   );
 }

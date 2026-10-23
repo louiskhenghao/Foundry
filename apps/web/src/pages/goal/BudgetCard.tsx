@@ -72,6 +72,9 @@ export function BudgetCard({ d }: { d: GoalDetail }) {
   const elapsed = d.budget.elapsedMin;
   const est = brief?.timeEstimateMin ?? null;
   const estimate = brief ? `${dollars ? `${fmtUsd(brief.costEstimateUsd)} · ` : ''}${brief.timeEstimateMin} min` : null;
+  // what the goal's Conversations cost (ADR-0073): in the total, outside the budget, so the ruler measures the work alone
+  const talk = g.conversationCostUsd ?? 0;
+  const work = d.budget.costUsd;
   return (
     <Card title="Budget & time">
       <div className="space-y-5">
@@ -79,13 +82,14 @@ export function BudgetCard({ d }: { d: GoalDetail }) {
           <Gauge label="Spent" value={fmtUsd(g.costUsd)} of={cost == null ? 'no limit' : `of ${fmtUsd(cost)}`} note={unmeasured > 0 ? <CutSessionsDot n={unmeasured} est={d.costEstimate} /> : null}>
             {cost != null && (
               <>
-                <Ruler pct={share(g.costUsd, cost)!} ticks={5} label={`${fmtUsd(g.costUsd)} of ${fmtUsd(cost)}`} />
+                <Ruler pct={share(work, cost)!} ticks={5} label={`${fmtUsd(work)} of ${fmtUsd(cost)}${talk > 0 ? `, and ${fmtUsd(talk)} of Conversation outside the budget` : ''}`} />
                 <div className="mono mt-1.5 flex justify-between text-[11.5px] text-ink-faint" aria-hidden="true">
                   <span>$0</span>
                   <span>{fmtUsd(cost).replace(/\.00$/, '')}</span>
                 </div>
               </>
             )}
+            {talk > 0 && <p className="mt-1.5 text-[11.5px] text-ink-faint" title="What the Conversation on this page cost: the goal's, but never held against its budget">incl. {fmtUsd(talk)} of Conversation, outside the budget</p>}
           </Gauge>
         ) : (
           <p className="text-sm text-ink-soft">{PROVIDER_LABEL[g.provider ?? 'claude']} · dollar cost unavailable</p>
