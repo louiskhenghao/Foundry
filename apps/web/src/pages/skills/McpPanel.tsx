@@ -1,8 +1,9 @@
 import type { McpCatalogStatus, McpHealth, McpKey, McpServerRow } from '@foundry/engine/mcp-types';
-import { ExternalLink, HardDrive, RefreshCw, Server, Stethoscope } from 'lucide-react';
+import type { MemoryStatus } from '@foundry/engine/memory-types';
+import { Brain, ExternalLink, HardDrive, RefreshCw, Server, Stethoscope } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider, type McpCustomServer, type McpView } from '../../api.ts';
-import { BOARD_ROW, Board, Badge, Button, Card, ConfirmDialog, Empty, Input, Select, cn, EmptyState, Loading } from '../../ui.tsx';
+import { BOARD_ROW, Board, Badge, Button, Card, ConfirmDialog, CopyButton, Empty, Input, Select, cn, EmptyState, Loading } from '../../ui.tsx';
 import { STATE_INK, categoryPlate, notice, statePlate, type Tone } from '../agents/marks.ts';
 import { HelpLink } from '../HelpPage.tsx';
 import { McpConnectDialog } from './McpConnectDialog.tsx';
@@ -27,6 +28,8 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
   const [err, setErr] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
+  // Memory (ADR-0071): the Hindsight server, shared by every coding agent; its MCP server is per coding agent
+  const [memory, setMemory] = useState<MemoryStatus | null>(null);
   const running = useRunningOp();
   const runningOp = (target: string) => running(`${provider}:${target}`);
   const load = () =>
@@ -37,10 +40,12 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
         setErr(null);
       })
       .catch((e) => setErr(e.message));
+  const loadMemory = () => api.memoryStatus().then(setMemory).catch((e) => setErr(e.message));
   // an install or removal changes the list: reload whenever an MCP operation ends (a new custom name included)
   const mcpOpsEnded = useSkillOps((s) => s.tabs.filter((t) => t.status !== 'running' && t.targets.some((x) => x.startsWith(`${provider}:mcp:`))).length);
   useEffect(() => {
     void load();
+    void loadMemory();
   }, [mcpOpsEnded]);
 
   const check = async () => {
@@ -71,6 +76,7 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
   const install = (what: { catalogId: string } | { custom: McpCustomServer }, name: string, keys: Record<string, string>, replace = false) =>
     startProviderOp({ kind: 'install', label: `${replace ? 'Change the key of' : 'Install'} MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpInstall(what, keys, opId, replace) });
   const remove = (name: string) => startProviderOp({ kind: 'uninstall', label: `Remove MCP server ${name}`, targets: [`mcp:${name}`], call: (opId) => api.mcpRemove(name, opId) });
+  const connectMemory = (disconnect: boolean) => startProviderOp({ kind: disconnect ? 'uninstall' : 'install', label: `${disconnect ? 'Disconnect' : 'Connect'} Memory (hindsight)`, targets: ['mcp:hindsight'], call: (opId) => api.memoryMcp(provider, opId, disconnect) });
 
   if (!view) return err ? <Empty>{err}</Empty> : <Loading size="page" label="Reading MCP servers…" />;
   const healthOf = (s: McpServerRow) => health?.find((h) => h.name === s.name) ?? null;
@@ -113,15 +119,18 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
           <CustomForm provider={provider} onAdd={(c, keys) => void install({ custom: c }, c.name, keys)} running={(n) => !!runningOp(`mcp:${n}`)} installed={(n) => view.servers.some((s) => s.source === 'user' && s.name === n)} />
         </div>
         {/* level with the board's panel, under its heading, on a wide screen */}
-        <Card title="Recommended by Foundry" className="lg:mt-[31px]">
-          <p className="text-xs text-ink-faint mb-3">Curated in catalog/mcp.json. Installed from here, a server is allowed in goals right away.</p>
-          {missing.length === 0 && <div className="text-xs text-ink-faint">All installed.</div>}
-          <div className="space-y-2">
-            {missing.map((c) => (
-              <CatalogCard key={c.entry.id} provider={provider} c={c} others={view.catalog.filter((o) => o.entry.pack && o.entry.pack === c.entry.pack && o.entry.id !== c.entry.id)} running={!!runningOp(`mcp:${c.entry.name}`)} onInstall={(keys) => void install({ catalogId: c.entry.id }, c.entry.name, keys)} />
-            ))}
-          </div>
-        </Card>
+        <div className="space-y-4 lg:mt-[31px]">
+          <Card title="Recommended by Foundry">
+            <p className="text-xs text-ink-faint mb-3">Curated in catalog/mcp.json. Installed from here, a server is allowed in goals right away.</p>
+            {missing.length === 0 && <div className="text-xs text-ink-faint">All installed.</div>}
+            <div className="space-y-2">
+              {missing.map((c) => (
+                <CatalogCard key={c.entry.id} provider={provider} c={c} others={view.catalog.filter((o) => o.entry.pack && o.entry.pack === c.entry.pack && o.entry.id !== c.entry.id)} running={!!runningOp(`mcp:${c.entry.name}`)} onInstall={(keys) => void install({ catalogId: c.entry.id }, c.entry.name, keys)} />
+              ))}
+            </div>
+          </Card>
+          <HindsightCard provider={provider === 'codex' ? 'codex' : 'claude'} status={memory} running={!!runningOp('mcp:hindsight')} onTest={(url, token) => api.memoryTest(url, token || undefined)} onSave={(body) => api.memorySave(body).then(setMemory)} onConnect={connectMemory} />
+        </div>
       </div>
 
       {connecting && (
@@ -294,6 +303,134 @@ function CatalogCard({ provider, c, others, running, onInstall }: { provider: Ag
         </ConfirmDialog>
       )}
     </div>
+  );
+}
+
+/** how a server is started on this computer, for the card's fold; the LLM is the person's own */
+export const HINDSIGHT_DOCKER = ['docker run -d --name hindsight --restart unless-stopped --shm-size=1g -p 8888:8888 -p 9999:9999 \\', '  -e HINDSIGHT_API_LLM_PROVIDER=openai -e HINDSIGHT_API_LLM_API_KEY=sk-… \\', '  -v hindsight-data:/home/hindsight/.pg0 ghcr.io/vectorize-io/hindsight:latest'].join('\n');
+
+/**
+ * Memory (ADR-0071): the Hindsight server the person runs, one for every coding agent, and its MCP server for the
+ * selected one. Nothing runs until an address is saved; a server that does not answer costs goals nothing.
+ */
+export function HindsightCard({ provider, status, running, onTest, onSave, onConnect }: { provider: 'claude' | 'codex'; status: MemoryStatus | null; running: boolean; onTest: (url: string, token: string) => Promise<{ ok: boolean; version: string | null; error: string | null }>; onSave: (body: { url: string | null; token?: string | null; retainTranscripts?: boolean }) => Promise<unknown>; onConnect: (disconnect: boolean) => void }) {
+  const backend = provider === 'codex' ? 'Codex' : 'Claude Code';
+  const [url, setUrl] = useState(status?.url ?? '');
+  const [token, setToken] = useState('');
+  const [transcripts, setTranscripts] = useState(status?.retainTranscripts ?? true);
+  const [tried, setTried] = useState<{ ok: boolean; version: string | null; error: string | null } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  // the form follows what is saved until the person types
+  useEffect(() => {
+    if (!status) return;
+    setUrl(status.url ?? '');
+    setTranscripts(status.retainTranscripts);
+  }, [status?.url, status?.retainTranscripts]);
+  const valid = /^https?:\/\/\S+$/.test(url.trim());
+  const run = async (work: () => Promise<unknown>) => {
+    setBusy(true);
+    setErr(null);
+    try {
+      await work();
+    } catch (e: any) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const mcp = status?.mcp[provider] ?? null;
+  return (
+    <Card
+      title={
+        <span className="flex items-center gap-2">
+          <Brain size={14} aria-hidden="true" /> Memory <span className="font-normal text-ink-faint">· Hindsight</span> <HelpLink to="memory" />
+        </span>
+      }
+    >
+      <p className="text-xs text-ink-faint mb-3">
+        A{' '}
+        <a href="https://github.com/vectorize-io/hindsight" target="_blank" rel="noreferrer" className="underline hover:text-ink">
+          Hindsight
+        </a>{' '}
+        server you run remembers what each folder's goals did and taught, and every stage asks it before it starts. It is open source (MIT) with a process and an LLM of its own; nothing here runs until an address is saved.
+      </p>
+      {status && (
+        <div className="flex items-center gap-2 flex-wrap text-xs mb-2">
+          {status.configured ? <span className={statePlate(status.reachable ? 'ok' : 'bad')}>{status.reachable ? `connected${status.version ? ` · ${status.version}` : ''}` : 'not reachable'}</span> : <span className={statePlate('none')}>off</span>}
+          {status.configured && !status.reachable && status.error && <span className="text-bad-ink truncate">{status.error}</span>}
+        </div>
+      )}
+      <div className="space-y-1.5">
+        <Input
+          aria-label="server address"
+          className="mono"
+          placeholder="http://127.0.0.1:8888"
+          value={url}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            setTried(null);
+          }}
+        />
+        <Input
+          type="password"
+          autoComplete="off"
+          aria-label="bearer token"
+          placeholder={status?.tokenSet ? 'token kept — leave empty to keep it' : 'bearer token, if the server asks for one'}
+          value={token}
+          onChange={(e) => {
+            setToken(e.target.value);
+            setTried(null);
+          }}
+        />
+        <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft cursor-pointer" title="The turns and one line per tool call, without arguments or outputs">
+          <input type="checkbox" checked={transcripts} onChange={(e) => setTranscripts(e.target.checked)} /> Write each attempt's transcript to the bank, in compact form
+        </label>
+      </div>
+      {tried && <div className={cn('text-xs mt-1.5', tried.ok ? 'text-ok-ink' : 'text-bad-ink')}>{tried.ok ? `The server answers: Hindsight ${tried.version ?? ''}.` : `No answer: ${tried.error}`}</div>}
+      {err && <div className="text-xs text-bad-ink mt-1.5">{err}</div>}
+      <div className="flex flex-wrap items-center gap-2 mt-2">
+        <Button size="sm" disabled={!valid || busy} onClick={() => void run(async () => setTried(await onTest(url.trim(), token)))}>
+          Test
+        </Button>
+        <Button size="sm" variant="primary" disabled={!valid || busy} onClick={() => void run(() => onSave({ url: url.trim(), ...(token ? { token } : {}), retainTranscripts: transcripts }).then(() => setToken('')))}>
+          Save
+        </Button>
+        {status?.configured && (
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => void run(() => onSave({ url: null }))}>
+            Turn off
+          </Button>
+        )}
+      </div>
+      {status?.configured && (
+        <div className="mt-3 pt-3 border-t border-line text-xs space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-semibold text-ink-soft">hindsight server for {backend}:</span>
+            {mcp === null ? <span className="text-ink-faint">unknown</span> : mcp.installed ? <span className={statePlate(mcp.allowed ? 'ok' : 'you')}>{mcp.allowed ? 'connected · allowed in goals' : 'installed, not allowed in goals'}</span> : <span className={statePlate('none')}>not connected</span>}
+            <Button size="sm" variant={mcp?.installed ? 'ghost' : 'default'} disabled={running} onClick={() => onConnect(!!mcp?.installed)}>
+              {running ? 'Working…' : mcp?.installed ? 'Disconnect' : `Connect ${backend}`}
+            </Button>
+          </div>
+          <p className="text-ink-faint">
+            Connected, a worker can ask the memory itself mid-way (recall, reflect) and is told its bank; Foundry asks it before every stage either way.{' '}
+            {provider === 'codex' ? 'Codex reads the token from HINDSIGHT_API_TOKEN, which Foundry sets for its sessions; export it in your own shell too.' : 'The server also works in your own Claude Code sessions.'}
+          </p>
+        </div>
+      )}
+      <details className="mt-3 text-xs">
+        <summary className="cursor-pointer font-semibold text-ink-soft">Start a server on this computer</summary>
+        <div className="mt-1.5 space-y-1.5 text-ink-faint">
+          <p>With Docker — the full image (3.7–9 GB) carries its own embedded database and models, so nothing else is installed — and an LLM key of your own for its extraction (set HINDSIGHT_API_LLM_MODEL to pin a model):</p>
+          <div className="flex items-start gap-1">
+            <pre className="mono text-[11px] whitespace-pre-wrap break-all bg-sunken rounded-md p-2 flex-1">{HINDSIGHT_DOCKER}</pre>
+            <CopyButton text={HINDSIGHT_DOCKER} />
+          </div>
+          <p>
+            Or with Python: <code className="mono">pip install hindsight-api</code>, then <code className="mono">hindsight-api</code> with the same variables. The server listens on :8888, its console on :9999.
+          </p>
+        </div>
+      </details>
+    </Card>
   );
 }
 

@@ -348,6 +348,7 @@ export interface AuthInfo {
 
 import type { CodexPluginsView } from '@foundry/engine/plugins-types';
 import type { McpHealth, McpLoginSession, McpView } from '@foundry/engine/mcp-types';
+import type { MemoryFolderStatus, MemoryStatus } from '@foundry/engine/memory-types';
 export type { McpHealth, McpLoginSession, McpView };
 /** a server added by hand on the MCP tab */
 export type McpCustomServer = { name: string; config: { type: 'stdio'; command: string; args?: string[] } | { type: 'http' | 'sse'; url: string } };
@@ -787,6 +788,13 @@ export function apiForProvider(provider?: AgentProvider) {
   mcpLoginSubmit: (url: string) => req<McpLoginSession>('/api/mcp/login/code', { method: 'POST', body: JSON.stringify({ url }) }),
   mcpLoginCancel: () => req<{ ok: boolean }>('/api/mcp/login/cancel', { method: 'POST' }),
   mcpRemove: (name: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/remove', { method: 'POST', body: JSON.stringify({ name, opId }) }),
+  // Memory (ADR-0071): the Hindsight card on the MCP tab, and a folder's switch on the Learnings page
+  memoryStatus: () => req<MemoryStatus>('/api/memory'),
+  memoryTest: (url: string, token?: string | null) => req<{ ok: boolean; version: string | null; error: string | null }>('/api/memory/test', { method: 'POST', body: JSON.stringify({ url, token }) }),
+  memorySave: (body: { url: string | null; token?: string | null; retainTranscripts?: boolean; seedCommits?: number }) => req<MemoryStatus>('/api/memory', { method: 'PUT', body: JSON.stringify(body) }),
+  memoryMcp: (provider: AgentProvider, opId: string, remove = false) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/memory/mcp', { method: 'POST', body: JSON.stringify({ provider, opId, remove }) }),
+  memoryFolder: (repoPath: string) => req<MemoryFolderStatus>(`/api/memory/folder?repo=${encodeURIComponent(repoPath)}`),
+  setMemoryFolder: (repoPath: string, on: boolean) => req<MemoryFolderStatus>('/api/memory/folder', { method: 'PUT', body: JSON.stringify({ repoPath, on }) }),
   uninstallPlugin: (sourceId: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/skills/plugins/uninstall', { method: 'POST', body: JSON.stringify({ sourceId, opId }) }),
   cleanupShadows: (names: string[]) => req<{ trashed: TrashEntry[]; skipped: { name: string; reason: string }[] }>('/api/skills/cleanup-shadows', { method: 'POST', body: JSON.stringify({ names }) }),
   /** starts the install in the background: follow its channel, or awaitSkillOp(op) for the outcome */
