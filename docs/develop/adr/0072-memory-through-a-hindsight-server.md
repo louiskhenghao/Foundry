@@ -107,7 +107,10 @@ Context Provider decides what code a session sees, Learnings are what was learne
   `claude` CLI (85 s measured for a `reflect`), `openai-codex` reads a Codex sign-in from `CODEX_HOME`, best a folder
   of its own so the server and the terminal never refresh one token. Extraction through a CLI counts against the
   plan, and seeding a folder is one call per commit — `memory.seedCommits` sits on the card for that. The Docker
-  install's server cannot spawn the host's `claude`; the installer asks for a key provider.
+  install's server cannot spawn the host's `claude`; the installer offers a key provider or `openai-codex`, and for
+  the latter signs the server in by device code through the Codex CLI pinned in the Foundry container, into
+  `hindsight-codex/` beside the compose file — mounted as the server's Codex home and into Foundry for that sign-in,
+  never the CLI's own `~/.codex`, since a shared refresh token logs one of the two out.
 - One bank for Foundry and the terminal means one set of mistakes too: a wrong fact from either side reaches the
   other until something contradicts it. A later fact outranks an earlier one in Hindsight; the person's Learnings
   edits are retained, so the Learnings page is where a wrong memory is corrected from Foundry's side.

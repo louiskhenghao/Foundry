@@ -448,7 +448,7 @@ export function HindsightCard({ provider, status, running, onTest, onSave, onCon
             Or with Python: <code className="mono">pip install hindsight-api</code>, then <code className="mono">hindsight-api</code> with the same variables. The server listens on :8888, its console on :9999.
           </p>
           <p>
-            A server on this computer can use a sign-in you already have instead of a key: <code className="mono">HINDSIGHT_API_LLM_PROVIDER=claude-code</code> spawns your <code className="mono">claude</code> for each call (so an answer takes a minute or more: raise the wait above), <code className="mono">openai-codex</code> reads a Codex sign-in from <code className="mono">CODEX_HOME</code> (give it one of its own: <code className="mono">CODEX_HOME=~/.hindsight/codex codex login</code>, so it never fights the CLI over tokens). Both are for your own use, says Hindsight.
+            A server on this computer can use a sign-in you already have instead of a key: <code className="mono">HINDSIGHT_API_LLM_PROVIDER=claude-code</code> spawns your <code className="mono">claude</code> for each call (so an answer takes a minute or more: raise the wait above), <code className="mono">openai-codex</code> reads a Codex sign-in from <code className="mono">CODEX_HOME</code> (give it one of its own: <code className="mono">CODEX_HOME=~/.hindsight/codex codex login</code>, so it never fights the CLI over tokens). Both are for your own use, says Hindsight. With the Docker install, answer <code className="mono">openai-codex</code> when the installer asks for the provider: it signs the server in by device code, into a folder of its own.
           </p>
         </div>
       </details>
