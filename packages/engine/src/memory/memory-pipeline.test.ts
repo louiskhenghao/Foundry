@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import type { Attempt, EngineEvent } from '@foundry/core';
 import { getBrief, listTasks } from '@foundry/core';
 import { defaultConfig } from '../config.ts';
@@ -34,7 +34,7 @@ async function setup(over: { retainTranscripts?: boolean } = {}) {
   const task = listTasks(engine.store.db, goal.id)[0]!;
   // the first write makes the bank ready and seeds it from the repository's commits in the background: those documents are not what a test looks at
   const docs = () => fake.all().filter((d) => !d.documentId?.startsWith('git:'));
-  return { engine, repo, fake, goal, task, dataDir, docs };
+  return { engine, repo, fake, goal, task, dataDir, docs, bank: `coding-agent::${basename(repo)}` };
 }
 const SLOW = 20_000;
 
@@ -133,6 +133,24 @@ describe('what a goal writes into its folder\'s Memory', () => {
     expect(notebooks[1]!.updateMode).toBe('replace');
     expect(notebooks[1]!.content).toContain('- [pitfall] The theme toggle must persist. (the person wrote this)');
     expect(notebooks[1]!.tags).toEqual(['source:learnings']);
+  }, SLOW);
+
+  test("the person's own words go to their bank: the everywhere notebook, what they said at a milestone, tagged with the repository", async () => {
+    const { engine, fake, goal, task, bank, docs } = await setup();
+    engine.setLearnings('*', [{ kind: 'preference', text: 'Comments and commits in English.' }]);
+    engine.store.append({ type: 'goal.checkpoint_closed', goalId: goal.id, payload: { taskId: task.id, action: 'feedback', feedback: 'The toggle should sit in the header, not the footer.', plan: null } });
+    await waitFor(() => (fake.docs.get('foundry::person')?.length ?? 0) >= 2);
+    const person = fake.docs.get('foundry::person')!;
+    expect(person.find((d) => d.documentId === 'person:notebook')).toMatchObject({ updateMode: 'replace', tags: ['source:person', 'source:learnings'] });
+    expect(person.find((d) => d.documentId === 'person:notebook')!.content).toContain('- [preference] Comments and commits in English.');
+    const feedback = person.find((d) => d.documentId?.startsWith(`person:feedback:${goal.id}:`))!;
+    expect(feedback.content).toContain(`"${task.title}"`);
+    expect(feedback.content).toContain('sit in the header, not the footer');
+    expect(feedback.tags).toEqual(['source:person', `goal:${goal.id}`, `repo:${bank}`]);
+    // nothing of it in the repository's bank, and the person's bank was made with its own mission
+    expect(docs().filter((d) => d.tags.includes('source:person') && fake.docs.get(bank)?.includes(d))).toEqual([]);
+    expect(fake.created.find((c) => c.id === 'foundry::person')!.mission).toContain('one person');
+    expect(engine.store.listByGoalOfTypes(goal.id, ['memory.retained']).map((e) => (e.payload as { source: string; bankId: string }).bankId)).toContain('foundry::person');
   }, SLOW);
 
   test('a folder left out writes nothing, whatever happens in it', async () => {

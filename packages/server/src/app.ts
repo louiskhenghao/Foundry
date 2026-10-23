@@ -1501,7 +1501,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // a folder's bank, and whether its goals use Memory (the Learnings page card)
   app.get('/api/memory/folder', async (c) => {
     const repo = c.req.query('repo') ?? '';
-    if (!repo.startsWith('/')) throw new HttpError(400, { error: 'repo is an absolute path' });
+    if (!repo.startsWith('/') && repo !== LEARNINGS_EVERYWHERE) throw new HttpError(400, { error: 'repo is an absolute path' });
     return c.json(await engine.memory.folderStatus(repo));
   });
   app.put('/api/memory/folder', async (c) => {

@@ -7,19 +7,24 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { LEARNINGS_EVERYWHERE, SECRET_SETTINGS, getAttempt, getGoal, getTask, isHistory, listEscalations, listTasks, type AgentProvider, type Brief, type EngineEvent, type MemorySettings } from '@foundry/core';
+import { LEARNINGS_EVERYWHERE, SECRET_SETTINGS, getAttempt, getEscalation, getGoal, getTask, isHistory, listEscalations, listTasks, renderDecisions, type AgentProvider, type Brief, type EngineEvent, type MemorySettings } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { goalRecord } from '../learnings.ts';
 import { PreviewEnvStore, redactor } from '../preview/env.ts';
 import { BANK_PREFIX, bankIdFor } from './bank.ts';
 import { HindsightBackend } from './client.ts';
 import { compactTranscript } from './compact.ts';
-import { briefRevisionDocument, goalRecordDocument, learningsDocument, replanDocument, reviewDocument, secondOpinionDocument, transcriptDocument } from './record.ts';
+import { pagesFor } from './pages.ts';
+import { answerDocument, briefRevisionDocument, decisionsDocument, feedbackDocument, goalRecordDocument, learningsDocument, personNotebookDocument, replanDocument, reviewDocument, secondOpinionDocument, transcriptDocument } from './record.ts';
 import { recentCommits, seedDocument } from './seed.ts';
 import type { MemoryBackend, MemoryConnection, MemoryDocument, MemoryFolderStatus, MemoryGoalView, MemoryRecall, MemorySource, MemoryStage, MemoryStatus } from './types.ts';
 
 /** a goal that ended one of these ways has a record worth keeping (a cancelled one teaches nothing, ADR-0040) */
 const ENDED = new Set(['done', 'over_delivered', 'failed']);
+/** the person's own bank: what they decided, answered and refused across every repository, whatever the folder */
+export const PERSON_BANK = 'foundry::person';
+const PERSON_MISSION =
+  'This bank is the memory of one person across every repository they have work done in: what they decide when asked, what they refuse, what they ask for again and again, how they like work done and reported. Keep their exact words where they matter. A later wish supersedes an earlier one.';
 
 /** a stage waits this long for the server's answer, then goes on without one */
 export const REFLECT_TIMEOUT_MS = 20_000;
@@ -94,6 +99,7 @@ export class Memory {
   reconfigure(): void {
     this.backend = null;
     this.ready.clear();
+    this.readyPerson = null;
   }
 
   private client(): MemoryBackend | null {
@@ -129,6 +135,8 @@ export class Memory {
   }
 
   async folderStatus(repoPath: string): Promise<MemoryFolderStatus> {
+    // the everywhere notebook's card: the person's own bank, which no folder switch touches
+    if (repoPath === LEARNINGS_EVERYWHERE) return { repoPath, bank: PERSON_BANK, excluded: false, enabled: this.enabled() };
     const bank = await this.bankOf(repoPath);
     const excluded = this.excluded(repoPath);
     return { repoPath, bank, excluded, enabled: this.enabled() && !excluded && bank !== null };
@@ -136,6 +144,7 @@ export class Memory {
 
   /** leave a folder out of Memory, or take it back in */
   setFolder(repoPath: string, on: boolean): void {
+    if (repoPath === LEARNINGS_EVERYWHERE) return;
     const p = resolve(repoPath);
     const rest = this.settings().excludedFolders.filter((f) => resolve(f) !== p);
     this.engine.updateSettings({ memory: { excludedFolders: on ? rest : [...rest, p] } });
@@ -163,9 +172,37 @@ export class Memory {
     const backend = this.client();
     if (!bank || !backend) return null;
     const signal = this.timeout('retain');
-    if (!(await backend.listBanks(signal)).includes(bank)) await backend.createBank(bank, { name: bank.slice(BANK_PREFIX.length), mission: BANK_MISSION }, signal);
+    const project = bank.slice(BANK_PREFIX.length);
+    if (!(await backend.listBanks(signal)).includes(bank)) await backend.createBank(bank, { name: project, mission: BANK_MISSION }, signal);
+    // the five pages Hindsight's own integration keeps, for a bank that lacks them; a server without pages is no reason to stop
+    await this.ensurePages(backend, bank, project).catch((err) => this.engine.config.log(`[memory] ${bank}: the knowledge pages were not made (${message(err)})`));
     if (!(await backend.hasDocuments(bank, signal))) this.track(this.seed(repoPath, bank));
     return bank;
+  }
+
+  /** the pages by name: one that exists (made by the person's terminal, or by an earlier Foundry) is left as it is */
+  private async ensurePages(backend: MemoryBackend, bank: string, project: string): Promise<void> {
+    const have = new Set((await backend.listKnowledgePages(bank, this.timeout('retain'))).map((n) => n.toLowerCase()));
+    for (const page of pagesFor(bank, project)) if (!have.has(page.name.toLowerCase())) await backend.createKnowledgePage(bank, page, this.timeout('retain'));
+  }
+
+  /** the person's bank, made ready once per process: created with its mission when the server has none; never seeded */
+  private readyPerson: Promise<string | null> | null = null;
+  ensurePersonBank(): Promise<string | null> {
+    if (this.readyPerson) return this.readyPerson;
+    const p = (async () => {
+      const backend = this.client();
+      if (!backend) return null;
+      const signal = this.timeout('retain');
+      if (!(await backend.listBanks(signal)).includes(PERSON_BANK)) await backend.createBank(PERSON_BANK, { name: 'person', mission: PERSON_MISSION }, signal);
+      return PERSON_BANK;
+    })().catch((err) => {
+      this.engine.config.log(`[memory] ${PERSON_BANK}: the server did not answer (${message(err)})`);
+      this.readyPerson = null;
+      return null;
+    });
+    this.readyPerson = p;
+    return p;
   }
 
   /** the repository's recent commits, one document each, a few at a time (the server extracts each with its LLM) */
@@ -211,7 +248,16 @@ export class Memory {
 
   /** write one document into the folder's bank; false when Memory is off for the folder or the server refused */
   async retain(doc: MemoryDocument, where: MemoryWhere & { source: MemorySource }): Promise<boolean> {
-    const bank = await this.ensureBank(where.repoPath);
+    return this.write(await this.ensureBank(where.repoPath), doc, where);
+  }
+
+  /** write one document into the person's bank — never for a goal of a folder left out, whose words are its own too */
+  async retainPerson(doc: MemoryDocument, where: MemoryWhere & { source: MemorySource }): Promise<boolean> {
+    if (!this.enabled() || this.excluded(where.repoPath)) return false;
+    return this.write(await this.ensurePersonBank(), doc, where);
+  }
+
+  private async write(bank: string | null, doc: MemoryDocument, where: MemoryWhere & { source: MemorySource }): Promise<boolean> {
     const backend = this.client();
     if (!bank || !backend) return false;
     const scrubbed = this.scrub(doc);
@@ -232,13 +278,25 @@ export class Memory {
   retainLater(doc: MemoryDocument, where: MemoryWhere & { source: MemorySource }): void {
     this.track(this.retain(doc, where));
   }
+  retainPersonLater(doc: MemoryDocument, where: MemoryWhere & { source: MemorySource }): void {
+    this.track(this.retainPerson(doc, where));
+  }
 
   /**
    * What the bank answers a stage before it starts, cut to what a prompt can take; null when Memory is off for the
    * folder, the server did not answer in time, or it had nothing to say. Every ask is recorded on the goal.
    */
   async reflect(stage: MemoryStage, question: string, where: MemoryWhere & { context?: string }): Promise<string | null> {
-    const bank = await this.ensureBank(where.repoPath);
+    return this.ask(await this.ensureBank(where.repoPath), stage, question, where);
+  }
+
+  /** what the person's own bank says about them, for Clarify; nothing for a goal of a folder left out */
+  async reflectPerson(question: string, where: MemoryWhere & { context?: string }): Promise<string | null> {
+    if (!this.enabled() || this.excluded(where.repoPath)) return null;
+    return this.ask(await this.ensurePersonBank(), 'person', question, where);
+  }
+
+  private async ask(bank: string | null, stage: MemoryStage, question: string, where: MemoryWhere & { context?: string }): Promise<string | null> {
     const backend = this.client();
     if (!bank || !backend) return null;
     const t0 = Date.now();
@@ -268,9 +326,32 @@ export class Memory {
           if (e.goalId && ENDED.has(e.payload.to)) this.onGoalEnded(e.goalId);
           return;
         case 'learnings.set':
-          // the person's own everywhere notebook belongs to no repository; an emptied notebook is left as it was
-          if (e.payload.repoPath !== LEARNINGS_EVERYWHERE && e.payload.learnings.length) this.retainLater(learningsDocument(e.payload.learnings), { repoPath: e.payload.repoPath, goalId: e.payload.goalId, source: 'learnings' });
+          // an emptied notebook is left as it was; the person's everywhere notebook belongs to no repository but to them
+          if (!e.payload.learnings.length) return;
+          if (e.payload.repoPath === LEARNINGS_EVERYWHERE) this.track(this.ensurePersonBank().then((bank) => this.write(bank, personNotebookDocument(e.payload.learnings), { repoPath: LEARNINGS_EVERYWHERE, goalId: null, source: 'person' })));
+          else this.retainLater(learningsDocument(e.payload.learnings), { repoPath: e.payload.repoPath, goalId: e.payload.goalId, source: 'learnings' });
           return;
+        case 'brief.approved': {
+          // what the person decided for this goal, in their own words, goes to their bank
+          const goal = e.goalId ? getGoal(this.engine.store.db, e.goalId) : null;
+          const decided = renderDecisions(e.payload.brief);
+          if (goal && decided.trim()) this.track(this.bankOf(goal.repoPath).then((bank) => this.retainPerson(decisionsDocument(goal, bank, decided), { repoPath: goal.repoPath, goalId: goal.id, source: 'person' })));
+          return;
+        }
+        case 'escalation.answered': {
+          const db = this.engine.store.db;
+          const esc = getEscalation(db, e.payload.escalationId);
+          const goal = esc ? getGoal(db, esc.goalId) : null;
+          const said = [e.payload.answer.hint, e.payload.answer.feedback].filter((s): s is string => !!s?.trim());
+          if (goal && esc && said.length) this.track(this.bankOf(goal.repoPath).then((bank) => this.retainPerson(answerDocument(goal, bank, esc, e.payload.answer), { repoPath: goal.repoPath, goalId: goal.id, source: 'person', taskId: esc.taskId })));
+          return;
+        }
+        case 'goal.checkpoint_closed': {
+          const db = this.engine.store.db;
+          const goal = e.goalId ? getGoal(db, e.goalId) : null;
+          if (goal && e.payload.feedback?.trim()) this.track(this.bankOf(goal.repoPath).then((bank) => this.retainPerson(feedbackDocument(goal, bank, getTask(db, e.payload.taskId)?.title ?? null, e.payload.feedback!, e.ts), { repoPath: goal.repoPath, goalId: goal.id, source: 'person', taskId: e.payload.taskId })));
+          return;
+        }
         case 'brief.edited':
           if (e.goalId) this.onBriefEdited(e.goalId, e.payload.brief);
           return;

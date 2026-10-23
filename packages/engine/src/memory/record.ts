@@ -93,6 +93,51 @@ export function replanDocument(goal: Goal, task: Task, reason: string, spec: str
   };
 }
 
+/** the person's own bank: tagged as theirs, and with the repository the goal was in */
+const personTags = (goal: Pick<Goal, 'id'> | null, bank: string | null) => ['source:person', ...(goal ? [`goal:${goal.id}`] : []), ...(bank ? [`repo:${bank}`] : [])];
+
+/** the person's everywhere notebook (ADR-0055), whole, in place of the one before */
+export function personNotebookDocument(learnings: Learning[]): MemoryDocument {
+  return {
+    content: `What this person wants in every project, in their own words — ${learnings.length} entr${learnings.length === 1 ? 'y' : 'ies'}:\n${learnings.map((l) => `- [${l.kind}] ${l.text}`).join('\n')}`,
+    context: "the person's own notebook for every project, as they keep it now; it replaces the notebook written before",
+    documentId: 'person:notebook',
+    tags: ['source:person', 'source:learnings'],
+    updateMode: 'replace',
+  };
+}
+
+/** what the person decided for a goal when its Brief was approved: the questions they answered, the assumptions they took */
+export function decisionsDocument(goal: Goal, bank: string | null, rendered: string): MemoryDocument {
+  return {
+    content: `For the goal "${goal.title}"${bank ? ` in the repository ${bank.replace(/^coding-agent::/, '')}` : ''}, the person decided:\n${clip(rendered.replace(/^# [^\n]*\n/, '').trim(), 3_000)}`,
+    context: 'the decisions a person made for one Foundry goal when they approved its Brief: their answers to its questions and the assumptions they accepted',
+    documentId: `person:decisions:${goal.id}`,
+    tags: personTags(goal, bank),
+  };
+}
+
+/** what the person said when a goal stopped for them */
+export function answerDocument(goal: Goal, bank: string | null, esc: { id: string; trigger: string; message: string }, answer: { action: string; hint?: string; feedback?: string }): MemoryDocument {
+  const said = [answer.hint, answer.feedback].filter((s): s is string => !!s?.trim()).map((s) => clip(s.trim(), 1_000));
+  return {
+    content: `The goal "${goal.title}"${bank ? ` (repository ${bank.replace(/^coding-agent::/, '')})` : ''} stopped for the person (${esc.trigger.replace(/_/g, ' ')}: ${clip((esc.message.split('\n')[0] ?? '').trim(), 300)}). They answered "${answer.action}" and said:\n${said.join('\n')}`,
+    context: "what a person said when a Foundry goal stopped and asked them: how they want such a situation handled",
+    documentId: `person:answer:${esc.id}`,
+    tags: personTags(goal, bank),
+  };
+}
+
+/** what the person said at a milestone */
+export function feedbackDocument(goal: Goal, bank: string | null, taskTitle: string | null, feedback: string, at: string): MemoryDocument {
+  return {
+    content: `At the milestone${taskTitle ? ` "${taskTitle}"` : ''} of the goal "${goal.title}"${bank ? ` (repository ${bank.replace(/^coding-agent::/, '')})` : ''}, the person looked and said:\n${clip(feedback.trim(), 2_000)}`,
+    context: 'what a person said when they looked at a milestone of a Foundry goal: what they liked, what they wanted changed',
+    documentId: `person:feedback:${goal.id}:${at}`,
+    tags: personTags(goal, bank),
+  };
+}
+
 /** an attempt's transcript in compact turns, with how it ended */
 export function transcriptDocument(goal: Goal, task: Task | null, attempt: Pick<Attempt, 'id' | 'index'>, outcome: { state: string; reason: string }, compacted: string): MemoryDocument {
   return {

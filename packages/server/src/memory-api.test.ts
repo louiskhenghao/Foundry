@@ -2,35 +2,10 @@ import { expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { Engine, defaultConfig, type MemoryBackend, type MemoryDocument } from '@foundry/engine';
+import { Engine, defaultConfig } from '@foundry/engine';
+import { FakeMemoryBackend as FakeBackend } from '../../engine/src/memory/fake-backend.ts';
 import { FakeRunner, makeRepo } from '../../engine/src/test-helpers.ts';
 import { createApp } from './app.ts';
-
-/** a Hindsight server that answers everything and remembers what it was given */
-class FakeBackend implements MemoryBackend {
-  banks = new Set<string>();
-  docs: MemoryDocument[] = [];
-  down = false;
-  async version() {
-    if (this.down) throw new Error('connection refused');
-    return '1.1.0-test';
-  }
-  async listBanks() {
-    return [...this.banks];
-  }
-  async createBank(id: string) {
-    this.banks.add(id);
-  }
-  async hasDocuments() {
-    return this.docs.length > 0;
-  }
-  async retain(_id: string, doc: MemoryDocument) {
-    this.docs.push(doc);
-  }
-  async reflect() {
-    return 'an answer';
-  }
-}
 
 test('the Hindsight card: status, a try before saving, the save, and a folder left out', async () => {
   const home = mkdtempSync(join(tmpdir(), 'foundry-memory-api-'));
@@ -70,6 +45,8 @@ test('the Hindsight card: status, a try before saving, the save, and a folder le
     expect(engine.settings.values().memory.excludedFolders).toEqual([repo]);
     expect(await (await json('PUT', '/api/memory/folder', { repoPath: repo, on: true })).json()).toMatchObject({ enabled: true, excluded: false });
     expect((await app.request('/api/memory/folder?repo=relative')).status).toBe(400);
+    // the everywhere notebook's card asks for the person's own bank
+    expect(await (await app.request('/api/memory/folder?repo=*')).json()).toEqual({ repoPath: '*', bank: 'foundry::person', enabled: true, excluded: false });
 
     // off again: nothing is set
     await json('PUT', '/api/memory', { url: null });

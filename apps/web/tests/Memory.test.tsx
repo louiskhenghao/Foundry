@@ -88,4 +88,10 @@ test("a folder's Memory line: its bank and the switch, or that it is no reposito
   const plain = render(<MemoryLine repoPath="/work/notes" initial={{ repoPath: '/work/notes', bank: null, enabled: false, excluded: false }} />);
   expect(plain).toContain('not a git repository');
   expect(plain).not.toContain('checkbox');
+  // the everywhere notebook's card: the person's own bank, with no switch
+  const yours = render(<MemoryLine repoPath="*" everywhere initial={{ repoPath: '*', bank: 'foundry::person', enabled: true, excluded: false }} />);
+  expect(yours).toContain('foundry::person');
+  expect(yours).toContain('your decisions and answers from every folder');
+  expect(yours).not.toContain('checkbox');
+  expect(render(<MemoryLine repoPath="*" everywhere initial={{ repoPath: '*', bank: 'foundry::person', enabled: false, excluded: false }} />)).toContain('(no server set)');
 });

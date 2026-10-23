@@ -231,7 +231,7 @@ function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSave
             <span className="mono">{n}</span> learning{n === 1 ? '' : 's'}
           </span>
         </div>
-        {!everywhere && <MemoryLine repoPath={repo.repoPath} />}
+        <MemoryLine repoPath={repo.repoPath} everywhere={everywhere} />
       </div>
       {open && (
         <div id={panel} className="border-t border-line bg-sunken/60">
@@ -253,9 +253,10 @@ function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSave
 
 /**
  * Memory (ADR-0071) under a folder: the Hindsight bank its goals share with the person's own sessions there, and the
- * switch that leaves the folder out or takes it back in. Nothing for a folder that is no git repository.
+ * switch that leaves the folder out or takes it back in. Nothing for a folder that is no git repository. Under the
+ * everywhere notebook: the person's own bank, which every folder's goals write their decisions and answers to.
  */
-export function MemoryLine({ repoPath, initial = null }: { repoPath: string; initial?: MemoryFolderStatus | null }) {
+export function MemoryLine({ repoPath, everywhere = false, initial = null }: { repoPath: string; everywhere?: boolean; initial?: MemoryFolderStatus | null }) {
   const [mem, setMem] = useState<MemoryFolderStatus | null>(initial);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -271,6 +272,17 @@ export function MemoryLine({ repoPath, initial = null }: { repoPath: string; ini
       setBusy(false);
     }
   };
+  if (everywhere) {
+    return (
+      <div className="mt-1 flex items-center gap-2 text-xs text-ink-faint min-w-0 pl-6">
+        <Brain size={12} className="shrink-0" aria-hidden="true" />
+        <span className="mono truncate" title="your own Hindsight bank: what you decided, answered and asked for, from every folder's goals">
+          {mem.bank}
+        </span>
+        <span className="truncate">{mem.enabled ? 'your decisions and answers from every folder' : 'your decisions and answers from every folder (no server set)'}</span>
+      </div>
+    );
+  }
   return (
     <div className="mt-1 flex items-center gap-2 text-xs text-ink-faint min-w-0 pl-6">
       <Brain size={12} className="shrink-0" aria-hidden="true" />

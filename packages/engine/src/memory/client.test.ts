@@ -24,6 +24,8 @@ beforeAll(() => {
       if (url.pathname.endsWith('/documents') && req.method === 'GET') return json(bank.includes('empty') ? { items: [], total: 0, limit: 1, offset: 0 } : { items: [{ id: 'd1', bank_id: bank }], total: 7, limit: 1, offset: 0 });
       if (url.pathname.endsWith('/memories') && req.method === 'POST') return json({ success: true, bank_id: bank, items_count: body?.items?.length ?? 0, async: !!body?.async });
       if (url.pathname.endsWith('/reflect') && req.method === 'POST') return json({ text: `answer to: ${body?.query}`, based_on: null });
+      if (url.pathname.endsWith('/knowledge-base/tree') && req.method === 'GET') return json({ roots: [{ id: 'f1', kind: 'folder', name: 'Initiatives' }, { id: 'kp-1', kind: 'page', name: 'Component map' }] });
+      if (url.pathname.endsWith('/knowledge-base/pages') && req.method === 'POST') return json({ page_id: 'kp-2', mental_model_id: 'mm-2' });
       return json({ detail: `no route ${req.method} ${url.pathname}` }, 404);
     },
   });
@@ -40,6 +42,8 @@ test("the client speaks Hindsight's REST — version, banks, documents, retain, 
   expect(await b.hasDocuments('empty-bank')).toBe(false);
   await b.retain('coding-agent::app', { content: 'hello', context: 'a test', documentId: 'doc:1', tags: ['source:foundry'], metadata: { k: 'v' }, updateMode: 'replace' });
   expect(await b.reflect('coding-agent::app', 'what?', { budget: 'low', context: 'before an attempt' })).toBe('answer to: what?');
+  expect(await b.listKnowledgePages('coding-agent::app')).toEqual(['Component map']);
+  await b.createKnowledgePage('coding-agent::app', { name: 'Core concepts', sourceQuery: 'What are the core concepts?', tags: ['knowledge:concept'], maxTokens: 4096, trigger: { refreshCron: '17 * * * *', factTypes: ['world', 'experience', 'observation'], tagsMatch: 'all' } });
 
   expect(hits.every((h) => h.auth === 'Bearer tok-1')).toBe(true);
   expect(hits.map((h) => `${h.method} ${h.path.split('?')[0]}`)).toEqual([
@@ -50,7 +54,10 @@ test("the client speaks Hindsight's REST — version, banks, documents, retain, 
     'GET /v1/default/banks/empty-bank/documents',
     'POST /v1/default/banks/coding-agent::app/memories',
     'POST /v1/default/banks/coding-agent::app/reflect',
+    'GET /v1/default/banks/coding-agent::app/knowledge-base/tree',
+    'POST /v1/default/banks/coding-agent::app/knowledge-base/pages',
   ]);
+  expect(hits.find((h) => h.path.endsWith('/knowledge-base/pages'))!.body).toMatchObject({ name: 'Core concepts', source_query: 'What are the core concepts?', tags: ['knowledge:concept'], max_tokens: 4096, trigger: { refresh_cron: '17 * * * *', fact_types: ['world', 'experience', 'observation'], tags_match: 'all' } });
   expect(hits.find((h) => h.method === 'PUT')!.body).toMatchObject({ name: 'new', mission: 'remember this repository' });
   expect(hits.find((h) => h.path.endsWith('/documents?limit=1') || h.path.includes('/documents?'))!.path).toContain('limit=1');
   // one item per document, taken asynchronously: a stage never waits for the server's extraction

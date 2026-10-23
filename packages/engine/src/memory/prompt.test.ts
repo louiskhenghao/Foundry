@@ -13,6 +13,12 @@ describe('what a session is told from Memory', () => {
     const worker = memorySection('x', { tools: true, bankId: 'coding-agent::app' });
     expect(worker).toContain('Memory bank: `coding-agent::app`');
     expect(worker).toContain('pass this bank_id');
+    expect(worker).toContain('search_knowledge_base');
+    const person = memorySection('They refuse new dependencies without a reason.', { tools: false, about: 'person' });
+    expect(person.startsWith(`${MEMORY_HEADING} about the person\n`)).toBe(true);
+    expect(person).toContain('They refuse new dependencies without a reason.');
+    expect(person).not.toContain('the code wins');
+    expect(memoryQuestion('person', { goalTitle: 'Add dark mode', goalPrompt: 'Please add a dark mode.' })).toContain('"Add dark mode": Please add a dark mode.');
   });
 
   test('each stage asks in its own words, naming the goal, the task and its files', () => {

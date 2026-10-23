@@ -129,6 +129,41 @@ describe('Memory', () => {
     expect(before).toBeGreaterThanOrEqual(1);
   });
 
+  test("a bank Foundry makes gets the five knowledge pages Hindsight's own integration keeps; a bank that has them is left alone", async () => {
+    const { engine, repo, fake, bank } = await setup();
+    engine.updateSettings({ memory: { url: 'http://127.0.0.1:1' } });
+    await engine.memory.reflect('attempt', 'q', { repoPath: repo, goalId: 'g1' });
+    const pages = fake.pages.get(bank)!;
+    expect(pages.map((p) => p.name)).toEqual(['Component map', 'Core concepts', 'Conventions and patterns', 'Key decisions and rationale', 'Initiatives and enhancements']);
+    expect(pages[0]!.sourceQuery).toContain(`Scope this page to ${bank.replace('coding-agent::', '')} ITSELF`);
+    expect(pages[0]!.tags).toEqual(['knowledge:component']);
+    expect(pages[0]!.trigger).toMatchObject({ factTypes: ['world', 'experience', 'observation'], tagsMatch: 'all' });
+    expect(pages[0]!.trigger.refreshCron).toMatch(/^\d{1,2} \* \* \* \*$/);
+    // each page refreshes at a minute of its own
+    expect(new Set(pages.map((p) => p.trigger.refreshCron)).size).toBeGreaterThan(1);
+    // asked again (a new connection), the pages that exist are not made twice; one the person removed stays removed
+    engine.memory.reconfigure();
+    fake.pages.set(bank, pages.filter((p) => p.name !== 'Core concepts'));
+    await engine.memory.reflect('attempt', 'q2', { repoPath: repo, goalId: 'g1' });
+    expect(fake.pages.get(bank)!.map((p) => p.name)).toEqual(['Component map', 'Conventions and patterns', 'Key decisions and rationale', 'Initiatives and enhancements', 'Core concepts']);
+  });
+
+  test("the person's own bank: made with its mission on first use, never seeded, shown on the everywhere notebook's card", async () => {
+    const { engine, repo, fake } = await setup();
+    engine.updateSettings({ memory: { url: 'http://127.0.0.1:1' } });
+    expect(await engine.memory.folderStatus('*')).toEqual({ repoPath: '*', bank: 'foundry::person', excluded: false, enabled: true });
+    expect(await engine.memory.reflectPerson('what do they want?', { repoPath: repo, goalId: 'g1' })).toBe('remember: the tests need bun install first');
+    expect(fake.created).toEqual([{ id: 'foundry::person', mission: expect.stringContaining('memory of one person') }]);
+    expect(fake.pages.has('foundry::person')).toBe(false);
+    const [e] = engine.store.listByType('memory.recalled', 10);
+    expect(e).toMatchObject({ goalId: 'g1', payload: { stage: 'person', bankId: 'foundry::person' } });
+    await engine.stop();
+    expect(fake.docs.get('foundry::person') ?? []).toEqual([]);
+    // a folder left out keeps the person's words to itself as well
+    engine.memory.setFolder(repo, false);
+    expect(await engine.memory.reflectPerson('again?', { repoPath: repo, goalId: 'g1' })).toBeNull();
+  });
+
   test('a folder that is not a repository has no memory even with a server set', async () => {
     const { engine, fake } = await setup();
     engine.updateSettings({ memory: { url: 'http://127.0.0.1:1' } });

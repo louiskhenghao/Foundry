@@ -1,7 +1,8 @@
 import { HindsightClient, createClient, createConfig, sdk } from '@vectorize-io/hindsight-client';
-import type { MemoryBackend, MemoryConnection, MemoryDocument, ReflectOptions } from './types.ts';
+import type { KnowledgePageSpec, MemoryBackend, MemoryConnection, MemoryDocument, ReflectOptions } from './types.ts';
 
 type BankList = { banks: { bank_id: string }[]; total: number };
+type KnowledgeTree = { roots?: { kind: 'folder' | 'page'; name: string }[] };
 
 /** Memory's server, through Hindsight's own TypeScript client (ADR-0071): the bearer token goes as `Authorization` */
 export class HindsightBackend implements MemoryBackend {
@@ -51,5 +52,15 @@ export class HindsightBackend implements MemoryBackend {
   async reflect(bankId: string, query: string, opts: ReflectOptions): Promise<string> {
     const r = await this.api.reflect(bankId, query, { budget: opts.budget ?? 'low', context: opts.context, tags: opts.tags, signal: opts.signal });
     return r.text ?? '';
+  }
+
+  async listKnowledgePages(bankId: string, signal?: AbortSignal): Promise<string[]> {
+    const r = await sdk.getKnowledgeBaseTree({ client: this.raw, path: { bank_id: bankId }, signal, throwOnError: true });
+    const tree = ((r as { data?: KnowledgeTree }).data ?? r) as KnowledgeTree;
+    return (tree.roots ?? []).filter((n) => n.kind === 'page').map((n) => n.name);
+  }
+
+  async createKnowledgePage(bankId: string, page: KnowledgePageSpec, signal?: AbortSignal): Promise<void> {
+    await this.api.createKnowledgePage(bankId, page.name, page.sourceQuery, { tags: page.tags, maxTokens: page.maxTokens, trigger: { refreshCron: page.trigger.refreshCron, factTypes: page.trigger.factTypes, tagsMatch: page.trigger.tagsMatch }, signal });
   }
 }

@@ -19,6 +19,15 @@ export interface ReflectOptions {
   signal?: AbortSignal;
 }
 
+/** a knowledge page: a text the server rewrites from the bank's facts to answer one standing question */
+export interface KnowledgePageSpec {
+  name: string;
+  sourceQuery: string;
+  tags: string[];
+  maxTokens: number;
+  trigger: { refreshCron: string; factTypes: ('world' | 'experience' | 'observation')[]; tagsMatch: 'all' };
+}
+
 /** what Memory needs from a server; the Hindsight client implements it, tests put a fake behind it */
 export interface MemoryBackend {
   /** the server's version; throws when it cannot be reached */
@@ -31,6 +40,9 @@ export interface MemoryBackend {
   retain(bankId: string, doc: MemoryDocument, signal?: AbortSignal): Promise<void>;
   /** an answer over the bank, not memories */
   reflect(bankId: string, query: string, opts: ReflectOptions): Promise<string>;
+  /** the names of the knowledge pages at the bank's root */
+  listKnowledgePages(bankId: string, signal?: AbortSignal): Promise<string[]>;
+  createKnowledgePage(bankId: string, page: KnowledgePageSpec, signal?: AbortSignal): Promise<void>;
 }
 
 export interface MemoryConnection {
@@ -38,8 +50,8 @@ export interface MemoryConnection {
   token: string | null;
 }
 
-/** where Foundry's own stages ask Memory before they start (Clarify's answer serves the planner too) */
-export type MemoryStage = 'attempt' | 'clarify' | 'replan' | 'review_task' | 'review_goal';
+/** where Foundry's own stages ask Memory before they start (Clarify's answer serves the planner too); `person` is Clarify's ask of the person's own bank */
+export type MemoryStage = 'attempt' | 'clarify' | 'person' | 'replan' | 'review_task' | 'review_goal';
 
 /** one ask of the bank, as the goal page shows it */
 export interface MemoryRecall {
@@ -66,7 +78,7 @@ export interface MemoryGoalView {
 }
 
 /** what Foundry wrote into a bank, by what it came from */
-export type MemorySource = 'record' | 'learnings' | 'brief' | 'review' | 'plan' | 'transcript' | 'git';
+export type MemorySource = 'record' | 'learnings' | 'brief' | 'review' | 'plan' | 'transcript' | 'git' | 'person';
 
 /** the Hindsight card and the Settings line: is Memory set up, and does the server answer */
 export interface MemoryStatus {
