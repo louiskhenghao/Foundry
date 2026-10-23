@@ -9,9 +9,8 @@
 import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Goal, QaResult } from '@foundry/core';
-import { CAD_VIEWER_KEY, getBrief, getGoal, listChecks } from '@foundry/core';
+import { jsonSchemaFor, CAD_VIEWER_KEY, getBrief, getGoal, listChecks } from '@foundry/core';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { tryJson } from './checks/reviewer.ts';
@@ -151,7 +150,7 @@ export async function runQa(engine: Engine, goal: Goal, deps: QaDeps = defaultQa
       meta: metaFor(goal.id, reviewer),
       permissionMode: 'dontAsk' as const,
       allowedTools: WORKER_BASE_TOOLS,
-      jsonSchema: zodToJsonSchema(QaOutput, { $refStrategy: 'none' }),
+      jsonSchema: jsonSchemaFor(QaOutput),
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       env: { ...boundaryEnv(config, goal.id), FOUNDRY_QA_PLAYWRIGHT: pwPath, FOUNDRY_QA_SHOTS: shots, FOUNDRY_QA_PREFIX: prefix, FOUNDRY_QA_URL: apps[0]!.url! },

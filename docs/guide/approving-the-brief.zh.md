@@ -25,7 +25,7 @@ Brief 会以你在 New goal 表单上选的视图打开。用顶部的 **Expert 
 ## 页面顶部
 
 - 最上面一行：**← Goals** 回到 goal 列表，**Goal** 跳到这个 goal 的页面。
-- Brief 等你处理时，标题上方的黄色状态牌显示 **approve brief**。
+- Brief 等你处理时，标题上方的黄色状态牌显示 **awaiting approval**。
 - 标题下面是几块小牌子：项目文件夹、goal 从哪个分支开始 → goal 自己的分支、编码智能体、workflow 套件（**Powered by**）、pace 和交付方式。
 - 再下面是 goal 的五个阶段，和 goal 页面上一样：Brief 等你处理时，**Brief** 是黄色的，并标着 **You**。
 - 有一行小字说明 Foundry 读的是你项目的哪个版本，比如 "Explored origin/main (your local main was 3 behind)"。如果它提示没有拉取远端（remote），而你知道之后别人改过项目，就按 **Re-run Clarify**。

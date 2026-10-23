@@ -1,8 +1,7 @@
 import { join } from 'node:path';
 import type { AuditFinding, Goal } from '@foundry/core';
-import { getGoal } from '@foundry/core';
+import { jsonSchemaFor, getGoal } from '@foundry/core';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { tryJson } from './checks/reviewer.ts';
@@ -93,7 +92,7 @@ export async function runAudit(engine: Engine, goal: Goal): Promise<void> {
       permissionMode: 'dontAsk' as const,
       allowedTools: READONLY_TOOLS,
       disallowedTools: READONLY_DISALLOWED,
-      jsonSchema: zodToJsonSchema(AuditOutput, { $refStrategy: 'none' }),
+      jsonSchema: jsonSchemaFor(AuditOutput),
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       env: boundaryEnv(config, goal.id),

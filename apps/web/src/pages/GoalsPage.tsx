@@ -9,7 +9,7 @@ import { SetupBanner } from '../components/SetupBanner.tsx';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { ProviderBadge, shortCwd } from './agents/rows.tsx';
 import { boardOf, isFinished, needOf, type Need } from './goal-boards.ts';
-import { listEntries, type GoalChain, type ListEntry } from './goal-chains.ts';
+import { foldable, listEntries, type GoalChain, type ListEntry } from './goal-chains.ts';
 import { useLive } from '../store.ts';
 import { BOARD_HEAD, BOARD_ROW, Board, Button, EmptyState, Loading, PageHeader, ago, buttonClass, cn, fmtUsd, stateLabel, waited } from '../ui.tsx';
 
@@ -79,7 +79,12 @@ export function GoalsPage() {
     return next;
   };
   const toggleChain = (c: GoalChain) => setFolded((f) => remember({ ...f, [c.id]: isOpen(c) }));
-  const setAllChains = (fold: boolean) => setFolded((f) => remember({ ...f, ...Object.fromEntries(chains.map((c) => [c.id, fold])) }));
+  // expand all / collapse all reach every fold of the list: the chains, and the Delegated goals under their main goals
+  const folds = foldable(entries, children);
+  const setAll = (fold: boolean) => {
+    setFolded((f) => remember({ ...f, ...Object.fromEntries(folds.chains.map((id) => [id, fold])) }));
+    setExpanded(fold ? new Set() : new Set(folds.parents));
+  };
   const toggle = (id: string) =>
     setExpanded((s) => {
       const next = new Set(s);
@@ -291,11 +296,11 @@ export function GoalsPage() {
           ) : null
         }
         actions={
-          chains.length > 1 && (
+          folds.chains.length + folds.parents.length > 1 && (
             <span className="flex items-center gap-2 text-xs text-ink-faint">
-              <button type="button" className="hover:text-ink" onClick={() => setAllChains(false)}>expand all</button>
+              <button type="button" className="hover:text-ink" onClick={() => setAll(false)}>expand all</button>
               <span className="text-line-strong">·</span>
-              <button type="button" className="hover:text-ink" onClick={() => setAllChains(true)}>collapse all</button>
+              <button type="button" className="hover:text-ink" onClick={() => setAll(true)}>collapse all</button>
             </span>
           )
         }

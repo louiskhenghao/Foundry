@@ -7,9 +7,8 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { Brief, BriefSubject, Goal, LikenessVerdict, OutputSubject, SubjectPicture } from '@foundry/core';
-import { SUBJECT_LIMITS, attachmentKindLabel, getBrief, getGoal, nextSubjectKey, subjectSearchDue, subjectsApply } from '@foundry/core';
+import { jsonSchemaFor, SUBJECT_LIMITS, attachmentKindLabel, getBrief, getGoal, nextSubjectKey, subjectSearchDue, subjectsApply } from '@foundry/core';
 import { attachmentAbsPath } from './attachments.ts';
 import type { Engine } from './engine.ts';
 import { boundarySettings } from './guards/boundary.ts';
@@ -209,7 +208,7 @@ async function search(engine: Engine, goalId: string, s: BriefSubject): Promise<
     permissionMode: 'dontAsk',
     ...engine.workerToolPolicy(goal),
     addDirs: [folder],
-    jsonSchema: zodToJsonSchema(SearchOutput, { $refStrategy: 'none' }),
+    jsonSchema: jsonSchemaFor(SearchOutput),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,
     timeoutMs: 6 * 60_000,

@@ -117,14 +117,14 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
               ['stretch', stretch],
             ].map(([tier, list]) => {
               const checks = list as typeof must;
-              const passing = checks.filter((c) => latestResult(c.id)?.status === 'pass').length;
+              const passed = checks.filter((c) => latestResult(c.id)?.status === 'pass').length;
               const failing = checks.some((c) => CHECK_RESULT[latestResult(c.id)?.status ?? 'none'].mark === 'bad');
               return (
                 <section key={tier as string} className="mb-5">
                   <div className="flex items-baseline gap-2 mb-2">
                     <h4 className={cn(LABEL, 'text-ink')}>{tier as string}</h4>
-                    <span className={cn('ml-auto text-[11px]', checks.length && passing === checks.length ? 'font-semibold text-ok-ink' : failing ? 'font-semibold text-bad-ink' : 'text-ink-faint')}>
-                      <span className={cn('mono font-bold', !(checks.length && passing === checks.length) && !failing && 'text-ink-soft')}>{passing}/{checks.length}</span> passing
+                    <span className={cn('ml-auto text-[11px]', checks.length && passed === checks.length ? 'font-semibold text-ok-ink' : failing ? 'font-semibold text-bad-ink' : 'text-ink-faint')}>
+                      <span className={cn('mono font-bold', !(checks.length && passed === checks.length) && !failing && 'text-ink-soft')}>{passed}/{checks.length}</span> passed
                     </span>
                   </div>
                   {checks.length === 0 && <div className="text-xs text-ink-faint">none</div>}

@@ -3,8 +3,7 @@ import { copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
-import { ARTIFACT_SCENARIOS, CAD_VIEWER_KEY, getGoal, getTask, listAttempts, type Goal, type Task } from '@foundry/core';
+import { jsonSchemaFor, ARTIFACT_SCENARIOS, CAD_VIEWER_KEY, getGoal, getTask, listAttempts, type Goal, type Task } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { landedArtifacts } from '../goal-artifacts.ts';
 import { boundarySettings } from '../guards/boundary.ts';
@@ -590,7 +589,7 @@ async function planWalk(engine: Engine, goal: Goal, task: Task, app: AppRef, oth
     meta: metaFor(goal.id, model),
     permissionMode: 'dontAsk',
     allowedTools: [],
-    jsonSchema: zodToJsonSchema(WalkPlan, { $refStrategy: 'none' }),
+    jsonSchema: jsonSchemaFor(WalkPlan),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,
     maxTurns: 3,

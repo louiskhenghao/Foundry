@@ -29,12 +29,12 @@ export function CheckSquare({ mark, label, className }: { mark: CheckMark; label
 }
 
 /**
- * An acceptance check's latest result: its square, the word beside it and that word's colour (green passing, red
- * failing, quiet when skipped or not run yet); no result yet is pending.
+ * An acceptance check's latest result: its square, the word beside it and that word's colour (green passed, red
+ * failed, quiet when skipped or not run yet); no result yet is pending. The words are an attempt's: passed, failed.
  */
 export const CHECK_RESULT: Record<CheckResult['status'] | 'none', { mark: CheckMark; word: string; tone: string }> = {
-  pass: { mark: 'done', word: 'passing', tone: 'font-semibold text-ok-ink' },
-  fail: { mark: 'bad', word: 'failing', tone: 'font-bold text-bad-ink' },
+  pass: { mark: 'done', word: 'passed', tone: 'font-semibold text-ok-ink' },
+  fail: { mark: 'bad', word: 'failed', tone: 'font-bold text-bad-ink' },
   error: { mark: 'bad', word: 'error', tone: 'font-bold text-bad-ink' },
   skipped: { mark: 'off', word: 'skipped', tone: 'text-ink-faint' },
   none: { mark: 'next', word: 'pending', tone: 'text-ink-faint' },

@@ -1,9 +1,8 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Check, CheckResult, Goal } from '@foundry/core';
-import { IdPrefix, chosenStyle, getBrief, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
+import { jsonSchemaFor, IdPrefix, chosenStyle, getBrief, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { renderStyle, styleApplies } from './attempt-prompt.ts';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
@@ -184,7 +183,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     permissionMode: 'dontAsk' as const,
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,
-    jsonSchema: zodToJsonSchema(GoalReviewOutput, { $refStrategy: 'none' }),
+    jsonSchema: jsonSchemaFor(GoalReviewOutput),
     settings: boundarySettings(engine.config.hooksDir),
     settingSources: engine.config.settingSources,
     addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(engine.config.dataDir, goal.id)] : []), ...subjectsAddDirs(engine.config.dataDir, goal.id, brief)]),

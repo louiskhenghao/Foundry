@@ -1,9 +1,8 @@
 import { lstatSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join, sep } from 'node:path';
 import type { Goal } from '@foundry/core';
-import { getGoal } from '@foundry/core';
+import { jsonSchemaFor, getGoal } from '@foundry/core';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, renderAttachments, stageFile } from './attachments.ts';
 import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
@@ -113,7 +112,7 @@ export async function runInvestigation(engine: Engine, goal: Goal): Promise<void
       permissionMode: 'dontAsk' as const,
       allowedTools: [...READONLY_TOOLS, REA_PREFIX],
       disallowedTools: [...READONLY_DISALLOWED, ...denied],
-      jsonSchema: zodToJsonSchema(Output, { $refStrategy: 'none' }),
+      jsonSchema: jsonSchemaFor(Output),
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       env: boundaryEnv(config, goal.id),
