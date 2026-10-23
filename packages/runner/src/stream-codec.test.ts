@@ -104,3 +104,14 @@ describe2('tool_progress heartbeats', () => {
     expect2(ev).toEqual([{ kind: 'progress', toolUseId: 'toolu_01ABC', tool: 'Agent', elapsedSeconds: 120 }]);
   });
 });
+
+describe('partial messages (ADR-0073)', () => {
+  test("a stream_event text delta is the assistant's text as it is written; thinking, tool input and a helper agent's text are not", () => {
+    const delta = (d: unknown, extra: Record<string, unknown> = {}) => JSON.stringify({ type: 'stream_event', event: { type: 'content_block_delta', index: 0, delta: d }, session_id: 's1', ...extra });
+    expect(decodeLine(delta({ type: 'text_delta', text: 'Because ' }))).toEqual([{ kind: 'text_delta', text: 'Because ' }]);
+    expect(decodeLine(delta({ type: 'thinking_delta', thinking: 'hmm' }))).toEqual([]);
+    expect(decodeLine(delta({ type: 'input_json_delta', partial_json: '{"file' }))).toEqual([]);
+    expect(decodeLine(delta({ type: 'text_delta', text: 'sub' }, { parent_tool_use_id: 'toolu_1' }))).toEqual([]);
+    expect(decodeLine(JSON.stringify({ type: 'stream_event', event: { type: 'message_start' } }))).toEqual([]);
+  });
+});

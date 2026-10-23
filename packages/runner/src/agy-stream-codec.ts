@@ -29,6 +29,8 @@ export function agyUsage(u: AgyResult['usage'] | null | undefined): Record<strin
 export class AgyStreamDecoder {
   private text = new Map<number, string>();
   result: AgyResult | null = null;
+  /** `deltas`: every text fragment is also given as it comes (`text_delta`), for a feed that shows the answer being written */
+  constructor(private opts: { deltas?: boolean } = {}) {}
 
   decode(msg: any): RunnerEvent[] {
     if (!msg || typeof msg !== 'object') return [{ kind: 'unknown', raw: msg }];
@@ -44,13 +46,15 @@ export class AgyStreamDecoder {
     const s = msg.step_update;
     const index = Number(s.step_index ?? -1);
     if (s.step_type === 'agent_response') {
-      const soFar = (this.text.get(index) ?? '') + String(s.text_delta ?? '');
+      const fragment = String(s.text_delta ?? '');
+      const soFar = (this.text.get(index) ?? '') + fragment;
+      const delta: RunnerEvent[] = this.opts.deltas && fragment ? [{ kind: 'text_delta', text: fragment }] : [];
       if (s.state !== 'DONE') {
         this.text.set(index, soFar);
-        return [];
+        return delta;
       }
       this.text.delete(index);
-      return soFar ? [{ kind: 'text', text: soFar }] : [];
+      return soFar ? [...delta, { kind: 'text', text: soFar }] : delta;
     }
     if (s.step_type === 'tool') {
       if (s.state !== 'DONE') return [];

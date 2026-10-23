@@ -120,3 +120,11 @@ describe('a session that ends without a result line', () => {
     expect(r.usage).toBeNull();
   });
 });
+
+describe('partial messages (ADR-0073)', () => {
+  test('partialText asks the CLI for them; a plain run does not', () => {
+    const runner = new ClaudeCliRunner({ claudeBin: 'claude' });
+    expect(runner.buildArgs({ prompt: 'x', cwd: '/tmp', partialText: true })).toContain('--include-partial-messages');
+    expect(runner.buildArgs({ prompt: 'x', cwd: '/tmp' })).not.toContain('--include-partial-messages');
+  });
+});

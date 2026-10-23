@@ -215,3 +215,15 @@ describe('Antigravity CLI adapter', () => {
     expect(result).toMatchObject({ subtype: 'error_max_turns', isError: true });
   });
 });
+
+describe('Antigravity stream decoder with deltas (ADR-0073)', () => {
+  test('every fragment is given as it comes, then the whole text once the step is done; without the option only the whole', () => {
+    const step = (state: string, text_delta: string) => ({ event: 'step_update', step_update: { conversation_id: 'c1', step_index: 4, state, step_type: 'agent_response', text_delta } });
+    const live = new AgyStreamDecoder({ deltas: true });
+    expect(live.decode(step('ACTIVE', 'Beca'))).toEqual([{ kind: 'text_delta', text: 'Beca' }]);
+    expect(live.decode(step('DONE', 'use.'))).toEqual([{ kind: 'text_delta', text: 'use.' }, { kind: 'text', text: 'Because.' }]);
+    const plain = new AgyStreamDecoder();
+    expect(plain.decode(step('ACTIVE', 'Beca'))).toEqual([]);
+    expect(plain.decode(step('DONE', 'use.'))).toEqual([{ kind: 'text', text: 'Because.' }]);
+  });
+});

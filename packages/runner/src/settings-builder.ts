@@ -41,3 +41,12 @@ export function canaryHook(scriptPath: string): HookSpec {
 export function rmGuardHook(scriptPath: string): HookSpec {
   return { event: 'PreToolUse', matcher: 'Bash', command: `bun ${JSON.stringify(scriptPath)}`, timeout: 10 };
 }
+
+/**
+ * The read-only shell guard (ADR-0073): the Explainer's Bash may only read — git's read-only subcommands, rg, grep, cat
+ * and the like, no redirection into a file, no substitution. Runs under bun; its deny (exit 2) stands whatever the
+ * other hooks say.
+ */
+export function readOnlyShellHook(scriptPath: string): HookSpec {
+  return { event: 'PreToolUse', matcher: 'Bash', command: `bun ${JSON.stringify(scriptPath)}`, timeout: 10 };
+}

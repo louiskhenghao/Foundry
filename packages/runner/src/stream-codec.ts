@@ -94,8 +94,13 @@ export function decodeMessage(msg: any): RunnerEvent[] {
     case 'tool_progress':
       // heartbeat for a long tool call (the planner sub-agent runs for minutes): the log would otherwise go silent
       return [{ kind: 'progress', toolUseId: String(msg.tool_use_id ?? '').replace(/-heartbeat-\d+$/, ''), tool: String(msg.tool_name ?? 'tool'), elapsedSeconds: Number(msg.elapsed_time_seconds ?? 0) }];
-    case 'stream_event':
+    case 'stream_event': {
+      // with --include-partial-messages: the assistant's own text as it is written; a helper agent's text, its thinking
+      // and its tool input are left to their whole blocks
+      const ev = msg.event;
+      if (!msg.parent_tool_use_id && ev?.type === 'content_block_delta' && ev.delta?.type === 'text_delta' && typeof ev.delta.text === 'string' && ev.delta.text) return [{ kind: 'text_delta', text: ev.delta.text }];
       return [];
+    }
     default:
       return [{ kind: 'unknown', raw: msg }];
   }

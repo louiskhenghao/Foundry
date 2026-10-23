@@ -81,3 +81,22 @@ test('work never passes work, and a lower limit holds the lanes back together', 
   (await pd)();
   expect(s.activeCount).toBe(0);
 });
+
+test('the aside lane never waits and takes no slot from the others, yet counts among the active runs (ADR-0073)', async () => {
+  const s = new Semaphore(1);
+  const work = await s.acquire('work');
+  expect(s.available('work')).toBe(false);
+  expect(s.available('aside')).toBe(true);
+  // beside the limit: three asides while the one slot is held
+  const asides = await Promise.all([s.acquire('aside'), s.acquire('aside'), s.acquire('aside')]);
+  expect(s.activeCount).toBe(4);
+  // the asides took nothing: the interactive extra slot is still there, and work still waits
+  expect(s.available('interactive')).toBe(true);
+  expect(s.available('work')).toBe(false);
+  for (const r of asides) r();
+  // a release called twice releases once
+  asides[0]!();
+  expect(s.activeCount).toBe(1);
+  work();
+  expect(s.activeCount).toBe(0);
+});

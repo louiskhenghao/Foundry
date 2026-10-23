@@ -9,9 +9,10 @@ export interface AgentDef {
 
 /**
  * `interactive`: a session a person is waiting for (Clarify and its planner, a Revise, a Draft). It may use one slot
- * beyond the concurrency limit and goes before queued work. `work` (the default) runs within the limit.
+ * beyond the concurrency limit and goes before queued work. `work` (the default) runs within the limit. `aside`: a
+ * session beside the limit altogether — it never waits for a slot and takes none (a Conversation's answer, ADR-0073).
  */
-export type RunLane = 'interactive' | 'work';
+export type RunLane = 'interactive' | 'work' | 'aside';
 
 export interface RunSpec {
   /** First (and in v1 only) user message. */
@@ -57,6 +58,10 @@ export interface RunSpec {
   label?: string;
   /** which lane the run takes a slot in; omitted = `work` */
   lane?: RunLane;
+  /** stream the assistant's text as it is written (`text_delta` events) where the coding agent can: Claude Code's partial messages, Antigravity's fragments; Codex has none */
+  partialText?: boolean;
+  /** the shell may only read: an allowlist of commands (git's read-only subcommands, rg, cat…) the hooks enforce; Codex's read-only sandbox needs nothing more */
+  readOnlyShell?: boolean;
 }
 
 /**
@@ -73,6 +78,8 @@ export interface TranscriptRef {
 export type RunnerEvent = (
   | { kind: 'init'; sessionId: string; model: string | null; tools: string[]; raw: unknown }
   | { kind: 'text'; text: string }
+  /** a fragment of the assistant's text as it is written (`partialText`); the whole message follows as a `text` event */
+  | { kind: 'text_delta'; text: string }
   | { kind: 'thinking'; text: string }
   | { kind: 'tool_use'; id: string; name: string; input: unknown }
   | { kind: 'tool_result'; toolUseId: string; isError: boolean; content: string }
