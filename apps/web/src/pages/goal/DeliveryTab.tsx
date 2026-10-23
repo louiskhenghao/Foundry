@@ -16,8 +16,10 @@ const STEPS = ['preflight', 'ensure-remote', 'sync-base', 'build-stack', 'push',
 const PR_STATE: Record<string, string> = { pending: 'pending', open: 'open', merged: 'done', closed: 'cancelled', failed: 'failed' };
 /** a pull request's badge in its signal: an open one waits for you to merge it, or is at work when it merges by itself */
 const prBadge = (state: string, automerge: boolean) => (state === 'open' && automerge ? 'running' : (PR_STATE[state] ?? state));
-/** CI's badge in its signal: green passing, red failing, blue while the checks run, quiet when there are none */
+/** CI's badge in its signal: green passed, red failed, blue while the checks run, quiet when there are none */
 const CI_STATE: Record<string, string> = { passing: 'pass', failing: 'fail', none: 'skipped', pending: 'running' };
+/** CI's result in the words a check's result has: passed, failed, pending */
+const CI_WORD: Record<string, string> = { passing: 'passed', failing: 'failed', pending: 'pending' };
 const SYNC_LABEL: Record<string, string | null> = { current: null, rebased: 'rebased onto base', merged: 'base merged in', resolved: 'conflict resolved' };
 /** a delivery step as a checklist's square, and its state in words for a screen reader */
 const STEP_MARK: Record<string, [CheckMark, string]> = { ok: ['done', 'done'], skipped: ['off', 'skipped'], failed: ['bad', 'failed'] };
@@ -172,7 +174,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
                   {p.ciSkipped ? (
                     <Badge state="skipped" className="no-caps">CI skipped</Badge>
                   ) : (
-                    p.checks && <Badge state={CI_STATE[p.checks] ?? 'pending'}>{p.checks === 'none' ? 'no CI' : `CI ${p.checks}`}</Badge>
+                    p.checks && <Badge state={CI_STATE[p.checks] ?? 'pending'}>{p.checks === 'none' ? 'no CI' : `CI ${CI_WORD[p.checks] ?? p.checks}`}</Badge>
                   )}
                   <Badge state={prBadge(p.state, del.policy.mode === 'pr-automerge')}>{p.state}</Badge>
                   {p.url ? (
@@ -233,7 +235,7 @@ export function DeliveryTab({ d }: { d: GoalDetail }) {
                 <ExternalLink size={12} /> PR #{del.pr.number}
               </a>
             )}
-            {del.checks && del.prs.length <= 1 && <span className="text-ink-soft">checks: <Badge state={del.checks === 'passing' ? 'pass' : del.checks === 'failing' ? 'fail' : del.checks === 'pending' ? 'running' : 'pending'}>{del.checks}</Badge></span>}
+            {del.checks && del.prs.length <= 1 && <span className="text-ink-soft">checks: <Badge state={del.checks === 'passing' ? 'pass' : del.checks === 'failing' ? 'fail' : del.checks === 'pending' ? 'running' : 'pending'}>{CI_WORD[del.checks] ?? del.checks}</Badge></span>}
             {del.outcome && <span className="font-semibold text-ok-ink">outcome: {del.outcome === 'by_you' ? 'delivered by you' : del.outcome.replace('_', ' ')}</span>}
             {del.mergedRef && <span className="mono text-ink-faint">merged {del.mergedRef.slice(0, 7)}</span>}
             {del.fixCycles > 0 && <span className="text-ink-soft">fix-CI cycles: <span className="mono">{del.fixCycles}</span></span>}

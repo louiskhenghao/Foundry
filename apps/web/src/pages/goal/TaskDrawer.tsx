@@ -179,7 +179,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
                     {c.name}
                   </span>
                   <span className="shrink-0 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint" title={c.tier}>{c.tier}</span>
-                  <span className={cn('mono text-[11px] shrink-0 w-[3.25rem] text-right', res.mark === 'bad' ? 'font-bold text-bad-ink' : res.mark === 'done' ? 'font-semibold text-ok-ink' : 'text-ink-faint')}>{r ? res.word : '—'}</span>
+                  <span className={cn('mono text-[11px] shrink-0 w-[3.25rem] text-right', res.mark === 'bad' ? 'font-bold text-bad-ink' : res.mark === 'done' ? 'font-semibold text-ok-ink' : 'text-ink-faint')}>{res.word}</span>
                 </div>
               );
             })}

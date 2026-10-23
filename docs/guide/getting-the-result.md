@@ -94,7 +94,7 @@ On the goal page, open the **Delivery** tab (in Simple view, **Deliver…** on t
 
 **While it delivers**, the card shows each step with a tick, a spinner or a cross: **Preflight**, **Remote**, **Sync with base**, **Build stack**, **Push**, **Open PR**, **CI checks**, **Fix CI**, **Merge**, **Cleanup** (only the steps your mode needs). **Cancel** stops it.
 
-**The pull requests** appear in a list with their title, their CI result (**CI passing**, **CI failing**, **CI pending**, **no CI**, or **CI skipped** when it merged without waiting for checks), their state (**open**, **merged** …) and a link **#123** to open them on GitHub. Under a pull request, small labels say what is happening to it:
+**The pull requests** appear in a list with their title, their CI result (**CI passed**, **CI failed**, **CI pending**, **no CI**, or **CI skipped** when it merged without waiting for checks), their state (**open**, **merged** …) and a link **#123** to open them on GitHub. Under a pull request, small labels say what is happening to it:
 
 - the step running on it now, for example **CI checks** or **Merge**, with a spinner
 - **waiting for #41**: with one PR per task, a pull request merges only after the one below it

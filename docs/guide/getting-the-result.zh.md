@@ -94,7 +94,7 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 
 **交付过程中**，卡片用勾、转圈或叉显示每一步：**Preflight**、**Remote**、**Sync with base**、**Build stack**、**Push**、**Open PR**、**CI checks**、**Fix CI**、**Merge**、**Cleanup**（只显示你的方式需要的步骤）。**Cancel** 停止交付。
 
-**pull request** 以列表显示，带标题、CI 结果（**CI passing**、**CI failing**、**CI pending**、**no CI**，没等检查就合并时显示 **CI skipped**）、状态（**open**、**merged** ……）和一个链接 **#123**，点开可以在 GitHub 上查看。pull request 下方的小标签说明它正在经历什么：
+**pull request** 以列表显示，带标题、CI 结果（**CI passed**、**CI failed**、**CI pending**、**no CI**，没等检查就合并时显示 **CI skipped**）、状态（**open**、**merged** ……）和一个链接 **#123**，点开可以在 GitHub 上查看。pull request 下方的小标签说明它正在经历什么：
 
 - 正在它上面进行的步骤，比如 **CI checks** 或 **Merge**，带转圈
 - **waiting for #41**：每个任务一个 PR 时，一个 pull request 要等它下面那个合并后才合并

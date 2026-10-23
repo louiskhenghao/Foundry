@@ -418,6 +418,9 @@ const STATE_LABELS: Record<string, string> = {
   over_delivered: 'over-delivered',
   goal_review: 'reviewing',
   awaiting_feedback: 'have a look',
+  // a check's result, in the words an attempt's has
+  pass: 'passed',
+  fail: 'failed',
 };
 /** a state in words, as a badge or a caption shows it */
 export const stateLabel = (state: string) => STATE_LABELS[state] ?? state.replace(/_/g, ' ');
