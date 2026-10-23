@@ -29,7 +29,7 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 
 从 **Goals**（第一个页面，顶栏上也有）打开一个 goal。页面顶部有：
 
-- goal 的状态牌，用它的信号色：Foundry 在干活时是蓝色（**running**；澄清时是浅蓝），审查时（**reviewing**）是紫色，完成（**done**）后是绿色，等你时是黄色（**approve brief**、**have a look**、**blocked**），失败时是红色（**failed**）。旁边写着完成或正在运行的任务数，以及 Foundry 已经工作了多久。
+- goal 的状态牌，用它的信号色：Foundry 在干活时是蓝色（**running**；澄清时是浅蓝），审查时（**reviewing**）是紫色，完成（**done**）后是绿色，等你时是黄色（**awaiting approval**、**awaiting feedback**、**blocked**），失败时是红色（**failed**）。旁边写着完成或正在运行的任务数，以及 Foundry 已经工作了多久。
 - 标题，以及标题下面的基本信息：项目文件夹（**copy** 复制它的路径）、分支（goal 起步的分支 → goal 自己的分支）、编码智能体（**Claude Code**、**Codex** 或 **Antigravity**）、workflow 套件、goal 以 fast 模式运行时的 **pace fast**，以及交付方式。
 - **time** 显示已用分钟数对比时间上限；Claude 还显示 **cost** 对比美元预算。后面的黄色圆点表示有会话在 Claude Code 回报费用之前就结束了（超时、被终止、崩溃）：鼠标停在上面，或在手机上点它，就能看到有几个、大约花了多少。这个估算（≈）按同一个模型在已回报费用的会话里的单价计算它们的 token；它不计入总数，也不占用预算。它们的轮数和 token 照常统计，美元数绝不记为 $0。Codex 美元费用不可用。
 - **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)），或者用 **VS Code (web)** 打开：浏览器标签里的 VS Code，经 Tailscale 在手机上也能打开。第一次使用时启动（先在 [Settings → Tools & keys](./settings.zh.md#tools--keys) 装一次），只在这台电脑上运行，闲置两小时后停止。它的登录页要输入密码，菜单里会显示这个密码并带复制按钮；浏览器会记住它。编码智能体写过的文件夹会以受限模式打开，直到你选择信任它。在里面的修改是真实修改：goal 运行时，菜单会提醒你在它的文件夹里改动可能和编码智能体的冲突，并被带进它们的下一个提交。
@@ -262,7 +262,7 @@ Brief 会给每个看得见、可以试的功能设一个里程碑，放在完�
 
 **Have a look: pause at milestones** 决定 goal 要不要为最终走查和没有脚本的里程碑暂停。默认开启（[Settings](./settings.md)）；每个 goal 在 Brief 的 **How to run it** 部分和 Overview 的 **Acceptance** 卡片里都有自己的开关，从下一个里程碑开始生效。关掉后 goal 会继续往下跑，下面这段说明和它的录屏会发到你的通知渠道。
 
-goal 暂停时，它的状态标记显示 **have a look**，Inbox 显示 **Have a look**，goal 页面顶部出现一张卡片：**Have a look — task name**，或者是列出每个功能录制的 **Have a look — the final walkthrough**，失败的排在前面。
+goal 暂停时，它的状态牌显示 **awaiting feedback**，Inbox 显示 **Have a look**，goal 页面顶部出现一张卡片：**Have a look — task name**，或者是列出每个功能录制的 **Have a look — the final walkthrough**，失败的排在前面。
 
 ![Have a look 卡片：要看什么、运行中的预览和自检截图](images/milestone.png)
 

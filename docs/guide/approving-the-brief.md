@@ -25,7 +25,7 @@ The Brief opens in the view you chose on the New goal form. Switch with **Expert
 ## The top of the page
 
 - At the very top, **← Goals** goes back to the list of goals, and **Goal** to this goal's page.
-- Above the title, a yellow plate reads **approve brief** while the Brief waits for you.
+- Above the title, a yellow plate reads **awaiting approval** while the Brief waits for you.
 - Under the title, small plates: the project folder, the branch the goal starts from → the goal's own branch, the coding agent, the workflow suite (**Powered by**), the pace and the delivery.
 - Under those, the goal's five stages, as on the goal page: **Brief** is yellow and marked **You** while it waits for you.
 - A small line says which version of your project Foundry read, for example "Explored origin/main (your local main was 3 behind)". If it warns that the remote was not fetched and you know others changed the project since, press **Re-run Clarify**.
