@@ -10,7 +10,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { buildTimeline, getGoal, type EngineEvent } from '@foundry/core';
 import { addSubject, addSubjectPicture, subjectsDir } from '../packages/engine/src/subjects.ts';
-import { seedFollowUpChain, seedImportedGoal, startDemo } from './demo.ts';
+import { seedConversation, seedFollowUpChain, seedImportedGoal, startDemo } from './demo.ts';
 
 const ROOT = resolve(import.meta.dir, '..');
 const OUT = join(ROOT, 'docs/guide/images');
@@ -188,6 +188,15 @@ try {
   });
   await shot('goal-diff', `/goals/${g.done}#diff`);
   await shot('goal-delivery', `/goals/${g.done}#delivery`);
+  // Conversation (ADR-0073), a beta feature: switched on for these two shots only, so no other page shows the bubble
+  await seedConversation(demo.engine, g.done!);
+  await demo.engine.updateSettings({ beta: { conversation: true } });
+  await shot('goal-conversation', `/goals/${g.done}#conversation`, undefined, 760);
+  await shot('conversation-bubble', `/goals/${g.done}#overview`, async () => {
+    await page.getByRole('button', { name: 'Ask about this goal' }).click();
+    await page.waitForTimeout(600);
+  });
+  await demo.engine.updateSettings({ beta: { conversation: false } });
   // the demo's sessions end in milliseconds: the Timeline shows a goal of an afternoon instead, a delegated goal in it
   await page.route('**/api/goals/*/timeline', (r) => r.fulfill({ json: demoTimeline(g.done!, getGoal(demo.engine.store.db, g.done!)!.title) }));
   await page.setViewportSize({ width: 1280, height: 1180 });
