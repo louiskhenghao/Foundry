@@ -1,5 +1,5 @@
 import { isHistory, reportsDollars, taskUsage } from '@foundry/core/browser';
-import { ArrowLeft, Ban, CircleAlert, CornerDownRight, Folder, GitBranch, GitMerge, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Brain, CircleAlert, CornerDownRight, Folder, GitBranch, GitMerge, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
@@ -245,6 +245,14 @@ export function GoalPage() {
               <Link to={`/learnings?repo=${encodeURIComponent(g.repoPath)}`} className="inline-flex items-center gap-1 hover:text-ink" title="What earlier goals in this folder learned; every new goal here is given it">
                 <NotebookPen size={12} /> Learnings for this folder: {d.learningsCount}
               </Link>
+            </div>
+          )}
+          {d.memory?.enabled && (
+            <div className="text-xs text-ink-faint mt-1.5" title={d.memory.bank ? `This folder's goals share the bank ${d.memory.bank} with your own sessions here (Memory, Extensions → MCP servers)` : 'Memory is set up; this goal has not asked it yet'}>
+              <span className="inline-flex items-center gap-1">
+                <Brain size={12} /> Memory:{' '}
+                {d.memory.recalls.length === 0 ? 'not asked yet' : d.memory.recalls.every((r) => r.error) ? 'the server did not answer' : `${d.memory.recalls.filter((r) => r.text).length}/${d.memory.recalls.length} recalled · wrote back ${d.memory.written}`}
+              </span>
             </div>
           )}
         </div>

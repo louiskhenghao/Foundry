@@ -1,8 +1,11 @@
 import type { CheckResult } from '@foundry/core/browser';
 import { reportsDollars } from '@foundry/core/browser';
+import type { MemoryGoalView } from '@foundry/engine/memory-types';
+import { Brain } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { api, type GoalDetail } from '../../api.ts';
+import { MEMORY_STAGE } from './describe.ts';
 import { AttachmentInput } from '../../components/Attachments.tsx';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
@@ -58,6 +61,8 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           <MarkdownPanel title="goal" source={g.prompt} maxHeight={240} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
           {/* the verdict on the goal, next to the goal itself */}
           {review && <GoalReview review={review} />}
+          {/* what the folder's Memory told the goal's stages, folded (ADR-0071); nothing while Memory is off */}
+          {d.memory?.enabled && <Remembered view={d.memory} tasks={d.tasks} />}
           {/* right under the goal, as on the New goal form: the description and what came with it */}
           <Card title={`Attachments${g.attachments.length ? ` (${g.attachments.length})` : ''}`}>
             <AttachmentInput items={g.attachments} goalId={g.id} onChange={() => {}} />
@@ -268,6 +273,45 @@ export function BriefStrip({ d }: { d: GoalDetail }) {
       ))}
       <span className="ml-auto font-semibold text-ink-soft group-hover:text-ink group-hover:underline underline-offset-[3px]">Open Brief →</span>
     </Link>
+  );
+}
+
+/**
+ * Memory (ADR-0071) in one line on a quiet panel: how many asks the folder's bank answered and how much the goal wrote
+ * back; open, what each stage was told, in its words, so a wrong memory can be seen and corrected on the Learnings page
+ */
+export function Remembered({ view, tasks }: { view: MemoryGoalView; tasks: { id: string; title: string }[] }) {
+  const [open, setOpen] = useState(false);
+  const answered = view.recalls.filter((r) => r.text).length;
+  const unanswered = view.recalls.filter((r) => r.error).length;
+  const asks = view.recalls.length;
+  const summary = asks === 0 ? 'nothing asked yet' : `${answered} of ${asks} ask${asks === 1 ? '' : 's'} answered${unanswered ? `, ${unanswered} unanswered` : ''}`;
+  return (
+    <div className="rounded-lg border border-line bg-panel px-4 py-2.5 text-[13px] shadow-[0_1px_2px_rgb(0_0_0/0.05)]">
+      <button type="button" className="w-full flex items-center gap-2.5 text-left" disabled={!asks} onClick={() => setOpen((o) => !o)} aria-expanded={asks ? open : undefined}>
+        <Brain size={14} className="shrink-0 text-ink-faint" aria-hidden="true" />
+        <span className={cn(LABEL, 'text-ink shrink-0')}>Remembered</span>
+        <span className="min-w-0 flex-1 truncate text-ink-faint" title={view.bank ? `the bank ${view.bank}` : undefined}>
+          {summary} · wrote back {view.written}
+          {view.failed ? ` (${view.failed} failed)` : ''}
+        </span>
+        {asks > 0 && <span className="ml-auto shrink-0 text-[11px] font-semibold text-ink-faint">{open ? 'hide' : 'show'}</span>}
+      </button>
+      {open && (
+        <ul className="mt-2 space-y-2">
+          {view.recalls.map((r, i) => (
+            <li key={i} className="text-xs">
+              <div className="flex items-center gap-2 text-ink-faint mb-1">
+                <span className="font-semibold text-ink-soft">{MEMORY_STAGE[r.stage] ?? r.stage}</span>
+                {r.taskId && <span className="truncate">{tasks.find((t) => t.id === r.taskId)?.title ?? r.taskId}</span>}
+                <span className="mono shrink-0">{r.ms} ms</span>
+              </div>
+              {r.text ? <MarkdownPanel title={MEMORY_STAGE[r.stage] ?? r.stage} source={r.text} maxHeight={200} actions={<OpenFull value={{ title: `Memory · ${MEMORY_STAGE[r.stage] ?? r.stage}`, text: r.text }} />} /> : <div className="text-ink-faint">{r.error ? `no answer: ${r.error}` : 'nothing recalled'}</div>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

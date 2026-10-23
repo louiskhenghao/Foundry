@@ -107,6 +107,12 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: 'Recorded what the step delivered, for the tasks after it', tone: 'muted', ...cut(p.summary) };
     case 'task.revised':
       return { text: `Task touched up after a step landed: ${p.reason}`, tone: 'info', ...cut(p.spec) };
+    case 'memory.recalled': {
+      const stage = MEMORY_STAGE[p.stage] ?? p.stage;
+      return p.text ? { text: `Memory recalled for the ${stage} (${p.ms} ms)`, tone: 'muted', full: p.text } : { text: p.error ? `Memory did not answer the ${stage}: ${p.error}` : `Memory had nothing for the ${stage}`, tone: p.error ? 'warn' : 'muted' };
+    }
+    case 'memory.retained':
+      return { text: p.error ? `Memory could not write the ${p.source}: ${p.error}` : `Memory: wrote the ${p.source}${p.count > 1 ? ` (${p.count})` : ''}`, tone: p.error ? 'warn' : 'muted' };
     default:
       return { text: e.type, tone: 'muted' };
   }
@@ -115,10 +121,13 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
 /** a count with its noun: "1 question", "3 rounds" */
 const n = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
+/** the stages that ask Memory (ADR-0071), in words */
+export const MEMORY_STAGE: Record<string, string> = { attempt: 'attempt', clarify: 'Clarifier', replan: 'replan', review_task: 'task review', review_goal: 'goal review' };
+
 /** the whole text, when the one-line description keeps only its first line (up to `max` characters) */
 function cut(text: string, max = Infinity, raw = false): { full?: string; raw?: boolean } {
   const first = text.split('\n')[0] ?? '';
   return text.trim() !== first.trim() || first.length > max ? { full: text, raw } : {};
 }
 
-export const NOISY = new Set(['goal.cost_added', 'workspace.committed', 'session.usage', 'attempt.session', 'check.created', 'task.workspace_assigned']);
+export const NOISY = new Set(['goal.cost_added', 'workspace.committed', 'session.usage', 'attempt.session', 'check.created', 'task.workspace_assigned', 'memory.retained']);

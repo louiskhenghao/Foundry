@@ -348,7 +348,7 @@ export interface AuthInfo {
 
 import type { CodexPluginsView } from '@foundry/engine/plugins-types';
 import type { McpHealth, McpLoginSession, McpView } from '@foundry/engine/mcp-types';
-import type { MemoryFolderStatus, MemoryStatus } from '@foundry/engine/memory-types';
+import type { MemoryFolderStatus, MemoryGoalView, MemoryStatus } from '@foundry/engine/memory-types';
 export type { McpHealth, McpLoginSession, McpView };
 /** a server added by hand on the MCP tab */
 export type McpCustomServer = { name: string; config: { type: 'stdio'; command: string; args?: string[] } | { type: 'http' | 'sse'; url: string } };
@@ -429,6 +429,8 @@ export interface GoalDetail {
   calibration?: Calibration;
   /** how many Learnings the goal's folder has (ADR-0040) */
   learningsCount?: number;
+  /** what the folder's Memory told this goal's stages, and what the goal wrote back (ADR-0071) */
+  memory?: MemoryGoalView;
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
   paths: { repo: string; workspace: string | null };
   budget: BudgetStatus;
