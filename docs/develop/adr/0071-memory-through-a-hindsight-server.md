@@ -37,9 +37,12 @@ Context Provider decides what code a session sees, Learnings are what was learne
 
 - **Memory is an extension the person turns on.** On the Extensions page, under MCP servers, a **Hindsight** card
   takes the address of a server the person runs (`memory.url`) and an optional bearer token (`memory.token`, a secret
-  setting), tests the connection, and shows the commands that start a server locally. Foundry runs no server in this
-  version and bundles none in its image; the vendor's cloud is an address like any other and never a default. With
-  the card empty nothing described here happens, and Learnings work as before.
+  setting), tests the connection, and shows the commands that start a server locally. Foundry bundles no server in its
+  image; the Docker install may run one beside it: `install.sh --with hindsight` (or a yes when the installer asks)
+  adds Hindsight as a compose profile, `memory`, with an LLM key of the person's in `hindsight.env` next to the
+  compose file, and points Foundry at it through `HINDSIGHT_API_URL`. From source the person runs one themselves.
+  The vendor's cloud is an address like any other and never a default. With the card empty nothing described here
+  happens, and Learnings work as before.
 - **Foundry does the wiring, not Hindsight's installer.** Foundry's engine retains and reflects through Hindsight's
   HTTP API with its TypeScript client. The MCP server is installed at user scope like a catalog server (ADR-0016):
   the multi-bank endpoint, with the token as a header for Claude Code and as an environment variable Codex reads;
@@ -48,9 +51,17 @@ Context Provider decides what code a session sees, Learnings are what was learne
 - **One bank per repository, named as Hindsight's own integration names it**: `coding-agent::` followed by the name
   of the repository's main worktree folder. The person's own sessions in that repository, wired by Hindsight's
   installer, write and read the same bank, so there is one brain, not two. Foundry creates a missing bank with a
-  mission for a coding project and never changes the settings of a bank that exists. Everything Foundry writes is
-  tagged with its source (`source:foundry`, `source:learnings`, `source:transcript`, `source:git`), its goal and its
-  stage, so it can be told apart and filtered.
+  mission for a coding project and never changes the settings of a bank that exists. A bank Foundry makes ready also
+  gets the five knowledge pages Hindsight's own integration keeps — component map, core concepts, conventions and
+  patterns, key decisions and rationale, initiatives — by name and with the same questions, each refreshed hourly at a
+  minute of its own; a page that exists is left alone, and a server without pages is no reason to stop. Everything
+  Foundry writes is tagged with its source (`source:foundry`, `source:learnings`, `source:transcript`, `source:git`,
+  `source:person`), its goal and its stage, so it can be told apart and filtered.
+- **One bank for the person.** `foundry::person` holds what the person decided, answered and asked for across every
+  folder, in their words: their everywhere notebook (ADR-0055), the Decisions of each Brief they approve, what they
+  say when a goal stops for them, what they say at a milestone — each tagged with the repository it came from.
+  Clarify asks it beside the folder's bank, under *What Memory recalls about the person*. A folder left out keeps its
+  goals' words out of it too.
 - **What is retained.** When a goal ends done, over-delivered or failed: the goal's record (the one the Learnings
   session reads — prompt, Brief understanding, Decisions, tasks and hints, failed attempts, escalations and answers,
   warnings, final review) and the notebook the Learnings session returned. Every `learnings.set`, including the
@@ -98,8 +109,10 @@ Context Provider decides what code a session sees, Learnings are what was learne
   sessions and the person sets in their own shell.
 - Everything a goal did goes to the configured server: on this computer by default, elsewhere only where the person
   points. A Transfer (ADR-0030) carries no memory; the store is the server's.
-- The Docker image is unchanged (Hindsight's full image is 3.7–9 GB). A later installer option may add a Hindsight
-  service to the compose file and point `memory.url` at it; this record does not decide that.
+- The Docker image is unchanged; the compose profile pulls Hindsight's own image (3.7–9 GB) only when chosen, on the
+  same computer as Foundry, and updating it is the person's (`docker compose pull hindsight`, then `up -d`). Its API
+  is on loopback, open, as Hindsight's own default is: the person's terminal shares the banks without a token.
 - Antigravity goals remember less: they are told what Memory recalls but cannot ask it mid-way.
-- Hindsight's integration keeps five knowledge pages per bank; Foundry does not create them. A bank Foundry made has
-  facts, observations and mental models, and gains pages when the person wires their terminal too.
+- A bank Foundry made reads the same as one the person's terminal made: the name, the mission, the five pages.
+- The person's bank gathers their words from every folder in one place, on the server they chose; a folder left out
+  keeps its goals' words out of it as well.

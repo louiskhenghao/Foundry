@@ -10,7 +10,7 @@ Hindsight is open source (MIT). It runs as a process of its own with an embedded
 
 ## Setting it up
 
-1. **Start a server.** On this computer with Docker, the full image carries its database and models (3.7–9 GB); the card below has the command to copy. Or with Python: `pip install hindsight-api`, then `hindsight-api` with the same `HINDSIGHT_API_LLM_*` variables. The server listens on port 8888 and its console on 9999.
+1. **Start a server.** With the Docker install, run the one-line installer again with `--with hindsight` (or answer yes when it asks): it starts Hindsight beside Foundry as a compose profile, keeps the LLM key you give it in `hindsight.env` next to the compose file, and points Foundry at it — steps 2 and 3 below are then only the connection of a coding agent. Otherwise, on this computer with Docker, the full image carries its database and models (3.7–9 GB); the card below has the command to copy. Or with Python: `pip install hindsight-api`, then `hindsight-api` with the same `HINDSIGHT_API_LLM_*` variables. The server listens on port 8888 and its console on 9999.
 2. **Open Extensions → MCP servers** and find the **Memory · Hindsight** card. Enter the address (`http://127.0.0.1:8888` for a server on this computer) and the bearer token if the server asks for one, press **Test**, then **Save**. The card then reads **connected** with the server's version. **Write each attempt's transcript to the bank** is on by default (see below).
 3. **Connect the coding agent.** **Connect Claude Code** (or **Connect Codex** on the Codex tab) puts the server into that coding agent's own configuration, allowed in goals: a worker can then ask the memory itself mid-way, and is told which bank is its folder's. Foundry asks the bank before every stage either way. Antigravity takes no MCP servers from Foundry: its goals get what Memory recalls as text only. For Codex, Foundry hands the token to its sessions as `HINDSIGHT_API_TOKEN`; export it in your own shell for your own sessions.
 
@@ -25,8 +25,9 @@ For every folder that is a git repository and is not left out, Foundry writes in
 - **Each revision of a Brief** before you approved it, what a **second opinion** proposed, each **task review's verdict** with its reasons, and each **replan's** reason: the evidence of where Foundry's understanding, plan or work was off.
 - **Each attempt's transcript** in compact form — your task, the agent's words, one line per tool call without arguments or outputs, what failed calls said — while the card's switch is on. It is most of what the server's LLM reads, which is what the switch is for.
 - **The folder's recent commits** (the last 300 messages) the first time Memory is used there, so a bank is not empty on the first goal; skipped when the bank already holds documents, for example from your own sessions.
+- **What you decide**, from every folder, into a bank of your own, `foundry::person`: your **Yours, everywhere** notebook, the Decisions of each Brief you approve, what you answer when a goal stops for you, what you say at a milestone — each tagged with the repository it came from. Clarify asks this bank beside the folder's. A folder you left out writes nothing there either.
 
-The values of the keys Foundry keeps are blanked out of everything before it is sent.
+A bank Foundry makes also gets the five knowledge pages Hindsight's own integration keeps — component map, core concepts, conventions and patterns, key decisions and rationale, initiatives — which the server rewrites every hour from what the bank holds and reads first when it answers. The values of the keys Foundry keeps are blanked out of everything before it is sent.
 
 ## What goals get
 
@@ -35,7 +36,7 @@ Before every attempt, before Clarify (the planner is given the same answer), bef
 ## Seeing it
 
 - A goal's page says **Memory: 3/4 recalled · wrote back 6** under its facts (or that the server did not answer). **Remembered** on its Overview tab opens what each stage was told, in the bank's words, and how many documents the goal wrote back. **Activity** lists each ask and each write.
-- A folder's card on the **Learnings** page shows its bank (`coding-agent::<folder>`) and a **Memory** switch: off, that folder's goals neither read nor write the bank.
+- A folder's card on the **Learnings** page shows its bank (`coding-agent::<folder>`) and a **Memory** switch: off, that folder's goals neither read nor write the bank. The **Yours, everywhere** card shows your own bank, `foundry::person`.
 - Hindsight's own console (port 9999 of the server) shows the banks, their memories and what the consolidation made of them.
 
 ## One bank per repository
