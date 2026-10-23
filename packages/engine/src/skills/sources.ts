@@ -4,7 +4,7 @@
  * directories so copies can be compared byte-for-byte with their upstream.
  */
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, type Dirent } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
 import type { MarketplaceInfo } from './scanner.ts';
@@ -67,10 +67,19 @@ export function gitBlobSha1(buf: Uint8Array): string {
 }
 
 const IGNORED = new Set([MARKER_FILE, LEGACY_MARKER_FILE, '.git', '.DS_Store', 'manifest.json', '.trash.json']);
+/** a skill's installed dependencies: never part of its upstream bytes (git ignores them), and most of the files on disk */
+const IGNORED_DIRS = new Set(['node_modules']);
 
-/** Sorted list of [relpath, blob sha1] for every regular file under dir (ignoring our marker and VCS noise). */
+/**
+ * What each folder held when it was last hashed: its files' paths, sizes and times, and their hashes. A folder whose
+ * files still have those sizes and times is not read again. The doctor fingerprints every installed skill and its
+ * upstream on every run; reading them all (gigabytes, with a skill's test fixtures) held the server for seconds.
+ */
+const hashed = new Map<string, { sig: string; files: [string, string][] }>();
+
+/** Sorted list of [relpath, blob sha1] for every regular file under dir (ignoring our marker, VCS noise and node_modules). */
 export function dirFiles(dir: string): [string, string][] {
-  const out: [string, string][] = [];
+  const found: { rel: string; path: string; size: number; mtimeMs: number }[] = [];
   const walk = (d: string) => {
     let names: string[];
     try {
@@ -87,12 +96,18 @@ export function dirFiles(dir: string): [string, string][] {
       } catch {
         continue;
       }
-      if (st.isDirectory()) walk(p);
-      else if (st.isFile()) out.push([relative(dir, p), gitBlobSha1(readFileSync(p))]);
+      if (st.isDirectory()) {
+        if (!IGNORED_DIRS.has(n)) walk(p);
+      } else if (st.isFile()) found.push({ rel: relative(dir, p), path: p, size: st.size, mtimeMs: st.mtimeMs });
     }
   };
   walk(dir);
-  return out;
+  const sig = found.map((f) => `${f.rel}\0${f.size}\0${f.mtimeMs}`).join('\n');
+  const was = hashed.get(dir);
+  if (was && was.sig === sig) return [...was.files];
+  const files = found.map((f): [string, string] => [f.rel, gitBlobSha1(readFileSync(f.path))]);
+  hashed.set(dir, { sig, files });
+  return [...files];
 }
 
 export function dirFingerprint(dir: string): string | null {
@@ -156,10 +171,47 @@ function safeReaddir(d: string): string[] {
 }
 
 /**
+ * Where the skill folders are in each clone (a marketplace's, one of the skills cache's), found once per clone: the
+ * hand-installed skills of a machine are matched one by one, and the clones hold thousands of files between them.
+ * Made for one report, so a clone that changed is read afresh by the next.
+ */
+export class SkillDirIndex {
+  private byClone = new Map<string, Map<string, string[]>>();
+
+  /** the clone-relative folders named `name` that hold a SKILL.md, the shallowest first (dot folders and node_modules left out) */
+  find(clone: string, name: string): string[] {
+    let index = this.byClone.get(clone);
+    if (!index) {
+      const found = (index = new Map<string, string[]>());
+      const walk = (d: string, rel: string) => {
+        let entries: Dirent[];
+        try {
+          entries = readdirSync(d, { withFileTypes: true });
+        } catch {
+          return;
+        }
+        for (const e of entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+          const n = e.name;
+          if (!e.isDirectory() || n.startsWith('.') || n === 'node_modules') continue;
+          const p = join(d, n);
+          const r = rel ? `${rel}/${n}` : n;
+          if (existsSync(join(p, 'SKILL.md'))) found.set(n, [...(found.get(n) ?? []), r]);
+          walk(p, r);
+        }
+      };
+      walk(clone, '');
+      for (const rels of found.values()) rels.sort((a, b) => a.length - b.length);
+      this.byClone.set(clone, found);
+    }
+    return index.get(name) ?? [];
+  }
+}
+
+/**
  * Where could a hand-installed `name` have come from? In order: catalog entries (name or alias),
  * marketplace clones (same dir name), ~/.agents/skills/<name>.
  */
-export function candidatesFor(name: string, catalog: Catalog, paths: SkillsPaths, marketplaces: MarketplaceInfo[]): Candidate[] {
+export function candidatesFor(name: string, catalog: Catalog, paths: SkillsPaths, marketplaces: MarketplaceInfo[], index = new SkillDirIndex()): Candidate[] {
   const out: Candidate[] = [];
   for (const e of catalog.entries) {
     if (e.source.type !== 'git') continue;
@@ -171,10 +223,10 @@ export function candidatesFor(name: string, catalog: Catalog, paths: SkillsPaths
     if (existsSync(cache)) {
       if (rel && existsSync(join(cache, rel, 'SKILL.md'))) dir = join(cache, rel);
       else {
-        const hit = [...new Bun.Glob(`**/${e.name}/SKILL.md`).scanSync({ cwd: cache, dot: false })].filter((h) => !h.includes('node_modules/')).sort((a, b) => a.length - b.length)[0];
+        const hit = index.find(cache, e.name)[0];
         if (hit) {
-          dir = join(cache, hit.slice(0, -'/SKILL.md'.length));
-          rel = relative(cache, dir);
+          dir = join(cache, hit);
+          rel = hit;
         }
       }
     }
@@ -203,11 +255,11 @@ export function candidatesFor(name: string, catalog: Catalog, paths: SkillsPaths
     for (const m of marketplaces) if (m.clone && existsSync(m.clone)) clones.push({ repo: m.repo ?? m.name, dir: m.clone });
     for (const owner of safeReaddir(paths.cacheDir)) for (const r of safeReaddir(join(paths.cacheDir, owner))) clones.push({ repo: `${owner}/${r}`, dir: join(paths.cacheDir, owner, r) });
     for (const c of clones) {
-      const hit = [...new Bun.Glob(`**/${name}/SKILL.md`).scanSync({ cwd: c.dir, dot: false })].filter((h) => !h.includes('node_modules/')).sort((a, b) => a.length - b.length)[0];
+      const hit = index.find(c.dir, name)[0];
       if (!hit) continue;
       const repo = c.repo;
       if (out.some((x) => x.source.repo === repo)) continue;
-      out.push({ source: { id: `hand:${repo}`, kind: 'github', label: repo ?? c.dir, manager: 'hand', repo, url: repo ? `https://github.com/${repo}` : null, homepage: repo ? `https://github.com/${repo}` : null }, pathInRepo: hit.slice(0, -'/SKILL.md'.length), dir: join(c.dir, hit.slice(0, -'/SKILL.md'.length)), catalogEntry: null, via: 'marketplace' });
+      out.push({ source: { id: `hand:${repo}`, kind: 'github', label: repo ?? c.dir, manager: 'hand', repo, url: repo ? `https://github.com/${repo}` : null, homepage: repo ? `https://github.com/${repo}` : null }, pathInRepo: hit, dir: join(c.dir, hit), catalogEntry: null, via: 'marketplace' });
     }
   }
   const agents = join(paths.agentsSkillsDir, name);
