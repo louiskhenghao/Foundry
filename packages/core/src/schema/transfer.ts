@@ -77,7 +77,7 @@ export type TransferSecrets = z.infer<typeof TransferSecrets>;
  * addresses in Notification links.
  */
 export const LOCAL_SETTING_SECTIONS = ['engine'] as const;
-export const LOCAL_SETTINGS = ['notifications.baseUrl', 'notifications.tailscaleHost', 'tools.markitdownBin', 'safety.allowedRoots', 'preview.portFrom', 'preview.portTo'] as const;
+export const LOCAL_SETTINGS = ['notifications.baseUrl', 'notifications.tailscaleHost', 'tools.markitdownBin', 'safety.allowedRoots', 'preview.portFrom', 'preview.portTo', 'memory.url', 'memory.excludedFolders'] as const;
 
 export const isLocalSetting = (path: string) => (LOCAL_SETTING_SECTIONS as readonly string[]).includes(path.split('.')[0]!) || (LOCAL_SETTINGS as readonly string[]).includes(path);
 export const isSecretSetting = (path: string) => (SECRET_SETTINGS as readonly string[]).includes(path);

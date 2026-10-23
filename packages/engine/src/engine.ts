@@ -98,6 +98,7 @@ import { NotificationDispatcher } from './notify/dispatcher.ts';
 import { TelegramBot } from './notify/telegram-bot.ts';
 import { DiscordBot } from './notify/discord-bot.ts';
 import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
+import { Memory, memorySessionEnv, type MemoryDeps } from './memory/memory.ts';
 import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
 import { type RevertInfo, type RevertRequest, revertInfo, revertWork, startRevert } from './delivery/revert.ts';
 import { buildReport } from './reports.ts';
@@ -354,6 +355,10 @@ export class Engine {
   private resumeTimers = new Map<AgentProvider, ReturnType<typeof setTimeout>>();
 
   readonly settings: SettingsStore;
+  /** Memory (ADR-0071): a Hindsight server the person runs remembers what a folder's goals did and taught; nothing while unset */
+  readonly memory: Memory;
+  /** test seam: a fake server behind Memory, and timeouts a test can wait for */
+  memoryDeps: MemoryDeps = {};
   /** pushes escalations / goal endings / delivery results / usage pauses to Telegram & Discord (Settings → Notifications) */
   readonly notifications: NotificationDispatcher;
   /** Telegram's buttons and replies: reads the bot's updates while the engine serves (ADR-0038) */
@@ -548,6 +553,7 @@ export class Engine {
     this.markitdown = new Markitdown({ bin: config.markitdownBin, log: config.log });
     this.context = this.buildContext();
     config.log(`[engine] context provider: ${this.context.name}`);
+    this.memory = new Memory(this);
     this.store.subscribe((e) => {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
       // a goal that ended teaches its folder something (ADR-0040)
@@ -619,6 +625,8 @@ export class Engine {
       ...(this.minimaxKey() ? { MINIMAX_API_KEY: this.minimaxKey()!, ...(this.mmxReady ? { MMX_CONFIG_DIR: mmxConfigDir(this.config.dataDir) } : {}) } : {}),
       ...(this.config.elevenlabsApiKey ? { ELEVENLABS_API_KEY: this.config.elevenlabsApiKey } : {}),
       ...(this.config.groqApiKey ? { GROQ_API_KEY: this.config.groqApiKey } : {}),
+      // Memory's bearer token for Codex, whose HTTP MCP servers read it from the environment (ADR-0071)
+      ...memorySessionEnv(this.settings.values().memory),
       // text-to-cad's cadgen: no usage stats and no update check from Foundry's own processes (the person's setting stays theirs)
       CADGEN_TELEMETRY: '0',
       CADGEN_UPDATE_CHECK: '0',
@@ -800,6 +808,8 @@ export class Engine {
     }
     // keys feed the skills env probe ("key missing" warnings) — refresh the cached statuses right away
     if (changed.some((k) => /^tools\.\w+(ApiKey|BaseUrl)$/.test(k))) Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
+    // another server, another token, or a folder left out: Memory connects anew and makes its banks ready again (ADR-0071)
+    if (changed.some((k) => k.startsWith('memory.'))) this.memory.reconfigure();
     const restartNeeded = this.settings.restartNeeded();
     this.store.append({ type: 'settings.changed', goalId: null, payload: { keys: changed, restartNeeded } });
     this.config.log(`[settings] changed ${changed.join(', ')}${restartNeeded.length ? ` (restart needed for ${restartNeeded.join(', ')})` : ''}`);
@@ -1204,6 +1214,8 @@ export class Engine {
     await settle([...this.landingDelegations.values(), ...this.approvingDelegated.values()], 10_000);
     // a learning session writes the folder's notebook when it ends (its session was killed above)
     await settle(learningWork(), 5_000);
+    // what Memory is still writing (a goal's record, a transcript) finishes, bounded (ADR-0071)
+    await settle(this.memory.pendingWork(), 5_000);
     // a deploy records how it ended (its commands were killed with the rest)
     await settle([...deployWork(), ...revertWork()], 5_000);
     // last of all, the database closes: a data directory deleted after stop() then holds a closed file (on macOS, a

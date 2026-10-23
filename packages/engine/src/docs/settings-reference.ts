@@ -67,6 +67,12 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'workflow.settingSources': { section: 'Skills', help: 'Which Claude settings sources sessions load (e.g. user, project, local); empty = all of them.' },
   'workflow.codexMcpAllowed': { section: 'Skills', help: 'Codex MCP servers worker sessions may use, as `mcp__<server>` prefixes. Managed in Extensions → Codex → MCP servers. Independent of the Claude allow list; empty by default.' },
   'workflow.mcpAllowed': { section: 'Skills', help: 'Claude MCP servers worker sessions may use, as tool prefixes (`mcp__<server>`, `mcp__plugin_<plugin>_<server>`, `mcp__claude_ai_<name>`). Set with the switches on the Skills page\'s MCP tab; sessions run without asking, so an unlisted server\'s tools are refused.' },
+  // Memory (ADR-0071), set up on the Extensions page's MCP servers tab
+  'memory.url': { section: 'Skills', help: 'Address of the Hindsight server that keeps Memory for your folders (http://127.0.0.1:8888 when it runs on this computer). Set from the Hindsight card on the Extensions page, MCP servers tab. Empty = Memory off: nothing is remembered or recalled.' },
+  'memory.token': { section: 'Skills', help: "The server's bearer token, when it asks for one (its HINDSIGHT_API_TENANT_API_KEY). Kept by the engine, which calls the server itself; Claude Code gets it in the hindsight server's headers, Codex reads it from HINDSIGHT_API_TOKEN in its sessions." },
+  'memory.retainTranscripts': { section: 'Skills', help: "Write each attempt's transcript to the folder's bank when the attempt ends, in compact form: the turns and one line per tool call, without arguments or outputs. Off = only Foundry's own records are written (the goal record, the Learnings, Brief revisions, review verdicts, replan reasons)." },
+  'memory.seedCommits': { section: 'Skills', help: "How many recent commit messages seed a folder's bank the first time Memory is used there, one document per commit (skipped when the bank already holds documents); 0 = none." },
+  'memory.excludedFolders': { section: 'Skills', help: 'Folders whose goals neither read nor write Memory (absolute paths). Switched from each folder\'s card on the Learnings page.' },
   // Git & delivery
   'sync.fetchBeforeGoal': { section: 'Git & delivery', help: 'Fetch the remote before a goal branch is created.' },
   'sync.startFrom': { section: 'Git & delivery', help: 'Where a goal branch starts: auto (the remote base when the local one is behind it) or local (always the local base).' },

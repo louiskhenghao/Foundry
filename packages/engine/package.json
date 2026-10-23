@@ -8,6 +8,7 @@
     "./agents-types": "./src/agents/types.ts",
     "./plugins-types": "./src/plugins/types.ts",
     "./mcp-types": "./src/mcp/types.ts",
+    "./memory-types": "./src/memory/types.ts",
     "./skills-types": "./src/skills/types.ts",
     "./usage-types": "./src/usage/types.ts",
     "./quota-windows": "./src/usage/quota-windows.ts"
@@ -15,6 +16,7 @@
   "dependencies": {
     "@foundry/core": "workspace:*",
     "@foundry/runner": "workspace:*",
+    "@vectorize-io/hindsight-client": "1.1.0",
     "playwright": "^1.63.0",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.23.5"

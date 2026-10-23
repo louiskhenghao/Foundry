@@ -177,6 +177,12 @@ function packageDir(root: string, id: string, store: string[] | null): string {
   return dir;
 }
 
+/**
+ * npm packages that ship no license file: the text is their repository's, copied into ./licenses at the release bun.lock
+ * pins and checked by hand, so nothing the image carries is credited without its license
+ */
+const LICENSE_BY_HAND: Record<string, string> = { '@vectorize-io/hindsight-client': 'hindsight-client.txt' };
+
 export function collectCredits(root = ROOT): Credits {
   const texts = new Map<string, string>();
   const keep = (text: string) => {
@@ -192,8 +198,9 @@ export function collectCredits(root = ROOT): Credits {
     const pj = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
     const files = readdirSync(dir).sort();
     const licenseFiles = files.filter((f) => LICENSE_FILE.test(f));
-    if (!licenseFiles.length) throw new Error(`${id} ships no license file: credit it by hand before it goes into the image`);
-    const text = clean(licenseFiles.map((f) => readFileSync(join(dir, f), 'utf8')).join('\n\n'));
+    const byHand = licenseFiles.length ? undefined : LICENSE_BY_HAND[pj.name];
+    if (!licenseFiles.length && !byHand) throw new Error(`${id} ships no license file: copy its repository's into scripts/credits/licenses and name it in LICENSE_BY_HAND before it goes into the image`);
+    const text = clean(byHand ? read(root, `scripts/credits/licenses/${byHand}`) : licenseFiles.map((f) => readFileSync(join(dir, f), 'utf8')).join('\n\n'));
     const noticeFile = files.find((f) => NOTICE_FILE.test(f));
     const notice = noticeFile ? clean(readFileSync(join(dir, noticeFile), 'utf8')) : undefined;
     const license = typeof pj.license === 'string' ? pj.license : pj.license?.type ?? 'UNKNOWN';
