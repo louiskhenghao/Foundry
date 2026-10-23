@@ -70,8 +70,9 @@ export function LearningsPage() {
   const [kind, setKind] = useState<LearningKind | 'all'>('all');
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed);
+  // the first load at once; a live change refetches after a short quiet, so a burst of events asks once
   useEffect(() => {
-    const t = setTimeout(() => api.learnings().then((r) => setRepos(r.repos)).catch(() => setRepos([])), 150);
+    const t = setTimeout(() => api.learnings().then((r) => setRepos(r.repos)).catch(() => setRepos([])), repos === null ? 0 : 150);
     return () => clearTimeout(t);
   }, [version]);
   // a save shows at once; the live update after it reads the same

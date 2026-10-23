@@ -82,9 +82,10 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
   const [u, setU] = useState<Usage | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // the first load at once; a live change refetches after a short quiet, so a burst of events asks once
   useEffect(() => {
     let current = true;
-    const t = setTimeout(() => api.usage(provider).then((value) => { if (current) { setU(value); setErr(null); } }).catch((e) => { if (current) setErr(e.message); }), 150);
+    const t = setTimeout(() => api.usage(provider).then((value) => { if (current) { setU(value); setErr(null); } }).catch((e) => { if (current) setErr(e.message); }), u === null ? 0 : 150);
     return () => { current = false; clearTimeout(t); };
   }, [version, provider]);
   const probe = async () => {

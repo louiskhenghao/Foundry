@@ -51,8 +51,9 @@ export function InboxPage() {
   const version = useLive((s) => s.globalVersion);
   const [list, setList] = useState<EscalationRow[] | null>(null);
   const [all, setAll] = useState(false);
+  // the first load at once; a live change refetches after a short quiet, so a burst of events asks once
   useEffect(() => {
-    const t = setTimeout(() => api.escalations(!all).then(setList).catch(() => {}), 150);
+    const t = setTimeout(() => api.escalations(!all).then(setList).catch(() => {}), list === null ? 0 : 150);
     return () => clearTimeout(t);
   }, [version, all]);
   const waiting = list?.filter((e) => e.state === 'open').length ?? 0;
