@@ -34,7 +34,7 @@ function opts(name: string): string[] {
 }
 const has = (name: string) => rest.includes(name);
 const positional = () => rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && !FLAGS.has(rest[i - 1]!)));
-const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--dry-run', '--password-stdin', '--all']);
+const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--dry-run', '--password-stdin', '--all', '--new']);
 const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
 
 async function api(path: string, init?: RequestInit): Promise<any> {
@@ -311,6 +311,14 @@ switch (cmd) {
     const id = positional()[0];
     if (!id) return usage();
     await watch(id);
+    break;
+  }
+  case 'ask': {
+    // the question is the words after the goal id, quoted or not
+    const [id, ...words] = positional();
+    const text = words.join(' ').trim();
+    if (!id || !text) return usage('ask <goalId> "<question>" [--new]');
+    await ask(id, text, has('--new'));
     break;
   }
   case 'diff': {
@@ -681,9 +689,86 @@ function fmtK(n: number) {
   return n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
 }
 
+/** the live feed's address, the person's token on it: a WebSocket cannot carry the bearer header (ADR-0061) */
+function wsAddress(): string {
+  return BASE.replace(/^http/, 'ws') + '/ws' + (process.env.FOUNDRY_TOKEN ? `?token=${encodeURIComponent(process.env.FOUNDRY_TOKEN)}` : '');
+}
+
+/** what the Explainer is doing, from its tool call, for the lines beside the answer: Claude's tools by name, Codex's and Antigravity's by what the call says */
+function describeTool(ev: { name: string; input: any }): string {
+  const i: Record<string, unknown> = ev.input && typeof ev.input === 'object' ? ev.input : {};
+  const tail = (p: unknown) => String(p ?? '').split('/').filter(Boolean).slice(-2).join('/');
+  const short = (s: unknown, n = 80) => String(s ?? '').replace(/\s+/g, ' ').slice(0, n);
+  // Codex wraps every command in its login shell
+  const plain = (c: unknown) => String(c ?? '').replace(/^(?:\/bin\/)?(?:zsh|bash|sh)\s+-lc\s+/, '').replace(/^(['"])([\s\S]*)\1$/, '$2');
+  const field = (re: RegExp) => Object.entries(i).find(([k, v]) => re.test(k) && typeof v === 'string' && v)?.[1] as string | undefined;
+  if (ev.name === 'Read') return `reading ${tail(i.file_path)}`;
+  if (ev.name === 'Grep' || ev.name === 'Glob') return `searching for ${short(i.pattern, 60)}`;
+  if (ev.name === 'Bash') return `running ${short(plain(i.command))}`;
+  if (ev.name.startsWith('mcp__')) return `asking ${ev.name.split('__')[1] ?? 'a tool'}`;
+  const name = ev.name.toLowerCase();
+  if (/command|shell|exec/.test(name)) return `running ${short(plain(field(/command/i) ?? Object.values(i).find((v) => typeof v === 'string')))}`;
+  if (/read|view|open|cat/.test(name)) return `reading ${tail(field(/path|file/i)) || 'a file'}`;
+  if (/grep|search|find/.test(name)) return `searching for ${short(field(/query|pattern|search/i), 60) || '…'}`;
+  if (/list|dir|ls/.test(name)) return `listing ${tail(field(/path|dir/i)) || 'the folder'}`;
+  return ev.name;
+}
+
+/**
+ * A question to a goal's Explainer (Conversation, ADR-0073): kept by the server at once, its answer streamed here as it is
+ * written, then how it ended and what it cost. Without the live feed the answer is fetched once it is there.
+ */
+async function ask(goalId: string, text: string, fresh: boolean): Promise<void> {
+  const started = await api(`/api/goals/${goalId}/conversations/ask`, { method: 'POST', body: JSON.stringify({ text, fresh }) });
+  const { conversationId, messageId, channel } = started;
+  const costAvailable = (await api(`/api/goals/${goalId}`)).goal.provider !== 'codex';
+  const summary = (p: any) => `\n— ${p.status}${p.reason ? ` (${p.reason})` : ''} · ${costAvailable && p.costAvailable ? `$${Number(p.costUsd).toFixed(3)}` : 'cost unavailable'}${p.model ? ` · ${p.model}` : ''}`;
+  await new Promise<void>((done) => {
+    let streamed = false;
+    let finished = false;
+    const finish = (line: string) => {
+      if (finished) return;
+      finished = true;
+      console.log(line);
+      done();
+    };
+    // the answer read back once it is there: for a feed that could not be opened
+    const poll = async () => {
+      for (;;) {
+        await Bun.sleep(2000);
+        const v = await api(`/api/goals/${goalId}/conversations`);
+        const a = v.conversations.find((c: any) => c.id === conversationId)?.messages.find((m: any) => m.askedId === messageId);
+        if (a) return finish(`${a.text}${summary(a)}`);
+      }
+    };
+    const ws = new WebSocket(wsAddress());
+    ws.onmessage = (m) => {
+      const msg = JSON.parse(String(m.data));
+      if (msg.kind === 'stream' && msg.stream.attemptId === channel) {
+        const ev = msg.stream.event;
+        if (ev.kind === 'text_delta') {
+          streamed = true;
+          process.stdout.write(ev.text);
+        } else if (ev.kind === 'text' && !streamed) console.log(ev.text);
+        else if (ev.kind === 'tool_use') console.error(`  ⚙ ${describeTool(ev)}`);
+      } else if (msg.kind === 'event' && msg.event.type === 'conversation.answered' && msg.event.payload.askedId === messageId) {
+        const p = msg.event.payload;
+        if (streamed) process.stdout.write('\n');
+        else if (p.text && p.status !== 'done') console.log(p.text);
+        finish(summary(p));
+        ws.close();
+      }
+    };
+    ws.onerror = () => ws.close();
+    ws.onclose = () => {
+      if (!finished) void poll();
+    };
+  });
+}
+
 async function watch(goalId: string): Promise<void> {
   const costAvailable = (await api(`/api/goals/${goalId}`)).goal.provider !== 'codex';
-  const wsUrl = BASE.replace(/^http/, 'ws') + '/ws';
+  const wsUrl = wsAddress();
   await new Promise<void>((resolveDone) => {
     const ws = new WebSocket(wsUrl);
     ws.onopen = () => console.log(`watching ${goalId} … (ctrl-c to stop)`);
