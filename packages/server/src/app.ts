@@ -1469,6 +1469,44 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { op, result } = await ops.run('uninstall', `Remove MCP server ${name}`, { id: opId }, (say) => mcpFor(c).remove(name, say), (r) => ({ ok: r.ok, summary: r.ok ? `removed ${name}` : (r.error ?? 'remove failed') }));
     return c.json({ ...result, op });
   });
+
+  // ---------- Memory (ADR-0071): a Hindsight server the person runs, set up from the Hindsight card of the MCP tab ----------
+  app.get('/api/memory', async (c) => c.json(await engine.memory.status()));
+  // try an address before saving it; an empty token means the saved one
+  app.post('/api/memory/test', async (c) => {
+    const { url, token } = z.object({ url: z.string().url().max(500), token: z.string().max(4000).nullable().optional() }).parse(await c.req.json());
+    return c.json(await engine.memory.probe({ url, token: token ? token : token === null ? null : engine.settings.values().memory.token }));
+  });
+  // save the card: url null = Memory off; token absent or empty = keep the saved one, null = forget it
+  app.put('/api/memory', async (c) => {
+    const body = z.object({ url: z.string().url().max(500).nullable(), token: z.string().max(4000).nullable().optional(), retainTranscripts: z.boolean().optional(), seedCommits: z.number().int().min(0).max(5000).optional() }).parse(await c.req.json());
+    engine.updateSettings({
+      memory: {
+        url: body.url,
+        ...(body.token === null ? { token: null } : body.token ? { token: body.token } : {}),
+        ...(body.retainTranscripts !== undefined ? { retainTranscripts: body.retainTranscripts } : {}),
+        ...(body.seedCommits !== undefined ? { seedCommits: body.seedCommits } : {}),
+      },
+    });
+    return c.json(await engine.memory.status());
+  });
+  // the hindsight MCP server in a coding agent's own configuration, at user scope (ADR-0016), then allowed in goals
+  app.post('/api/memory/mcp', async (c) => {
+    const { provider, opId, remove } = z.object({ provider: AgentProvider, opId: OpId, remove: z.boolean().default(false) }).parse(await c.req.json());
+    const { op, result } = await ops.run(remove ? 'uninstall' : 'install', `${remove ? 'Disconnect' : 'Connect'} Memory for ${provider}`, { id: opId }, (say) => (remove ? engine.memory.removeMcp(provider, say) : engine.memory.installMcp(provider, say)), (r) => ({ ok: r.ok, summary: r.ok ? `hindsight ${remove ? 'removed from' : 'connected to'} ${provider}` : (r.error ?? 'failed') }));
+    return c.json({ ...result, op });
+  });
+  // a folder's bank, and whether its goals use Memory (the Learnings page card)
+  app.get('/api/memory/folder', async (c) => {
+    const repo = c.req.query('repo') ?? '';
+    if (!repo.startsWith('/')) throw new HttpError(400, { error: 'repo is an absolute path' });
+    return c.json(await engine.memory.folderStatus(repo));
+  });
+  app.put('/api/memory/folder', async (c) => {
+    const { repoPath, on } = z.object({ repoPath: z.string().startsWith('/'), on: z.boolean() }).parse(await c.req.json());
+    engine.memory.setFolder(repoPath, on);
+    return c.json(await engine.memory.folderStatus(repoPath));
+  });
   app.post('/api/skills/cleanup-shadows', async (c) => {
     const { names } = z.object({ names: z.array(z.string()).min(1) }).parse(await c.req.json());
     return c.json(await skillsFor(c).cleanupShadows(names));
