@@ -12,6 +12,7 @@ import { metaFor, modelFor } from './models/roles.ts';
 import type { Engine } from './engine.ts';
 import { git, isDirty } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
+import { memoryQuestion, memorySection } from './memory/prompt.ts';
 import { hasStackManifest } from './skills/autoskills.ts';
 import { startSentence } from './follow-up.ts';
 import { readdirSync } from 'node:fs';
@@ -150,8 +151,14 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const synced = getGoal(store.db, goal.id) ?? goal;
   const followUp = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
   // a Delegated goal: the main goal, what was decided there, and what the steps before it delivered
-  // what the goal follows, what it is part of, and what earlier goals in this folder learned (ADR-0040)
-  const previous = [followUp, delegationContext(engine, goal), learningsContext(engine, goal)].filter(Boolean).join('\n\n');
+  // what the goal follows, what it is part of, what earlier goals in this folder learned (ADR-0040), and what the folder's
+  // Memory says about goals like it (ADR-0072; the planner is given the same answer)
+  const [recalled, aboutPerson] = await Promise.all([
+    engine.memory.reflect('clarify', memoryQuestion('clarify', { goalTitle: goal.title, goalPrompt: goal.prompt }), { repoPath: goal.repoPath, goalId: goal.id }),
+    // and what the person's own bank says about them: how they decide, what they ask for in every project
+    engine.memory.reflectPerson(memoryQuestion('person', { goalTitle: goal.title, goalPrompt: goal.prompt }), { repoPath: goal.repoPath, goalId: goal.id }),
+  ]);
+  const previous = [followUp, delegationContext(engine, goal), learningsContext(engine, goal), recalled ? memorySection(recalled.text, { tools: false, kind: recalled.kind }) : '', aboutPerson ? memorySection(aboutPerson.text, { tools: false, about: 'person', kind: aboutPerson.kind }) : ''].filter(Boolean).join('\n\n');
   const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = jsonSchemaFor(goal.interview ? InterviewOutput : BriefSkeleton);

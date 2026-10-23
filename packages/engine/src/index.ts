@@ -65,6 +65,11 @@ export { engineTransferHost, exportTransfer, type ExportOptions, type ExportResu
 export { ImportChoices, applyIncoming, discardIncoming, inspectIncoming, receiveTransfer, sweepIncoming, unlockIncomingSecrets, type ImportReport, type IncomingReport, type SecretsPreview } from './transfer/import.ts';
 export { mapRepo, reattachGoal, type MapResult } from './transfer/reattach.ts';
 export { learnFromGoal, learningsContext, learningsForWorker, mergeLearnings } from './learnings.ts';
+export { Memory, MCP_SERVER_NAME, MCP_SERVER_PREFIX, REFLECT_MAX_CHARS, REFLECT_TIMEOUT_MS, TOKEN_ENV, memorySessionEnv, type MemoryDeps } from './memory/memory.ts';
+export { MEMORY_HEADING, memoryQuestion, memorySection } from './memory/prompt.ts';
+export { compactTranscript } from './memory/compact.ts';
+export { bankIdFor } from './memory/bank.ts';
+export type * from './memory/types.ts';
 export { deployability } from './deploy/detect.ts';
 export { DEPLOY_PROVIDERS, PROVIDER_LABEL } from './deploy/providers.ts';
 export { Access, AccessError, type Person } from './access.ts';

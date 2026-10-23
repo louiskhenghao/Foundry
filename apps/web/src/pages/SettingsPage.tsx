@@ -528,6 +528,17 @@ export function SettingsPage() {
           )}
           {bool('workflow.mcpDynamicTools', 'MCP tools that run or change things', 'Let sessions use the tools of allowed MCP servers that run or change things — for REA: launching the target app, attaching a debugger, touching a connected Android device. Off: static analysis only (binaries, apps, packages, websites, captures).')}
           {bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). Uses .claude/skills for Claude and .agents/skills for Codex and Antigravity. The generated CLAUDE.md is restored and the skills are git-excluded.')}
+          <p className="text-[11px] text-ink-faint">
+            Memory — a Hindsight server that remembers what each folder’s goals did and taught — is set up on the{' '}
+            <Link to="/skills?provider=claude#mcp" className="underline hover:text-ink">
+              Extensions page, MCP servers tab
+            </Link>
+            ; each folder’s switch is on the{' '}
+            <Link to="/learnings" className="underline hover:text-ink">
+              Learnings page
+            </Link>
+            .
+          </p>
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="text-sm font-bold text-ink">Design skills</span>

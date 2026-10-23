@@ -83,6 +83,12 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'notifications.baseUrl': { name: 'FOUNDRY_NOTIFY_BASE_URL', parse: str },
   'notifications.tailscale': { name: 'FOUNDRY_TAILSCALE', parse: str },
   'notifications.tailscaleHost': { name: 'FOUNDRY_TAILSCALE_HOST', parse: str },
+  // the names Hindsight's own clients read, so a compose file that sets them serves both (ADR-0072)
+  'memory.url': { name: 'HINDSIGHT_API_URL', parse: str },
+  'memory.token': { name: 'HINDSIGHT_API_TOKEN', parse: str },
+  'memory.retainTranscripts': { name: 'FOUNDRY_MEMORY_TRANSCRIPTS', parse: bool },
+  'memory.reflectSec': { name: 'FOUNDRY_MEMORY_REFLECT_SEC', parse: num },
+  'memory.seedCommits': { name: 'FOUNDRY_MEMORY_SEED_COMMITS', parse: num },
 };
 
 /** setting path → the environment variable that seeds it (documentation, reference.test.ts) */

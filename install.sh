@@ -22,6 +22,8 @@
 #   --port N                    the port to serve on (default: 4111, or the next free one)    [FOUNDRY_PORT]
 #   --ref BRANCH|TAG            source: what to check out                       [FOUNDRY_REF, default main]
 #   --with "markitdown chromium docker ffmpeg"   source: exactly these optional tools   [FOUNDRY_WITH]
+#   --with hindsight            docker: a Hindsight server beside Foundry for Memory (ADR-0072), with an LLM key
+#                               of yours (asked, or HINDSIGHT_API_LLM_PROVIDER / _API_KEY / _MODEL)
 #   --yes                       take every default, ask nothing
 #   --no-start                  set up, but do not start Foundry
 #   --no-open                   do not open the browser
@@ -45,6 +47,8 @@ ORIG_PATH="$PATH"
 
 # settings: flags › environment › the earlier install › defaults
 MODE="" AGENT="" DIR="" REPOS="" PORT="" REF="" REPO="" HOST_DOCKER="" SERVICE=""
+# docker: a Hindsight server for Memory (ADR-0072); its key lives in hindsight.env beside the compose file, never here
+MEMORY="" HINDSIGHT_PROVIDER="" HINDSIGHT_MODEL="" HINDSIGHT_KEY=""
 YES=0 START=1 OPEN=1 MODIFY_PATH=1 DRY=0 PURGE=0 WITH="${FOUNDRY_WITH:-}"
 
 main() {
@@ -103,7 +107,7 @@ save_state() {
   mkdir -p "$STATE_DIR"
   {
     printf '# written by the Foundry installer; `foundry` reads it\n'
-    for k in MODE AGENT DIR REPOS PORT REF REPO HOST_DOCKER SERVICE; do printf '%s=%q\n' "$k" "${!k}"; done
+    for k in MODE AGENT DIR REPOS PORT REF REPO HOST_DOCKER SERVICE MEMORY HINDSIGHT_PROVIDER HINDSIGHT_MODEL; do printf '%s=%q\n' "$k" "${!k}"; done
   } > "$STATE"
 }
 
@@ -145,6 +149,14 @@ ask() { # ask "question" default → the answer (the default without a terminal 
 yesno() { # yesno "question" y|n → 0 for yes
   local hint="y/N"; [ "$2" = y ] && hint="Y/n"
   case "$(ask "  $1 [$hint] " "$2")" in [Yy]*) return 0 ;; *) return 1 ;; esac
+}
+ask_secret() { # ask "question" default → the answer, typed without echo (a key)
+  local reply=""
+  if [ -z "$TTY" ]; then printf '%s' "$2"; return; fi
+  printf '%s' "$1" >"$TTY"
+  read -rs reply <"$TTY" || reply=""
+  printf '\n' >"$TTY"
+  printf '%s' "${reply:-$2}"
 }
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -257,6 +269,8 @@ install_source() {
   need_gh
   need_node
   choose_optional
+  # Memory's server is a Docker component: from source, the person runs one and pastes its address on the Extensions page
+  case " $WITH " in *" hindsight "*) warn "hindsight is a Docker component (--mode docker --with hindsight); from source, start a Hindsight server yourself and set its address on the Extensions page, MCP servers tab" ;; esac
   get_foundry
   [ "$OPT_MARKITDOWN" = y ] && need_markitdown
   [ "$OPT_CHROMIUM" = y ] && need_chromium
@@ -753,9 +767,11 @@ install_docker() {
     yesno "Share this computer's Docker with Foundry?" y && HOST_DOCKER=1 || HOST_DOCKER=0
   fi
   pick_port
+  choose_memory
   if [ "$DRY" = 1 ]; then
     plan "pull $IMAGE:latest, write $DIR/docker-compose.yml, .env and docker-compose.override.yml"
     plan "share $REPOS (at the same path and at /repos), ~/.gitconfig$([ -f "$HOME/.config/gh/hosts.yml" ] && echo ', your GitHub CLI sign-in')$([ "$HOST_DOCKER" = 1 ] && echo ", this computer's Docker")"
+    [ "$MEMORY" = 1 ] && plan "run a Hindsight server for Memory beside Foundry (compose profile memory, LLM provider $HINDSIGHT_PROVIDER$([ -n "$HINDSIGHT_KEY" ] && echo ' with the key given' || echo ', no key yet'); its key goes to $DIR/hindsight.env)"
     plan "start it on port $PORT and offer to sign in inside the container"
     return
   fi
@@ -766,6 +782,7 @@ install_docker() {
   $DOCKER run --rm --entrypoint cat "$IMAGE:latest" /app/docker-compose.yml >"$DIR/docker-compose.yml"
   write_docker_env
   write_docker_override
+  write_hindsight_env
   step "Starting Foundry"
   compose up -d >/dev/null
   wait_healthy
@@ -783,6 +800,51 @@ FOUNDRY_PROVIDER=$(provider)
 FOUNDRY_PORT=$PORT
 FOUNDRY_WATCHTOWER_TOKEN=$token
 EOF
+  # Memory (ADR-0072): the compose profile that starts the Hindsight service, and where Foundry finds it
+  [ "$MEMORY" = 1 ] && cat >>"$DIR/.env" <<EOF
+COMPOSE_PROFILES=memory
+HINDSIGHT_API_URL=http://hindsight:8888
+EOF
+  return 0
+}
+
+# docker: a Hindsight server for Memory (ADR-0072), chosen with --with hindsight or asked once; its LLM is the person's
+choose_memory() {
+  case " $WITH " in *" hindsight "*) MEMORY=1 ;; esac
+  if [ -z "$MEMORY" ]; then
+    if [ -z "$TTY" ] || [ "$YES" = 1 ]; then MEMORY=0
+    else
+      note "Memory: a Hindsight server beside Foundry remembers what each folder's goals did and taught, and every"
+      note "stage asks it first. It needs 1.5–2 GB of memory, a 3.7–9 GB image, and an LLM key of yours."
+      yesno "Run a Hindsight server for Memory?" n && MEMORY=1 || MEMORY=0
+    fi
+  fi
+  [ "$MEMORY" = 1 ] || return 0
+  HINDSIGHT_PROVIDER="${HINDSIGHT_API_LLM_PROVIDER:-${HINDSIGHT_PROVIDER:-openai}}"
+  HINDSIGHT_MODEL="${HINDSIGHT_API_LLM_MODEL:-$HINDSIGHT_MODEL}"
+  HINDSIGHT_KEY="${HINDSIGHT_API_LLM_API_KEY:-}"
+  # a key given before stays unless a new one is typed
+  [ -n "$HINDSIGHT_KEY" ] || HINDSIGHT_KEY="$(grep -s '^HINDSIGHT_API_LLM_API_KEY=' "$DIR/hindsight.env" | cut -d= -f2- || true)"
+  if [ -n "$TTY" ] && [ "$YES" = 0 ]; then
+    HINDSIGHT_PROVIDER="$(ask "  Hindsight's LLM provider (openai, anthropic, gemini, groq, openrouter …) [$HINDSIGHT_PROVIDER]: " "$HINDSIGHT_PROVIDER")"
+    HINDSIGHT_KEY="$(ask_secret "  Its API key$([ -n "$HINDSIGHT_KEY" ] && echo ' (Enter keeps the saved one)'): " "$HINDSIGHT_KEY")"
+    HINDSIGHT_MODEL="$(ask "  Its model (Enter for the provider's default)$([ -n "$HINDSIGHT_MODEL" ] && echo " [$HINDSIGHT_MODEL]"): " "$HINDSIGHT_MODEL")"
+  fi
+  [ -n "$HINDSIGHT_KEY" ] || warn "no LLM key for Hindsight: the server starts, but extracts and answers nothing until HINDSIGHT_API_LLM_API_KEY is set in $DIR/hindsight.env"
+  return 0
+}
+
+# the Hindsight service's own variables, in a file of their own (mode 600): the compose file reads it when it exists
+write_hindsight_env() {
+  [ "$MEMORY" = 1 ] || return 0
+  {
+    echo "# written by the Foundry installer: the LLM Hindsight extracts and answers with (ADR-0072)"
+    echo "HINDSIGHT_API_LLM_PROVIDER=$HINDSIGHT_PROVIDER"
+    echo "HINDSIGHT_API_LLM_API_KEY=$HINDSIGHT_KEY"
+    [ -n "$HINDSIGHT_MODEL" ] && echo "HINDSIGHT_API_LLM_MODEL=$HINDSIGHT_MODEL"
+  } >"$DIR/hindsight.env"
+  chmod 600 "$DIR/hindsight.env"
+  return 0
 }
 
 write_docker_override() {

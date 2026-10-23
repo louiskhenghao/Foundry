@@ -1,6 +1,7 @@
 import type { Learning, LearningKind, RepoLearnings } from '@foundry/core/browser';
 import { LEARNINGS_EVERYWHERE } from '@foundry/core/browser';
-import { Globe, NotebookPen, SearchX } from 'lucide-react';
+import type { MemoryFolderStatus } from '@foundry/engine/memory-types';
+import { Brain, Globe, NotebookPen, SearchX } from 'lucide-react';
 import { ChevronDown, ChevronRight, Folder, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -230,6 +231,7 @@ function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSave
             <span className="mono">{n}</span> learning{n === 1 ? '' : 's'}
           </span>
         </div>
+        <MemoryLine repoPath={repo.repoPath} everywhere={everywhere} />
       </div>
       {open && (
         <div id={panel} className="border-t border-line bg-sunken/60">
@@ -246,6 +248,59 @@ function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSave
       )}
       {editing && <LearningDialog repoPath={repo.repoPath} learning={editing.learning} onClose={() => setEditing(null)} onSaved={(ls) => onSaved(repo.repoPath, ls)} />}
     </li>
+  );
+}
+
+/**
+ * Memory (ADR-0072) under a folder: the Hindsight bank its goals share with the person's own sessions there, and the
+ * switch that leaves the folder out or takes it back in. Nothing for a folder that is no git repository. Under the
+ * everywhere notebook: the person's own bank, which every folder's goals write their decisions and answers to.
+ */
+export function MemoryLine({ repoPath, everywhere = false, initial = null }: { repoPath: string; everywhere?: boolean; initial?: MemoryFolderStatus | null }) {
+  const [mem, setMem] = useState<MemoryFolderStatus | null>(initial);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (initial) return;
+    api.memoryFolder(repoPath).then(setMem).catch(() => setMem(null));
+  }, [repoPath]);
+  if (!mem) return null;
+  const toggle = async (on: boolean) => {
+    setBusy(true);
+    try {
+      setMem(await api.setMemoryFolder(repoPath, on));
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (everywhere) {
+    return (
+      <div className="mt-1 flex items-center gap-2 text-xs text-ink-faint min-w-0 pl-6">
+        <Brain size={12} className="shrink-0" aria-hidden="true" />
+        <span className="mono truncate" title="your own Hindsight bank: what you decided, answered and asked for, from every folder's goals">
+          {mem.bank}
+        </span>
+        <span className="truncate">{mem.enabled ? 'your decisions and answers from every folder' : 'your decisions and answers from every folder (no server set)'}</span>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-1 flex items-center gap-2 text-xs text-ink-faint min-w-0 pl-6">
+      <Brain size={12} className="shrink-0" aria-hidden="true" />
+      {mem.bank === null ? (
+        <span>no Memory: not a git repository</span>
+      ) : (
+        <>
+          <span className="mono truncate" title="the Hindsight bank this folder's goals share with your own sessions here">
+            {mem.bank}
+          </span>
+          {/* above the fold button, which covers the row */}
+          <label className="relative z-10 flex items-center gap-1.5 font-semibold text-ink-soft cursor-pointer shrink-0" title={mem.excluded ? 'Left out: its goals neither read nor write the bank' : 'Its goals read and write the bank while a Hindsight server is set up (Extensions → MCP servers)'}>
+            <input type="checkbox" checked={!mem.excluded} disabled={busy} onChange={(e) => void toggle(e.target.checked)} /> Memory
+            {!mem.excluded && !mem.enabled && <span className="font-normal">(no server set)</span>}
+          </label>
+        </>
+      )}
+    </div>
   );
 }
 

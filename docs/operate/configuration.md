@@ -71,6 +71,12 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.mcpAllowed` | `mcp__plugin_media-pipeline_media-pipeline` | — | Claude MCP servers worker sessions may use, as tool prefixes (`mcp__<server>`, `mcp__plugin_<plugin>_<server>`, `mcp__claude_ai_<name>`). Set with the switches on the Skills page's MCP tab; sessions run without asking, so an unlisted server's tools are refused. |
 | `workflow.codexMcpAllowed` | — | — | Codex MCP servers worker sessions may use, as `mcp__<server>` prefixes. Managed in Extensions → Codex → MCP servers. Independent of the Claude allow list; empty by default. |
 | `workflow.mcpDynamicTools` | `false` | `FOUNDRY_MCP_DYNAMIC_TOOLS` | Let sessions use the tools of allowed MCP servers that run or change things: for REA, launching the target app, attaching a debugger, touching a connected Android device. Off = static analysis only. |
+| `memory.url` | — | `HINDSIGHT_API_URL` | Address of the Hindsight server that keeps Memory for your folders (http://127.0.0.1:8888 when it runs on this computer). Set from the Hindsight card on the Extensions page, MCP servers tab. Empty = Memory off: nothing is remembered or recalled. |
+| `memory.token` | — | `HINDSIGHT_API_TOKEN` | The server's bearer token, when it asks for one (its HINDSIGHT_API_TENANT_API_KEY). Kept by the engine, which calls the server itself; Claude Code gets it in the hindsight server's headers, Codex reads it from HINDSIGHT_API_TOKEN in its sessions. |
+| `memory.retainTranscripts` | `true` | `FOUNDRY_MEMORY_TRANSCRIPTS` | Write each attempt's transcript to the folder's bank when the attempt ends, in compact form: the turns and one line per tool call, without arguments or outputs. Off = only Foundry's own records are written (the goal record, the Learnings, Brief revisions, review verdicts, replan reasons). |
+| `memory.reflectSec` | `20` | `FOUNDRY_MEMORY_REFLECT_SEC` | How long a stage waits for the bank's answer (reflect) before it is given the memories themselves (recall, found without a model in well under a second) and goes on. 20 s suits a server with an API-key LLM; one whose LLM is a coding agent's CLI (claude-code, openai-codex) answers in 60–120 s. Set on the Hindsight card. |
+| `memory.seedCommits` | `300` | `FOUNDRY_MEMORY_SEED_COMMITS` | How many recent commit messages seed a folder's bank the first time Memory is used there, one document per commit (skipped when the bank already holds documents); 0 = none. Set on the Hindsight card. |
+| `memory.excludedFolders` | — | — | Folders whose goals neither read nor write Memory (absolute paths). Switched from each folder's card on the Learnings page. |
 
 ## Git & delivery
 
@@ -170,4 +176,6 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `FOUNDRY_HOST_REPOS` | Docker: the projects folder shared at the same path as on the host; the folder picker starts there (set by the installer). |
 | `FOUNDRY_HOST_DOCKER / FOUNDRY_CONTAINER` | Docker: the host's Docker socket is shared, so preview services start there in this container's network (container name, default foundry). Set by the installer (ADR-0024). |
 | `FOUNDRY_SKIP_SETUP` | Docker: skip installing the graphify skill into a fresh Claude home on first start. |
+| `COMPOSE_PROFILES` | Docker compose only: `memory` starts the Hindsight service beside Foundry for Memory (ADR-0072); `install.sh --with hindsight` writes it to .env with HINDSIGHT_API_URL=http://hindsight:8888. |
+| `HINDSIGHT_API_LLM_PROVIDER / HINDSIGHT_API_LLM_API_KEY / HINDSIGHT_API_LLM_MODEL` | Docker compose only, in hindsight.env beside the compose file (mode 600): the LLM the Hindsight service extracts and answers with; the installer asks for them. |
 | `CLAUDE_CONFIG_DIR` | Alternative to FOUNDRY_CLAUDE_HOME. |

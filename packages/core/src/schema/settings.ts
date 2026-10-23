@@ -244,6 +244,25 @@ export const ChecksSettings = z.object({
   /** default for new goals: after each integration, open the preview headless, screenshot it, fail on console/network errors */
   selfCheck: z.boolean().default(false),
 });
+/**
+ * Memory (ADR-0072): a Hindsight server the person runs remembers what a folder's goals did and taught, and every stage
+ * asks it before it starts. Set up on the Extensions page (MCP servers); nothing here runs while `url` is empty.
+ */
+export const MemorySettings = z.object({
+  /** address of the Hindsight server (http://127.0.0.1:8888 when it runs here); null = Memory off */
+  url: z.string().url().nullable().default(null),
+  /** its bearer token when the server asks for one; kept by the engine, which calls the server itself */
+  token: z.string().min(1).nullable().default(null),
+  /** each attempt's transcript, in compact form, is written to the folder's bank when the attempt ends */
+  retainTranscripts: z.boolean().default(true),
+  /** how long a stage waits for the bank's answer (reflect) before it is given the memories themselves (recall) instead; a server whose LLM is a coding agent's CLI needs 60–120 s */
+  reflectSec: z.number().int().min(5).max(300).default(20),
+  /** recent commit messages that seed a folder's bank the first time Memory is used there; 0 = none */
+  seedCommits: z.number().int().min(0).max(5000).default(300),
+  /** folders (absolute paths) whose goals neither read nor write Memory */
+  excludedFolders: z.array(z.string()).default([]),
+});
+export type MemorySettings = z.infer<typeof MemorySettings>;
 
 export const Settings = z.object({
   engine: EngineSettings.default({}),
@@ -259,6 +278,7 @@ export const Settings = z.object({
   preview: PreviewSettings.default({}),
   checks: ChecksSettings.default({}),
   accounts: AccountSettings.default({}),
+  memory: MemorySettings.default({}),
 });
 export type Settings = z.infer<typeof Settings>;
 export const DEFAULT_SETTINGS: Settings = Settings.parse({});
@@ -278,6 +298,7 @@ export const SettingsPatch = z.object({
   preview: PreviewSettings.partial().optional(),
   checks: ChecksSettings.partial().optional(),
   accounts: AccountSettings.partial().optional(),
+  memory: MemorySettings.partial().optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatch>;
 
@@ -288,7 +309,7 @@ export const RESTART_SETTINGS = ['engine.provider', 'engine.codexBin', 'engine.c
  * leaves that hold a credential: the settings view sent to the browser carries them as null, with only whether each is
  * set and a masked hint, so a key never travels back to a page (or a phone over Tailscale) after it was saved
  */
-export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl', 'notifications.discordBotToken', 'delivery.vercelToken', 'delivery.netlifyToken', 'delivery.cloudflareToken'] as const;
+export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl', 'notifications.discordBotToken', 'delivery.vercelToken', 'delivery.netlifyToken', 'delivery.cloudflareToken', 'memory.token'] as const;
 export interface SecretState {
   set: boolean;
   /** e.g. "sk-c…a3f9"; null = not set */

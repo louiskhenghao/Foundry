@@ -25,7 +25,16 @@ export interface McpManagerOptions {
 /** a server added by hand: stdio needs a command, http/sse a URL */
 export interface CustomServer {
   name: string;
-  config: { type: 'stdio'; command: string; args?: string[] } | { type: 'http' | 'sse'; url: string };
+  config:
+    | { type: 'stdio'; command: string; args?: string[] }
+    | {
+        type: 'http' | 'sse';
+        url: string;
+        /** sent with every request (a bearer token): Claude Code keeps them in its own configuration (Memory, ADR-0072) */
+        headers?: Record<string, string>;
+        /** Codex takes no header: it reads the bearer token from this variable of the session's environment */
+        bearerTokenEnvVar?: string;
+      };
 }
 
 /** what Claude Code accepts as a server name, minus "__", which would split its tool rules (mcp__a__b = tool b of a) */
@@ -92,7 +101,8 @@ export class McpManager {
       if ('catalogId' in what && !entry) return { ok: false, error: `no MCP catalog entry ${what.catalogId}` };
       const name = entry?.name ?? ('custom' in what ? what.custom.name : '');
       if (!SERVER_NAME.test(name)) return { ok: false, error: 'a server name is letters, digits and "-", with single "_" between them (up to 64)' };
-      const base = (entry ? entry.config : 'custom' in what ? what.custom.config : {}) as { type?: string };
+      // the variable Codex reads a bearer token from means nothing to Claude Code, which takes the header itself
+      const { bearerTokenEnvVar: _codexOnly, ...base } = (entry ? entry.config : 'custom' in what ? what.custom.config : {}) as { type?: string; headers?: Record<string, string>; bearerTokenEnvVar?: string };
       const missing = (entry?.keys ?? []).filter((k) => !keys[k.name]?.trim()).map((k) => k.name);
       if (missing.length) return { ok: false, error: `${missing.join(', ')} is needed` };
       const env = Object.fromEntries(Object.entries(keys).filter(([, v]) => v.trim()).map(([k, v]) => [k, v.trim()]));
@@ -106,7 +116,8 @@ export class McpManager {
         if (!gone.ok) return gone;
       }
       const config = { ...base, ...(Object.keys(env).length ? { env } : {}) };
-      const r = await this.run(['mcp', 'add-json', '--scope', 'user', name, JSON.stringify(config)], say, Object.values(env));
+      // a header's value is a key as much as an environment entry is: neither shows in the echoed command
+      const r = await this.run(['mcp', 'add-json', '--scope', 'user', name, JSON.stringify(config)], say, [...Object.values(env), ...Object.values(base.headers ?? {})]);
       if (!r.ok) return r;
       const allowed = existing ? wasAllowed : !!entry;
       this.allow(userPrefix(name), allowed);

@@ -820,6 +820,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       brief: getBrief(db, id),
       // what earlier goals in this folder learned (ADR-0040): how many, for the link to them
       learningsCount: engine.learnings(goal.repoPath).length,
+      // what the folder's Memory told this goal's stages, and what the goal wrote back (ADR-0072)
+      memory: engine.memory.goalView(id),
       escalations: listEscalations(db, { goalId: id }).map(e => ({ ...e, provider: goal.provider ?? engine.config.provider })),
       events: engine.store.listByGoal(id, 300),
       // every milestone visit and walkthrough, which a long goal pushes out of the latest events
@@ -1468,6 +1470,45 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const { name, opId } = z.object({ name: z.string().regex(SERVER_NAME), opId: OpId }).parse(await c.req.json());
     const { op, result } = await ops.run('uninstall', `Remove MCP server ${name}`, { id: opId }, (say) => mcpFor(c).remove(name, say), (r) => ({ ok: r.ok, summary: r.ok ? `removed ${name}` : (r.error ?? 'remove failed') }));
     return c.json({ ...result, op });
+  });
+
+  // ---------- Memory (ADR-0072): a Hindsight server the person runs, set up from the Hindsight card of the MCP tab ----------
+  app.get('/api/memory', async (c) => c.json(await engine.memory.status()));
+  // try an address before saving it; an empty token means the saved one
+  app.post('/api/memory/test', async (c) => {
+    const { url, token } = z.object({ url: z.string().url().max(500), token: z.string().max(4000).nullable().optional() }).parse(await c.req.json());
+    return c.json(await engine.memory.probe({ url, token: token ? token : token === null ? null : engine.settings.values().memory.token }));
+  });
+  // save the card: url null = Memory off; token absent or empty = keep the saved one, null = forget it
+  app.put('/api/memory', async (c) => {
+    const body = z.object({ url: z.string().url().max(500).nullable(), token: z.string().max(4000).nullable().optional(), retainTranscripts: z.boolean().optional(), reflectSec: z.number().int().min(5).max(300).optional(), seedCommits: z.number().int().min(0).max(5000).optional() }).parse(await c.req.json());
+    engine.updateSettings({
+      memory: {
+        url: body.url,
+        ...(body.token === null ? { token: null } : body.token ? { token: body.token } : {}),
+        ...(body.retainTranscripts !== undefined ? { retainTranscripts: body.retainTranscripts } : {}),
+        ...(body.reflectSec !== undefined ? { reflectSec: body.reflectSec } : {}),
+        ...(body.seedCommits !== undefined ? { seedCommits: body.seedCommits } : {}),
+      },
+    });
+    return c.json(await engine.memory.status());
+  });
+  // the hindsight MCP server in a coding agent's own configuration, at user scope (ADR-0016), then allowed in goals
+  app.post('/api/memory/mcp', async (c) => {
+    const { provider, opId, remove } = z.object({ provider: AgentProvider, opId: OpId, remove: z.boolean().default(false) }).parse(await c.req.json());
+    const { op, result } = await ops.run(remove ? 'uninstall' : 'install', `${remove ? 'Disconnect' : 'Connect'} Memory for ${provider}`, { id: opId }, (say) => (remove ? engine.memory.removeMcp(provider, say) : engine.memory.installMcp(provider, say)), (r) => ({ ok: r.ok, summary: r.ok ? `hindsight ${remove ? 'removed from' : 'connected to'} ${provider}` : (r.error ?? 'failed') }));
+    return c.json({ ...result, op });
+  });
+  // a folder's bank, and whether its goals use Memory (the Learnings page card)
+  app.get('/api/memory/folder', async (c) => {
+    const repo = c.req.query('repo') ?? '';
+    if (!repo.startsWith('/') && repo !== LEARNINGS_EVERYWHERE) throw new HttpError(400, { error: 'repo is an absolute path' });
+    return c.json(await engine.memory.folderStatus(repo));
+  });
+  app.put('/api/memory/folder', async (c) => {
+    const { repoPath, on } = z.object({ repoPath: z.string().startsWith('/'), on: z.boolean() }).parse(await c.req.json());
+    engine.memory.setFolder(repoPath, on);
+    return c.json(await engine.memory.folderStatus(repoPath));
   });
   app.post('/api/skills/cleanup-shadows', async (c) => {
     const { names } = z.object({ names: z.array(z.string()).min(1) }).parse(await c.req.json());

@@ -80,8 +80,8 @@ export function learningsForWorker(engine: Engine, goal: Pick<Goal, 'repoPath'>,
   return `# Notes on this repository\nWhat earlier goals here learned, and what the person wants everywhere. Follow them unless the code says otherwise.\n${lines.join('\n')}`;
 }
 
-/** how the goal went, for the session that learns from it */
-function goalRecord(engine: Engine, goal: Goal): string {
+/** how the goal went, for the session that learns from it (and for the folder's Memory, ADR-0072) */
+export function goalRecord(engine: Engine, goal: Goal): string {
   const db = engine.store.db;
   const brief = getBrief(db, goal.id)?.brief;
   const tasks = listTasks(db, goal.id);
