@@ -7,6 +7,7 @@ import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, 
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
+import { ConversationError } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode, GoalNature, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
@@ -207,7 +208,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   const db = engine.store.db;
   // an Imported Goal is history (ADR-0030): it is read, mapped, Reattached, previewed once mapped or deleted — nothing else changes it
-  const historyMay = /^\/api\/goals\/[^/]+\/(map-repo|reattach|preview\/(start|stop|visit))$/;
+  // a Conversation about an Imported Goal reads its records and changes nothing of it (ADR-0073)
+  const historyMay = /^\/api\/goals\/[^/]+\/(map-repo|reattach|preview\/(start|stop|visit)|conversations(\/.*)?)$/;
   const historyRefused = (goalId: string | undefined) => {
     const goal = goalId ? getGoal(db, goalId) : null;
     return goal && isHistory(goal) ? 'this goal came from another computer and stays as it was until it is Reattached' : null;
@@ -907,6 +909,28 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       throw new HttpError(/not found/.test(msg) ? 404 : 409, { error: msg });
     }
     return c.json({ started: true }, 202);
+  });
+
+  // ---- Conversations on the goal's page (ADR-0073): a question is kept at once and answered in the background on its channel ----
+  app.get('/api/goals/:id/conversations', (c) => c.json(engine.conversations.view(goalOr404(c).id)));
+  app.post('/api/goals/:id/conversations/ask', async (c) => {
+    const goal = goalOr404(c);
+    const body = z.object({ text: z.string(), conversationId: z.string().nullable().optional(), fresh: z.boolean().optional() }).parse(await c.req.json());
+    try {
+      return c.json(engine.conversations.ask(goal.id, body.text, { by: c.get('person')?.name ?? null, conversationId: body.conversationId ?? null, fresh: body.fresh }), 202);
+    } catch (e) {
+      if (e instanceof ConversationError) throw new HttpError(e.status, { error: e.message });
+      throw e;
+    }
+  });
+  app.post('/api/goals/:id/conversations/:cid/stop', (c) => {
+    goalOr404(c);
+    try {
+      return c.json({ stopped: engine.conversations.stopAnswer(c.req.param('cid')) });
+    } catch (e) {
+      if (e instanceof ConversationError) throw new HttpError(e.status, { error: e.message });
+      throw e;
+    }
   });
 
   // manual merge resolution (a task blocked on a merge conflict)
