@@ -9,7 +9,7 @@ import { Remembered } from '../src/pages/goal/OverviewTab.tsx';
 import { MemoryLine } from '../src/pages/LearningsPage.tsx';
 import { HINDSIGHT_DOCKER, HindsightCard } from '../src/pages/skills/McpPanel.tsx';
 
-const status = (over: Partial<MemoryStatus> = {}): MemoryStatus => ({ configured: true, url: 'http://127.0.0.1:8888', tokenSet: true, reachable: true, version: '1.1.0', error: null, retainTranscripts: true, seedCommits: 300, excludedFolders: [], mcp: { claude: { installed: false, allowed: false }, codex: null }, ...over });
+const status = (over: Partial<MemoryStatus> = {}): MemoryStatus => ({ configured: true, url: 'http://127.0.0.1:8888', tokenSet: true, reachable: true, version: '1.1.0', error: null, retainTranscripts: true, reflectSec: 20, seedCommits: 300, excludedFolders: [], mcp: { claude: { installed: false, allowed: false }, codex: null }, ...over });
 const noop = async () => ({ ok: true, version: '1.1.0', error: null });
 const render = (el: React.ReactElement) => renderToStaticMarkup(<MemoryRouter>{el}</MemoryRouter>);
 
@@ -17,6 +17,10 @@ test('the Hindsight card before a server is set: the address and token to fill i
   const html = render(<HindsightCard provider="claude" status={status({ configured: false, url: null, tokenSet: false, reachable: null, version: null })} running={false} onTest={noop} onSave={async () => {}} onConnect={() => {}} />);
   expect(html).toContain('placeholder="http://127.0.0.1:8888"');
   expect(html).toContain('bearer token, if the server asks for one');
+  expect(html).toContain('Wait for an answer');
+  expect(html).toContain('value="20"');
+  expect(html).toContain('value="300"');
+  expect(html).toContain('claude-code');
   expect(html).toContain('>off<');
   expect(html).not.toContain('Connect Claude Code');
   expect(html).not.toContain('Turn off');
@@ -54,8 +58,8 @@ test("the goal page's Remembered panel: how many asks were answered, what was wr
     written: 3,
     failed: 1,
     recalls: [
-      { at: '2026-10-23T10:00:00Z', stage: 'clarify', query: 'q1', text: 'Tests run with bun test.', ms: 1200, error: null, taskId: null, attemptId: null },
-      { at: '2026-10-23T10:05:00Z', stage: 'attempt', query: 'q2', text: null, ms: 20000, error: 'The operation timed out.', taskId: 't1', attemptId: 'a1' },
+      { at: '2026-10-23T10:00:00Z', stage: 'clarify', query: 'q1', text: 'Tests run with bun test.', kind: 'reflect', ms: 1200, error: null, taskId: null, attemptId: null },
+      { at: '2026-10-23T10:05:00Z', stage: 'attempt', query: 'q2', text: null, kind: 'recall', ms: 20000, error: 'The operation timed out.', taskId: 't1', attemptId: 'a1' },
     ],
   };
   const html = render(<Remembered view={view} tasks={[{ id: 't1', title: 'Add the toggle' }]} />);
@@ -69,7 +73,8 @@ test("the goal page's Remembered panel: how many asks were answered, what was wr
 
 test('the Activity rows for what Memory recalled and wrote', () => {
   const ev = (type: string, payload: unknown) => ({ id: 'e', ts: '2026-10-23T10:00:00Z', goalId: 'g1', type, payload }) as unknown as EngineEvent;
-  expect(describe(ev('memory.recalled', { stage: 'review_task', text: 'Earlier reviews refused missing tests.', ms: 900, error: null }))).toMatchObject({ text: 'Memory recalled for the task review (900 ms)', tone: 'muted', full: 'Earlier reviews refused missing tests.' });
+  expect(describe(ev('memory.recalled', { stage: 'review_task', text: 'Earlier reviews refused missing tests.', kind: 'reflect', ms: 900, error: null }))).toMatchObject({ text: 'Memory recalled for the task review (900 ms)', tone: 'muted', full: 'Earlier reviews refused missing tests.' });
+  expect(describe(ev('memory.recalled', { stage: 'attempt', text: '- a fact', kind: 'recall', ms: 20100, error: 'no answer in time' }))).toMatchObject({ text: 'Memory recalled for the attempt (20100 ms; the memories themselves, the answer did not come in time)', tone: 'muted' });
   expect(describe(ev('memory.recalled', { stage: 'attempt', text: null, ms: 20000, error: 'timed out' }))).toMatchObject({ text: 'Memory did not answer the attempt: timed out', tone: 'warn' });
   expect(describe(ev('memory.recalled', { stage: 'clarify', text: null, ms: 300, error: null }))).toMatchObject({ text: 'Memory had nothing for the Clarifier', tone: 'muted' });
   expect(describe(ev('memory.retained', { source: 'record', count: 1, error: null }))).toMatchObject({ text: 'Memory: wrote the record', tone: 'muted' });

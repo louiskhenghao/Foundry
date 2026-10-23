@@ -1481,12 +1481,13 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   // save the card: url null = Memory off; token absent or empty = keep the saved one, null = forget it
   app.put('/api/memory', async (c) => {
-    const body = z.object({ url: z.string().url().max(500).nullable(), token: z.string().max(4000).nullable().optional(), retainTranscripts: z.boolean().optional(), seedCommits: z.number().int().min(0).max(5000).optional() }).parse(await c.req.json());
+    const body = z.object({ url: z.string().url().max(500).nullable(), token: z.string().max(4000).nullable().optional(), retainTranscripts: z.boolean().optional(), reflectSec: z.number().int().min(5).max(300).optional(), seedCommits: z.number().int().min(0).max(5000).optional() }).parse(await c.req.json());
     engine.updateSettings({
       memory: {
         url: body.url,
         ...(body.token === null ? { token: null } : body.token ? { token: body.token } : {}),
         ...(body.retainTranscripts !== undefined ? { retainTranscripts: body.retainTranscripts } : {}),
+        ...(body.reflectSec !== undefined ? { reflectSec: body.reflectSec } : {}),
         ...(body.seedCommits !== undefined ? { seedCommits: body.seedCommits } : {}),
       },
     });

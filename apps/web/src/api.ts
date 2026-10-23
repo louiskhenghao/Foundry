@@ -793,7 +793,7 @@ export function apiForProvider(provider?: AgentProvider) {
   // Memory (ADR-0071): the Hindsight card on the MCP tab, and a folder's switch on the Learnings page
   memoryStatus: () => req<MemoryStatus>('/api/memory'),
   memoryTest: (url: string, token?: string | null) => req<{ ok: boolean; version: string | null; error: string | null }>('/api/memory/test', { method: 'POST', body: JSON.stringify({ url, token }) }),
-  memorySave: (body: { url: string | null; token?: string | null; retainTranscripts?: boolean; seedCommits?: number }) => req<MemoryStatus>('/api/memory', { method: 'PUT', body: JSON.stringify(body) }),
+  memorySave: (body: { url: string | null; token?: string | null; retainTranscripts?: boolean; reflectSec?: number; seedCommits?: number }) => req<MemoryStatus>('/api/memory', { method: 'PUT', body: JSON.stringify(body) }),
   memoryMcp: (provider: AgentProvider, opId: string, remove = false) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/memory/mcp', { method: 'POST', body: JSON.stringify({ provider, opId, remove }) }),
   memoryFolder: (repoPath: string) => req<MemoryFolderStatus>(`/api/memory/folder?repo=${encodeURIComponent(repoPath)}`),
   setMemoryFolder: (repoPath: string, on: boolean) => req<MemoryFolderStatus>('/api/memory/folder', { method: 'PUT', body: JSON.stringify({ repoPath, on }) }),

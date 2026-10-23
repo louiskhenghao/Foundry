@@ -14,6 +14,10 @@ describe('what a session is told from Memory', () => {
     expect(worker).toContain('Memory bank: `coding-agent::app`');
     expect(worker).toContain('pass this bank_id');
     expect(worker).toContain('search_knowledge_base');
+    const facts = memorySection('- The e2e tests need the dev server.', { tools: false, kind: 'recall' });
+    expect(facts).toContain('The memories themselves');
+    expect(facts).toContain('could not sum them up in time');
+    expect(facts).toContain('- The e2e tests need the dev server.');
     const person = memorySection('They refuse new dependencies without a reason.', { tools: false, about: 'person' });
     expect(person.startsWith(`${MEMORY_HEADING} about the person\n`)).toBe(true);
     expect(person).toContain('They refuse new dependencies without a reason.');

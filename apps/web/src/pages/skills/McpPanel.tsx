@@ -313,11 +313,13 @@ export const HINDSIGHT_DOCKER = ['docker run -d --name hindsight --restart unles
  * Memory (ADR-0071): the Hindsight server the person runs, one for every coding agent, and its MCP server for the
  * selected one. Nothing runs until an address is saved; a server that does not answer costs goals nothing.
  */
-export function HindsightCard({ provider, status, running, onTest, onSave, onConnect }: { provider: 'claude' | 'codex'; status: MemoryStatus | null; running: boolean; onTest: (url: string, token: string) => Promise<{ ok: boolean; version: string | null; error: string | null }>; onSave: (body: { url: string | null; token?: string | null; retainTranscripts?: boolean }) => Promise<unknown>; onConnect: (disconnect: boolean) => void }) {
+export function HindsightCard({ provider, status, running, onTest, onSave, onConnect }: { provider: 'claude' | 'codex'; status: MemoryStatus | null; running: boolean; onTest: (url: string, token: string) => Promise<{ ok: boolean; version: string | null; error: string | null }>; onSave: (body: { url: string | null; token?: string | null; retainTranscripts?: boolean; reflectSec?: number; seedCommits?: number }) => Promise<unknown>; onConnect: (disconnect: boolean) => void }) {
   const backend = provider === 'codex' ? 'Codex' : 'Claude Code';
   const [url, setUrl] = useState(status?.url ?? '');
   const [token, setToken] = useState('');
   const [transcripts, setTranscripts] = useState(status?.retainTranscripts ?? true);
+  const [reflectSec, setReflectSec] = useState(String(status?.reflectSec ?? 20));
+  const [seedCommits, setSeedCommits] = useState(String(status?.seedCommits ?? 300));
   const [tried, setTried] = useState<{ ok: boolean; version: string | null; error: string | null } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -326,7 +328,12 @@ export function HindsightCard({ provider, status, running, onTest, onSave, onCon
     if (!status) return;
     setUrl(status.url ?? '');
     setTranscripts(status.retainTranscripts);
-  }, [status?.url, status?.retainTranscripts]);
+    setReflectSec(String(status.reflectSec));
+    setSeedCommits(String(status.seedCommits));
+  }, [status?.url, status?.retainTranscripts, status?.reflectSec, status?.seedCommits]);
+  const wait = Number(reflectSec);
+  const seed = Number(seedCommits);
+  const numbersOk = Number.isInteger(wait) && wait >= 5 && wait <= 300 && Number.isInteger(seed) && seed >= 0 && seed <= 5000;
   const valid = /^https?:\/\/\S+$/.test(url.trim());
   const run = async (work: () => Promise<unknown>) => {
     setBusy(true);
@@ -386,6 +393,18 @@ export function HindsightCard({ provider, status, running, onTest, onSave, onCon
         <label className="flex items-center gap-1.5 text-xs font-semibold text-ink-soft cursor-pointer" title="The turns and one line per tool call, without arguments or outputs">
           <input type="checkbox" checked={transcripts} onChange={(e) => setTranscripts(e.target.checked)} /> Write each attempt's transcript to the bank, in compact form
         </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+          <label className="flex items-center gap-1.5 text-ink-soft" title="Past this, a stage is given the memories themselves (found without a model, well under a second) and goes on. A server whose LLM is a coding agent's CLI (claude-code, openai-codex) answers in 60–120 s.">
+            <span className="font-semibold shrink-0">Wait for an answer</span>
+            <Input type="number" inputMode="numeric" min={5} max={300} aria-label="seconds to wait for an answer" className="mono w-20" value={reflectSec} onChange={(e) => setReflectSec(e.target.value)} />
+            <span className="text-ink-faint">s</span>
+          </label>
+          <label className="flex items-center gap-1.5 text-ink-soft" title="The first time Memory is used for a folder, its newest commits seed the bank, one document each; skipped when the bank already holds documents">
+            <span className="font-semibold shrink-0">Seed a new folder from</span>
+            <Input type="number" inputMode="numeric" min={0} max={5000} aria-label="commits that seed a new folder's bank" className="mono w-24" value={seedCommits} onChange={(e) => setSeedCommits(e.target.value)} />
+            <span className="text-ink-faint">commits</span>
+          </label>
+        </div>
       </div>
       {tried && <div className={cn('text-xs mt-1.5', tried.ok ? 'text-ok-ink' : 'text-bad-ink')}>{tried.ok ? `The server answers: Hindsight ${tried.version ?? ''}.` : `No answer: ${tried.error}`}</div>}
       {err && <div className="text-xs text-bad-ink mt-1.5">{err}</div>}
@@ -393,7 +412,7 @@ export function HindsightCard({ provider, status, running, onTest, onSave, onCon
         <Button size="sm" disabled={!valid || busy} onClick={() => void run(async () => setTried(await onTest(url.trim(), token)))}>
           Test
         </Button>
-        <Button size="sm" variant="primary" disabled={!valid || busy} onClick={() => void run(() => onSave({ url: url.trim(), ...(token ? { token } : {}), retainTranscripts: transcripts }).then(() => setToken('')))}>
+        <Button size="sm" variant="primary" disabled={!valid || !numbersOk || busy} onClick={() => void run(() => onSave({ url: url.trim(), ...(token ? { token } : {}), retainTranscripts: transcripts, reflectSec: wait, seedCommits: seed }).then(() => setToken('')))}>
           Save
         </Button>
         {status?.configured && (
@@ -427,6 +446,9 @@ export function HindsightCard({ provider, status, running, onTest, onSave, onCon
           </div>
           <p>
             Or with Python: <code className="mono">pip install hindsight-api</code>, then <code className="mono">hindsight-api</code> with the same variables. The server listens on :8888, its console on :9999.
+          </p>
+          <p>
+            A server on this computer can use a sign-in you already have instead of a key: <code className="mono">HINDSIGHT_API_LLM_PROVIDER=claude-code</code> spawns your <code className="mono">claude</code> for each call (so an answer takes a minute or more: raise the wait above), <code className="mono">openai-codex</code> reads a Codex sign-in from <code className="mono">CODEX_HOME</code> (give it one of its own: <code className="mono">CODEX_HOME=~/.hindsight/codex codex login</code>, so it never fights the CLI over tokens). Both are for your own use, says Hindsight.
           </p>
         </div>
       </details>

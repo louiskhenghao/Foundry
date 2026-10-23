@@ -109,7 +109,7 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: `Task touched up after a step landed: ${p.reason}`, tone: 'info', ...cut(p.spec) };
     case 'memory.recalled': {
       const stage = MEMORY_STAGE[p.stage] ?? p.stage;
-      return p.text ? { text: `Memory recalled for the ${stage} (${p.ms} ms)`, tone: 'muted', full: p.text } : { text: p.error ? `Memory did not answer the ${stage}: ${p.error}` : `Memory had nothing for the ${stage}`, tone: p.error ? 'warn' : 'muted' };
+      return p.text ? { text: `Memory recalled for the ${stage} (${p.ms} ms${p.kind === 'recall' ? '; the memories themselves, the answer did not come in time' : ''})`, tone: 'muted', full: p.text } : { text: p.error ? `Memory did not answer the ${stage}: ${p.error}` : `Memory had nothing for the ${stage}`, tone: p.error ? 'warn' : 'muted' };
     }
     case 'memory.retained':
       return { text: p.error ? `Memory could not write the ${p.source}: ${p.error}` : `Memory: wrote the ${p.source}${p.count > 1 ? ` (${p.count})` : ''}`, tone: p.error ? 'warn' : 'muted' };

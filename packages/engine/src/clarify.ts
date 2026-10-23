@@ -159,7 +159,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
     // and what the person's own bank says about them: how they decide, what they ask for in every project
     engine.memory.reflectPerson(memoryQuestion('person', { goalTitle: goal.title, goalPrompt: goal.prompt }), { repoPath: goal.repoPath, goalId: goal.id }),
   ]);
-  const previous = [followUp, delegationContext(engine, goal), learningsContext(engine, goal), recalled ? memorySection(recalled, { tools: false }) : '', aboutPerson ? memorySection(aboutPerson, { tools: false, about: 'person' }) : ''].filter(Boolean).join('\n\n');
+  const previous = [followUp, delegationContext(engine, goal), learningsContext(engine, goal), recalled ? memorySection(recalled.text, { tools: false, kind: recalled.kind }) : '', aboutPerson ? memorySection(aboutPerson.text, { tools: false, about: 'person', kind: aboutPerson.kind }) : ''].filter(Boolean).join('\n\n');
   const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefSkeleton, { $refStrategy: 'none' });

@@ -6,13 +6,23 @@ export const MEMORY_HEADING = '# What Memory recalls';
  * The section a session gets when the folder's memory answered (ADR-0071), beside the Learnings notebook. A worker that
  * has the hindsight tools is also told its bank, so it may ask more mid-way; read-only roles only get the text.
  */
-export function memorySection(text: string, opts: ({ tools: false } | { tools: true; bankId: string }) & { about?: 'person' }): string {
+export function memorySection(text: string, opts: ({ tools: false } | { tools: true; bankId: string }) & { about?: 'person'; kind?: 'reflect' | 'recall' }): string {
+  // the memories themselves, when the bank's answer did not come in time: facts, not a synthesis
+  const plain = opts.kind === 'recall';
   if (opts.about === 'person') {
-    return [`${MEMORY_HEADING} about the person`, "From the memory of what this person decided, answered and asked for across every repository they had work done in. A starting point for how to understand and plan this goal for them; what they say in this goal's own Decisions and answers comes first.", text.trim()].join('\n');
+    return [
+      `${MEMORY_HEADING} about the person`,
+      plain
+        ? 'The memories themselves of what this person decided, answered and asked for across every repository they had work done in (the memory could not sum them up in time). A starting point for how to understand and plan this goal for them; what they say in this goal\'s own Decisions and answers comes first.'
+        : "From the memory of what this person decided, answered and asked for across every repository they had work done in. A starting point for how to understand and plan this goal for them; what they say in this goal's own Decisions and answers comes first.",
+      text.trim(),
+    ].join('\n');
   }
   return [
     MEMORY_HEADING,
-    "From this repository's long-term memory — what earlier goals and sessions here did, learned and were refused. A starting point, not the truth: where the code says otherwise, the code wins.",
+    plain
+      ? "The memories themselves from this repository's long-term memory that bear on this — what earlier goals and sessions here did, learned and were refused (the memory could not sum them up in time). A starting point, not the truth: where the code says otherwise, the code wins."
+      : "From this repository's long-term memory — what earlier goals and sessions here did, learned and were refused. A starting point, not the truth: where the code says otherwise, the code wins.",
     text.trim(),
     opts.tools ? `Memory bank: \`${opts.bankId}\`. The hindsight tools answer more when asked — search_knowledge_base and get_knowledge_page for the repository's pages, recall for memories, reflect for an answer; pass this bank_id with every call.` : '',
   ]

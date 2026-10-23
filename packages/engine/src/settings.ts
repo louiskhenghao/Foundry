@@ -87,6 +87,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'memory.url': { name: 'HINDSIGHT_API_URL', parse: str },
   'memory.token': { name: 'HINDSIGHT_API_TOKEN', parse: str },
   'memory.retainTranscripts': { name: 'FOUNDRY_MEMORY_TRANSCRIPTS', parse: bool },
+  'memory.reflectSec': { name: 'FOUNDRY_MEMORY_REFLECT_SEC', parse: num },
   'memory.seedCommits': { name: 'FOUNDRY_MEMORY_SEED_COMMITS', parse: num },
 };
 

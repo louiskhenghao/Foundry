@@ -17,7 +17,7 @@ import { compactTranscript } from './compact.ts';
 import { pagesFor } from './pages.ts';
 import { answerDocument, briefRevisionDocument, decisionsDocument, feedbackDocument, goalRecordDocument, learningsDocument, personNotebookDocument, replanDocument, reviewDocument, secondOpinionDocument, transcriptDocument } from './record.ts';
 import { recentCommits, seedDocument } from './seed.ts';
-import type { MemoryBackend, MemoryConnection, MemoryDocument, MemoryFolderStatus, MemoryGoalView, MemoryRecall, MemorySource, MemoryStage, MemoryStatus } from './types.ts';
+import type { MemoryAnswer, MemoryBackend, MemoryConnection, MemoryDocument, MemoryFolderStatus, MemoryGoalView, MemoryRecall, MemorySource, MemoryStage, MemoryStatus } from './types.ts';
 
 /** a goal that ended one of these ways has a record worth keeping (a cancelled one teaches nothing, ADR-0040) */
 const ENDED = new Set(['done', 'over_delivered', 'failed']);
@@ -26,8 +26,10 @@ export const PERSON_BANK = 'foundry::person';
 const PERSON_MISSION =
   'This bank is the memory of one person across every repository they have work done in: what they decide when asked, what they refuse, what they ask for again and again, how they like work done and reported. Keep their exact words where they matter. A later wish supersedes an earlier one.';
 
-/** a stage waits this long for the server's answer, then goes on without one */
+/** a stage waits this long for the server's answer (Settings memory.reflectSec), then takes the memories themselves */
 export const REFLECT_TIMEOUT_MS = 20_000;
+/** the memories themselves are retrieval, no model: well under a second on a server that is up */
+export const RECALL_TIMEOUT_MS = 10_000;
 /** what a stage is given of the answer */
 export const REFLECT_MAX_CHARS = 1_500;
 export const RETAIN_TIMEOUT_MS = 30_000;
@@ -46,6 +48,7 @@ export type BackendFactory = (c: MemoryConnection) => MemoryBackend;
 export interface MemoryDeps {
   backend?: BackendFactory;
   reflectTimeoutMs?: number;
+  recallTimeoutMs?: number;
   retainTimeoutMs?: number;
 }
 
@@ -58,6 +61,24 @@ export interface MemoryWhere {
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const message = (err: unknown) => clip(String((err as Error)?.message ?? err), 300);
+
+/** the memories themselves as a stage is given them: one line each, no repeats, within what a prompt takes */
+export function renderFacts(facts: string[], max = REFLECT_MAX_CHARS): string | null {
+  const seen = new Set<string>();
+  const lines: string[] = [];
+  let used = 0;
+  for (const f of facts) {
+    const text = f.trim().replace(/\s+/g, ' ');
+    const key = text.toLowerCase();
+    if (!text || seen.has(key)) continue;
+    const line = `- ${clip(text, 400)}`;
+    if (used + line.length + 1 > max) break;
+    seen.add(key);
+    lines.push(line);
+    used += line.length + 1;
+  }
+  return lines.length ? lines.join('\n') : null;
+}
 /** environment entries that are credentials, by their names */
 const SECRET_ENV = /(KEY|TOKEN|SECRET|PASSWORD)/;
 
@@ -111,9 +132,10 @@ export class Memory {
     }
     return this.backend.impl;
   }
-  private timeout(kind: 'reflect' | 'retain'): AbortSignal {
+  private timeout(kind: 'reflect' | 'recall' | 'retain'): AbortSignal {
     const d = this.engine.memoryDeps;
-    return AbortSignal.timeout(kind === 'reflect' ? (d.reflectTimeoutMs ?? REFLECT_TIMEOUT_MS) : (d.retainTimeoutMs ?? RETAIN_TIMEOUT_MS));
+    const ms = kind === 'reflect' ? (d.reflectTimeoutMs ?? this.settings().reflectSec * 1000) : kind === 'recall' ? (d.recallTimeoutMs ?? RECALL_TIMEOUT_MS) : (d.retainTimeoutMs ?? RETAIN_TIMEOUT_MS);
+    return AbortSignal.timeout(ms);
   }
 
   /** the bank a folder's goals use, Memory on or off; null for a folder that is no repository */
@@ -176,9 +198,16 @@ export class Memory {
     if (!(await backend.listBanks(signal)).includes(bank)) await backend.createBank(bank, { name: project, mission: BANK_MISSION }, signal);
     // the five pages Hindsight's own integration keeps, for a bank that lacks them; a server without pages is no reason to stop
     await this.ensurePages(backend, bank, project).catch((err) => this.engine.config.log(`[memory] ${bank}: the knowledge pages were not made (${message(err)})`));
-    if (!(await backend.hasDocuments(bank, signal))) this.track(this.seed(repoPath, bank));
+    if (!(await backend.hasDocuments(bank, signal))) {
+      const seeding = this.seed(repoPath, bank).finally(() => this.seeding.delete(bank));
+      this.seeding.set(bank, seeding);
+      this.track(seeding);
+    }
     return bank;
   }
+
+  /** the banks whose seed is still on its way: asked all the same, where an empty bank is not */
+  private seeding = new Map<string, Promise<void>>();
 
   /** the pages by name: one that exists (made by the person's terminal, or by an earlier Foundry) is left as it is */
   private async ensurePages(backend: MemoryBackend, bank: string, project: string): Promise<void> {
@@ -283,34 +312,47 @@ export class Memory {
   }
 
   /**
-   * What the bank answers a stage before it starts, cut to what a prompt can take; null when Memory is off for the
-   * folder, the server did not answer in time, or it had nothing to say. Every ask is recorded on the goal.
+   * What the bank answers a stage before it starts, cut to what a prompt can take — or, when the answer does not come
+   * within the wait Settings allow (a server whose LLM is a coding agent's CLI takes a minute or more), the memories
+   * themselves that bear on the question, found without a model. Null when Memory is off for the folder, the bank is
+   * empty (it is not asked then), or it had nothing. Every ask is recorded on the goal.
    */
-  async reflect(stage: MemoryStage, question: string, where: MemoryWhere & { context?: string }): Promise<string | null> {
+  async reflect(stage: MemoryStage, question: string, where: MemoryWhere & { context?: string }): Promise<MemoryAnswer | null> {
     return this.ask(await this.ensureBank(where.repoPath), stage, question, where);
   }
 
   /** what the person's own bank says about them, for Clarify; nothing for a goal of a folder left out */
-  async reflectPerson(question: string, where: MemoryWhere & { context?: string }): Promise<string | null> {
+  async reflectPerson(question: string, where: MemoryWhere & { context?: string }): Promise<MemoryAnswer | null> {
     if (!this.enabled() || this.excluded(where.repoPath)) return null;
     return this.ask(await this.ensurePersonBank(), 'person', question, where);
   }
 
-  private async ask(bank: string | null, stage: MemoryStage, question: string, where: MemoryWhere & { context?: string }): Promise<string | null> {
+  private async ask(bank: string | null, stage: MemoryStage, question: string, where: MemoryWhere & { context?: string }): Promise<MemoryAnswer | null> {
     const backend = this.client();
     if (!bank || !backend) return null;
     const t0 = Date.now();
     const base = { stage, bankId: bank, query: question, taskId: where.taskId ?? null, attemptId: where.attemptId ?? null };
+    // a bank with nothing in it is not asked — the server's LLM would spend a minute saying so — unless its seed is on the way
+    if (!this.seeding.has(bank) && !(await backend.hasDocuments(bank, this.timeout('recall')).catch(() => true))) {
+      this.engine.store.append({ type: 'memory.recalled', goalId: where.goalId, payload: { ...base, kind: 'reflect', text: null, ms: Date.now() - t0, error: null } });
+      return null;
+    }
+    // the memories themselves are fetched beside the answer, so a late answer costs the stage nothing more than the wait
+    const plain = backend
+      .recall(bank, question, { maxTokens: 500, signal: this.timeout('recall') })
+      .then((facts) => renderFacts(facts))
+      .catch(() => null);
     try {
       const answer = await backend.reflect(bank, question, { budget: 'low', context: where.context, signal: this.timeout('reflect') });
       const text = clip(answer.trim(), REFLECT_MAX_CHARS) || null;
-      this.engine.store.append({ type: 'memory.recalled', goalId: where.goalId, payload: { ...base, text, ms: Date.now() - t0, error: null } });
-      return text;
+      this.engine.store.append({ type: 'memory.recalled', goalId: where.goalId, payload: { ...base, kind: 'reflect', text, ms: Date.now() - t0, error: null } });
+      return text ? { text, kind: 'reflect' } : null;
     } catch (err) {
       const error = message(err);
-      this.engine.store.append({ type: 'memory.recalled', goalId: where.goalId, payload: { ...base, text: null, ms: Date.now() - t0, error } });
-      this.engine.config.log(`[memory] ${bank}: no answer for the ${stage} (${error})`);
-      return null;
+      const text = await plain;
+      this.engine.store.append({ type: 'memory.recalled', goalId: where.goalId, payload: { ...base, kind: 'recall', text, ms: Date.now() - t0, error: text ? `no answer in time (${error}); the memories themselves served` : error } });
+      if (!text) this.engine.config.log(`[memory] ${bank}: nothing for the ${stage} (${error})`);
+      return text ? { text, kind: 'recall' } : null;
     }
   }
 
@@ -430,7 +472,7 @@ export class Memory {
     for (const e of this.engine.store.listByGoalOfTypes(goalId, ['memory.recalled', 'memory.retained'])) {
       if (e.type === 'memory.recalled') {
         bank ??= e.payload.bankId;
-        recalls.push({ at: e.ts, stage: e.payload.stage, query: e.payload.query, text: e.payload.text, ms: e.payload.ms, error: e.payload.error, taskId: e.payload.taskId ?? null, attemptId: e.payload.attemptId ?? null });
+        recalls.push({ at: e.ts, stage: e.payload.stage, query: e.payload.query, text: e.payload.text, kind: e.payload.kind ?? 'reflect', ms: e.payload.ms, error: e.payload.error, taskId: e.payload.taskId ?? null, attemptId: e.payload.attemptId ?? null });
       } else if (e.type === 'memory.retained') {
         bank ??= e.payload.bankId;
         if (e.payload.error) failed++;
@@ -464,6 +506,7 @@ export class Memory {
       version,
       error,
       retainTranscripts: s.retainTranscripts,
+      reflectSec: s.reflectSec,
       seedCommits: s.seedCommits,
       excludedFolders: s.excludedFolders,
       mcp: { claude: this.mcpState('claude'), codex: await this.codexMcpState() },

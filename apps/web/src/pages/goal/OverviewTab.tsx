@@ -305,6 +305,7 @@ export function Remembered({ view, tasks }: { view: MemoryGoalView; tasks: { id:
                 <span className="font-semibold text-ink-soft">{MEMORY_STAGE[r.stage] ?? r.stage}</span>
                 {r.taskId && <span className="truncate">{tasks.find((t) => t.id === r.taskId)?.title ?? r.taskId}</span>}
                 <span className="mono shrink-0">{r.ms} ms</span>
+                {r.kind === 'recall' && r.text && <span className="shrink-0" title={r.error ?? 'the answer did not come in time'}>the memories themselves</span>}
               </div>
               {r.text ? <MarkdownPanel title={MEMORY_STAGE[r.stage] ?? r.stage} source={r.text} maxHeight={200} actions={<OpenFull value={{ title: `Memory · ${MEMORY_STAGE[r.stage] ?? r.stage}`, text: r.text }} />} /> : <div className="text-ink-faint">{r.error ? `no answer: ${r.error}` : 'nothing recalled'}</div>}
             </li>

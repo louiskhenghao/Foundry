@@ -8,6 +8,9 @@ export class FakeMemoryBackend implements MemoryBackend {
   pages = new Map<string, KnowledgePageSpec[]>();
   questions: string[] = [];
   answer: string | ((signal?: AbortSignal) => Promise<string>) = 'remember: the tests need bun install first';
+  /** what a plain recall returns (the memories themselves); the questions recall was asked */
+  facts: string[] = [];
+  recalls: string[] = [];
   failRetain = false;
   down = false;
   async version() {
@@ -31,6 +34,10 @@ export class FakeMemoryBackend implements MemoryBackend {
   async reflect(_id: string, query: string, opts: ReflectOptions) {
     this.questions.push(query);
     return typeof this.answer === 'function' ? this.answer(opts.signal) : this.answer;
+  }
+  async recall(_id: string, query: string) {
+    this.recalls.push(query);
+    return [...this.facts];
   }
   async listKnowledgePages(id: string) {
     return (this.pages.get(id) ?? []).map((p) => p.name);

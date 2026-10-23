@@ -75,8 +75,14 @@ Context Provider decides what code a session sees, Learnings are what was learne
   Values of the secrets Foundry keeps are scrubbed from everything before it is sent.
 - **What is read.** Before every attempt, one `reflect` with the task and its area as the question, at low budget,
   cut to 1,500 characters, given to the session under *What Memory recalls* beside the notebook; before Clarify, the
-  planner, a replan, a task review and the goal review, the same with their question. Twenty seconds without an
-  answer and the stage goes on without one. Not the second opinion, the merger, the documenter or Browser QA: their
+  planner, a replan, a task review and the goal review, the same with their question. `memory.reflectSec` (20 s)
+  without an answer and the stage is given the memories themselves instead — one `recall`, retrieval without a
+  model, started beside the `reflect` and kept until needed — and goes on; nothing when the bank has nothing. A bank
+  without a document is not asked at all (one listing call; a bank whose seed is on its way is asked), since a model
+  spends a minute saying it knows nothing. The
+  wait is a setting because a server whose LLM is a coding agent's CLI (Hindsight's `claude-code` and `openai-codex`
+  providers: the person's sign-in instead of a key) answers a `reflect` in a minute or more while a `recall` takes
+  tens of milliseconds. Not the second opinion, the merger, the documenter or Browser QA: their
   question is the current change, not the folder's past. Where the code says otherwise, the code wins, as with
   Learnings.
 - **Switches and visibility.** The extension is on or off for the instance; a folder can be left out
@@ -94,8 +100,14 @@ Context Provider decides what code a session sees, Learnings are what was learne
 
 ## Consequences
 
-- A goal with the extension on costs Foundry no model call more; each reflecting stage waits up to twenty seconds. The
-  person's Hindsight LLM pays for extraction and reflection, and transcripts are most of it — hence their switch.
+- A goal with the extension on costs Foundry no model call more; each reflecting stage waits up to `memory.reflectSec`
+  and then takes the memories themselves. The person's Hindsight LLM pays for extraction and reflection, and
+  transcripts are most of it — hence their switch.
+- A Hindsight on the person's computer can run on the sign-in Foundry's goals already use: `claude-code` spawns the
+  `claude` CLI (85 s measured for a `reflect`), `openai-codex` reads a Codex sign-in from `CODEX_HOME`, best a folder
+  of its own so the server and the terminal never refresh one token. Extraction through a CLI counts against the
+  plan, and seeding a folder is one call per commit — `memory.seedCommits` sits on the card for that. The Docker
+  install's server cannot spawn the host's `claude`; the installer asks for a key provider.
 - One bank for Foundry and the terminal means one set of mistakes too: a wrong fact from either side reaches the
   other until something contradicts it. A later fact outranks an earlier one in Hindsight; the person's Learnings
   edits are retained, so the Learnings page is where a wrong memory is corrected from Foundry's side.

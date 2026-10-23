@@ -251,7 +251,7 @@ export function GoalPage() {
             <div className="text-xs text-ink-faint mt-1.5" title={d.memory.bank ? `This folder's goals share the bank ${d.memory.bank} with your own sessions here (Memory, Extensions → MCP servers)` : 'Memory is set up; this goal has not asked it yet'}>
               <span className="inline-flex items-center gap-1">
                 <Brain size={12} /> Memory:{' '}
-                {d.memory.recalls.length === 0 ? 'not asked yet' : d.memory.recalls.every((r) => r.error) ? 'the server did not answer' : `${d.memory.recalls.filter((r) => r.text).length}/${d.memory.recalls.length} recalled · wrote back ${d.memory.written}`}
+                {d.memory.recalls.length === 0 ? 'not asked yet' : d.memory.recalls.every((r) => !r.text && r.error) ? 'the server did not answer' : `${d.memory.recalls.filter((r) => r.text).length}/${d.memory.recalls.length} recalled · wrote back ${d.memory.written}`}
               </span>
             </div>
           )}

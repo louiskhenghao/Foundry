@@ -255,6 +255,8 @@ export const MemorySettings = z.object({
   token: z.string().min(1).nullable().default(null),
   /** each attempt's transcript, in compact form, is written to the folder's bank when the attempt ends */
   retainTranscripts: z.boolean().default(true),
+  /** how long a stage waits for the bank's answer (reflect) before it is given the memories themselves (recall) instead; a server whose LLM is a coding agent's CLI needs 60–120 s */
+  reflectSec: z.number().int().min(5).max(300).default(20),
   /** recent commit messages that seed a folder's bank the first time Memory is used there; 0 = none */
   seedCommits: z.number().int().min(0).max(5000).default(300),
   /** folders (absolute paths) whose goals neither read nor write Memory */

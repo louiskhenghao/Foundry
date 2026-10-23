@@ -54,6 +54,11 @@ export class HindsightBackend implements MemoryBackend {
     return r.text ?? '';
   }
 
+  async recall(bankId: string, query: string, opts: { maxTokens?: number; signal?: AbortSignal }): Promise<string[]> {
+    const r = await this.api.recall(bankId, query, { budget: 'low', maxTokens: opts.maxTokens ?? 500, signal: opts.signal });
+    return (r.results ?? []).map((x) => x.text).filter((t) => typeof t === 'string' && t.trim());
+  }
+
   async listKnowledgePages(bankId: string, signal?: AbortSignal): Promise<string[]> {
     const r = await sdk.getKnowledgeBaseTree({ client: this.raw, path: { bank_id: bankId }, signal, throwOnError: true });
     const tree = ((r as { data?: KnowledgeTree }).data ?? r) as KnowledgeTree;

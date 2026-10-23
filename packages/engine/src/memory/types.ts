@@ -38,8 +38,10 @@ export interface MemoryBackend {
   /** whether the bank holds any document already (a bank Hindsight's own integration seeded, or an earlier Foundry) */
   hasDocuments(bankId: string, signal?: AbortSignal): Promise<boolean>;
   retain(bankId: string, doc: MemoryDocument, signal?: AbortSignal): Promise<void>;
-  /** an answer over the bank, not memories */
+  /** an answer over the bank, not memories (the server's LLM at work: seconds to minutes) */
   reflect(bankId: string, query: string, opts: ReflectOptions): Promise<string>;
+  /** the memories themselves that bear on the question, found without a model (well under a second), most relevant first */
+  recall(bankId: string, query: string, opts: { maxTokens?: number; signal?: AbortSignal }): Promise<string[]>;
   /** the names of the knowledge pages at the bank's root */
   listKnowledgePages(bankId: string, signal?: AbortSignal): Promise<string[]>;
   createKnowledgePage(bankId: string, page: KnowledgePageSpec, signal?: AbortSignal): Promise<void>;
@@ -53,12 +55,19 @@ export interface MemoryConnection {
 /** where Foundry's own stages ask Memory before they start (Clarify's answer serves the planner too); `person` is Clarify's ask of the person's own bank */
 export type MemoryStage = 'attempt' | 'clarify' | 'person' | 'replan' | 'review_task' | 'review_goal';
 
+/** what a stage is given: the bank's answer, or the memories themselves when the answer did not come in time */
+export interface MemoryAnswer {
+  text: string;
+  kind: 'reflect' | 'recall';
+}
+
 /** one ask of the bank, as the goal page shows it */
 export interface MemoryRecall {
   at: string;
   stage: MemoryStage;
   query: string;
   text: string | null;
+  kind: 'reflect' | 'recall';
   ms: number;
   error: string | null;
   taskId: string | null;
@@ -91,6 +100,7 @@ export interface MemoryStatus {
   version: string | null;
   error: string | null;
   retainTranscripts: boolean;
+  reflectSec: number;
   seedCommits: number;
   excludedFolders: string[];
   /** the hindsight MCP server as each coding agent has it: installed at user scope, and allowed in goals */

@@ -58,7 +58,7 @@ describe('Memory', () => {
     engine.updateSettings({ memory: { url: 'http://127.0.0.1:1/', token: 'tok-secret-123456' } });
     expect(engine.memory.enabled()).toBe(true);
     expect(engine.sessionEnvExtra()[TOKEN_ENV]).toBe('tok-secret-123456');
-    expect(await engine.memory.reflect('attempt', 'what about tests?', { repoPath: repo, goalId: 'g1', taskId: 't1' })).toBe('remember: the tests need bun install first');
+    expect(await engine.memory.reflect('attempt', 'what about tests?', { repoPath: repo, goalId: 'g1', taskId: 't1' })).toEqual({ text: 'remember: the tests need bun install first', kind: 'reflect' });
     expect(fake.questions).toEqual(['what about tests?']);
     // the bank was created for a coding project, and seeded from the repository's commits
     expect(fake.created).toEqual([{ id: bank, mission: expect.stringContaining('memory of one software repository') }]);
@@ -69,25 +69,36 @@ describe('Memory', () => {
     expect(engine.store.listByType('memory.retained', 10)[0]).toMatchObject({ goalId: null, payload: { source: 'git', bankId: bank, count: 1, error: null } });
     const recalled = engine.store.listByType('memory.recalled', 10);
     expect(recalled).toHaveLength(1);
-    expect(recalled[0]).toMatchObject({ goalId: 'g1', payload: { stage: 'attempt', bankId: bank, query: 'what about tests?', text: 'remember: the tests need bun install first', error: null, taskId: 't1' } });
+    expect(recalled[0]).toMatchObject({ goalId: 'g1', payload: { stage: 'attempt', bankId: bank, query: 'what about tests?', text: 'remember: the tests need bun install first', kind: 'reflect', error: null, taskId: 't1' } });
 
     fake.answer = 'y'.repeat(REFLECT_MAX_CHARS + 500);
     const long = await engine.memory.reflect('clarify', 'q2', { repoPath: repo, goalId: 'g1' });
-    expect(long!.length).toBe(REFLECT_MAX_CHARS);
-    expect(long!.endsWith('…')).toBe(true);
+    expect(long!.text.length).toBe(REFLECT_MAX_CHARS);
+    expect(long!.text.endsWith('…')).toBe(true);
     const status = await engine.memory.status();
     expect(status).toMatchObject({ configured: true, url: 'http://127.0.0.1:1', tokenSet: true, reachable: true, version: '1.1.0-test', error: null });
   });
 
-  test('a server that does not answer in time costs the stage nothing but the wait, and says so on the goal', async () => {
+  test('an answer that does not come in time gives way to the memories themselves; with none, the stage goes on with nothing', async () => {
     const { engine, repo, fake } = await setup();
     engine.updateSettings({ memory: { url: 'http://127.0.0.1:1' } });
     fake.answer = (signal) => new Promise((_, reject) => signal?.addEventListener('abort', () => reject(signal.reason)));
-    expect(await engine.memory.reflect('review_task', 'slow', { repoPath: repo, goalId: 'g1' })).toBeNull();
+    fake.facts = ['The e2e tests need bun run dev on port 5173.', 'the E2E tests need bun run dev on port 5173.', 'The reviewer refused the first attempt: no test.'];
+    expect(await engine.memory.reflect('review_task', 'slow', { repoPath: repo, goalId: 'g1' })).toEqual({ text: '- The e2e tests need bun run dev on port 5173.\n- The reviewer refused the first attempt: no test.', kind: 'recall' });
+    expect(fake.recalls).toEqual(['slow']);
     const [e] = engine.store.listByType('memory.recalled', 10);
-    expect(e).toMatchObject({ payload: { stage: 'review_task', text: null } });
-    expect((e!.payload as { error: string | null }).error).toBeTruthy();
+    expect(e).toMatchObject({ payload: { stage: 'review_task', kind: 'recall', text: expect.stringContaining('- The e2e tests') } });
+    expect((e!.payload as { error: string | null }).error).toContain('the memories themselves served');
     expect((e!.payload as { ms: number }).ms).toBeGreaterThanOrEqual(100);
+
+    fake.facts = [];
+    expect(await engine.memory.reflect('attempt', 'slow again', { repoPath: repo, goalId: 'g1' })).toBeNull();
+    const last = engine.store.listByType('memory.recalled', 10)[0]!;
+    expect(last).toMatchObject({ payload: { stage: 'attempt', kind: 'recall', text: null } });
+    expect((last.payload as { error: string | null }).error).not.toContain('served');
+    // the wait is the person's to set
+    engine.updateSettings({ memory: { reflectSec: 90 } });
+    expect((await engine.memory.status()).reflectSec).toBe(90);
   });
 
   test('what is written is scrubbed of the credentials Foundry keeps, and a refused write is a record, not an error', async () => {
@@ -120,7 +131,7 @@ describe('Memory', () => {
     // the person's own sessions made this bank already: Foundry leaves its mission alone and seeds nothing
     fake.banks.add(bank);
     fake.docs.set(bank, [{ content: 'theirs', context: 'c', tags: [] }]);
-    expect(await engine.memory.reflect('attempt', 'q', { repoPath: repo, goalId: 'g1' })).toBe('remember: the tests need bun install first');
+    expect(await engine.memory.reflect('attempt', 'q', { repoPath: repo, goalId: 'g1' })).toEqual({ text: 'remember: the tests need bun install first', kind: 'reflect' });
     expect(fake.created).toEqual([]);
     await engine.stop();
     expect(fake.docs.get(bank)).toHaveLength(1);
@@ -148,17 +159,23 @@ describe('Memory', () => {
     expect(fake.pages.get(bank)!.map((p) => p.name)).toEqual(['Component map', 'Conventions and patterns', 'Key decisions and rationale', 'Initiatives and enhancements', 'Core concepts']);
   });
 
-  test("the person's own bank: made with its mission on first use, never seeded, shown on the everywhere notebook's card", async () => {
+  test("the person's own bank: made with its mission on first use, never seeded, not asked while empty, shown on the everywhere notebook's card", async () => {
     const { engine, repo, fake } = await setup();
     engine.updateSettings({ memory: { url: 'http://127.0.0.1:1' } });
     expect(await engine.memory.folderStatus('*')).toEqual({ repoPath: '*', bank: 'foundry::person', excluded: false, enabled: true });
-    expect(await engine.memory.reflectPerson('what do they want?', { repoPath: repo, goalId: 'g1' })).toBe('remember: the tests need bun install first');
+    // empty, it is not asked: the server's LLM would spend a minute saying it knows nothing
+    expect(await engine.memory.reflectPerson('what do they want?', { repoPath: repo, goalId: 'g1' })).toBeNull();
+    expect(fake.questions).toEqual([]);
     expect(fake.created).toEqual([{ id: 'foundry::person', mission: expect.stringContaining('memory of one person') }]);
     expect(fake.pages.has('foundry::person')).toBe(false);
-    const [e] = engine.store.listByType('memory.recalled', 10);
-    expect(e).toMatchObject({ goalId: 'g1', payload: { stage: 'person', bankId: 'foundry::person' } });
-    await engine.stop();
     expect(fake.docs.get('foundry::person') ?? []).toEqual([]);
+    expect(engine.store.listByType('memory.recalled', 10)[0]).toMatchObject({ goalId: 'g1', payload: { stage: 'person', bankId: 'foundry::person', kind: 'reflect', text: null, error: null } });
+    // once the person has written something there, it answers
+    expect(await engine.memory.retainPerson({ content: 'They want small commits.', context: 'the everywhere notebook', tags: [] }, { repoPath: repo, goalId: null, source: 'person' })).toBe(true);
+    expect(await engine.memory.reflectPerson('what do they want?', { repoPath: repo, goalId: 'g1' })).toEqual({ text: 'remember: the tests need bun install first', kind: 'reflect' });
+    expect(fake.questions).toEqual(['what do they want?']);
+    expect(engine.store.listByType('memory.recalled', 10)[0]).toMatchObject({ goalId: 'g1', payload: { stage: 'person', bankId: 'foundry::person', kind: 'reflect', text: 'remember: the tests need bun install first' } });
+    await engine.stop();
     // a folder left out keeps the person's words to itself as well
     engine.memory.setFolder(repo, false);
     expect(await engine.memory.reflectPerson('again?', { repoPath: repo, goalId: 'g1' })).toBeNull();

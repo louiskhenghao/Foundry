@@ -180,7 +180,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     media,
     reviewerHint ?? '',
     formatWorkflowObservation(workflow),
-    recalled ? memorySection(recalled, { tools: false }) : '',
+    recalled ? memorySection(recalled.text, { tools: false, kind: recalled.kind }) : '',
     renderDiffSection(fit, d.length, savedAt),
     `${fit.files ? 'The diff above is partial — judge what it shows, and read the rest of every file it lists as cut or not shown before you say anything about that file; never report a file as incomplete or a change as missing only because it is not in the pasted part.' : 'The diff is above — judge from it; open at most a few files, only when the diff cannot answer.'} Review it against the task on two axes — Spec (does it do what the task and rubric ask?) and Standards (does it follow this repository's conventions?). Report BLOCKERS only: correctness bugs, security issues, scope violations (changes clearly outside the task), destroyed functionality, hard-coded secrets, or rubric items not met. Style nits are not blockers. If there are no blockers, pass.\n\nOutput: call the structured-output tool with the verdict object itself as its arguments — top-level keys \`pass\` (boolean), \`blockers\` (string[]), \`notes\` (string) and nothing else. Do NOT wrap it in a string or under a \`parameters\` key; that fails validation and costs a retry.`,
   ]
