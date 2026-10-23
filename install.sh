@@ -23,7 +23,8 @@
 #   --ref BRANCH|TAG            source: what to check out                       [FOUNDRY_REF, default main]
 #   --with "markitdown chromium docker ffmpeg"   source: exactly these optional tools   [FOUNDRY_WITH]
 #   --with hindsight            docker: a Hindsight server beside Foundry for Memory (ADR-0072), with an LLM key
-#                               of yours (asked, or HINDSIGHT_API_LLM_PROVIDER / _API_KEY / _MODEL)
+#                               of yours (asked, or HINDSIGHT_API_LLM_PROVIDER / _API_KEY / _MODEL), or with your
+#                               Codex sign-in (provider openai-codex: no key; a device-code sign-in after the start)
 #   --yes                       take every default, ask nothing
 #   --no-start                  set up, but do not start Foundry
 #   --no-open                   do not open the browser
@@ -49,6 +50,10 @@ ORIG_PATH="$PATH"
 MODE="" AGENT="" DIR="" REPOS="" PORT="" REF="" REPO="" HOST_DOCKER="" SERVICE=""
 # docker: a Hindsight server for Memory (ADR-0072); its key lives in hindsight.env beside the compose file, never here
 MEMORY="" HINDSIGHT_PROVIDER="" HINDSIGHT_MODEL="" HINDSIGHT_KEY=""
+# Memory on the person's Codex sign-in instead of a key (provider openai-codex): the sign-in is Hindsight's own, in a folder
+# beside the compose file, because Codex refresh tokens are single-use and a shared one logs the other process out
+hindsight_codex() { [ "$MEMORY" = 1 ] && [ "$HINDSIGHT_PROVIDER" = openai-codex ]; }
+HINDSIGHT_CODEX_IN_FOUNDRY=/home/node/.hindsight-codex
 YES=0 START=1 OPEN=1 MODIFY_PATH=1 DRY=0 PURGE=0 WITH="${FOUNDRY_WITH:-}"
 
 main() {
@@ -771,7 +776,13 @@ install_docker() {
   if [ "$DRY" = 1 ]; then
     plan "pull $IMAGE:latest, write $DIR/docker-compose.yml, .env and docker-compose.override.yml"
     plan "share $REPOS (at the same path and at /repos), ~/.gitconfig$([ -f "$HOME/.config/gh/hosts.yml" ] && echo ', your GitHub CLI sign-in')$([ "$HOST_DOCKER" = 1 ] && echo ", this computer's Docker")"
-    [ "$MEMORY" = 1 ] && plan "run a Hindsight server for Memory beside Foundry (compose profile memory, LLM provider $HINDSIGHT_PROVIDER$([ -n "$HINDSIGHT_KEY" ] && echo ' with the key given' || echo ', no key yet'); its key goes to $DIR/hindsight.env)"
+    if [ "$MEMORY" = 1 ]; then
+      local llm
+      if hindsight_codex; then llm="your Codex sign-in, by device code after the start, kept in $DIR/hindsight-codex"
+      elif [ -n "$HINDSIGHT_KEY" ]; then llm="$HINDSIGHT_PROVIDER with the key given"
+      else llm="$HINDSIGHT_PROVIDER, no key yet"; fi
+      plan "run a Hindsight server for Memory beside Foundry (compose profile memory; LLM: $llm; its variables go to $DIR/hindsight.env)"
+    fi
     plan "start it on port $PORT and offer to sign in inside the container"
     return
   fi
@@ -815,7 +826,8 @@ choose_memory() {
     if [ -z "$TTY" ] || [ "$YES" = 1 ]; then MEMORY=0
     else
       note "Memory: a Hindsight server beside Foundry remembers what each folder's goals did and taught, and every"
-      note "stage asks it first. It needs 1.5–2 GB of memory, a 3.7–9 GB image, and an LLM key of yours."
+      note "stage asks it first. It needs 1.5–2 GB of memory, a 3.7–9 GB image, and an LLM of yours: a provider's key,"
+      note "or your Codex sign-in (provider openai-codex)."
       yesno "Run a Hindsight server for Memory?" n && MEMORY=1 || MEMORY=0
     fi
   fi
@@ -826,11 +838,17 @@ choose_memory() {
   # a key given before stays unless a new one is typed
   [ -n "$HINDSIGHT_KEY" ] || HINDSIGHT_KEY="$(grep -s '^HINDSIGHT_API_LLM_API_KEY=' "$DIR/hindsight.env" | cut -d= -f2- || true)"
   if [ -n "$TTY" ] && [ "$YES" = 0 ]; then
-    HINDSIGHT_PROVIDER="$(ask "  Hindsight's LLM provider (openai, anthropic, gemini, groq, openrouter …) [$HINDSIGHT_PROVIDER]: " "$HINDSIGHT_PROVIDER")"
-    HINDSIGHT_KEY="$(ask_secret "  Its API key$([ -n "$HINDSIGHT_KEY" ] && echo ' (Enter keeps the saved one)'): " "$HINDSIGHT_KEY")"
+    HINDSIGHT_PROVIDER="$(ask "  Hindsight's LLM provider (openai, anthropic, gemini, groq, openrouter …; openai-codex = your Codex sign-in, no key) [$HINDSIGHT_PROVIDER]: " "$HINDSIGHT_PROVIDER")"
+    if hindsight_codex; then HINDSIGHT_KEY=""
+    else HINDSIGHT_KEY="$(ask_secret "  Its API key$([ -n "$HINDSIGHT_KEY" ] && echo ' (Enter keeps the saved one)'): " "$HINDSIGHT_KEY")"; fi
     HINDSIGHT_MODEL="$(ask "  Its model (Enter for the provider's default)$([ -n "$HINDSIGHT_MODEL" ] && echo " [$HINDSIGHT_MODEL]"): " "$HINDSIGHT_MODEL")"
   fi
-  [ -n "$HINDSIGHT_KEY" ] || warn "no LLM key for Hindsight: the server starts, but extracts and answers nothing until HINDSIGHT_API_LLM_API_KEY is set in $DIR/hindsight.env"
+  if hindsight_codex; then
+    note "Hindsight gets a Codex sign-in of its own after the start (a device code), kept in $DIR/hindsight-codex: Codex refresh tokens"
+    note "are single-use, so it never shares the one your Codex CLI holds."
+  else
+    [ -n "$HINDSIGHT_KEY" ] || warn "no LLM key for Hindsight: the server starts, but extracts and answers nothing until HINDSIGHT_API_LLM_API_KEY is set in $DIR/hindsight.env"
+  fi
   return 0
 }
 
@@ -840,7 +858,9 @@ write_hindsight_env() {
   {
     echo "# written by the Foundry installer: the LLM Hindsight extracts and answers with (ADR-0072)"
     echo "HINDSIGHT_API_LLM_PROVIDER=$HINDSIGHT_PROVIDER"
-    echo "HINDSIGHT_API_LLM_API_KEY=$HINDSIGHT_KEY"
+    # the Codex sign-in of its own, mounted from $DIR/hindsight-codex (write_docker_override); no key then
+    if hindsight_codex; then echo "HINDSIGHT_API_LLM_CODEX_HOME=/home/hindsight/.codex"
+    else echo "HINDSIGHT_API_LLM_API_KEY=$HINDSIGHT_KEY"; fi
     [ -n "$HINDSIGHT_MODEL" ] && echo "HINDSIGHT_API_LLM_MODEL=$HINDSIGHT_MODEL"
   } >"$DIR/hindsight.env"
   chmod 600 "$DIR/hindsight.env"
@@ -849,6 +869,13 @@ write_hindsight_env() {
 
 write_docker_override() {
   local f="$DIR/docker-compose.override.yml" gid=""
+  if hindsight_codex; then
+    # the folder that holds Hindsight's Codex sign-in; both containers run as UID 1000, which a Linux bind mount must allow
+    mkdir -p "$DIR/hindsight-codex" && chmod 700 "$DIR/hindsight-codex"
+    if [ "$(uname -s)" = Linux ] && [ "$(id -u)" != 1000 ]; then
+      chown 1000:1000 "$DIR/hindsight-codex" 2>/dev/null || warn "$DIR/hindsight-codex belongs to UID $(id -u); the containers run as UID 1000 — if the sign-in fails, run: sudo chown -R 1000:1000 $DIR/hindsight-codex"
+    fi
+  fi
   {
     echo "# written by the Foundry installer; run it again to change these (ADR-0024)"
     echo "services:"
@@ -864,6 +891,8 @@ write_docker_override() {
     [ -f "$HOME/.gitconfig" ] && echo "      - '$HOME/.gitconfig:/home/node/.gitconfig:ro'"
     # a GitHub CLI sign-in kept in a file (not the macOS keychain) works inside as well
     grep -qs 'oauth_token' "$HOME/.config/gh/hosts.yml" && echo "      - '$HOME/.config/gh:/home/node/.config/gh'"
+    # Hindsight's Codex sign-in, where the Codex CLI in this container can make it (sign_in_docker)
+    hindsight_codex && echo "      - './hindsight-codex:$HINDSIGHT_CODEX_IN_FOUNDRY'"
     if [ "$HOST_DOCKER" = 1 ]; then
       echo "      - '/var/run/docker.sock:/var/run/docker.sock'"
       gid="$($DOCKER run --rm -v /var/run/docker.sock:/s --entrypoint stat "$IMAGE:latest" -c %g /s 2>/dev/null || echo 0)"
@@ -873,12 +902,35 @@ write_docker_override() {
     echo "    environment:"
     echo "      FOUNDRY_HOST_REPOS: '$REPOS'"
     [ "$HOST_DOCKER" = 1 ] && { echo "      FOUNDRY_HOST_DOCKER: '1'"; echo "      FOUNDRY_CONTAINER: foundry"; }
+    if hindsight_codex; then
+      # the same folder is the Hindsight server's Codex home (HINDSIGHT_API_LLM_CODEX_HOME in hindsight.env)
+      echo "  hindsight:"
+      echo "    volumes:"
+      echo "      - './hindsight-codex:/home/hindsight/.codex'"
+    fi
   } >"$f"
   return 0
 }
 
+# Memory on the Codex sign-in: the sign-in Hindsight will use, made by the Codex CLI in the Foundry container with a device
+# code (the one pinned in the image has it; a browser is not needed), into the folder both containers mount
+sign_in_hindsight_codex() {
+  hindsight_codex || return 0
+  [ -s "$DIR/hindsight-codex/auth.json" ] && return 0
+  local cmd="$DOCKER exec -it -e CODEX_HOME=$HINDSIGHT_CODEX_IN_FOUNDRY foundry codex login --device-auth"
+  if [ -z "$TTY" ]; then
+    warn "Hindsight has no Codex sign-in yet: run \`$cmd\`, then \`docker compose restart hindsight\` in $DIR"
+    return 0
+  fi
+  yesno "Sign in to Codex for Memory's Hindsight now (a sign-in of its own)?" y || return 0
+  $cmd <"$TTY" >"$TTY" 2>&1 || warn "the Hindsight Codex sign-in did not finish; later: $cmd"
+  # the server reads the sign-in when it starts
+  [ -s "$DIR/hindsight-codex/auth.json" ] && { compose restart hindsight >/dev/null 2>&1 || true; }
+  return 0
+}
+
 sign_in_docker() {
-  [ -z "$TTY" ] && return 0
+  [ -z "$TTY" ] && { sign_in_hindsight_codex; return 0; }
   step "Signing in inside the container (Enter on a question skips it; the Setup page can do it later)"
   local it="$DOCKER exec -it foundry"
   if uses claude && ! $DOCKER exec foundry claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then
@@ -890,6 +942,7 @@ sign_in_docker() {
   if ! $DOCKER exec foundry gh auth status >/dev/null 2>&1; then
     if yesno "Sign in to GitHub now (for pull requests)?" y; then $it gh auth login --web --git-protocol https <"$TTY" >"$TTY" 2>&1 || warn "GitHub sign-in did not finish"; fi
   fi
+  sign_in_hindsight_codex
   return 0
 }
 
