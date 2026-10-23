@@ -60,7 +60,10 @@ launch profile. From source it:
    Google's installer), the GitHub CLI, and
    Node.js 22 with corepack (pnpm and yarn), which autoskills and previews of JavaScript projects need. On macOS these
    come from Homebrew, which it installs first if needed; on Linux it uses release builds in `~/.local`, so no `sudo`
-   except for system packages such as `unzip`;
+   except for system packages such as `unzip`. A coding agent's CLI that is already there and older than its newest
+   release (from the npm registry for Claude Code and Codex, Google's release manifest for `agy`) is updated through
+   its own updater (`claude update`, `codex update`, `agy update`, or `brew upgrade` for a Homebrew cask); a Codex
+   release binary the installer unpacked is unpacked again;
 2. offers the optional tools as a checklist: markitdown, Chromium for the self-check and Docker for the services
    previews need are ticked, ffmpeg (video goals) is not;
 3. clones Foundry into `~/foundry`, builds it, offers to sign in to each coding agent and GitHub (Enter skips; the

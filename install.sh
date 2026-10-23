@@ -6,7 +6,8 @@
 # It asks how to run Foundry and which coding agents to use, then sets up everything that way:
 #
 #   source   on this computer: installs what is missing (git, Bun, uv, graphify, the coding agents' CLIs, GitHub CLI,
-#            Node.js, and the optional tools you pick), builds Foundry, and runs it as a background service
+#            Node.js, and the optional tools you pick), brings a coding agent's CLI that is already there up to its
+#            newest release, builds Foundry, and runs it as a background service
 #   docker   in a container: installs Docker if needed, writes the compose files to the folder and starts it
 #
 # Then it offers to sign in to the coding agents and GitHub, opens Foundry in the browser, and leaves a `foundry`
@@ -88,7 +89,7 @@ parse_flags() {
       --dry-run) DRY=1; shift ;;
       --purge) PURGE=1; shift ;;
       --with) WITH="$2"; shift 2 ;;
-      -h|--help) sed -n '2,30p' "${BASH_SOURCE[0]:-$0}" 2>/dev/null || printf 'see %s\n' "$RAW_URL"; exit 0 ;;
+      -h|--help) sed -n '2,31p' "${BASH_SOURCE[0]:-$0}" 2>/dev/null || printf 'see %s\n' "$RAW_URL"; exit 0 ;;
       *) fail "unknown option $1 (see --help)" ;;
     esac
   done
@@ -341,10 +342,50 @@ need_uv() {
 
 # the x.y.z a CLI reports: "2.1.309 (Claude Code)", "codex-cli 0.160.0", "1.4.5"
 cli_version() { "$1" --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true; }
+older() { # older 0.160.0 0.163.0 → 0 when the first version is the older one
+  local a1 a2 a3 b1 b2 b3
+  IFS=. read -r a1 a2 a3 <<<"$1"
+  IFS=. read -r b1 b2 b3 <<<"$2"
+  if [ "${a1:-0}" -ne "${b1:-0}" ]; then [ "${a1:-0}" -lt "${b1:-0}" ]
+  elif [ "${a2:-0}" -ne "${b2:-0}" ]; then [ "${a2:-0}" -lt "${b2:-0}" ]
+  else [ "${a3:-0}" -lt "${b3:-0}" ]; fi
+}
+# the newest release, empty when it cannot be looked up: an npm package's from the registry, agy's from the manifest
+# Google's installer reads
+npm_latest() { curl -fsSL --max-time 10 "https://registry.npmjs.org/$1/latest" 2>/dev/null | grep -Eo '"version": *"[0-9]+\.[0-9]+\.[0-9]+"' | head -1 | grep -Eo '[0-9.]+[0-9]' || true; }
+agy_latest() {
+  local os a
+  is_mac && os=darwin || os=linux
+  case "$(uname -m)" in x86_64|amd64) a=amd64 ;; arm64|aarch64) a=arm64 ;; *) return 0 ;; esac
+  if [ "$os" = linux ] && ldd /bin/ls 2>&1 | grep -q musl; then a="${a}_musl"; fi
+  curl -fsSL --max-time 10 "https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/${os}_$a.json" 2>/dev/null | grep -Eo '"version": *"[0-9]+\.[0-9]+\.[0-9]+"' | head -1 | grep -Eo '[0-9.]+[0-9]' || true
+}
+
+# a coding agent's CLI that is already here, brought up to its newest release by update_<bin> when it is older
+update_agent() { # update_agent bin label newest
+  local cur now
+  cur="$(cli_version "$1")"
+  if [ -z "$3" ]; then ok "$2 $cur (could not check for a newer release)"; return 0; fi
+  if ! older "$cur" "$3"; then ok "$2 $cur"; return 0; fi
+  if [ "$DRY" = 1 ]; then plan "update $2 $cur to $3"; return 0; fi
+  step "Updating $2 $cur to $3"
+  if "update_$1" </dev/null >/dev/null 2>&1; then
+    hash -r
+    now="$(cli_version "$1")"
+    if [ "$now" = "$cur" ]; then ok "$2 $cur (its updater has nothing newer yet)"; else ok "$2 $now"; fi
+  else
+    warn "$2 stays $cur: its update did not finish (try: $1 update)"
+  fi
+}
+# each CLI's own updater knows how it was installed: native, Homebrew, npm or its standalone installer
+update_claude() { claude update; }
+# a release binary this installer unpacked is one Codex cannot place: it is unpacked again
+update_codex() { codex update || { [ "$(command -v codex)" = "$BIN_DIR/codex" ] && codex_release; }; }
+update_agy() { if have brew && brew list --cask antigravity-cli >/dev/null 2>&1; then brew upgrade --cask antigravity-cli; else agy update; fi; }
 
 need_claude() {
   path_add "$HOME/.local/bin"
-  if have claude; then ok "Claude Code $(claude --version 2>/dev/null | awk '{print $1}')"; return; fi
+  if have claude; then update_agent claude "Claude Code" "$(npm_latest @anthropic-ai/claude-code)"; return; fi
   if [ "$DRY" = 1 ]; then plan "install Claude Code (native installer)"; return; fi
   step "Installing Claude Code"
   fetch_run https://claude.ai/install.sh bash || true
@@ -353,24 +394,25 @@ need_claude() {
 }
 
 need_codex() {
-  if have codex; then ok "Codex $(codex --version 2>/dev/null | awk '{print $NF}')"; return; fi
+  if have codex; then update_agent codex Codex "$(npm_latest @openai/codex)"; return; fi
   if [ "$DRY" = 1 ]; then plan "install the Codex CLI"; return; fi
   step "Installing the Codex CLI"
-  if is_mac && need_brew; then brew install --cask codex
-  else
-    local a os
-    case "$(uname -m)" in x86_64|amd64) a=x86_64 ;; arm64|aarch64) a=aarch64 ;; *) warn "no Codex binary for $(uname -m); see https://github.com/openai/codex"; return ;; esac
-    is_mac && os=apple-darwin || os=unknown-linux-musl
-    mkdir -p "$BIN_DIR" && path_add "$BIN_DIR"
-    fetch_tar "https://github.com/openai/codex/releases/latest/download/codex-$a-$os.tar.gz" "$BIN_DIR" && mv "$BIN_DIR/codex-$a-$os" "$BIN_DIR/codex"
-  fi
-  have codex && ok "Codex $(codex --version 2>/dev/null | awk '{print $NF}')" || warn "Codex did not install; see https://github.com/openai/codex"
+  if is_mac && need_brew; then brew install --cask codex; else codex_release || true; fi
+  have codex && ok "Codex $(cli_version codex)" || warn "Codex did not install; see https://github.com/openai/codex"
+}
+# the newest release binary, unpacked into ~/.local/bin
+codex_release() {
+  local a os
+  case "$(uname -m)" in x86_64|amd64) a=x86_64 ;; arm64|aarch64) a=aarch64 ;; *) warn "no Codex binary for $(uname -m); see https://github.com/openai/codex"; return 1 ;; esac
+  is_mac && os=apple-darwin || os=unknown-linux-musl
+  mkdir -p "$BIN_DIR" && path_add "$BIN_DIR"
+  fetch_tar "https://github.com/openai/codex/releases/latest/download/codex-$a-$os.tar.gz" "$BIN_DIR" && mv "$BIN_DIR/codex-$a-$os" "$BIN_DIR/codex"
 }
 
 # the Antigravity CLI through Google's installer, which puts agy in ~/.local/bin
 need_agy() {
   path_add "$BIN_DIR"
-  if have agy; then ok "Antigravity $(cli_version agy)"; return; fi
+  if have agy; then update_agent agy Antigravity "$(agy_latest)"; return; fi
   if [ "$DRY" = 1 ]; then plan "install the Antigravity CLI (agy)"; return; fi
   step "Installing the Antigravity CLI"
   fetch_run https://antigravity.google/cli/install.sh bash >/dev/null || true
