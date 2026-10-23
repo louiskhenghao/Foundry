@@ -1,12 +1,11 @@
 import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
 import { renderCompanions } from './companions.ts';
-import { BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getBrief, getGoal, interviewAnswers, interviewDepth, interviewNotes, mergeSubjects, newId, noteQuestion, planOutputSchema, uncoveredAreas } from '@foundry/core';
+import { jsonSchemaFor, BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getBrief, getGoal, interviewAnswers, interviewDepth, interviewNotes, mergeSubjects, newId, noteQuestion, planOutputSchema, uncoveredAreas } from '@foundry/core';
 import { delegationContext } from './delegation.ts';
 import { learningsContext } from './learnings.ts';
 import type { RunHandle, RunResult } from '@foundry/runner';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { tryJson } from './checks/reviewer.ts';
 import { metaFor, modelFor } from './models/roles.ts';
@@ -48,7 +47,7 @@ async function classifyNature(engine: Engine, goal: Goal, ws: string, cad: boole
       maxBudgetUsd: 0.1,
       permissionMode: 'dontAsk',
       allowedTools: [],
-      jsonSchema: zodToJsonSchema(NatureVerdict, { $refStrategy: 'none' }),
+      jsonSchema: jsonSchemaFor(NatureVerdict),
       timeoutMs: 60_000,
       label: `classify nature ${goal.title}`,
       lane: 'interactive',
@@ -155,7 +154,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const previous = [followUp, delegationContext(engine, goal), learningsContext(engine, goal)].filter(Boolean).join('\n\n');
   const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
-  const schema = zodToJsonSchema(goal.interview ? InterviewOutput : BriefSkeleton, { $refStrategy: 'none' });
+  const schema = jsonSchemaFor(goal.interview ? InterviewOutput : BriefSkeleton);
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
   const classifiedGoal = { ...goal, nature };
   const clarifierModel = modelFor(config, classifiedGoal, 'clarifier');
@@ -203,7 +202,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
         disallowedTools: READONLY_DISALLOWED,
         appendSystemPromptFile: engine.roles.path('planner'),
         // the `goal` kind is offered only where the goal allows delegation
-        jsonSchema: zodToJsonSchema(planOutputSchema(goal.delegation.allow), { $refStrategy: 'none' }),
+        jsonSchema: jsonSchemaFor(planOutputSchema(goal.delegation.allow)),
         settings: boundarySettings(config.hooksDir),
         settingSources: config.settingSources,
         strictMcp: true,

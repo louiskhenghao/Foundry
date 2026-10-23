@@ -8,11 +8,10 @@
  * person applies what they take.
  */
 import { join } from 'node:path';
-import { reportsDollars } from '@foundry/core';
+import { jsonSchemaFor, reportsDollars } from '@foundry/core';
 import type { Brief, Goal } from '@foundry/core';
 import { RevisionOutput, diffBrief, getBrief, getGoal, isHistory } from '@foundry/core';
 import type { RunResult, RunSpec } from '@foundry/runner';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { DRAFT_RULES, briefSummary, toRevisedBrief, type DraftProposal } from './brief-draft.ts';
 import { budgetStatus } from './budget.ts';
@@ -131,7 +130,7 @@ export async function secondOpinion(engine: Engine, goalId: string, opts: { auto
       allowedTools: READONLY_TOOLS,
       disallowedTools: READONLY_DISALLOWED,
       appendSystemPromptFile: engine.roles.path('brief-reviewer'),
-      jsonSchema: zodToJsonSchema(RevisionOutput, { $refStrategy: 'none' }),
+      jsonSchema: jsonSchemaFor(RevisionOutput),
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       addDirs: goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined,

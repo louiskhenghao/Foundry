@@ -1,9 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Escalation, EscalationSuggestion, Goal, Task } from '@foundry/core';
-import { getBrief, getEscalation, getGoal, getObservation, getTask, listAttempts, listCheckResultsByGoal, listChecks, renderDecisions } from '@foundry/core';
+import { jsonSchemaFor, getBrief, getEscalation, getGoal, getObservation, getTask, listAttempts, listCheckResultsByGoal, listChecks, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
@@ -89,7 +88,7 @@ export async function runSuggest(engine: Engine, escalationId: string): Promise<
     permissionMode: 'dontAsk',
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,
-    jsonSchema: zodToJsonSchema(SuggestOutput, { $refStrategy: 'none' }),
+    jsonSchema: jsonSchemaFor(SuggestOutput),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,
     timeoutMs: 4 * 60_000,

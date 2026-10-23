@@ -70,7 +70,7 @@ export const LikenessSubject = z.object({
   score: z.number().min(0).max(10).nullable().describe('How much it looks like the pictures: 10 = could pass for them at a glance; 8 = clearly this one, details off; 6 = recognisably this one with clear differences; 4 = the same kind of thing, but not this one; 2 = barely related. null when it is not shown.'),
   matches: z.array(z.string()).describe('What already matches, a few words each.'),
   differences: z.array(LikenessDifference).describe('Every difference worth fixing, the most visible first; empty when it is not shown.'),
-  shots: z.array(z.string()).describe('The file names of the shots you compared with the pictures.'),
+  shots: z.array(z.string()).default([]).describe('The file names of the shots you compared with the pictures; empty when none.'),
 });
 export type LikenessSubject = z.infer<typeof LikenessSubject>;
 

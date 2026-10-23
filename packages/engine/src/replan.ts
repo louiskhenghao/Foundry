@@ -7,9 +7,8 @@
  */
 import { join } from 'node:path';
 import type { Goal, Task } from '@foundry/core';
-import { getBrief, getTask, listTasks, renderDecisions } from '@foundry/core';
+import { jsonSchemaFor, getBrief, getTask, listTasks, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { budgetStatus } from './budget.ts';
 import { cleanDeliverables } from './checks/delivers.ts';
 import { tryJson } from './checks/reviewer.ts';
@@ -101,7 +100,7 @@ export async function replanAfterLanding(engine: Engine, goal: Goal, landed: Tas
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,
     appendSystemPromptFile: engine.roles.path('planner'),
-    jsonSchema: zodToJsonSchema(ReplanOutput, { $refStrategy: 'none' }),
+    jsonSchema: jsonSchemaFor(ReplanOutput),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,
     strictMcp: true,

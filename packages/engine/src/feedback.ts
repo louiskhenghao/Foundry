@@ -1,7 +1,6 @@
 import { join } from 'node:path';
 import type { Goal } from '@foundry/core';
-import { FINAL_WALK, FeedbackPlan, getBrief, getTask, listTasks, renderDecisions } from '@foundry/core';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { jsonSchemaFor, FINAL_WALK, FeedbackPlan, getBrief, getTask, listTasks, renderDecisions } from '@foundry/core';
 import { hintOnly } from './checkpoint.ts';
 import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
@@ -42,7 +41,7 @@ export async function classifyFeedback(engine: Engine, goal: Goal, text: string)
     permissionMode: 'dontAsk',
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,
-    jsonSchema: zodToJsonSchema(FeedbackPlan, { $refStrategy: 'none' }),
+    jsonSchema: jsonSchemaFor(FeedbackPlan),
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,
     appendSystemPromptFile: engine.roles.path('feedback'),
