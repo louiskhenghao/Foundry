@@ -127,13 +127,14 @@ What each release brings: [changelog](https://github.com/louiskhenghao/foundry-r
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
-# Codex instead, or both:  … | bash -s -- --agent codex   (or --agent both)
+# skip the coding-agent question:  … | bash -s -- --agent codex   (or agy for Antigravity, claude,agy, all)
 ```
 
-It asks how to run Foundry. **From source** runs it on your computer: it installs what is missing (git, Bun, uv,
-graphify, the coding agent's CLI, the GitHub CLI, Node.js, and the optional tools you tick), builds Foundry and runs it
-as a background service that starts when you log in. **Docker** runs it in a container: it installs Docker if needed,
-shares your projects folder (and, if you agree, your computer's Docker for preview databases) and starts it. Either
+It asks how to run Foundry and which coding agents to use: Claude Code, Codex or Antigravity (from source only).
+**From source** runs it on your computer: it installs what is missing (git, Bun, uv, graphify, the coding agents'
+CLIs, the GitHub CLI, Node.js, and the optional tools you tick), updates a coding agent's CLI that has a newer
+release, builds Foundry and runs it as a background service that starts when you log in. **Docker** runs it in a
+container: it installs Docker if needed, shares your projects folder (and, if you agree, your computer's Docker for preview databases) and starts it. Either
 way it offers to sign in, opens <http://127.0.0.1:4111>, and leaves a `foundry` command:
 `foundry status | logs | stop | start | update | uninstall`. Run the line again, or `foundry update`, to update.
 

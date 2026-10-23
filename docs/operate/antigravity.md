@@ -13,6 +13,10 @@ Foundry can drive Claude Code, Codex CLI or the Antigravity CLI (`agy`, Google's
 
 ## From source
 
+The [one-line installer](install.md#one-line) sets it up: tick **Antigravity** in its coding-agent checklist, or pass
+`--agent agy` (`--agent claude,agy` keeps Claude Code as well). It installs `agy`, or updates one older than its newest
+release, and offers to open `agy` to sign in. By hand:
+
 Install Bun and git, then the Antigravity CLI (1.1.15 or newer: print mode with stream-json input) and sign in once from a terminal, which opens the browser:
 
 ```sh

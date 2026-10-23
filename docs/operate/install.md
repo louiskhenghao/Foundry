@@ -51,16 +51,22 @@ curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.
 
 [`install.sh`](../../install.sh) first asks how to run Foundry: **From source** (on this computer) or **Docker** (in a
 container, see [the Docker section](#install-with-docker)). It suggests source on macOS and on Linux with a desktop,
-Docker on a Linux server. From source it:
+Docker on a Linux server. Then it asks which coding agents to set up, as a checklist with Claude Code ticked: Claude
+Code, Codex and Antigravity (from source only: the image has no `agy`). The first one ticked, in that order, is the
+launch profile. From source it:
 
-1. installs what is missing, and only that: git, Bun (1.4 or newer; an older Bun is updated), uv, graphify and its skill, the coding agent's CLI (Claude Code
-   through its native installer; Codex through Homebrew's cask on macOS or its release binary), the GitHub CLI, and
+1. installs what is missing, and only that: git, Bun (1.4 or newer; an older Bun is updated), uv, graphify and its skill, each coding agent's CLI (Claude Code
+   through its native installer; Codex through Homebrew's cask on macOS or its release binary; Antigravity through
+   Google's installer), the GitHub CLI, and
    Node.js 22 with corepack (pnpm and yarn), which autoskills and previews of JavaScript projects need. On macOS these
    come from Homebrew, which it installs first if needed; on Linux it uses release builds in `~/.local`, so no `sudo`
-   except for system packages such as `unzip`;
+   except for system packages such as `unzip`. A coding agent's CLI that is already there and older than its newest
+   release (from the npm registry for Claude Code and Codex, Google's release manifest for `agy`) is updated through
+   its own updater (`claude update`, `codex update`, `agy update`, or `brew upgrade` for a Homebrew cask); a Codex
+   release binary the installer unpacked is unpacked again;
 2. offers the optional tools as a checklist: markitdown, Chromium for the self-check and Docker for the services
    previews need are ticked, ffmpeg (video goals) is not;
-3. clones Foundry into `~/foundry`, builds it, offers to sign in to the coding agent and GitHub (Enter skips; the
+3. clones Foundry into `~/foundry`, builds it, offers to sign in to each coding agent and GitHub (Enter skips; the
    Setup page can do it later) and runs the doctor;
 4. runs Foundry as a background service that starts when you log in and restarts if it stops: launchd on macOS,
    `systemd --user` on Linux (with lingering, so it keeps running after you log out), a plain background process
@@ -70,7 +76,7 @@ Docker on a Linux server. From source it:
 | Option | Environment | Default | |
 |---|---|---|---|
 | `--mode source\|docker` | `FOUNDRY_MODE` | asked | how to run Foundry |
-| `--agent claude\|codex\|both` | `FOUNDRY_AGENT` | `claude` | which coding agent's CLI and skills to set up |
+| `--agent claude,codex,agy` | `FOUNDRY_AGENT` | asked (`claude`) | the coding agents whose CLIs and skills to set up, one or more; `agy` is Antigravity (from source only), `both` is `claude,codex`, `all` the three |
 | `--dir PATH` | `FOUNDRY_DIR` | `~/foundry` | where Foundry goes |
 | `--repos PATH` | `FOUNDRY_REPOS` | `~/Projects` | Docker: your projects folder |
 | `--port N` | `FOUNDRY_PORT` | 4111 or the next free | the port to serve on |
@@ -86,7 +92,8 @@ The `foundry` command: `foundry status`, `start`, `stop`, `restart`, `logs`, `op
 run the same way as last time: source pulls, rebuilds and restarts; Docker pulls the image and recreates the
 container) and `uninstall` (removes the service and the command; `--purge` also deletes Foundry's data after asking;
 the tools it installed stay). Running the one line again does the same as `foundry update`. Its choices are kept in
-`~/.config/foundry/install.env`.
+`~/.config/foundry/install.env`; to add a coding agent later, run the line again with all the agents you want, for
+example `… | bash -s -- --agent claude,agy`.
 
 ### By hand
 
