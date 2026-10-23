@@ -10,9 +10,8 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { Goal, Learning, LearningKind as LearningKindT } from '@foundry/core';
-import { LEARNINGS_EVERYWHERE, LEARNINGS_MAX, LEARNING_MAX_CHARS, LearningKind, getBrief, getGoal, getObservation, getRepoLearnings, isHistory, listAttemptsByGoal, listEscalations, listTasks, newId, renderDecisions } from '@foundry/core';
+import { jsonSchemaFor, LEARNINGS_EVERYWHERE, LEARNINGS_MAX, LEARNING_MAX_CHARS, LearningKind, getBrief, getGoal, getObservation, getRepoLearnings, isHistory, listAttemptsByGoal, listEscalations, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 
@@ -251,7 +250,7 @@ async function distill(engine: Engine, goalId: string, opts: { force?: boolean }
     // it may read the transcripts and call a skill (the retro asks for writing-for-agents), nothing else
     allowedTools: ['Read', 'Skill'],
     disallowedTools: ['Bash', 'Write', 'Edit', 'Glob', 'Grep', 'Task', 'WebFetch', 'WebSearch'],
-    jsonSchema: zodToJsonSchema(DistillOutput, { $refStrategy: 'none' }),
+    jsonSchema: jsonSchemaFor(DistillOutput),
     timeoutMs: 4 * 60_000,
     transcriptPath,
     label: `learnings ${goal.title}`,

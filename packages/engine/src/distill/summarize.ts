@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { ClaudeRunner, RunResult } from '@foundry/runner';
 import { truncateOutput } from './truncate.ts';
+import { jsonSchemaFor } from '@foundry/core';
 
 const Summary = z.object({
   summary: z.string().describe('2-5 sentences: what ran, what failed, the root-cause error(s).'),
@@ -31,7 +31,7 @@ export async function summarizeOutput(runner: ClaudeRunner, raw: string, opts: {
       permissionMode: 'dontAsk',
       allowedTools: [],
       disallowedTools: ['Bash', 'Read', 'Write', 'Edit', 'Glob', 'Grep', 'Task', 'WebFetch', 'WebSearch'],
-      jsonSchema: zodToJsonSchema(Summary, { $refStrategy: 'none' }),
+      jsonSchema: jsonSchemaFor(Summary),
       timeoutMs: 90_000,
       label: 'distill',
     });

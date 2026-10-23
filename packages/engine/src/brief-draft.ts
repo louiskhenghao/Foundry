@@ -1,10 +1,9 @@
 import { join } from 'node:path';
-import { reportsDollars } from '@foundry/core';
+import { jsonSchemaFor, reportsDollars } from '@foundry/core';
 import type { Brief, BriefCheck, BriefTask, Goal, InterviewQuestion, InterviewRound } from '@foundry/core';
 import { AreaDraftOutput, Brief as BriefSchema, REVISE_MAX_ROUNDS, ReviseTurnOutput, RevisionOutput, TaskDraftOutput, type BriefDiff, diffBrief, getBrief, getGoal, noteQuestion, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { newId } from '@foundry/core';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { RunResult } from '@foundry/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { metaFor, modelFor } from './models/roles.ts';
@@ -152,7 +151,7 @@ async function draftSession(engine: Engine, goal: Goal, brief: Brief, req: Draft
   const hint = await engine.skillsFor(goal).hints.sectionFor('clarifier', { profile: engine.workflowProfileOf(goal), scenario: natureScenario(goal.nature) });
   const attachments = [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n');
   const outputSchema = req.mode === 'area' ? AreaDraftOutput : req.mode === 'revise' ? ReviseTurnOutput : TaskDraftOutput;
-  const schema = zodToJsonSchema(outputSchema, { $refStrategy: 'none' });
+  const schema = jsonSchemaFor(outputSchema);
   const source = req.mode === 'revise' ? 'revise' : 'draft';
   const n = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.cost_added' && (e.payload as { source?: string }).source === source).length + 1;
   const prompt = buildDraftPrompt(goal, brief, req, task, area, overview, hint, attachments);

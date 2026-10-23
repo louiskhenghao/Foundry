@@ -414,10 +414,14 @@ export function CopyButton({ text }: { text: string }) {
 }
 /** Display names where the raw state is too long for a one-line badge; everything else falls through. */
 const STATE_LABELS: Record<string, string> = {
-  awaiting_brief_approval: 'approve brief',
+  // a state is said as a state, never as what to do: the Goals page's signs and the Inbox carry the action
+  awaiting_brief_approval: 'awaiting approval',
   over_delivered: 'over-delivered',
   goal_review: 'reviewing',
-  awaiting_feedback: 'have a look',
+  awaiting_feedback: 'awaiting feedback',
+  // a check's result, in the words an attempt's has
+  pass: 'passed',
+  fail: 'failed',
 };
 /** a state in words, as a badge or a caption shows it */
 export const stateLabel = (state: string) => STATE_LABELS[state] ?? state.replace(/_/g, ' ');

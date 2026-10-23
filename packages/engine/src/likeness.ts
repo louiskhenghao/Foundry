@@ -6,9 +6,8 @@
  */
 import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { BriefSubject, EngineEvent, Goal, LikenessVerdict, Task } from '@foundry/core';
-import { LikenessVerdict as LikenessVerdictSchema, getBrief, getGoal, getTask, listTasks, majorDifferences } from '@foundry/core';
+import { jsonSchemaFor, LikenessVerdict as LikenessVerdictSchema, getBrief, getGoal, getTask, listTasks, majorDifferences } from '@foundry/core';
 import type { MilestoneEvidence } from './checks/walkthrough.ts';
 import type { Engine } from './engine.ts';
 import { createFixTasks } from './fix-tasks.ts';
@@ -103,7 +102,7 @@ export async function reviewLikeness(engine: Engine, goalIn: Goal, task: Task, e
       permissionMode: 'dontAsk',
       allowedTools: READONLY_TOOLS,
       disallowedTools: READONLY_DISALLOWED,
-      jsonSchema: zodToJsonSchema(LikenessVerdictSchema, { $refStrategy: 'none' }),
+      jsonSchema: jsonSchemaFor(LikenessVerdictSchema),
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       addDirs: [shotsDir, subjectsDir(config.dataDir, goalIn.id), ...(frames.length ? [tmp] : [])],

@@ -12,6 +12,11 @@ export interface GoalChain {
 
 export type ListEntry = { kind: 'goal'; goal: GoalRow } | { kind: 'chain'; chain: GoalChain };
 
+/** what the list can fold, by the id each fold is kept under: every chain of follow-ups, and every main goal with Delegated goals under it */
+export function foldable(entries: ListEntry[], children: Map<string, GoalRow[]>): { chains: string[]; parents: string[] } {
+  return { chains: entries.flatMap((e) => (e.kind === 'chain' ? [e.chain.id] : [])), parents: [...children.keys()] };
+}
+
 /**
  * The Goals list's entries, in the order the goals come (newest first): a goal with follow-ups becomes one chain, placed
  * where its newest member is. A follow-up whose earlier goal is not in `goals` (deleted, or delegated) starts a chain

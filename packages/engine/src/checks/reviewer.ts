@@ -2,8 +2,7 @@ import { metaFor, modelFor } from '../models/roles.ts';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@foundry/core';
-import { ReviewerVerdict as ReviewerVerdictSchema, chosenStyle, getBrief } from '@foundry/core';
-import { zodToJsonSchema } from 'zod-to-json-schema';
+import { jsonSchemaFor, ReviewerVerdict as ReviewerVerdictSchema, chosenStyle, getBrief } from '@foundry/core';
 import { renderStyle } from '../attempt-prompt.ts';
 import type { Engine } from '../engine.ts';
 import { diff } from '../git/git.ts';
@@ -195,7 +194,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,
     appendSystemPromptFile: engine.roles.path('reviewer-task'),
-    jsonSchema: zodToJsonSchema(ReviewerVerdictSchema, { $refStrategy: 'none' }),
+    jsonSchema: jsonSchemaFor(ReviewerVerdictSchema),
     settings: boundarySettings(engine.config.hooksDir),
     settingSources: engine.config.settingSources,
     // the Subjects' pictures live outside the worktree
@@ -227,7 +226,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
       permissionMode: 'dontAsk',
       allowedTools: READONLY_TOOLS,
       disallowedTools: READONLY_DISALLOWED,
-      jsonSchema: zodToJsonSchema(ReviewerVerdictSchema, { $refStrategy: 'none' }),
+      jsonSchema: jsonSchemaFor(ReviewerVerdictSchema),
       settings: boundarySettings(engine.config.hooksDir),
       settingSources: engine.config.settingSources,
       addDirs: subjects ? sessionDirs(subjectsAddDirs(engine.config.dataDir, goal.id, brief)) : undefined,
