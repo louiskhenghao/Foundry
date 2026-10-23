@@ -3,10 +3,10 @@ import type { MemoryStage } from './types.ts';
 export const MEMORY_HEADING = '# What Memory recalls';
 
 /**
- * The section a session gets when the folder's memory answered (ADR-0071), beside the Learnings notebook. A worker is
- * also told its bank, since it has the hindsight tools and may ask more mid-way; read-only roles only get the text.
+ * The section a session gets when the folder's memory answered (ADR-0071), beside the Learnings notebook. A worker that
+ * has the hindsight tools is also told its bank, so it may ask more mid-way; read-only roles only get the text.
  */
-export function memorySection(text: string, opts: { bankId: string; tools: boolean }): string {
+export function memorySection(text: string, opts: { tools: false } | { tools: true; bankId: string }): string {
   return [
     MEMORY_HEADING,
     "From this repository's long-term memory — what earlier goals and sessions here did, learned and were refused. A starting point, not the truth: where the code says otherwise, the code wins.",
@@ -19,16 +19,14 @@ export function memorySection(text: string, opts: { bankId: string; tools: boole
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
-/** what each stage asks the bank, in the words the server reflects on */
+/** what each stage asks the bank, in the words the server reflects on; Clarify's answer serves the planner too */
 export function memoryQuestion(stage: MemoryStage, i: { goalTitle: string; goalPrompt?: string; taskTitle?: string; taskSpec?: string; area?: string | null; files?: string[] }): string {
   const files = i.files?.length ? ` It touches ${i.files.slice(0, 12).join(', ')}.` : '';
   switch (stage) {
     case 'attempt':
       return `Before working on the task "${i.taskTitle}"${i.area ? ` (area: ${i.area})` : ''} of the goal "${i.goalTitle}" in this repository: what earlier work here says about this kind of change — the conventions it must follow, the pitfalls met, how it was built and tested, what reviews refused.${files} The task: ${clip(i.taskSpec ?? '', 600)}`;
     case 'clarify':
-      return `A new goal in this repository: "${i.goalTitle}". ${clip(i.goalPrompt ?? '', 800)} What should be known before understanding and planning it: how similar goals went here, where their Briefs had to be corrected, which decisions were later reversed, what plans failed and why.`;
-    case 'plan':
-      return `Planning the goal "${i.goalTitle}" in this repository: ${clip(i.goalPrompt ?? '', 600)} What earlier plans here taught — how work in these areas was best split, which tasks failed or had to be replanned, what a task tends to forget.`;
+      return `A new goal in this repository: "${i.goalTitle}". ${clip(i.goalPrompt ?? '', 800)} What should be known before understanding and planning it: how similar goals went here, where their Briefs had to be corrected, which decisions were later reversed, how work in these areas was best split, what plans failed and why.`;
     case 'replan':
       return `Replanning the remaining tasks of the goal "${i.goalTitle}" after "${i.taskTitle}" landed in this repository: what earlier work here says about what follows from such a change, and what replans here taught.`;
     case 'review_task':

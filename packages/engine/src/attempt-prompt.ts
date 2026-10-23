@@ -45,6 +45,8 @@ export interface AttemptPromptInput {
   upstream?: string;
   /** what earlier goals in this folder learned (ADR-0040), in short */
   learnings?: string;
+  /** rendered `# What Memory recalls` section (memory/prompt.ts memorySection), or '' (ADR-0071) */
+  memory?: string;
   /** the chosen Style Proposal (media/UI tasks), or null */
   style?: BriefStyleOption | null;
   /** rendered `# Subjects` section (see subjects.ts renderSubjects): the real things the result depicts, with their pictures; or '' */
@@ -84,6 +86,7 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   if (i.goal.references?.length) lines.push(renderReferences(i.goal));
   if (i.relevantContext) lines.push(`# Repository context\n${i.relevantContext}`);
   if (i.learnings) lines.push(i.learnings);
+  if (i.memory) lines.push(i.memory);
 
   const must = i.checks.filter((c) => c.tier === 'must');
   const stretch = i.checks.filter((c) => c.tier === 'stretch');

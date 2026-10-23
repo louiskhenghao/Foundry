@@ -18,6 +18,7 @@ import { raiseEscalation } from './escalation.ts';
 import { createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { diff } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
+import { memoryQuestion, memorySection } from './memory/prompt.ts';
 import { goalWorkspacePath, reviewDiffDir } from './workspace.ts';
 import { latestLikeness } from './likeness.ts';
 import { likenessLines, renderSubjects, sessionDirs, subjectsAddDirs } from './subjects.ts';
@@ -147,6 +148,8 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
       : scenario === 'image' || scenario === 'video'
       ? `# Media review\nThis goal's deliverables are media files under \`artifacts/\` — they are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk${scenario === 'image' ? ' and open the images with the Read tool (it renders them) to judge them against the checks' : '; verify video metadata with ffprobe when available (you cannot watch video — final visual quality stays with the human)'}.`
       : '';
+  // what earlier goal reviews in this repository found (ADR-0071); nothing while Memory is off
+  const recalled = await engine.memory.reflect('review_goal', memoryQuestion('review_goal', { goalTitle: goal.title }), { repoPath: goal.repoPath, goalId: goal.id });
   const prompt = [
     `# Goal\n${goal.title}\n\n${goal.prompt}`,
     media,
@@ -159,6 +162,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     `# Fixed point and spec\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal. The spec is above: the approved understanding, the Decisions and the acceptance checks. There is no issue tracker and no \`docs/agents/issue-tracker.md\`; do not look for one or ask for it.`,
     `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,
     previousVerdicts(engine, goal, checks),
+    recalled ? memorySection(recalled, { tools: false }) : '',
     lines <= INLINE_DIFF_LINES ? `# Full diff against ${goal.baseBranch}\n\`\`\`diff\n${d}\n\`\`\`` : `# Full diff against ${goal.baseBranch}\nThe diff is ${lines} lines — too long to paste. It is saved at \`${diffFile(engine, goal, d)}\`; read it in parts (Grep for file names, Read with offsets)${(goal.provider ?? engine.config.provider) === 'codex' ? '' : ' and hand sub-agents the path, never the text'}.`,
     `The full diff is ${lines <= INLINE_DIFF_LINES ? 'above' : 'in the file named above'} — judge from it. Open a file only when the diff alone cannot answer a check (a handful at most); do not re-read files that appear in the diff. Judge every check by name. For MUST items that fail, propose concrete fix tasks. Do not propose work beyond the listed checks.`,
   ]

@@ -5,41 +5,10 @@ import { basename, join, resolve } from 'node:path';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { FakeRunner, makeRepo, waitFor } from '../test-helpers.ts';
+import { FakeMemoryBackend as FakeBackend } from './fake-backend.ts';
 import { REFLECT_MAX_CHARS, TOKEN_ENV } from './memory.ts';
-import type { MemoryBackend, MemoryDocument, ReflectOptions } from './types.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
-
-/** a Hindsight server in memory: what Foundry asked and wrote, and what it answers */
-class FakeBackend implements MemoryBackend {
-  banks = new Set<string>();
-  created: { id: string; mission: string }[] = [];
-  docs = new Map<string, MemoryDocument[]>();
-  questions: string[] = [];
-  answer: string | ((signal?: AbortSignal) => Promise<string>) = 'remember: the tests need bun install first';
-  failRetain = false;
-  async version() {
-    return '1.1.0-test';
-  }
-  async listBanks() {
-    return [...this.banks];
-  }
-  async createBank(id: string, opts: { mission: string }) {
-    this.banks.add(id);
-    this.created.push({ id, mission: opts.mission });
-  }
-  async hasDocuments(id: string) {
-    return (this.docs.get(id)?.length ?? 0) > 0;
-  }
-  async retain(id: string, doc: MemoryDocument) {
-    if (this.failRetain) throw new Error('boom: the server refused');
-    this.docs.set(id, [...(this.docs.get(id) ?? []), doc]);
-  }
-  async reflect(_id: string, query: string, opts: ReflectOptions) {
-    this.questions.push(query);
-    return typeof this.answer === 'function' ? this.answer(opts.signal) : this.answer;
-  }
-}
 
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {

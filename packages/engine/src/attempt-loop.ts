@@ -6,6 +6,8 @@ import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, 
 import { LIMIT_TEXT, resumeRefused, type RunResult } from '@foundry/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { buildAttemptPrompt, styleApplies, summarizeReport } from './attempt-prompt.ts';
+import { MCP_SERVER_PREFIX } from './memory/memory.ts';
+import { memoryQuestion, memorySection } from './memory/prompt.ts';
 import type { CatchUp } from './catchup.ts';
 import { resolveDiscipline } from './skills/workflow.ts';
 import { metaFor, workerModelFor } from './models/roles.ts';
@@ -178,11 +180,15 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   // what the tasks this one depends on delivered (a Delegated goal's summary; a plain task's commit)
   const upstream = renderUpstream(engine, task);
   const learnings = learningsForWorker(engine, goal);
+  // what the folder's Memory says about this task (ADR-0071): nothing while Memory is off or the server is slow; a
+  // worker with the hindsight tools is told its bank, so it may ask more mid-way
+  const recalled = resume ? null : await engine.memory.reflect('attempt', memoryQuestion('attempt', { goalTitle: goal.title, taskTitle: task.title, taskSpec: task.spec, area: task.area, files: task.relevantFiles }), { repoPath: goal.repoPath, goalId: goal.id, taskId: task.id, attemptId: attempt.id });
+  const memory = recalled ? memorySection(recalled, engine.mcpAllowedFor(goal).includes(MCP_SERVER_PREFIX) ? { tools: true, bankId: (await engine.memory.bankFor(goal.repoPath)) ?? '' } : { tools: false }) : '';
   // the chosen Style Proposal binds everything with a look (UI, mobile, media, general); backend-only scenarios never see it
   const style = brief && styleApplies(task.scenario) ? chosenStyle(brief) : null;
   // the real things the result depicts, with their pictures (outside the worktree: their folder is added to the session)
   const subjects = renderSubjects(config.dataDir, goal.id, brief, 'worker', task.scenario);
-  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, style, subjects, baseMoved: opts.baseMoved ?? null });
+  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, memory, style, subjects, baseMoved: opts.baseMoved ?? null });
   const prompt = resume ? resume.message : freshPrompt(relevantContext, prevReport);
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection (continuations append)
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });

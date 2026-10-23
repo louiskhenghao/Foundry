@@ -5,14 +5,21 @@
  * and is not retried. The bank is named as Hindsight's own coding-agent integration names it, so the person's own
  * sessions in the repository and Foundry's goals share one memory.
  */
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { SECRET_SETTINGS, type AgentProvider, type MemorySettings } from '@foundry/core';
+import { LEARNINGS_EVERYWHERE, SECRET_SETTINGS, getAttempt, getGoal, getTask, isHistory, listEscalations, listTasks, type AgentProvider, type Brief, type EngineEvent, type MemorySettings } from '@foundry/core';
 import type { Engine } from '../engine.ts';
+import { goalRecord } from '../learnings.ts';
 import { PreviewEnvStore, redactor } from '../preview/env.ts';
 import { BANK_PREFIX, bankIdFor } from './bank.ts';
 import { HindsightBackend } from './client.ts';
+import { compactTranscript } from './compact.ts';
+import { briefRevisionDocument, goalRecordDocument, learningsDocument, replanDocument, reviewDocument, secondOpinionDocument, transcriptDocument } from './record.ts';
 import { recentCommits, seedDocument } from './seed.ts';
-import type { MemoryBackend, MemoryConnection, MemoryDocument, MemoryFolderStatus, MemorySource, MemoryStage, MemoryStatus } from './types.ts';
+import type { MemoryBackend, MemoryConnection, MemoryDocument, MemoryFolderStatus, MemoryGoalView, MemoryRecall, MemorySource, MemoryStage, MemoryStatus } from './types.ts';
+
+/** a goal that ended one of these ways has a record worth keeping (a cancelled one teaches nothing, ADR-0040) */
+const ENDED = new Set(['done', 'over_delivered', 'failed']);
 
 /** a stage waits this long for the server's answer, then goes on without one */
 export const REFLECT_TIMEOUT_MS = 20_000;
@@ -247,6 +254,109 @@ export class Memory {
       this.engine.config.log(`[memory] ${bank}: no answer for the ${stage} (${error})`);
       return null;
     }
+  }
+
+  /**
+   * What a goal did, decided, was refused and wrote, into its folder's bank, as the engine's events say it (ADR-0071).
+   * Each write runs in the background; a failure is a record on the goal, never an error here.
+   */
+  onEvent(e: EngineEvent): void {
+    if (!this.enabled()) return;
+    try {
+      switch (e.type) {
+        case 'goal.state_changed':
+          if (e.goalId && ENDED.has(e.payload.to)) this.onGoalEnded(e.goalId);
+          return;
+        case 'learnings.set':
+          // the person's own everywhere notebook belongs to no repository; an emptied notebook is left as it was
+          if (e.payload.repoPath !== LEARNINGS_EVERYWHERE && e.payload.learnings.length) this.retainLater(learningsDocument(e.payload.learnings), { repoPath: e.payload.repoPath, goalId: e.payload.goalId, source: 'learnings' });
+          return;
+        case 'brief.edited':
+          if (e.goalId) this.onBriefEdited(e.goalId, e.payload.brief);
+          return;
+        case 'brief.second_opinion': {
+          const goal = e.goalId ? getGoal(this.engine.store.db, e.goalId) : null;
+          if (goal) this.retainLater(secondOpinionDocument(goal, e.payload.changeSummary, e.payload.auto, e.ts), { repoPath: goal.repoPath, goalId: goal.id, source: 'brief' });
+          return;
+        }
+        case 'review.task.finished': {
+          const db = this.engine.store.db;
+          const goal = e.goalId ? getGoal(db, e.goalId) : null;
+          const task = getTask(db, e.payload.taskId);
+          const attempt = getAttempt(db, e.payload.attemptId);
+          if (goal && task) this.retainLater(reviewDocument(goal, task, { id: e.payload.attemptId, index: attempt?.index ?? 0 }, e.payload.verdict), { repoPath: goal.repoPath, goalId: goal.id, source: 'review', taskId: task.id, attemptId: e.payload.attemptId });
+          return;
+        }
+        case 'task.revised': {
+          const db = this.engine.store.db;
+          const goal = e.goalId ? getGoal(db, e.goalId) : null;
+          const task = getTask(db, e.payload.taskId);
+          const landed = e.payload.afterTaskId ? getTask(db, e.payload.afterTaskId)?.title ?? null : null;
+          if (goal && task) this.retainLater(replanDocument(goal, task, e.payload.reason, e.payload.spec, landed, e.ts), { repoPath: goal.repoPath, goalId: goal.id, source: 'plan', taskId: task.id });
+          return;
+        }
+        case 'attempt.concluded':
+          if (e.goalId && this.settings().retainTranscripts) this.track(this.onAttemptConcluded(e.goalId, e.payload));
+          return;
+      }
+    } catch (err) {
+      this.engine.config.log(`[memory] ${e.type}: ${message(err)}`);
+    }
+  }
+
+  /** a goal that ended: its record, as the Learnings session reads it; one that never got to work has none */
+  private onGoalEnded(goalId: string): void {
+    const db = this.engine.store.db;
+    const goal = getGoal(db, goalId);
+    if (!goal || isHistory(goal)) return;
+    if (!listTasks(db, goal.id).length && !listEscalations(db, { goalId: goal.id }).length) return;
+    this.retainLater(goalRecordDocument(goal, goalRecord(this.engine, goal)), { repoPath: goal.repoPath, goalId: goal.id, source: 'record' });
+  }
+
+  /** the Brief as it was is the entry before this edit in the goal's Brief history (the subscriber runs after the append) */
+  private onBriefEdited(goalId: string, after: Brief): void {
+    const goal = getGoal(this.engine.store.db, goalId);
+    if (!goal) return;
+    const history = this.engine.store.listByGoalOfTypes(goalId, ['brief.skeleton_proposed', 'brief.proposed', 'brief.edited', 'brief.approved']);
+    const previous = history.at(-2);
+    if (!previous || !('brief' in previous.payload)) return;
+    const doc = briefRevisionDocument(goal, previous.payload.brief as Brief, after, history.filter((x) => x.type === 'brief.edited').length);
+    if (doc) this.retainLater(doc, { repoPath: goal.repoPath, goalId, source: 'brief' });
+  }
+
+  /** an attempt's transcript, read off this computer and compacted, with how the attempt ended */
+  private async onAttemptConcluded(goalId: string, p: { attemptId: string; state: string; reason: string }): Promise<void> {
+    const db = this.engine.store.db;
+    const goal = getGoal(db, goalId);
+    const attempt = getAttempt(db, p.attemptId);
+    if (!goal || !attempt?.transcriptPath || !existsSync(attempt.transcriptPath)) return;
+    const text = await Bun.file(attempt.transcriptPath).text();
+    if (!text.trim()) return;
+    const promptPath = attempt.transcriptPath.replace(/\.jsonl$/, '.prompt.md');
+    const prompt = existsSync(promptPath) ? readFileSync(promptPath, 'utf8') : null;
+    const compacted = compactTranscript(text, goal.provider ?? this.engine.config.provider, { prompt });
+    if (!compacted.trim()) return;
+    const task = getTask(db, attempt.taskId);
+    await this.retain(transcriptDocument(goal, task ?? null, attempt, { state: p.state, reason: p.reason }, compacted), { repoPath: goal.repoPath, goalId, source: 'transcript', taskId: attempt.taskId, attemptId: attempt.id });
+  }
+
+  /** the goal page's line and its Remembered section: what the bank told each stage, and how much the goal wrote back */
+  goalView(goalId: string): MemoryGoalView {
+    const recalls: MemoryRecall[] = [];
+    let bank: string | null = null;
+    let written = 0;
+    let failed = 0;
+    for (const e of this.engine.store.listByGoalOfTypes(goalId, ['memory.recalled', 'memory.retained'])) {
+      if (e.type === 'memory.recalled') {
+        bank ??= e.payload.bankId;
+        recalls.push({ at: e.ts, stage: e.payload.stage, query: e.payload.query, text: e.payload.text, ms: e.payload.ms, error: e.payload.error, taskId: e.payload.taskId ?? null, attemptId: e.payload.attemptId ?? null });
+      } else if (e.type === 'memory.retained') {
+        bank ??= e.payload.bankId;
+        if (e.payload.error) failed++;
+        else written += e.payload.count;
+      }
+    }
+    return { enabled: this.enabled(), bank, recalls, written, failed };
   }
 
   /** the Hindsight card: is a server set, does it answer, and how each coding agent has its MCP server */

@@ -15,6 +15,7 @@ import { cleanDeliverables } from './checks/delivers.ts';
 import { tryJson } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
+import { memoryQuestion, memorySection } from './memory/prompt.ts';
 import { metaFor, modelFor } from './models/roles.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
@@ -60,7 +61,7 @@ export function revisionChanges(task: Task, r: ReplanOutput['revisions'][number]
   return { spec, relevantFiles: files && !same(files, task.relevantFiles) ? files : null, delivers: delivers && !same(delivers, task.delivers ?? []) ? delivers : null };
 }
 
-function buildReplanPrompt(engine: Engine, goal: Goal, landed: Task, downstream: Task[]): string {
+function buildReplanPrompt(engine: Engine, goal: Goal, landed: Task, downstream: Task[], memory = ''): string {
   const brief = getBrief(engine.store.db, goal.id)?.brief;
   const titles = new Map(listTasks(engine.store.db, goal.id).map((t) => [t.id, t.title]));
   const tasks = downstream.map((t) => ({ taskId: t.id, title: t.title, kind: t.kind, scenario: t.scenario, after: t.dependsOn.map((d) => titles.get(d) ?? d), spec: t.spec, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [] }));
@@ -68,6 +69,7 @@ function buildReplanPrompt(engine: Engine, goal: Goal, landed: Task, downstream:
     `# Goal from the user\n${goal.prompt}`,
     brief?.understanding.trim() ? `# What was understood (approved Brief)\n${brief.understanding.trim()}` : '',
     brief ? renderDecisions(brief) : '',
+    memory,
     `# What just landed\nThe step "${landed.title}" was done by a delegated goal and landed on the goal branch.\n\n${landed.summary ?? '(no summary)'}${landed.delivers?.length ? `\n\nFiles it promised, now on the branch:\n${landed.delivers.map((f) => `- ${f}`).join('\n')}` : ''}`,
     `# The tasks after it that have not started\n\`\`\`json\n${JSON.stringify(tasks, null, 1)}\n\`\`\``,
     `# Your job\nRead what landed (the repository is here, read-only: look at the files it delivered where that settles a detail) and touch up ONLY what it changes for the tasks above: a path that is elsewhere than the spec assumed, the format or the names the delivered data really has, a detail the summary settled, a file the task should read first, a file it should leave behind. Keep each task's intent, scope, acceptance and title; never add, drop or reorder tasks; never touch checks. Return a revision only for a task that needs one — with its whole new spec — and none when nothing changed. Output JSON matching the schema, nothing else.`,
@@ -90,8 +92,10 @@ export async function replanAfterLanding(engine: Engine, goal: Goal, landed: Tas
     return;
   }
   const model = modelFor(config, goal, 'planner');
+  // what the folder's Memory says about what follows such a change (ADR-0071); nothing while Memory is off
+  const recalled = await engine.memory.reflect('replan', memoryQuestion('replan', { goalTitle: goal.title, taskTitle: landed.title }), { repoPath: goal.repoPath, goalId: goal.id, taskId: landed.id });
   const handle = await engine.runner.run({
-    prompt: buildReplanPrompt(engine, goal, landed, downstream),
+    prompt: buildReplanPrompt(engine, goal, landed, downstream, recalled ? memorySection(recalled, { tools: false }) : ''),
     cwd: goalWorkspacePath(config.dataDir, goal),
     model: model.model,
     meta: metaFor(goal.id, model),

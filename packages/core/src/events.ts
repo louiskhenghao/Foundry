@@ -199,7 +199,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
    * says why), and what Foundry wrote into the bank (`count` 0 with an `error` = the write failed; `git` is the seeding
    * of a folder's bank from its commits, a global event like the Learnings)
    */
-  ev('memory.recalled', { stage: z.enum(['attempt', 'clarify', 'plan', 'replan', 'review_task', 'review_goal']), bankId: z.string(), query: z.string(), text: z.string().nullable(), ms: z.number().int().nonnegative(), error: z.string().nullable(), taskId: z.string().nullable().default(null), attemptId: z.string().nullable().default(null) }),
+  ev('memory.recalled', { stage: z.enum(['attempt', 'clarify', 'replan', 'review_task', 'review_goal']), bankId: z.string(), query: z.string(), text: z.string().nullable(), ms: z.number().int().nonnegative(), error: z.string().nullable(), taskId: z.string().nullable().default(null), attemptId: z.string().nullable().default(null) }),
   ev('memory.retained', { source: z.enum(['record', 'learnings', 'brief', 'review', 'plan', 'transcript', 'git']), bankId: z.string(), documentId: z.string().nullable(), count: z.number().int().nonnegative(), chars: z.number().int().nonnegative(), error: z.string().nullable(), taskId: z.string().nullable().default(null), attemptId: z.string().nullable().default(null) }),
   /** a Schedule saved whole (ADR-0054): made, edited, enabled or disabled. A global event, like the Learnings. */
   ev('schedule.set', { schedule: Schedule }),

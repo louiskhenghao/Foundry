@@ -558,6 +558,8 @@ export class Engine {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
       // a goal that ended teaches its folder something (ADR-0040)
       if (e.type === 'goal.state_changed') learnOnEnd(this, e.goalId, e.payload.to);
+      // what a goal did, decided, was refused and wrote goes into the folder's Memory (ADR-0071); nothing while it is off
+      this.memory.onEvent(e);
       // the notebook changed: the folder's exported skill follows (ADR-0050)
       // the everywhere notebook is in every folder's exported skill (ADR-0055): a change of it rewrites them all
       if (e.type === 'learnings.set') for (const r of e.payload.repoPath === LEARNINGS_EVERYWHERE ? listRepoLearnings(this.store.db).map((x) => x.repoPath).filter((x) => x !== LEARNINGS_EVERYWHERE) : [e.payload.repoPath]) void exportLearningsSkill(this, r);

@@ -38,8 +38,32 @@ export interface MemoryConnection {
   token: string | null;
 }
 
-/** where Foundry's own stages ask Memory before they start */
-export type MemoryStage = 'attempt' | 'clarify' | 'plan' | 'replan' | 'review_task' | 'review_goal';
+/** where Foundry's own stages ask Memory before they start (Clarify's answer serves the planner too) */
+export type MemoryStage = 'attempt' | 'clarify' | 'replan' | 'review_task' | 'review_goal';
+
+/** one ask of the bank, as the goal page shows it */
+export interface MemoryRecall {
+  at: string;
+  stage: MemoryStage;
+  query: string;
+  text: string | null;
+  ms: number;
+  error: string | null;
+  taskId: string | null;
+  attemptId: string | null;
+}
+
+/** the goal page's Memory line and its Remembered section */
+export interface MemoryGoalView {
+  /** Memory is set up (a server address) */
+  enabled: boolean;
+  /** the bank the goal's stages used, from its records; null before any */
+  bank: string | null;
+  recalls: MemoryRecall[];
+  /** documents written into the bank for this goal, and writes that failed */
+  written: number;
+  failed: number;
+}
 
 /** what Foundry wrote into a bank, by what it came from */
 export type MemorySource = 'record' | 'learnings' | 'brief' | 'review' | 'plan' | 'transcript' | 'git';

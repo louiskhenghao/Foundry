@@ -8,6 +8,7 @@ import { renderStyle } from '../attempt-prompt.ts';
 import type { Engine } from '../engine.ts';
 import { diff } from '../git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from '../guards/boundary.ts';
+import { memoryQuestion, memorySection } from '../memory/prompt.ts';
 import { reviewDiffDir } from '../workspace.ts';
 import { resolveDiscipline } from '../skills/workflow.ts';
 import { skillMatches } from '../skills/usage.ts';
@@ -169,6 +170,8 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
   const brief = getBrief(engine.store.db, goal.id)?.brief;
   const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '';
   const subjects = renderSubjects(engine.config.dataDir, goal.id, brief, 'task-reviewer', task.scenario);
+  // what earlier reviews in this repository refused for such a change (ADR-0071); nothing while Memory is off
+  const recalled = await engine.memory.reflect('review_task', memoryQuestion('review_task', { goalTitle: goal.title, taskTitle: task.title, files: task.relevantFiles }), { repoPath: goal.repoPath, goalId: goal.id, taskId: task.id, attemptId: attempt.id });
   const prompt = [
     `# Task (${task.kind}${task.scenario !== 'general' ? `, ${task.scenario}` : ''})\n${task.title}\n\n${task.spec}`,
     rubric ? `# Rubric (verify each)\n${rubric}` : '',
@@ -177,6 +180,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     media,
     reviewerHint ?? '',
     formatWorkflowObservation(workflow),
+    recalled ? memorySection(recalled, { tools: false }) : '',
     renderDiffSection(fit, d.length, savedAt),
     `${fit.files ? 'The diff above is partial — judge what it shows, and read the rest of every file it lists as cut or not shown before you say anything about that file; never report a file as incomplete or a change as missing only because it is not in the pasted part.' : 'The diff is above — judge from it; open at most a few files, only when the diff cannot answer.'} Review it against the task on two axes — Spec (does it do what the task and rubric ask?) and Standards (does it follow this repository's conventions?). Report BLOCKERS only: correctness bugs, security issues, scope violations (changes clearly outside the task), destroyed functionality, hard-coded secrets, or rubric items not met. Style nits are not blockers. If there are no blockers, pass.\n\nOutput: call the structured-output tool with the verdict object itself as its arguments — top-level keys \`pass\` (boolean), \`blockers\` (string[]), \`notes\` (string) and nothing else. Do NOT wrap it in a string or under a \`parameters\` key; that fails validation and costs a retry.`,
   ]
