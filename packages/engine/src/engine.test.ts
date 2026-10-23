@@ -1260,3 +1260,15 @@ describe('unsticking a task without restarting Foundry', () => {
     expect(engine.store.listByGoal(goal.id).some((e) => e.type === 'engine.note' && String((e.payload as { message: string }).message).startsWith(`you started "${second.title}" now`))).toBe(true);
   });
 });
+
+describe('doctor', () => {
+  test('one run answers everyone who asks while it runs', async () => {
+    const engine = track(new Engine(cfg(), new FakeRunner(() => {})));
+    const first = engine.doctor();
+    expect(engine.doctor()).toBe(first);
+    await first;
+    const next = engine.doctor();
+    expect(next).not.toBe(first);
+    await next;
+  });
+});

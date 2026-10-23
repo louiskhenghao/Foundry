@@ -2436,8 +2436,17 @@ export class Engine {
     return { ok, command, exitCode: r.code };
   }
 
+  /** the doctor run under way for a coding agent: the app shell and the Setup banner ask at the same moment, and one run answers both */
+  private doctoring = new Map<AgentProvider, ReturnType<SkillsManager['doctor']>>();
   /** Doctor report including engine-level optional tools. */
-  async doctor(provider: AgentProvider = this.config.provider) {
+  doctor(provider: AgentProvider = this.config.provider): ReturnType<SkillsManager['doctor']> {
+    const running = this.doctoring.get(provider);
+    if (running) return running;
+    const run = this.runDoctor(provider).finally(() => this.doctoring.delete(provider));
+    this.doctoring.set(provider, run);
+    return run;
+  }
+  private async runDoctor(provider: AgentProvider) {
     const available = this.markitdown.available();
     const cmd = this.markitdown.installCommand();
     const check = available

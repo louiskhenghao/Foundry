@@ -10,7 +10,7 @@ import { exec as defaultExec } from '../git/git.ts';
 import { CACHE_DEPTH, ensureCache } from './installer.ts';
 import type { SkillsPaths } from './paths.ts';
 import { readMarketplaces, type MarketplaceInfo } from './scanner.ts';
-import { candidatesFor, dirFiles, dirFingerprint, localDirOf, pathInRepoOf, skillMdBlob, sourceOf, type Candidate, type SourceKey } from './sources.ts';
+import { SkillDirIndex, candidatesFor, dirFiles, dirFingerprint, localDirOf, pathInRepoOf, skillMdBlob, sourceOf, type Candidate, type SourceKey } from './sources.ts';
 import type { Catalog, InstalledSkill, ScanResult, SkillSource, SkillSourceRow, SkillsUpdateReport, UpdaterKind } from './types.ts';
 
 interface PathFact {
@@ -101,6 +101,8 @@ export class SkillsUpdateChecker {
     const marketplaces = [...readMarketplaces(this.paths.marketplacesFile).values()];
     const now = new Date().toISOString();
     const needGit = !o.offline && (o.refresh || this.isStale());
+    // the skill folders of every clone, found once for the whole report
+    const index = new SkillDirIndex();
 
     // 1. group rows by source; hand-installed rows are matched to a candidate source
     type Group = { key: SourceKey; rows: { row: InstalledSkill; pathInRepo: string | null; candidate: Candidate | null }[] };
@@ -116,7 +118,7 @@ export class SkillsUpdateChecker {
         add(key, row, pathInRepoOf(row), null);
         continue;
       }
-      const cands = candidatesFor(row.name, catalog, this.paths, marketplaces);
+      const cands = candidatesFor(row.name, catalog, this.paths, marketplaces, index);
       if (!cands.length) {
         add({ id: 'unknown', kind: 'unknown', label: 'Hand-installed · origin unknown', manager: 'hand', repo: null, url: null, homepage: null }, row, null, null);
         continue;
@@ -151,7 +153,7 @@ export class SkillsUpdateChecker {
       // local git commands on an existing clone are fine offline; only fetching needs the network
       const gitOk = !!cache && existsSync(join(cache, '.git'));
       for (const { row, pathInRepo, candidate } of g.rows) {
-        rows.push(await this.rowStatus(g.key, row, pathInRepo, candidate, facts, cache, catalog, gitOk));
+        rows.push(await this.rowStatus(g.key, row, pathInRepo, candidate, facts, cache, catalog, gitOk, index));
       }
       for (const r of rows) if (isStaleShadow(r)) shadowed.push(r.name);
       const local = this.localOf(g.key, g.rows.map((x) => x.row));
@@ -231,7 +233,7 @@ export class SkillsUpdateChecker {
     return { commit, at };
   }
 
-  private async rowStatus(key: SourceKey, row: InstalledSkill, pathInRepo: string | null, candidate: Candidate | null, facts: RepoFacts | undefined, cache: string | null, catalog: Catalog, gitOk: boolean): Promise<SkillSourceRow> {
+  private async rowStatus(key: SourceKey, row: InstalledSkill, pathInRepo: string | null, candidate: Candidate | null, facts: RepoFacts | undefined, cache: string | null, catalog: Catalog, gitOk: boolean, index: SkillDirIndex): Promise<SkillSourceRow> {
     // a linked folder only shares its name with a catalog or plugin skill: it is neither a copy of the one nor a shadow of the other
     const linked = key.id === 'linked';
     const catalogId = linked ? null : (candidate?.catalogEntry?.id ?? row.marker?.catalogId ?? catalog.entries.find((e) => e.name === row.name || e.aliases.includes(row.name))?.id ?? null);
@@ -257,10 +259,10 @@ export class SkillsUpdateChecker {
     if (cache && existsSync(cache)) {
       if (rel && existsSync(join(cache, rel, 'SKILL.md'))) upstreamDir = join(cache, rel);
       else {
-        const hit = [...new Bun.Glob(`**/${row.name}/SKILL.md`).scanSync({ cwd: cache, dot: false })].filter((h) => !h.includes('node_modules/')).sort((a, b) => a.length - b.length)[0];
+        const hit = index.find(cache, row.name)[0];
         if (hit) {
-          upstreamDir = join(cache, hit.slice(0, -'/SKILL.md'.length));
-          rel = hit.slice(0, -'/SKILL.md'.length);
+          upstreamDir = join(cache, hit);
+          rel = hit;
         }
       }
     }

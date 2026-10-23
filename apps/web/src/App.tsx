@@ -49,10 +49,13 @@ export function App() {
   // close the mobile menu on navigation
   useEffect(() => setMenu(false), [loc.pathname]);
 
-  // first run: environment incomplete and no goals yet → land on Setup
+  // first run: environment incomplete and no goals yet → land on Setup. The goals are asked first: the doctor takes
+  // a while, and the page's own list of goals is not to wait behind it
   useEffect(() => {
-    Promise.all([api.doctor(), api.goals()])
-      .then(([d, goals]) => {
+    api
+      .goals()
+      .then(async (goals) => {
+        const d = await api.doctor();
         setSetupBad(!d.ok);
         if (!d.ok && goals.length === 0 && loc.pathname === '/') nav('/setup', { replace: true });
       })

@@ -31,7 +31,8 @@ export function AgentsPage() {
   useEffect(() => {
     let alive = true;
     const load = () => api.agents().then((value) => { if (alive) { setList(value); setError(null); } }).catch((e) => { if (alive) setError(e.message); });
-    const t = setTimeout(() => { load(); api.goals().then((value) => { if (alive) setGoals(value); }).catch(() => {}); }, 150);
+    // the first load at once; a live change refetches after a short quiet, so a burst of events asks once
+    const t = setTimeout(() => { load(); api.goals().then((value) => { if (alive) setGoals(value); }).catch(() => {}); }, list === null ? 0 : 150);
     const i = setInterval(load, 5_000);
     return () => {
       alive = false;

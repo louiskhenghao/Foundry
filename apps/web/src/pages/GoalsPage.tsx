@@ -32,8 +32,9 @@ export function GoalsPage() {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // follow-up chains folded (true) or opened (false) by hand, by their first goal; the others open while a goal in them is under way
   const [folded, setFolded] = useState<Record<string, boolean>>(readFolded);
+  // the first load at once; a live change refetches after a short quiet, so a burst of events asks once
   useEffect(() => {
-    const t = setTimeout(() => api.goals().then(setGoals).catch(() => {}), 150);
+    const t = setTimeout(() => api.goals().then(setGoals).catch(() => {}), goals === null ? 0 : 150);
     return () => clearTimeout(t);
   }, [version]);
 
