@@ -150,6 +150,8 @@ const OPERATIONAL_ENV: { name: string; help: string }[] = [
   { name: 'FOUNDRY_HOST_REPOS', help: "Docker: the projects folder shared at the same path as on the host; the folder picker starts there (set by the installer)." },
   { name: 'FOUNDRY_HOST_DOCKER / FOUNDRY_CONTAINER', help: "Docker: the host's Docker socket is shared, so preview services start there in this container's network (container name, default foundry). Set by the installer (ADR-0024)." },
   { name: 'FOUNDRY_SKIP_SETUP', help: 'Docker: skip installing the graphify skill into a fresh Claude home on first start.' },
+  { name: 'COMPOSE_PROFILES', help: 'Docker compose only: `memory` starts the Hindsight service beside Foundry for Memory (ADR-0071); `install.sh --with hindsight` writes it to .env with HINDSIGHT_API_URL=http://hindsight:8888.' },
+  { name: 'HINDSIGHT_API_LLM_PROVIDER / HINDSIGHT_API_LLM_API_KEY / HINDSIGHT_API_LLM_MODEL', help: 'Docker compose only, in hindsight.env beside the compose file (mode 600): the LLM the Hindsight service extracts and answers with; the installer asks for them.' },
   { name: 'CLAUDE_CONFIG_DIR', help: 'Alternative to FOUNDRY_CLAUDE_HOME.' },
 ];
 

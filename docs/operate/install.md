@@ -82,6 +82,7 @@ launch profile. From source it:
 | `--port N` | `FOUNDRY_PORT` | 4111 or the next free | the port to serve on |
 | `--ref BRANCH\|TAG` | `FOUNDRY_REF` | `main` | source: what to check out, for example a release tag |
 | `--with "markitdown chromium docker ffmpeg"` | `FOUNDRY_WITH` | the checklist | source: exactly these optional tools, without asking |
+| `--with hindsight` | `FOUNDRY_WITH` | asked (no) | Docker: a Hindsight server beside Foundry for [Memory](../guide/memory.md), as a compose profile; its LLM provider, key and model are asked for, or taken from `HINDSIGHT_API_LLM_PROVIDER`, `HINDSIGHT_API_LLM_API_KEY` and `HINDSIGHT_API_LLM_MODEL` |
 | `--yes` | | | take every default, ask nothing (no sign-ins) |
 | `--no-start` | | | set up, but do not start |
 | `--no-open` | | | do not open the browser |
@@ -160,8 +161,9 @@ yours: **your native accounts** and **your repositories**. Persist the correspon
 
 The [one-line install](#one-line) with **Docker** does all of this: it installs Docker if it is missing (the official
 script on Linux, Docker Desktop through Homebrew on macOS; Docker Compose v2 is required), writes `docker-compose.yml`, `.env` and
-`docker-compose.override.yml` to `~/foundry`, starts the container and offers to sign in inside it. The override
-shares, besides your projects folder:
+`docker-compose.override.yml` to `~/foundry` (and `hindsight.env`, mode 600, when you chose a Hindsight server for
+[Memory](../guide/memory.md): `.env` then carries `COMPOSE_PROFILES=memory` and `HINDSIGHT_API_URL=http://hindsight:8888`),
+starts the container and offers to sign in inside it. The override shares, besides your projects folder:
 
 - the projects folder a second time **at the same path as on your computer**, so goal paths and the bind mounts of a
   repository's compose file mean the same inside and outside (the folder picker starts there; `/repos` keeps working);
@@ -209,7 +211,8 @@ What the compose file sets up:
 | Environment passed through | `FOUNDRY_PROVIDER` (default `claude`), `FOUNDRY_CODEX_MODEL` (default `codex-default`), `FOUNDRY_MODEL_CHEAP` (default `haiku`), `FOUNDRY_MAX_CONCURRENT` (default `3`, shared by both backends) |
 | Updater | `FOUNDRY_WATCHTOWER_URL=http://watchtower:8080`, `FOUNDRY_WATCHTOWER_TOKEN` (default `foundry-watchtower`) |
 | Sidecar | `containrrr/watchtower`, container `foundry-watchtower`, its API never published to the host |
-| Restart policy | `unless-stopped` for both containers |
+| Memory (optional, ADR-0071) | profile `memory`: service `hindsight` from `ghcr.io/vectorize-io/hindsight:latest` (container `foundry-hindsight`, `shm_size: 1g`), ports `127.0.0.1:8888` (API, which your own Claude Code or Codex may share) and `127.0.0.1:9999` (console), volume `hindsight-data` → `/home/hindsight/.pg0`, its LLM from `hindsight.env` beside the compose file (`HINDSIGHT_API_LLM_PROVIDER`, `HINDSIGHT_API_LLM_API_KEY`, `HINDSIGHT_API_LLM_MODEL`); `foundry` is passed `HINDSIGHT_API_URL` and `HINDSIGHT_API_TOKEN`, empty unless set. Start it with `COMPOSE_PROFILES=memory` in `.env` (what `--with hindsight` writes) or `docker compose --profile memory up -d`; update it with `docker compose pull hindsight` |
+| Restart policy | `unless-stopped` for every container |
 
 `FOUNDRY_MODEL_CHEAP` is only the Claude *housekeeping model* (one-turn chores such as classifying a goal). All other
 models come from the model presets in **Settings → Models & limits**. Codex Housekeeping is part of its own captured preset. Changing `FOUNDRY_PROVIDER` selects another default data directory; it does not migrate goals. To enable Codex in a Claude-profile instance, keep the profile, sign in under **Accounts → Codex**, then choose Codex on New goal.

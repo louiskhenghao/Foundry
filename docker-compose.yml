@@ -33,6 +33,32 @@ services:
       # remove these two lines (or the sidecar) and the UI degrades to guided update commands
       FOUNDRY_WATCHTOWER_URL: http://watchtower:8080
       FOUNDRY_WATCHTOWER_TOKEN: ${FOUNDRY_WATCHTOWER_TOKEN:-foundry-watchtower}
+      # Memory (ADR-0071): the Hindsight service below when the installer chose it (`install.sh --with hindsight`
+      # writes COMPOSE_PROFILES=memory and this address to .env); empty = Memory off until a server is set in the UI
+      HINDSIGHT_API_URL: ${HINDSIGHT_API_URL:-}
+      HINDSIGHT_API_TOKEN: ${HINDSIGHT_API_TOKEN:-}
+    restart: unless-stopped
+
+  # Memory (ADR-0071): a Hindsight server for the folders' banks, started only with the `memory` profile. The full
+  # image carries its embedded database and models (3.7–9 GB); its LLM is yours, from hindsight.env beside this file
+  # (HINDSIGHT_API_LLM_PROVIDER, HINDSIGHT_API_LLM_API_KEY, optionally HINDSIGHT_API_LLM_MODEL). Its API is published
+  # on loopback so your own Claude Code or Codex can share the banks; the console is on 9999.
+  hindsight:
+    image: ghcr.io/vectorize-io/hindsight:latest
+    container_name: foundry-hindsight
+    profiles: ['memory']
+    shm_size: 1g
+    ports:
+      - '127.0.0.1:8888:8888'
+      - '127.0.0.1:9999:9999'
+    volumes:
+      - hindsight-data:/home/hindsight/.pg0
+    env_file:
+      - path: hindsight.env
+        required: false
+    environment:
+      # a stable worker id, as Hindsight asks of a server that runs for good
+      HINDSIGHT_API_WORKER_ID: foundry
     restart: unless-stopped
 
   # the only container that touches the docker socket: it pulls the new image and recreates
@@ -54,3 +80,4 @@ volumes:
   codex-home:
   claude-home:
   playwright-browsers:
+  hindsight-data:
