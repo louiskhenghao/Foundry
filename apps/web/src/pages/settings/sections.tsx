@@ -1,4 +1,4 @@
-import { Bell, Cpu, GitBranch, Info, KeyRound, MonitorPlay, Palette, Server, Shield, Target, WandSparkles, Wrench, type LucideIcon } from 'lucide-react';
+import { Bell, Cpu, FlaskConical, GitBranch, Info, KeyRound, MonitorPlay, Palette, Server, Shield, Target, WandSparkles, Wrench, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn, code } from '../../ui.tsx';
 
@@ -23,6 +23,7 @@ export const SECTION_STYLE: Record<string, { Icon: LucideIcon; ink: string; dot:
   notifications: { Icon: Bell, ...hue(7) },
   access: { Icon: KeyRound, ...hue(0) },
   safety: { Icon: Shield, ...hue(4) },
+  beta: { Icon: FlaskConical, ...hue(3) },
   engine: { Icon: Server, ...hue(5) },
   appearance: { Icon: Palette, ...hue(6) },
   about: { Icon: Info, ...hue(1) },

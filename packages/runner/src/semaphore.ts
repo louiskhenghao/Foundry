@@ -4,19 +4,21 @@ import type { RunLane } from './types.ts';
 export const INTERACTIVE_EXTRA = 1;
 
 /**
- * FIFO counting semaphore with two lanes. `work` runs within the limit. `interactive` — a session a person is waiting
+ * FIFO counting semaphore with three lanes. `work` runs within the limit. `interactive` — a session a person is waiting
  * for — may use one slot beyond it and goes before queued work, so a busy engine still answers the person; interactive
- * runs queue behind each other, and work never passes work.
+ * runs queue behind each other, and work never passes work. `aside` runs beside the limit: it never waits and takes
+ * no slot from the others (a Conversation's answer, ADR-0073), though it counts among the active runs.
  */
 export class Semaphore {
   private queue: { lane: RunLane; grant: () => void }[] = [];
   private inUse = 0;
   private work = 0;
+  private aside = 0;
 
   constructor(private limit: number) {}
 
   get activeCount(): number {
-    return this.inUse;
+    return this.inUse + this.aside;
   }
   get waiting(): number {
     return this.queue.length;
@@ -28,14 +30,25 @@ export class Semaphore {
 
   /** a slot is free for this lane: work within the limit, interactive within the limit plus the extra slot */
   private fits(lane: RunLane): boolean {
+    if (lane === 'aside') return true;
     return this.inUse < this.limit + INTERACTIVE_EXTRA && (lane === 'interactive' || this.work < this.limit);
   }
   /** a run in this lane would start now: a slot is free for it and nothing queued goes before it */
   available(lane: RunLane = 'work'): boolean {
+    if (lane === 'aside') return true;
     return this.fits(lane) && !this.queue.some((q) => lane === 'work' || q.lane === 'interactive');
   }
 
   acquire(lane: RunLane = 'work'): Promise<() => void> {
+    if (lane === 'aside') {
+      this.aside++;
+      let released = false;
+      return Promise.resolve(() => {
+        if (released) return;
+        released = true;
+        this.aside--;
+      });
+    }
     return new Promise((resolve) => {
       const grant = () => {
         this.inUse++;

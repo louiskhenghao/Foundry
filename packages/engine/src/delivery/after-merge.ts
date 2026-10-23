@@ -16,11 +16,12 @@ import { fetchBase, pullFastForward } from '../git/sync.ts';
 import { ARTIFACTS_DIR, contentHash, copyIdentity, deliveryWorkspacePath, goalWorkspacePath, internalWorkspaceDir, isStyleSample, listArtifacts, listStackBranches, trackedArtifacts } from '../workspace.ts';
 import { goalUsesArtifacts, unlandedFiles } from '../goal-artifacts.ts';
 import { pendingStackEntries } from './stack-entries.ts';
+import { conversationWorkspacePath } from '../conversation/workspace.ts';
 
 export const baseBranchOf = (goal: Goal) => goal.delivery.policy.baseBranch ?? goal.baseBranch;
 
 /** the engine's folders of a goal the tidy-up removes; its screenshots, review diffs, preview, milestone and docs worktrees stay */
-const TIDIED = ['tasks', 'delivery', 'resolve', 'baseline', 'overlay'] as const;
+const TIDIED = ['tasks', 'delivery', 'resolve', 'baseline', 'overlay', 'conversation'] as const;
 
 
 /**
@@ -173,6 +174,8 @@ export async function afterMerge(engine: Engine, goalId: string, opts: AfterMerg
       await removeWorktree(goal.repoPath, t.worktreePath, { deleteBranch: t.branch ?? undefined }).catch(() => {});
     }
     await removeWorktree(goal.repoPath, deliveryWorkspacePath(config.dataDir, goal)).catch(() => {});
+    // the Explainer's worktree too (a later question builds one from the base branch, ADR-0073)
+    await removeWorktree(goal.repoPath, conversationWorkspacePath(config.dataDir, goal)).catch(() => {});
     if (existsSync(ws)) worktrees++;
     const exists = async (b: string) => (await git(['rev-parse', '--verify', '-q', `refs/heads/${b}`], goal.repoPath)).code === 0;
     const hadBranch = await exists(goal.branch);

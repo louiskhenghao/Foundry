@@ -104,6 +104,7 @@ Auto 类型任务选择 Default 预设时，会在创建时保存三种任务类
 | **Documenter** | 写完成文档。 |
 | **Feedback triage** | 把你在里程碑时写的内容变成计划。 |
 | **Suggest a hint** | 对 Inbox 里 blocked 任务的 AI 诊断。 |
+| **Conversation** | 在 goal 页面回答你问题的 Explainer（[Conversation](./while-it-runs.zh.md#conversation)，beta）。 |
 | **Style samples** | Brief 上的样图。 |
 
 Foundry 自带四个预设：
@@ -339,6 +340,12 @@ Access 打开后，每个人做的事都记在自己名下：goal 页面会写�
 - **Extra boundary patterns**：除了内置的那些（推送、pull request、发布版本、发布包、部署、云工具）之外，Foundry 绝不能让会话自己执行的命令，比如 `terraform apply|kubectl`。被拦下的命令会进入你的 Inbox 等你批准。
 - **Folder browser roots**：**Select folder…** 选择器可以打开哪些文件夹。留空表示你的主文件夹和外接硬盘。
 - **Desktop apps & printers**：默认关闭。打开后，会话可以打开这台电脑上的桌面应用，并把文件交给打印机 —— text-to-cad 的 Bambu 移交（Bambu Connect、Bambu Studio）、`open …`、`xdg-open`、切片软件的窗口。关着时，边界守卫会拒绝这些命令和那个移交技能（Foundry 也不会向会话推荐它）；无头切片、预检报告和零件查询照常可用。被拒绝的命令会进入你的 Inbox，你可以在那里替它执行一次；被拒绝的技能会记在 goal 页面上，工作照常继续。
+
+## Beta
+
+试用中的功能。每一项都默认关闭，要在这里打开；以后的版本里可能会变，也可能去掉；开着的时候，它出现的地方会标上 **Beta**。
+
+- **Conversation on the goal page**：goal 页面和它的 Brief 页面右下角的泡泡，打开一条与这个 goal 的 **Explainer** 的 Conversation —— goal 所用编码智能体的一个只读会话，在页面旁边的小窗里回答你关于 goal 的代码和 Foundry 对它的记录的问题。它用的模型是预设里的 **Conversation** 一行。关着时：没有泡泡，也没有 Conversation 标签页；已有的 Conversation 会保留，再打开时回来。见 [Conversation](./while-it-runs.zh.md#conversation)。
 
 ## Engine (install)
 

@@ -37,6 +37,8 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
   escalations                             list open escalations
   answer <escalationId> <action> [--hint "..."] [--attempts N] [--max-cost N] [--max-min N]
   watch <goalId>                          tail live stream + events for a goal
+  ask <goalId> "<question>" [--new]       ask the goal's Explainer (Conversation, beta: Settings → Beta); the answer streams here;
+                                          --new starts another Conversation instead of going on with the newest
   diff <goalId>                           print the goal branch diff
   cancel <goalId>
   replay --verify                         rebuild read models from the event log and compare

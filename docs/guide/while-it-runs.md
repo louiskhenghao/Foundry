@@ -70,6 +70,7 @@ The row of tabs stays at the top of the page while you scroll, so another tab is
 | **Activity** | Everything that happened, newest first. |
 | **Diff** | Every change compared with where the goal started. |
 | **Delivery** | What happens to the result, and its progress. See [Getting the result](./getting-the-result.md#the-delivery-tab). |
+| **Conversation** | Your questions about the goal and the Explainer's answers: every Conversation of the goal. Beta, see [Conversation](#conversation). |
 
 ## Overview
 
@@ -318,6 +319,20 @@ Every file the goal changed compared with where it started, with how many lines 
 Click a file to open its changes in a window: the code coloured by language, added lines green (+) and removed ones red (−), with their line numbers in the old and the new file. **Whole file** shows the file as it is now with the goal's lines tinted (while the goal's folder exists). The arrows at the top, or ← and →, move to the previous or next file.
 
 ![The Diff tab: every file the goal changed, with the lines it added and removed](images/goal-diff.png)
+
+## Conversation
+
+*Beta: switch it on under [Settings → Beta](./settings.md#beta).* Ask the goal anything on its own page: why a task was done the way it was, where something lives in the code now, what went wrong and when, what a decision on the Brief led to. The **Explainer** answers. It is a read-only session of the goal's coding agent that reads the goal's code, in a checkout of its own brought up to date before every answer, and Foundry's records of the goal: the Brief and your Decisions, every task with its attempts and reviews, the timeline, where the goal waited for you, the review, the delivery, and what each session said. It changes nothing, not the code and not the goal. Ask it to change something and it tells you where in Foundry that is done, and drafts the words for you.
+
+The bubble at the bottom right of the goal page, and of the Brief page, opens the goal's newest Conversation in a window beside the page; the page stays usable. The answer appears as it is written, with a line under it saying what the Explainer is reading. **Stop** keeps what was said so far. Send more questions while one is being answered: they wait their turn. The bubble pulses while an answer is written, and shows a dot when one came while the window was closed. Esc closes the window; on a phone it fills the screen.
+
+**+** in the window's header starts a new Conversation. The earlier ones stay readable on the **Conversation** tab (Expert view), which lists every Conversation of the goal, newest first, titled by its first question. Only the newest Conversation goes on; an earlier one is read, not continued. Everyone who opens the goal sees the same Conversations, and who asked each question when [Access](./settings.md#access) is on.
+
+An answer is held to 50 turns, $3 and 8 minutes; one that reaches a limit says so and keeps what it had. What the Conversations cost counts in the goal's total (hold the pointer over the cost for the split) but not against its Budget, and shows on the Usage and Reports pages as **Conversation** sessions. The Explainer uses the **Conversation** row of the model preset ([Settings](./settings.md#presets)). The Conversation is open in every state of the goal, running or long finished, even once the goal's branch was merged and removed: the base branch holds its commits. From the terminal, `foundry ask <goalId> "your question"` asks and prints the answer as it is written; `--new` starts a new Conversation.
+
+![The Conversation tab: the goal's Conversations on the left, the chosen one on the right with two questions and their answers](images/goal-conversation.png)
+
+![The bubble's window over the goal page: the newest Conversation, with the composer at the bottom](images/conversation-bubble.png)
 
 ## Cancelling, restarting, deleting
 

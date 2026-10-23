@@ -113,6 +113,12 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
     }
     case 'memory.retained':
       return { text: p.error ? `Memory could not write the ${p.source}: ${p.error}` : `Memory: wrote the ${p.source}${p.count > 1 ? ` (${p.count})` : ''}`, tone: p.error ? 'warn' : 'muted' };
+    case 'conversation.started':
+      return { text: `Conversation started${p.by ? ` by ${p.by}` : ''}`, tone: 'muted' };
+    case 'conversation.asked':
+      return { text: `Asked${p.by ? ` by ${p.by}` : ''}: ${p.text.split('\n')[0]?.slice(0, 120)}`, tone: 'muted', ...cut(p.text, 120) };
+    case 'conversation.answered':
+      return { text: `The Explainer ${p.status === 'done' ? 'answered' : `${p.status}${p.reason ? ` (${p.reason})` : ''}`}${p.text ? `: ${p.text.split('\n')[0]?.slice(0, 120)}` : ''}`, tone: p.status === 'failed' ? 'warn' : 'muted', ...cut(p.text, 120) };
     default:
       return { text: e.type, tone: 'muted' };
   }
@@ -130,4 +136,4 @@ function cut(text: string, max = Infinity, raw = false): { full?: string; raw?: 
   return text.trim() !== first.trim() || first.length > max ? { full: text, raw } : {};
 }
 
-export const NOISY = new Set(['goal.cost_added', 'workspace.committed', 'session.usage', 'attempt.session', 'check.created', 'task.workspace_assigned', 'memory.retained']);
+export const NOISY = new Set(['conversation.started', 'conversation.asked', 'conversation.answered', 'goal.cost_added', 'workspace.committed', 'session.usage', 'attempt.session', 'check.created', 'task.workspace_assigned', 'memory.retained']);

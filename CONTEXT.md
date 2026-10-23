@@ -184,6 +184,14 @@ The capped session that studies a Goal's References with REA before Clarify and 
 **Markdown rendition**
 The markdown version of an Attachment the system produces ahead of time (documents converted with markitdown, links fetched as a snapshot). Sessions are pointed at the rendition first and at the original only as a fallback; images keep no rendition because the model reads them directly. A rendition can be *ready*, *failed*, *pending* or *skipped*.
 
+**Conversation**
+A thread of questions a user asks about one Goal on its page, and the Explainer's answers, kept on the Goal and shared by everyone who opens it. A Goal may have several; only the newest goes on, the earlier ones are read. A Conversation never changes the Goal, the repository or Foundry. It is open in every state of the Goal; its cost is booked on the Goal but not against the Budget; it is a beta feature switched on in Settings.
+_Avoid_: chat; session (an Explainer session is how an answer is produced, the Conversation is what the user sees); Interview (Clarify asking the user)
+
+**Explainer**
+The Role that answers a Conversation: a read-only session of the Goal's Coding agent that reads the Goal's code in a detached checkout of its own and Foundry's records of the Goal, and explains — what was done and why, where things are, what went wrong. It never acts: asked to change something, it says where in Foundry that is done and drafts the words. One session per Conversation, resumed for each question.
+_Avoid_: assistant, chatbot
+
 ## Delivery
 
 **Delivery Policy**

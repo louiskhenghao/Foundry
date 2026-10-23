@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** The actions whose model a preset sets, in the order the Settings table shows them. */
-export const MODEL_ACTIONS = ['clarifier', 'planner', 'simple', 'standard', 'complex', 'merger', 'goalReviewer', 'taskReviewer', 'documenter', 'feedback', 'suggest', 'styleSample'] as const;
+export const MODEL_ACTIONS = ['clarifier', 'planner', 'simple', 'standard', 'complex', 'merger', 'goalReviewer', 'taskReviewer', 'documenter', 'feedback', 'suggest', 'explainer', 'styleSample'] as const;
 export type ModelAction = (typeof MODEL_ACTIONS)[number];
 
 export const ACTION_INFO: Record<ModelAction, { label: string; help: string }> = {
@@ -16,6 +16,7 @@ export const ACTION_INFO: Record<ModelAction, { label: string; help: string }> =
   documenter: { label: 'Documenter', help: 'Writes the completion docs you chose at approval.' },
   feedback: { label: 'Feedback triage', help: 'Turns what you write at a milestone into a hint, fix tasks or a Decision.' },
   suggest: { label: 'Suggest a hint', help: 'The AI diagnosis and hint for a blocked task in the Inbox.' },
+  explainer: { label: 'Conversation', help: "The Explainer that answers your questions about a goal on its page (Conversation, beta): it reads the goal's code and records and explains; it never changes anything." },
   styleSample: { label: 'Style samples', help: 'The one-image samples of a style direction on the Brief page, and the search for pictures of the Brief\'s Subjects.' },
 };
 
@@ -29,7 +30,9 @@ export function natureKey(nature: string): ModelNature {
 /** rows a nature seldom runs — shown greyed, still editable */
 export const RARELY_USED: Record<ModelNature, ModelAction[]> = { code: [], docs: ['styleSample', 'merger'], media: ['merger', 'documenter'] };
 
-export const PresetTable = z.object(Object.fromEntries(MODEL_ACTIONS.map((a) => [a, z.string().min(1)])) as Record<ModelAction, z.ZodString>);
+/** a preset saved before the Conversation row existed (ADR-0073) reads with its Suggest model as the Explainer's */
+export const withExplainerRow = (v: unknown): unknown => (v && typeof v === 'object' && !('explainer' in v) && 'suggest' in v ? { ...(v as Record<string, unknown>), explainer: (v as Record<string, unknown>).suggest } : v);
+export const PresetTable = z.preprocess(withExplainerRow, z.object(Object.fromEntries(MODEL_ACTIONS.map((a) => [a, z.string().min(1)])) as Record<ModelAction, z.ZodString>));
 export type PresetTable = z.infer<typeof PresetTable>;
 export const ModelPreset = z.object({
   label: z.string().min(1),
@@ -40,8 +43,8 @@ export const ModelPreset = z.object({
 });
 export type ModelPreset = z.infer<typeof ModelPreset>;
 
-const t = (clarifier: string, planner: string, simple: string, standard: string, complex: string, merger: string, goalReviewer: string, taskReviewer: string, documenter: string, feedback: string, suggest: string, styleSample: string): PresetTable => ({ clarifier, planner, simple, standard, complex, merger, goalReviewer, taskReviewer, documenter, feedback, suggest, styleSample });
-const all = (m: string) => t(m, m, m, m, m, m, m, m, m, m, m, m);
+const t = (clarifier: string, planner: string, simple: string, standard: string, complex: string, merger: string, goalReviewer: string, taskReviewer: string, documenter: string, feedback: string, suggest: string, explainer: string, styleSample: string): PresetTable => ({ clarifier, planner, simple, standard, complex, merger, goalReviewer, taskReviewer, documenter, feedback, suggest, explainer, styleSample });
+const all = (m: string) => t(m, m, m, m, m, m, m, m, m, m, m, m, m);
 
 /** Shipped presets. Values are aliases so they follow new model releases. */
 export const BUILTIN_PRESETS: Record<string, ModelPreset> = {
@@ -51,10 +54,10 @@ export const BUILTIN_PRESETS: Record<string, ModelPreset> = {
     description: 'Fable where judgement matters (planning, hard tasks, the final review), Opus for the bulk of the work.',
     basedOn: null,
     tables: {
-      //          clarify  planner  simple    standard complex  merger    goalRev  taskRev   docs      feedback  suggest  style
-      code: t('fable', 'fable', 'sonnet', 'opus', 'fable', 'opus', 'fable', 'sonnet', 'opus', 'sonnet', 'opus', 'opus'),
-      docs: t('fable', 'opus', 'sonnet', 'opus', 'fable', 'sonnet', 'fable', 'sonnet', 'opus', 'sonnet', 'opus', 'opus'),
-      media: t('fable', 'opus', 'sonnet', 'sonnet', 'opus', 'sonnet', 'fable', 'opus', 'sonnet', 'sonnet', 'opus', 'opus'),
+      //          clarify  planner  simple    standard complex  merger    goalRev  taskRev   docs      feedback  suggest  explainer style
+      code: t('fable', 'fable', 'sonnet', 'opus', 'fable', 'opus', 'fable', 'sonnet', 'opus', 'sonnet', 'opus', 'opus', 'opus'),
+      docs: t('fable', 'opus', 'sonnet', 'opus', 'fable', 'sonnet', 'fable', 'sonnet', 'opus', 'sonnet', 'opus', 'opus', 'opus'),
+      media: t('fable', 'opus', 'sonnet', 'sonnet', 'opus', 'sonnet', 'fable', 'opus', 'sonnet', 'sonnet', 'opus', 'opus', 'opus'),
     },
   },
   balanced: {
@@ -62,9 +65,9 @@ export const BUILTIN_PRESETS: Record<string, ModelPreset> = {
     description: 'Opus for planning and hard tasks, Sonnet for most work and reviews, Haiku for small checks.',
     basedOn: null,
     tables: {
-      code: t('opus', 'opus', 'sonnet', 'sonnet', 'opus', 'sonnet', 'sonnet', 'haiku', 'sonnet', 'haiku', 'sonnet', 'sonnet'),
-      docs: t('opus', 'sonnet', 'sonnet', 'opus', 'opus', 'sonnet', 'opus', 'sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet'),
-      media: t('opus', 'sonnet', 'sonnet', 'sonnet', 'opus', 'sonnet', 'opus', 'sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet'),
+      code: t('opus', 'opus', 'sonnet', 'sonnet', 'opus', 'sonnet', 'sonnet', 'haiku', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet'),
+      docs: t('opus', 'sonnet', 'sonnet', 'opus', 'opus', 'sonnet', 'opus', 'sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet'),
+      media: t('opus', 'sonnet', 'sonnet', 'sonnet', 'opus', 'sonnet', 'opus', 'sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet'),
     },
   },
   economy: {
@@ -72,9 +75,9 @@ export const BUILTIN_PRESETS: Record<string, ModelPreset> = {
     description: 'Sonnet for planning and most work, Haiku for simple tasks and small checks — lowest cost.',
     basedOn: null,
     tables: {
-      code: t('sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'haiku', 'sonnet', 'haiku', 'sonnet', 'sonnet'),
-      docs: t('sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet'),
-      media: t('sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'haiku', 'haiku', 'sonnet', 'sonnet'),
+      code: t('sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'haiku', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet'),
+      docs: t('sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet'),
+      media: t('sonnet', 'sonnet', 'haiku', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'sonnet', 'haiku', 'haiku', 'sonnet', 'sonnet', 'sonnet'),
     },
   },
 };

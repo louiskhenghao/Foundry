@@ -44,4 +44,7 @@ export const IdPrefix = {
   revert: 'rvt',
   /** a coding agent's sign-in beside the machine's own (ADR-0065) */
   account: 'acc',
+  /** a Conversation on a goal's page and one of its messages (ADR-0073) */
+  conversation: 'conv',
+  message: 'msg',
 } as const;

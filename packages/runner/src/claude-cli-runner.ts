@@ -73,6 +73,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
     for (const d of spec.pluginDirs ?? []) a.push('--plugin-dir', d);
     if (spec.mcpConfig) a.push('--mcp-config', JSON.stringify(spec.mcpConfig));
     if (spec.resumeSessionId) a.push('--resume', spec.resumeSessionId);
+    if (spec.partialText) a.push('--include-partial-messages');
     return a;
   }
 
@@ -174,14 +175,16 @@ export class ClaudeCliRunner implements ClaudeRunner {
       const splitter = new LineSplitter();
       const reader = (proc!.stdout as ReadableStream<Uint8Array>).getReader();
       const handle = (line: string) => {
-        transcript(line);
-        const at = lineNo++;
         const trimmed = line.trim();
         const msg = trimmed ? parseJson(trimmed) : undefined;
+        // a partial message (--include-partial-messages) is a live feed, not a record: the whole message follows it
+        const partial = !!msg && typeof msg === 'object' && (msg as { type?: unknown }).type === 'stream_event';
+        if (!partial) transcript(line);
+        const at = partial ? -1 : lineNo++;
         const usage = msg === undefined ? null : assistantUsage(msg);
         if (usage) tally.add(usage);
         for (const [block, decoded] of (msg === undefined ? decodeLine(line) : decodeMessage(msg)).entries()) {
-          const ev: RunnerEvent = refFile ? { ...decoded, ref: { file: refFile, line: at, block } } : decoded;
+          const ev: RunnerEvent = refFile && at >= 0 ? { ...decoded, ref: { file: refFile, line: at, block } } : decoded;
           if (ev.kind === 'init') sessionId = ev.sessionId;
           if (ev.kind === 'rate_limit') rateLimit = ev.info;
           if (ev.kind === 'result') lastResult = ev.result;

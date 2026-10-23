@@ -148,6 +148,8 @@ export interface EngineConfig {
   elevenlabsApiKey?: string;
   /** Groq key handed to sessions as GROQ_API_KEY */
   groqApiKey?: string;
+  /** the Conversation on goals' pages (Settings → Beta, ADR-0073) */
+  betaConversation: boolean;
   log: (msg: string) => void;
 }
 
@@ -229,6 +231,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     investigationMaxMinutes: Number(process.env.FOUNDRY_INVESTIGATION_MAX_MINUTES ?? 20) || 20,
     defaultGoalMode: process.env.FOUNDRY_GOAL_MODE === 'simple' ? 'simple' : 'expert',
     markitdownBin: process.env.FOUNDRY_MARKITDOWN,
+    betaConversation: process.env.FOUNDRY_BETA_CONVERSATION === '1' || process.env.FOUNDRY_BETA_CONVERSATION === 'true',
     log: (m) => console.log(m),
     ...overrides,
   };

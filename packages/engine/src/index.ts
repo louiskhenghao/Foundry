@@ -73,3 +73,5 @@ export type * from './memory/types.ts';
 export { deployability } from './deploy/detect.ts';
 export { DEPLOY_PROVIDERS, PROVIDER_LABEL } from './deploy/providers.ts';
 export { Access, AccessError, type Person } from './access.ts';
+export { Conversations, ConversationError, CONVERSATION_MAX_TURNS, CONVERSATION_MAX_BUDGET_USD, CONVERSATION_TIMEOUT_MS, conversationChannel, type ConversationsView, type ConversationLive } from './conversation/conversations.ts';
+export { RECORDS_DIR, conversationWorkspacePath } from './conversation/workspace.ts';

@@ -44,7 +44,7 @@ export function startServer(engine: Engine, opts: ServeOptions = {}) {
         if (!knownHost(host, () => extraHosts(engine))) return new Response(UNKNOWN_HOST(host), { status: 403 });
         if (crossSite(req)) return new Response('refused: a connection from another site', { status: 403 });
         // Access (ADR-0061): the live feed needs the same token as the API
-        if (engine.access.enabled() && !engine.access.verify(tokenOf(req))) return new Response('sign in first: this Foundry needs an access token', { status: 401 });
+        if (engine.access.enabled() && !engine.access.verify(tokenOf(req) ?? url.searchParams.get('token'))) return new Response('sign in first: this Foundry needs an access token', { status: 401 });
         if (server.upgrade(req)) return undefined as unknown as Response;
         return new Response('upgrade failed', { status: 400 });
       }

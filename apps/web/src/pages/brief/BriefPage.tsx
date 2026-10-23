@@ -32,6 +32,7 @@ import { areaOf, areaStyle, checkProblem, taskProblem, withPlan } from './shared
 import { ProviderBadge } from '../agents/rows.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SectionTitle } from './SectionTitle.tsx';
+import { ConversationBubble } from '../../components/conversation/ConversationBubble.tsx';
 
 export function BriefPage() {
   const { id = '' } = useParams();
@@ -113,6 +114,7 @@ export function BriefPage() {
   if ((g.state === 'clarifying' && !skeleton) || !brief) {
     return (
       <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-6">
+        <ConversationBubble goalId={id} />
         <Header detail={detail} simple={simple} />
         {g.interview ? (
           <InterviewPanel goal={g} events={detail.events} />
@@ -252,6 +254,7 @@ export function BriefPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-6">
+      <ConversationBubble goalId={id} />
       <Header detail={detail} onView={() => setView(false)} beforeReclarify={dirty ? save : undefined} />
       <div className="grid lg:grid-cols-[12rem_minmax(0,1fr)] gap-x-8">
         <BriefSideNav items={navItems} goalId={id} />

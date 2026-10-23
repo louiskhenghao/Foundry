@@ -1,5 +1,6 @@
 /** Antigravity PreToolUse adapter: keep Foundry's boundary, its read-only roles and the tool-call allowance. */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { READ_ONLY_SHELL_MESSAGE, judgeReadOnlyShell } from './readonly-bash.ts';
 
 const deny = (reason: string): never => {
   console.log(JSON.stringify({ decision: 'deny', reason }));
@@ -39,6 +40,11 @@ async function main() {
     const error = await new Response(proc.stderr).text();
     const code = await proc.exited;
     if (code !== 0) deny(error.trim() || 'Foundry boundary check failed.');
+    // a read-only shell (the Explainer, ADR-0073): only the commands that read
+    if (policy.readOnlyShell) {
+      const verdict = judgeReadOnlyShell(Array.isArray(command) ? command.join(' ') : String(command));
+      if (!verdict.allow) deny(`${READ_ONLY_SHELL_MESSAGE} (${verdict.reason})`);
+    }
   }
 }
 main().catch(() => deny('Foundry could not verify this tool call; stop the session.'));

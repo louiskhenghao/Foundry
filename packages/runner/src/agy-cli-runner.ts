@@ -163,7 +163,7 @@ export class AgyCliRunner implements AgentRunner {
     const release = await this.sem.acquire(spec.lane);
     const queue = new EventQueue();
     const started = Date.now();
-    const decoder = new AgyStreamDecoder();
+    const decoder = new AgyStreamDecoder({ deltas: !!spec.partialText });
     let dir: string | null = null;
     let proc: ReturnType<typeof Bun.spawn> | null = null;
     let terminate: ((signal?: 'SIGTERM' | 'SIGKILL') => Promise<void>) | null = null;
@@ -188,7 +188,7 @@ export class AgyCliRunner implements AgentRunner {
       const policy = join(dir, 'policy.json');
       const capped = join(dir, 'capped');
       const hooksDir = fileURLToPath(new URL('../hooks/', import.meta.url));
-      writeFileSync(policy, JSON.stringify({ canary, counter: join(dir, 'calls'), capped, boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, maxToolCalls: spec.maxTurns ? spec.maxTurns * AGY_CALLS_PER_TURN : spec.maxTurns }));
+      writeFileSync(policy, JSON.stringify({ canary, counter: join(dir, 'calls'), capped, boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), readOnlyShell: !!spec.readOnlyShell, noTools: spec.allowedTools?.length === 0, maxToolCalls: spec.maxTurns ? spec.maxTurns * AGY_CALLS_PER_TURN : spec.maxTurns }));
       const schema = spec.jsonSchema ? join(dir, 'schema.json') : undefined;
       if (schema) writeFileSync(schema, JSON.stringify(spec.jsonSchema));
       if (spec.transcriptPath) mkdirSync(dirname(spec.transcriptPath), { recursive: true });

@@ -1,7 +1,7 @@
 import type { AgentProvider } from '../schema/provider.ts';
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
-import { AgentAccount, NATIVE_ACCOUNT, FINAL_WALK, IDLE_COMPLETION, IDLE_DELIVERY, NO_DELEGATION, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
+import { AgentAccount, NATIVE_ACCOUNT, FINAL_WALK, IDLE_COMPLETION, IDLE_DELIVERY, NO_DELEGATION, conversationTitle, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Conversation, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
 import type { ObservationReport } from '../schema/observation.ts';
 import { applySubjectEvent } from '../machine/subjects.ts';
 
@@ -55,7 +55,10 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'goal.cost_added': {
       const g = getGoal(db, e.goalId!);
-      if (g) upsertGoal(db, { ...g, costUsd: g.costUsd + e.payload.costUsd, updatedAt: e.ts });
+      // a Conversation's answers are the goal's cost (ADR-0073), counted apart so the budget leaves them out; and no
+      // progress: updatedAt stays, as for an attachment (it freezes the time meter of finished goals)
+      const talk = e.payload.source === 'conversation';
+      if (g) upsertGoal(db, { ...g, costUsd: g.costUsd + e.payload.costUsd, conversationCostUsd: (g.conversationCostUsd ?? 0) + (talk ? e.payload.costUsd : 0), updatedAt: talk ? g.updatedAt : e.ts });
       break;
     }
     case 'goal.attachment_added': {
@@ -69,7 +72,7 @@ function project(db: Database, e: EngineEvent): void {
       break;
     }
     case 'goal.deleted': {
-      for (const t of ['tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations']) db.run(`DELETE FROM ${t} WHERE goal_id = ?`, [e.goalId!]);
+      for (const t of ['tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'conversations']) db.run(`DELETE FROM ${t} WHERE goal_id = ?`, [e.goalId!]);
       db.run('DELETE FROM goals WHERE id = ?', [e.goalId!]);
       break;
     }
@@ -716,6 +719,25 @@ function project(db: Database, e: EngineEvent): void {
       if (esc) upsertEscalation(db, { ...esc, state: 'answered', answer: e.payload.answer, answeredAt: e.ts, answeredBy: e.payload.by ?? null });
       break;
     }
+    // a Conversation on the goal's page (ADR-0073): started, asked, answered
+    case 'conversation.started':
+      upsertConversation(db, { id: e.payload.conversationId, goalId: e.goalId!, title: '', startedAt: e.ts, updatedAt: e.ts, by: e.payload.by ?? null, sessionId: null, costUsd: 0, messages: [] });
+      break;
+    case 'conversation.asked': {
+      const c = getConversation(db, e.payload.conversationId);
+      if (!c) break;
+      const message = { id: e.payload.messageId, role: 'person' as const, text: e.payload.text, at: e.ts, by: e.payload.by ?? null, askedId: null, status: null, reason: null, costUsd: 0, costAvailable: true, model: null, durationMs: 0 };
+      upsertConversation(db, { ...c, title: c.title || conversationTitle(e.payload.text), messages: [...c.messages, message], updatedAt: e.ts });
+      break;
+    }
+    case 'conversation.answered': {
+      const c = getConversation(db, e.payload.conversationId);
+      if (!c) break;
+      const p = e.payload;
+      const message = { id: p.messageId, role: 'explainer' as const, text: p.text, at: e.ts, by: null, askedId: p.askedId, status: p.status, reason: p.reason ?? null, costUsd: p.costUsd, costAvailable: p.costAvailable ?? true, model: p.model ?? null, durationMs: p.durationMs ?? 0 };
+      upsertConversation(db, { ...c, sessionId: p.sessionId ?? c.sessionId, costUsd: c.costUsd + p.costUsd, messages: [...c.messages, message], updatedAt: e.ts });
+      break;
+    }
     default:
       // informational events: clarify.started, review.task.finished, workspace.*, merge.*, budget.snapshot, boundary.blocked, engine.note
       break;
@@ -738,6 +760,7 @@ function normalizeGoal(g: Goal): Goal {
   g.investigation ??= null;
   g.delegation ??= { ...NO_DELEGATION };
   g.delegatedFrom ??= null;
+  g.conversationCostUsd ??= 0;
   if (g.workflow && g.workflow.ponytail == null) g.workflow.ponytail = 'on';
   g.completion = { ...IDLE_COMPLETION, ...(g.completion ?? {}) };
   // delivery fields added after a goal was written: review rounds (ADR-0053) and reverts (ADR-0059). Readers use them
@@ -881,6 +904,18 @@ export function upsertEscalation(db: Database, e: Escalation): void {
   );
 }
 
+/** a Conversation (ADR-0073), or null */
+export function getConversation(db: Database, id: string): Conversation | null {
+  return row<Conversation>(db.query('SELECT data FROM conversations WHERE id = ?').get(id));
+}
+/** a goal's Conversations, oldest first: the last one is the one that goes on */
+export function listConversations(db: Database, goalId: string): Conversation[] {
+  return (db.query('SELECT data FROM conversations WHERE goal_id = ? ORDER BY rowid').all(goalId) as { data: string }[]).map((r) => JSON.parse(r.data) as Conversation);
+}
+export function upsertConversation(db: Database, c: Conversation): void {
+  db.run('INSERT INTO conversations (id, goal_id, data) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data', [c.id, c.goalId, JSON.stringify(c)]);
+}
+
 export function bumpStat(db: Database, key: string, value: number): void {
   db.run(
     'INSERT INTO stats (key, count, total) VALUES (?, 1, ?) ON CONFLICT(key) DO UPDATE SET count = count + 1, total = total + excluded.total',
@@ -957,7 +992,7 @@ export function currentAccountId(db: Database, provider: AgentProvider): string 
   return (db.query('SELECT account_id FROM current_accounts WHERE provider = ?').get(provider) as { account_id: string } | null)?.account_id ?? NATIVE_ACCOUNT;
 }
 
-const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules', 'accounts', 'current_accounts', 'account_rate_limits'];
+const READ_MODEL_TABLES = ['goals', 'tasks', 'attempts', 'checks', 'check_results', 'briefs', 'observations', 'escalations', 'usage_ledger', 'rate_limit_state', 'repo_learnings', 'schedules', 'accounts', 'current_accounts', 'account_rate_limits', 'conversations'];
 
 export function clearReadModels(db: Database): void {
   for (const t of READ_MODEL_TABLES) db.exec(`DELETE FROM ${t}`);

@@ -150,6 +150,12 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `safety.desktopApps` | `false` | `FOUNDRY_DESKTOP_APPS` | Let sessions open desktop apps and hand files to printers (text-to-cad's Bambu hand-off, `open …`, `xdg-open`, the slicers' windows). Off: the boundary guard refuses those commands and the hand-off skill; headless slicing stays available. |
 | `safety.allowedRoots` | — | — | Folders the folder browser may enter; empty = home and /Volumes. |
 
+## Beta
+
+| Setting | Default | Environment variable | What it does |
+|---|---|---|---|
+| `beta.conversation` | `false` | `FOUNDRY_BETA_CONVERSATION` | The Conversation on a goal's page: a bubble opens a read-only Explainer that answers questions about the goal's code and Foundry's records of it, on the preset's Conversation model. Off = no bubble and no Conversation tab. |
+
 ## Engine (install)
 
 | Setting | Default | Environment variable | What it does |

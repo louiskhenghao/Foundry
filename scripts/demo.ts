@@ -522,6 +522,44 @@ export async function seedImportedGoal(engine: Engine, like: string): Promise<st
  * A finished goal with two follow-ups, each continuing the one before: the Goals list folds them into one entry. Seeded
  * for the list's shot only (the newest member just now, so the entry leads the list), then deleted again.
  */
+/**
+ * A Conversation on a finished goal (ADR-0073), for the guide's pictures of the tab and the bubble: two questions a
+ * person asked and the Explainer's answers, as the events the engine would have appended; the answers' cost is booked
+ * on the goal as a real one would be. The person's name is left out, as without Access.
+ */
+export async function seedConversation(engine: Engine, goalId: string): Promise<string> {
+  const { newId } = await import('../packages/core/src/index.ts');
+  const conversationId = newId('conversation');
+  const append = (type: string, payload: Record<string, unknown>) => engine.store.append({ type, goalId, payload } as never);
+  const turn = (question: string, answer: string, costUsd: number, durationMs: number) => {
+    const askedId = newId('message');
+    append('conversation.asked', { conversationId, messageId: askedId, text: question, by: null });
+    append('goal.cost_added', { costUsd, source: 'conversation' });
+    append('conversation.answered', { conversationId, messageId: newId('message'), askedId, text: answer, status: 'done', reason: null, costUsd, costAvailable: true, model: 'claude-sonnet-4-5', sessionId: 'demo-conversation', durationMs });
+  };
+  append('conversation.started', { conversationId, by: null });
+  turn(
+    'Why does the form task wait for the endpoint task, and where does the footer post to?',
+    [
+      '**T2 waits for T1 because the form posts to the route T1 adds.** The Brief made *build the sign-up form in the footer* depend on *add the subscribe endpoint*, so the form was written against a real route instead of a guess.',
+      '',
+      '- The endpoint is `POST /api/subscribe` in `src/server.ts` (T1): it checks the address with `isEmail` and stores it once, so subscribing twice is fine.',
+      '- The form in `src/components/Footer.tsx` (T2) posts there and shows the thank-you, or the friendly message from `emailError` (T3).',
+      '',
+      'T2 and T3 ran side by side after T1, as the Brief allowed; T4 covered the whole flow with tests once both had landed. `git log --grep "Task: T1"` shows the endpoint commit.',
+    ].join('\n'),
+    0.31,
+    41_000,
+  );
+  turn(
+    'Did any attempt fail?',
+    'No. Each of the four tasks passed on its first attempt and its review; the goal review passed as well, over-delivered, because the stretch check *lint is clean* passed too. The goal never waited for you: it raised no escalation.',
+    0.12,
+    18_000,
+  );
+  return conversationId;
+}
+
 export async function seedFollowUpChain(engine: Engine, like: string): Promise<string[]> {
   const { getGoal, newId } = await import('../packages/core/src/index.ts');
   const base = getGoal(engine.store.db, like)!;

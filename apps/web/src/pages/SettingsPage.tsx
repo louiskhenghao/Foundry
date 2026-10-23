@@ -49,6 +49,7 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'notifications', label: 'Notifications' },
   { id: 'access', label: 'Access' },
   { id: 'safety', label: 'Safety' },
+  { id: 'beta', label: 'Beta' },
   { id: 'engine', label: 'Engine (install)' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'about', label: 'About & updates' },
@@ -765,6 +766,11 @@ export function SettingsPage() {
         <div className="mt-3">
           {bool('safety.desktopApps', 'Desktop apps & printers', "Let sessions open desktop apps and hand files to printers on this computer — text-to-cad's Bambu hand-off (Bambu Connect / Bambu Studio), `open …`, `xdg-open`, the slicers' windows. Off: the boundary guard refuses those commands and the hand-off skill (sessions are not pointed at it either); a refused command comes to your Inbox. Headless slicing and preflight reports stay available.")}
         </div>
+      </Card>
+
+      <Card id="beta" title={<SettingsTitle id="beta">Beta<HelpLink to="settings#beta" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
+        <p className="mb-3 text-xs text-ink-faint">Features on trial: each one stays off until you switch it on, while it settles.</p>
+        {bool('beta.conversation', 'Conversation on the goal page', "A bubble at the bottom right of a goal's page (and of its Brief page) opens a Conversation: a read-only Explainer, on the preset's Conversation model, answers your questions about the goal's code and Foundry's records of it, and never changes anything. Its answers cost the goal, outside its budget. Off: no bubble and no Conversation tab.")}
       </Card>
 
       <Card id="engine" title={<SettingsTitle id="engine">Engine (install)<HelpLink to="settings#engine-install" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
