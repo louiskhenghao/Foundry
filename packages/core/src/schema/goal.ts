@@ -411,6 +411,8 @@ export const Goal = z.object({
   /** state to return to when an escalation is answered */
   stateBeforeBlock: GoalState.nullable(),
   costUsd: z.number().nonnegative(),
+  /** the share of costUsd the goal's Conversations spent (ADR-0073): in the total, outside the budget; absent on goals from before, read as 0 */
+  conversationCostUsd: z.number().nonnegative().optional(),
   fixCycles: z.number().int().nonnegative(),
   /** default keeps pre-delivery `goal.created` events replayable */
   delivery: DeliveryState.default(() => IDLE_DELIVERY),

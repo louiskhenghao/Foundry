@@ -264,6 +264,13 @@ export const MemorySettings = z.object({
 });
 export type MemorySettings = z.infer<typeof MemorySettings>;
 
+/** features on trial (Beta): each one off until the person turns it on, while it settles */
+export const BetaSettings = z.object({
+  /** the Conversation on a goal's page (ADR-0073): a read-only Explainer answers questions about the goal's code and records */
+  conversation: z.boolean().default(false),
+});
+export type BetaSettings = z.infer<typeof BetaSettings>;
+
 export const Settings = z.object({
   engine: EngineSettings.default({}),
   models: ModelSettings.default({}),
@@ -279,6 +286,7 @@ export const Settings = z.object({
   checks: ChecksSettings.default({}),
   accounts: AccountSettings.default({}),
   memory: MemorySettings.default({}),
+  beta: BetaSettings.default({}),
 });
 export type Settings = z.infer<typeof Settings>;
 export const DEFAULT_SETTINGS: Settings = Settings.parse({});
@@ -299,6 +307,7 @@ export const SettingsPatch = z.object({
   checks: ChecksSettings.partial().optional(),
   accounts: AccountSettings.partial().optional(),
   memory: MemorySettings.partial().optional(),
+  beta: BetaSettings.partial().optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatch>;
 

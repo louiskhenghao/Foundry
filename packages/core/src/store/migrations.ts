@@ -111,4 +111,12 @@ export const MIGRATIONS: Migration[] = [
       PRIMARY KEY (provider, account_id, rate_limit_type)
     );`,
   },
+  {
+    // Conversations on a goal's page (ADR-0073): one row per Conversation, whole, as JSON
+    id: '0011-conversations',
+    sql: `
+      CREATE TABLE IF NOT EXISTS conversations (id TEXT PRIMARY KEY, goal_id TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS idx_conversations_goal ON conversations(goal_id);
+    `,
+  },
 ];

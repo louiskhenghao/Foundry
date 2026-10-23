@@ -63,6 +63,8 @@ export const TIMELINE_EVENTS = ['goal.created', 'goal.state_changed', 'interview
 const TERMINAL = new Set(['done', 'over_delivered', 'failed', 'cancelled']);
 /** sessions a task's row shows (from its attempts), and sessions too small to show */
 const TASK_SESSIONS = new Set(['attempt', 'review-task', 'merge', 'distill', 'probe']);
+/** sessions the timeline leaves out: a Conversation's answers are the person's talk about the goal, not its work (ADR-0073) */
+const HIDDEN_SESSIONS = new Set(['conversation']);
 /** a goal's own sessions, by the kind Foundry records them under */
 const SESSION_KINDS: Record<string, { kind: SpanKind; label: string }> = {
   clarify: { kind: 'clarify', label: 'Clarify' },
@@ -141,7 +143,7 @@ function carve(spans: TimelineSpan[], waits: TimelineSpan[]): TimelineSpan[] {
 function sessions(input: TimelineInput): TimelineSpan[] {
   const out: TimelineSpan[] = [];
   for (const e of input.events) {
-    if (e.type !== 'session.usage' || TASK_SESSIONS.has(e.payload.kind)) continue;
+    if (e.type !== 'session.usage' || TASK_SESSIONS.has(e.payload.kind) || HIDDEN_SESSIONS.has(e.payload.kind)) continue;
     const k = SESSION_KINDS[e.payload.kind] ?? { kind: 'other' as const, label: e.payload.kind };
     const start = new Date(Date.parse(e.ts) - Math.max(0, e.payload.durationMs)).toISOString();
     out.push({ ...k, start, end: e.ts, costUsd: e.payload.costUsd });
