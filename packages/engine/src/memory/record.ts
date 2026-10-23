@@ -1,5 +1,5 @@
 /**
- * What Foundry writes into a folder's bank (ADR-0071), one document each: the record of a goal that ended, the Learnings
+ * What Foundry writes into a folder's bank (ADR-0072), one document each: the record of a goal that ended, the Learnings
  * notebook as it stands, a revision of a Brief, a task review's verdict, a replan's reason, and an attempt's transcript
  * in compact form. Each carries a stable id, so the same thing written twice is one document, and tags that say where it
  * came from, so the bank's readers can tell Foundry's records from the person's own sessions.

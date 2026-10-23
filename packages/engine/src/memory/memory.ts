@@ -1,5 +1,5 @@
 /**
- * Memory (ADR-0071): a Hindsight server the person runs remembers what a folder's goals did and taught, and Foundry's
+ * Memory (ADR-0072): a Hindsight server the person runs remembers what a folder's goals did and taught, and Foundry's
  * stages ask it before they start. Everything here is optional and bounded: with no server address nothing happens,
  * a server that does not answer costs a stage its timeout and nothing else, a write that fails is a record on the goal
  * and is not retried. The bank is named as Hindsight's own coding-agent integration names it, so the person's own
@@ -82,7 +82,7 @@ export function renderFacts(facts: string[], max = REFLECT_MAX_CHARS): string | 
 /** environment entries that are credentials, by their names */
 const SECRET_ENV = /(KEY|TOKEN|SECRET|PASSWORD)/;
 
-/** the token Codex sessions read (ADR-0071): only while Memory is on and the server asks for one */
+/** the token Codex sessions read (ADR-0072): only while Memory is on and the server asks for one */
 export function memorySessionEnv(s: MemorySettings): Record<string, string> {
   return s.url && s.token ? { [TOKEN_ENV]: s.token } : {};
 }
@@ -357,7 +357,7 @@ export class Memory {
   }
 
   /**
-   * What a goal did, decided, was refused and wrote, into its folder's bank, as the engine's events say it (ADR-0071).
+   * What a goal did, decided, was refused and wrote, into its folder's bank, as the engine's events say it (ADR-0072).
    * Each write runs in the background; a failure is a record on the goal, never an error here.
    */
   onEvent(e: EngineEvent): void {

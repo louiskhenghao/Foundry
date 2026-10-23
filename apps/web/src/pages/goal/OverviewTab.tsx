@@ -61,7 +61,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           <MarkdownPanel title="goal" source={g.prompt} maxHeight={240} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
           {/* the verdict on the goal, next to the goal itself */}
           {review && <GoalReview review={review} />}
-          {/* what the folder's Memory told the goal's stages, folded (ADR-0071); nothing while Memory is off */}
+          {/* what the folder's Memory told the goal's stages, folded (ADR-0072); nothing while Memory is off */}
           {d.memory?.enabled && <Remembered view={d.memory} tasks={d.tasks} />}
           {/* right under the goal, as on the New goal form: the description and what came with it */}
           <Card title={`Attachments${g.attachments.length ? ` (${g.attachments.length})` : ''}`}>
@@ -277,7 +277,7 @@ export function BriefStrip({ d }: { d: GoalDetail }) {
 }
 
 /**
- * Memory (ADR-0071) in one line on a quiet panel: how many asks the folder's bank answered and how much the goal wrote
+ * Memory (ADR-0072) in one line on a quiet panel: how many asks the folder's bank answered and how much the goal wrote
  * back; open, what each stage was told, in its words, so a wrong memory can be seen and corrected on the Learnings page
  */
 export function Remembered({ view, tasks }: { view: MemoryGoalView; tasks: { id: string; title: string }[] }) {

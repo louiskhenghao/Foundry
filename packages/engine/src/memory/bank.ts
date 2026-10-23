@@ -6,7 +6,7 @@ export const BANK_PREFIX = 'coding-agent::';
 
 /**
  * The bank of a repository folder, named as Hindsight's coding-agent integration names it — `coding-agent::` and the
- * name of the main worktree's folder — so the person's own sessions there and Foundry's share one bank (ADR-0071). A
+ * name of the main worktree's folder — so the person's own sessions there and Foundry's share one bank (ADR-0072). A
  * goal's worktrees resolve to the same folder. Null when the folder is not a git repository: there is no bank for it.
  */
 export async function bankIdFor(repoPath: string): Promise<string | null> {

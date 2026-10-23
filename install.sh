@@ -22,7 +22,7 @@
 #   --port N                    the port to serve on (default: 4111, or the next free one)    [FOUNDRY_PORT]
 #   --ref BRANCH|TAG            source: what to check out                       [FOUNDRY_REF, default main]
 #   --with "markitdown chromium docker ffmpeg"   source: exactly these optional tools   [FOUNDRY_WITH]
-#   --with hindsight            docker: a Hindsight server beside Foundry for Memory (ADR-0071), with an LLM key
+#   --with hindsight            docker: a Hindsight server beside Foundry for Memory (ADR-0072), with an LLM key
 #                               of yours (asked, or HINDSIGHT_API_LLM_PROVIDER / _API_KEY / _MODEL)
 #   --yes                       take every default, ask nothing
 #   --no-start                  set up, but do not start Foundry
@@ -47,7 +47,7 @@ ORIG_PATH="$PATH"
 
 # settings: flags › environment › the earlier install › defaults
 MODE="" AGENT="" DIR="" REPOS="" PORT="" REF="" REPO="" HOST_DOCKER="" SERVICE=""
-# docker: a Hindsight server for Memory (ADR-0071); its key lives in hindsight.env beside the compose file, never here
+# docker: a Hindsight server for Memory (ADR-0072); its key lives in hindsight.env beside the compose file, never here
 MEMORY="" HINDSIGHT_PROVIDER="" HINDSIGHT_MODEL="" HINDSIGHT_KEY=""
 YES=0 START=1 OPEN=1 MODIFY_PATH=1 DRY=0 PURGE=0 WITH="${FOUNDRY_WITH:-}"
 
@@ -800,7 +800,7 @@ FOUNDRY_PROVIDER=$(provider)
 FOUNDRY_PORT=$PORT
 FOUNDRY_WATCHTOWER_TOKEN=$token
 EOF
-  # Memory (ADR-0071): the compose profile that starts the Hindsight service, and where Foundry finds it
+  # Memory (ADR-0072): the compose profile that starts the Hindsight service, and where Foundry finds it
   [ "$MEMORY" = 1 ] && cat >>"$DIR/.env" <<EOF
 COMPOSE_PROFILES=memory
 HINDSIGHT_API_URL=http://hindsight:8888
@@ -808,7 +808,7 @@ EOF
   return 0
 }
 
-# docker: a Hindsight server for Memory (ADR-0071), chosen with --with hindsight or asked once; its LLM is the person's
+# docker: a Hindsight server for Memory (ADR-0072), chosen with --with hindsight or asked once; its LLM is the person's
 choose_memory() {
   case " $WITH " in *" hindsight "*) MEMORY=1 ;; esac
   if [ -z "$MEMORY" ]; then
@@ -838,7 +838,7 @@ choose_memory() {
 write_hindsight_env() {
   [ "$MEMORY" = 1 ] || return 0
   {
-    echo "# written by the Foundry installer: the LLM Hindsight extracts and answers with (ADR-0071)"
+    echo "# written by the Foundry installer: the LLM Hindsight extracts and answers with (ADR-0072)"
     echo "HINDSIGHT_API_LLM_PROVIDER=$HINDSIGHT_PROVIDER"
     echo "HINDSIGHT_API_LLM_API_KEY=$HINDSIGHT_KEY"
     [ -n "$HINDSIGHT_MODEL" ] && echo "HINDSIGHT_API_LLM_MODEL=$HINDSIGHT_MODEL"

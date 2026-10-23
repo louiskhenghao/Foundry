@@ -99,7 +99,7 @@ export class CodexMcpManager {
         try { const url = new URL(String(config.url)); if (!['http:', 'https:'].includes(url.protocol)) throw new Error(); }
         catch { return { ok: false, error: 'An HTTP MCP server needs an http:// or https:// URL' }; }
         args.push('--url', String(config.url));
-        // a bearer token reaches Codex through a variable of the session's environment, never as a literal (Memory, ADR-0071)
+        // a bearer token reaches Codex through a variable of the session's environment, never as a literal (Memory, ADR-0072)
         if (config.bearerTokenEnvVar !== undefined) {
           if (typeof config.bearerTokenEnvVar !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(config.bearerTokenEnvVar)) return { ok: false, error: 'Invalid bearer token variable name' };
           args.push('--bearer-token-env-var', config.bearerTokenEnvVar);

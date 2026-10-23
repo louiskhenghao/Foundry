@@ -121,7 +121,7 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
 /** a count with its noun: "1 question", "3 rounds" */
 const n = (count: number, noun: string) => `${count} ${noun}${count === 1 ? '' : 's'}`;
 
-/** the stages that ask Memory (ADR-0071), in words */
+/** the stages that ask Memory (ADR-0072), in words */
 export const MEMORY_STAGE: Record<string, string> = { attempt: 'attempt', clarify: 'Clarifier', person: 'Clarifier, about you', replan: 'replan', review_task: 'task review', review_goal: 'goal review' };
 
 /** the whole text, when the one-line description keeps only its first line (up to `max` characters) */

@@ -195,7 +195,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
    */
   ev('learnings.set', { repoPath: z.string(), learnings: z.array(Learning), source: z.enum(['distill', 'human']), goalId: z.string().nullable(), note: z.string().nullable() }),
   /**
-   * Memory (ADR-0071): what the folder's Hindsight bank answered a stage before it ran (`text` null = nothing came, `error`
+   * Memory (ADR-0072): what the folder's Hindsight bank answered a stage before it ran (`text` null = nothing came, `error`
    * says why), and what Foundry wrote into the bank (`count` 0 with an `error` = the write failed; `git` is the seeding
    * of a folder's bank from its commits, a global event like the Learnings)
    */

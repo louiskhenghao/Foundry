@@ -3,7 +3,7 @@ import type { MemoryStage } from './types.ts';
 export const MEMORY_HEADING = '# What Memory recalls';
 
 /**
- * The section a session gets when the folder's memory answered (ADR-0071), beside the Learnings notebook. A worker that
+ * The section a session gets when the folder's memory answered (ADR-0072), beside the Learnings notebook. A worker that
  * has the hindsight tools is also told its bank, so it may ask more mid-way; read-only roles only get the text.
  */
 export function memorySection(text: string, opts: ({ tools: false } | { tools: true; bankId: string }) & { about?: 'person'; kind?: 'reflect' | 'recall' }): string {

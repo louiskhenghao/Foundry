@@ -92,7 +92,7 @@ export async function replanAfterLanding(engine: Engine, goal: Goal, landed: Tas
     return;
   }
   const model = modelFor(config, goal, 'planner');
-  // what the folder's Memory says about what follows such a change (ADR-0071); nothing while Memory is off
+  // what the folder's Memory says about what follows such a change (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('replan', memoryQuestion('replan', { goalTitle: goal.title, taskTitle: landed.title }), { repoPath: goal.repoPath, goalId: goal.id, taskId: landed.id });
   const handle = await engine.runner.run({
     prompt: buildReplanPrompt(engine, goal, landed, downstream, recalled ? memorySection(recalled.text, { tools: false, kind: recalled.kind }) : ''),

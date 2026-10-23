@@ -245,7 +245,7 @@ export const ChecksSettings = z.object({
   selfCheck: z.boolean().default(false),
 });
 /**
- * Memory (ADR-0071): a Hindsight server the person runs remembers what a folder's goals did and taught, and every stage
+ * Memory (ADR-0072): a Hindsight server the person runs remembers what a folder's goals did and taught, and every stage
  * asks it before it starts. Set up on the Extensions page (MCP servers); nothing here runs while `url` is empty.
  */
 export const MemorySettings = z.object({

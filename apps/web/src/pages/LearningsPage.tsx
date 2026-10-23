@@ -252,7 +252,7 @@ function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSave
 }
 
 /**
- * Memory (ADR-0071) under a folder: the Hindsight bank its goals share with the person's own sessions there, and the
+ * Memory (ADR-0072) under a folder: the Hindsight bank its goals share with the person's own sessions there, and the
  * switch that leaves the folder out or takes it back in. Nothing for a folder that is no git repository. Under the
  * everywhere notebook: the person's own bank, which every folder's goals write their decisions and answers to.
  */

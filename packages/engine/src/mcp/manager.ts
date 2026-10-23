@@ -30,7 +30,7 @@ export interface CustomServer {
     | {
         type: 'http' | 'sse';
         url: string;
-        /** sent with every request (a bearer token): Claude Code keeps them in its own configuration (Memory, ADR-0071) */
+        /** sent with every request (a bearer token): Claude Code keeps them in its own configuration (Memory, ADR-0072) */
         headers?: Record<string, string>;
         /** Codex takes no header: it reads the bearer token from this variable of the session's environment */
         bearerTokenEnvVar?: string;

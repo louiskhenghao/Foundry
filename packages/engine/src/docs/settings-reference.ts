@@ -67,7 +67,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'workflow.settingSources': { section: 'Skills', help: 'Which Claude settings sources sessions load (e.g. user, project, local); empty = all of them.' },
   'workflow.codexMcpAllowed': { section: 'Skills', help: 'Codex MCP servers worker sessions may use, as `mcp__<server>` prefixes. Managed in Extensions → Codex → MCP servers. Independent of the Claude allow list; empty by default.' },
   'workflow.mcpAllowed': { section: 'Skills', help: 'Claude MCP servers worker sessions may use, as tool prefixes (`mcp__<server>`, `mcp__plugin_<plugin>_<server>`, `mcp__claude_ai_<name>`). Set with the switches on the Skills page\'s MCP tab; sessions run without asking, so an unlisted server\'s tools are refused.' },
-  // Memory (ADR-0071), set up on the Extensions page's MCP servers tab
+  // Memory (ADR-0072), set up on the Extensions page's MCP servers tab
   'memory.url': { section: 'Skills', help: 'Address of the Hindsight server that keeps Memory for your folders (http://127.0.0.1:8888 when it runs on this computer). Set from the Hindsight card on the Extensions page, MCP servers tab. Empty = Memory off: nothing is remembered or recalled.' },
   'memory.token': { section: 'Skills', help: "The server's bearer token, when it asks for one (its HINDSIGHT_API_TENANT_API_KEY). Kept by the engine, which calls the server itself; Claude Code gets it in the hindsight server's headers, Codex reads it from HINDSIGHT_API_TOKEN in its sessions." },
   'memory.retainTranscripts': { section: 'Skills', help: "Write each attempt's transcript to the folder's bank when the attempt ends, in compact form: the turns and one line per tool call, without arguments or outputs. Off = only Foundry's own records are written (the goal record, the Learnings, Brief revisions, review verdicts, replan reasons)." },
@@ -151,7 +151,7 @@ const OPERATIONAL_ENV: { name: string; help: string }[] = [
   { name: 'FOUNDRY_HOST_REPOS', help: "Docker: the projects folder shared at the same path as on the host; the folder picker starts there (set by the installer)." },
   { name: 'FOUNDRY_HOST_DOCKER / FOUNDRY_CONTAINER', help: "Docker: the host's Docker socket is shared, so preview services start there in this container's network (container name, default foundry). Set by the installer (ADR-0024)." },
   { name: 'FOUNDRY_SKIP_SETUP', help: 'Docker: skip installing the graphify skill into a fresh Claude home on first start.' },
-  { name: 'COMPOSE_PROFILES', help: 'Docker compose only: `memory` starts the Hindsight service beside Foundry for Memory (ADR-0071); `install.sh --with hindsight` writes it to .env with HINDSIGHT_API_URL=http://hindsight:8888.' },
+  { name: 'COMPOSE_PROFILES', help: 'Docker compose only: `memory` starts the Hindsight service beside Foundry for Memory (ADR-0072); `install.sh --with hindsight` writes it to .env with HINDSIGHT_API_URL=http://hindsight:8888.' },
   { name: 'HINDSIGHT_API_LLM_PROVIDER / HINDSIGHT_API_LLM_API_KEY / HINDSIGHT_API_LLM_MODEL', help: 'Docker compose only, in hindsight.env beside the compose file (mode 600): the LLM the Hindsight service extracts and answers with; the installer asks for them.' },
   { name: 'CLAUDE_CONFIG_DIR', help: 'Alternative to FOUNDRY_CLAUDE_HOME.' },
 ];

@@ -2,7 +2,7 @@ import type { AgentProvider } from '@foundry/core';
 import { decodeAgyLines, decodeLine, type RunnerEvent } from '@foundry/runner';
 
 /**
- * A transcript in the shape Hindsight's own integration writes back (ADR-0071): one turn per line, `{role, content}`.
+ * A transcript in the shape Hindsight's own integration writes back (ADR-0072): one turn per line, `{role, content}`.
  * `action` names a tool call and its target with no arguments or outputs; `tool_error` keeps what a failed call
  * said, since that is where a pitfall shows. Successful tool output and the agent's thinking are left out: they are
  * the bulk of a transcript and teach a bank nothing it cannot read from the repository.

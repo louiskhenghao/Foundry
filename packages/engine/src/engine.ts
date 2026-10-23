@@ -355,7 +355,7 @@ export class Engine {
   private resumeTimers = new Map<AgentProvider, ReturnType<typeof setTimeout>>();
 
   readonly settings: SettingsStore;
-  /** Memory (ADR-0071): a Hindsight server the person runs remembers what a folder's goals did and taught; nothing while unset */
+  /** Memory (ADR-0072): a Hindsight server the person runs remembers what a folder's goals did and taught; nothing while unset */
   readonly memory: Memory;
   /** test seam: a fake server behind Memory, and timeouts a test can wait for */
   memoryDeps: MemoryDeps = {};
@@ -558,7 +558,7 @@ export class Engine {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
       // a goal that ended teaches its folder something (ADR-0040)
       if (e.type === 'goal.state_changed') learnOnEnd(this, e.goalId, e.payload.to);
-      // what a goal did, decided, was refused and wrote goes into the folder's Memory (ADR-0071); nothing while it is off
+      // what a goal did, decided, was refused and wrote goes into the folder's Memory (ADR-0072); nothing while it is off
       this.memory.onEvent(e);
       // the notebook changed: the folder's exported skill follows (ADR-0050)
       // the everywhere notebook is in every folder's exported skill (ADR-0055): a change of it rewrites them all
@@ -627,7 +627,7 @@ export class Engine {
       ...(this.minimaxKey() ? { MINIMAX_API_KEY: this.minimaxKey()!, ...(this.mmxReady ? { MMX_CONFIG_DIR: mmxConfigDir(this.config.dataDir) } : {}) } : {}),
       ...(this.config.elevenlabsApiKey ? { ELEVENLABS_API_KEY: this.config.elevenlabsApiKey } : {}),
       ...(this.config.groqApiKey ? { GROQ_API_KEY: this.config.groqApiKey } : {}),
-      // Memory's bearer token for Codex, whose HTTP MCP servers read it from the environment (ADR-0071)
+      // Memory's bearer token for Codex, whose HTTP MCP servers read it from the environment (ADR-0072)
       ...memorySessionEnv(this.settings.values().memory),
       // text-to-cad's cadgen: no usage stats and no update check from Foundry's own processes (the person's setting stays theirs)
       CADGEN_TELEMETRY: '0',
@@ -810,7 +810,7 @@ export class Engine {
     }
     // keys feed the skills env probe ("key missing" warnings) — refresh the cached statuses right away
     if (changed.some((k) => /^tools\.\w+(ApiKey|BaseUrl)$/.test(k))) Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
-    // another server, another token, or a folder left out: Memory connects anew and makes its banks ready again (ADR-0071)
+    // another server, another token, or a folder left out: Memory connects anew and makes its banks ready again (ADR-0072)
     if (changed.some((k) => k.startsWith('memory.'))) this.memory.reconfigure();
     const restartNeeded = this.settings.restartNeeded();
     this.store.append({ type: 'settings.changed', goalId: null, payload: { keys: changed, restartNeeded } });
@@ -1216,7 +1216,7 @@ export class Engine {
     await settle([...this.landingDelegations.values(), ...this.approvingDelegated.values()], 10_000);
     // a learning session writes the folder's notebook when it ends (its session was killed above)
     await settle(learningWork(), 5_000);
-    // what Memory is still writing (a goal's record, a transcript) finishes, bounded (ADR-0071)
+    // what Memory is still writing (a goal's record, a transcript) finishes, bounded (ADR-0072)
     await settle(this.memory.pendingWork(), 5_000);
     // a deploy records how it ended (its commands were killed with the rest)
     await settle([...deployWork(), ...revertWork()], 5_000);

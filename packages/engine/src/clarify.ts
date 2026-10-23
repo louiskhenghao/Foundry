@@ -153,7 +153,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const followUp = goal.follows?.context ? [goal.follows.context, startSentence(synced)].filter(Boolean).join('\n') : '';
   // a Delegated goal: the main goal, what was decided there, and what the steps before it delivered
   // what the goal follows, what it is part of, what earlier goals in this folder learned (ADR-0040), and what the folder's
-  // Memory says about goals like it (ADR-0071; the planner is given the same answer)
+  // Memory says about goals like it (ADR-0072; the planner is given the same answer)
   const [recalled, aboutPerson] = await Promise.all([
     engine.memory.reflect('clarify', memoryQuestion('clarify', { goalTitle: goal.title, goalPrompt: goal.prompt }), { repoPath: goal.repoPath, goalId: goal.id }),
     // and what the person's own bank says about them: how they decide, what they ask for in every project

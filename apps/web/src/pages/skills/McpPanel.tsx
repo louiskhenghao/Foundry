@@ -28,7 +28,7 @@ export function McpPanel({ provider = 'claude' }: { provider?: AgentProvider }) 
   const [err, setErr] = useState<string | null>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
-  // Memory (ADR-0071): the Hindsight server, shared by every coding agent; its MCP server is per coding agent
+  // Memory (ADR-0072): the Hindsight server, shared by every coding agent; its MCP server is per coding agent
   const [memory, setMemory] = useState<MemoryStatus | null>(null);
   const running = useRunningOp();
   const runningOp = (target: string) => running(`${provider}:${target}`);
@@ -310,7 +310,7 @@ function CatalogCard({ provider, c, others, running, onInstall }: { provider: Ag
 export const HINDSIGHT_DOCKER = ['docker run -d --name hindsight --restart unless-stopped --shm-size=1g -p 8888:8888 -p 9999:9999 \\', '  -e HINDSIGHT_API_LLM_PROVIDER=openai -e HINDSIGHT_API_LLM_API_KEY=sk-… \\', '  -v hindsight-data:/home/hindsight/.pg0 ghcr.io/vectorize-io/hindsight:latest'].join('\n');
 
 /**
- * Memory (ADR-0071): the Hindsight server the person runs, one for every coding agent, and its MCP server for the
+ * Memory (ADR-0072): the Hindsight server the person runs, one for every coding agent, and its MCP server for the
  * selected one. Nothing runs until an address is saved; a server that does not answer costs goals nothing.
  */
 export function HindsightCard({ provider, status, running, onTest, onSave, onConnect }: { provider: 'claude' | 'codex'; status: MemoryStatus | null; running: boolean; onTest: (url: string, token: string) => Promise<{ ok: boolean; version: string | null; error: string | null }>; onSave: (body: { url: string | null; token?: string | null; retainTranscripts?: boolean; reflectSec?: number; seedCommits?: number }) => Promise<unknown>; onConnect: (disconnect: boolean) => void }) {

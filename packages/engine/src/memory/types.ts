@@ -1,6 +1,6 @@
 // Browser-safe: imported by the web app via `@foundry/engine/memory-types` — no node imports here.
 
-/** one thing Foundry writes into a folder's bank (ADR-0071) */
+/** one thing Foundry writes into a folder's bank (ADR-0072) */
 export interface MemoryDocument {
   content: string;
   /** what the content is, for the server's extraction ("the record of a Foundry goal …") */

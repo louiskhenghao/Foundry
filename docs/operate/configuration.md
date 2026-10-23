@@ -176,6 +176,6 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `FOUNDRY_HOST_REPOS` | Docker: the projects folder shared at the same path as on the host; the folder picker starts there (set by the installer). |
 | `FOUNDRY_HOST_DOCKER / FOUNDRY_CONTAINER` | Docker: the host's Docker socket is shared, so preview services start there in this container's network (container name, default foundry). Set by the installer (ADR-0024). |
 | `FOUNDRY_SKIP_SETUP` | Docker: skip installing the graphify skill into a fresh Claude home on first start. |
-| `COMPOSE_PROFILES` | Docker compose only: `memory` starts the Hindsight service beside Foundry for Memory (ADR-0071); `install.sh --with hindsight` writes it to .env with HINDSIGHT_API_URL=http://hindsight:8888. |
+| `COMPOSE_PROFILES` | Docker compose only: `memory` starts the Hindsight service beside Foundry for Memory (ADR-0072); `install.sh --with hindsight` writes it to .env with HINDSIGHT_API_URL=http://hindsight:8888. |
 | `HINDSIGHT_API_LLM_PROVIDER / HINDSIGHT_API_LLM_API_KEY / HINDSIGHT_API_LLM_MODEL` | Docker compose only, in hindsight.env beside the compose file (mode 600): the LLM the Hindsight service extracts and answers with; the installer asks for them. |
 | `CLAUDE_CONFIG_DIR` | Alternative to FOUNDRY_CLAUDE_HOME. |

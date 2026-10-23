@@ -820,7 +820,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       brief: getBrief(db, id),
       // what earlier goals in this folder learned (ADR-0040): how many, for the link to them
       learningsCount: engine.learnings(goal.repoPath).length,
-      // what the folder's Memory told this goal's stages, and what the goal wrote back (ADR-0071)
+      // what the folder's Memory told this goal's stages, and what the goal wrote back (ADR-0072)
       memory: engine.memory.goalView(id),
       escalations: listEscalations(db, { goalId: id }).map(e => ({ ...e, provider: goal.provider ?? engine.config.provider })),
       events: engine.store.listByGoal(id, 300),
@@ -1472,7 +1472,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ ...result, op });
   });
 
-  // ---------- Memory (ADR-0071): a Hindsight server the person runs, set up from the Hindsight card of the MCP tab ----------
+  // ---------- Memory (ADR-0072): a Hindsight server the person runs, set up from the Hindsight card of the MCP tab ----------
   app.get('/api/memory', async (c) => c.json(await engine.memory.status()));
   // try an address before saving it; an empty token means the saved one
   app.post('/api/memory/test', async (c) => {

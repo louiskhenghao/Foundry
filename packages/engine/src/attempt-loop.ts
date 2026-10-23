@@ -180,7 +180,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   // what the tasks this one depends on delivered (a Delegated goal's summary; a plain task's commit)
   const upstream = renderUpstream(engine, task);
   const learnings = learningsForWorker(engine, goal);
-  // what the folder's Memory says about this task (ADR-0071): nothing while Memory is off or the server is slow; a
+  // what the folder's Memory says about this task (ADR-0072): nothing while Memory is off or the server is slow; a
   // worker with the hindsight tools is told its bank, so it may ask more mid-way
   const recalled = resume ? null : await engine.memory.reflect('attempt', memoryQuestion('attempt', { goalTitle: goal.title, taskTitle: task.title, taskSpec: task.spec, area: task.area, files: task.relevantFiles }), { repoPath: goal.repoPath, goalId: goal.id, taskId: task.id, attemptId: attempt.id });
   const memory = recalled ? memorySection(recalled.text, { kind: recalled.kind, ...(engine.mcpAllowedFor(goal).includes(MCP_SERVER_PREFIX) ? { tools: true as const, bankId: (await engine.memory.bankFor(goal.repoPath)) ?? '' } : { tools: false as const }) }) : '';

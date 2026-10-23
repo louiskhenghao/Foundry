@@ -429,7 +429,7 @@ export interface GoalDetail {
   calibration?: Calibration;
   /** how many Learnings the goal's folder has (ADR-0040) */
   learningsCount?: number;
-  /** what the folder's Memory told this goal's stages, and what the goal wrote back (ADR-0071) */
+  /** what the folder's Memory told this goal's stages, and what the goal wrote back (ADR-0072) */
   memory?: MemoryGoalView;
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
   paths: { repo: string; workspace: string | null };
@@ -790,7 +790,7 @@ export function apiForProvider(provider?: AgentProvider) {
   mcpLoginSubmit: (url: string) => req<McpLoginSession>('/api/mcp/login/code', { method: 'POST', body: JSON.stringify({ url }) }),
   mcpLoginCancel: () => req<{ ok: boolean }>('/api/mcp/login/cancel', { method: 'POST' }),
   mcpRemove: (name: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/remove', { method: 'POST', body: JSON.stringify({ name, opId }) }),
-  // Memory (ADR-0071): the Hindsight card on the MCP tab, and a folder's switch on the Learnings page
+  // Memory (ADR-0072): the Hindsight card on the MCP tab, and a folder's switch on the Learnings page
   memoryStatus: () => req<MemoryStatus>('/api/memory'),
   memoryTest: (url: string, token?: string | null) => req<{ ok: boolean; version: string | null; error: string | null }>('/api/memory/test', { method: 'POST', body: JSON.stringify({ url, token }) }),
   memorySave: (body: { url: string | null; token?: string | null; retainTranscripts?: boolean; reflectSec?: number; seedCommits?: number }) => req<MemoryStatus>('/api/memory', { method: 'PUT', body: JSON.stringify(body) }),

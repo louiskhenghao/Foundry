@@ -45,7 +45,7 @@ export interface AttemptPromptInput {
   upstream?: string;
   /** what earlier goals in this folder learned (ADR-0040), in short */
   learnings?: string;
-  /** rendered `# What Memory recalls` section (memory/prompt.ts memorySection), or '' (ADR-0071) */
+  /** rendered `# What Memory recalls` section (memory/prompt.ts memorySection), or '' (ADR-0072) */
   memory?: string;
   /** the chosen Style Proposal (media/UI tasks), or null */
   style?: BriefStyleOption | null;

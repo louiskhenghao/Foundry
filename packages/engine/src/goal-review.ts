@@ -148,7 +148,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
       : scenario === 'image' || scenario === 'video'
       ? `# Media review\nThis goal's deliverables are media files under \`artifacts/\` — they are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk${scenario === 'image' ? ' and open the images with the Read tool (it renders them) to judge them against the checks' : '; verify video metadata with ffprobe when available (you cannot watch video — final visual quality stays with the human)'}.`
       : '';
-  // what earlier goal reviews in this repository found (ADR-0071); nothing while Memory is off
+  // what earlier goal reviews in this repository found (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('review_goal', memoryQuestion('review_goal', { goalTitle: goal.title }), { repoPath: goal.repoPath, goalId: goal.id });
   const prompt = [
     `# Goal\n${goal.title}\n\n${goal.prompt}`,

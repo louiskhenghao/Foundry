@@ -4,7 +4,7 @@ import type { KnowledgePageSpec, MemoryBackend, MemoryConnection, MemoryDocument
 type BankList = { banks: { bank_id: string }[]; total: number };
 type KnowledgeTree = { roots?: { kind: 'folder' | 'page'; name: string }[] };
 
-/** Memory's server, through Hindsight's own TypeScript client (ADR-0071): the bearer token goes as `Authorization` */
+/** Memory's server, through Hindsight's own TypeScript client (ADR-0072): the bearer token goes as `Authorization` */
 export class HindsightBackend implements MemoryBackend {
   private readonly api: HindsightClient;
   /** the generated client under the typed one, for the bank list the typed one has no method for */

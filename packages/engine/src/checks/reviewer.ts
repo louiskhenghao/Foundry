@@ -170,7 +170,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
   const brief = getBrief(engine.store.db, goal.id)?.brief;
   const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '';
   const subjects = renderSubjects(engine.config.dataDir, goal.id, brief, 'task-reviewer', task.scenario);
-  // what earlier reviews in this repository refused for such a change (ADR-0071); nothing while Memory is off
+  // what earlier reviews in this repository refused for such a change (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('review_task', memoryQuestion('review_task', { goalTitle: goal.title, taskTitle: task.title, files: task.relevantFiles }), { repoPath: goal.repoPath, goalId: goal.id, taskId: task.id, attemptId: attempt.id });
   const prompt = [
     `# Task (${task.kind}${task.scenario !== 'general' ? `, ${task.scenario}` : ''})\n${task.title}\n\n${task.spec}`,

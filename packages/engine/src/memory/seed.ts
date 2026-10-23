@@ -13,7 +13,7 @@ export interface SeedCommit {
 
 /**
  * The newest `n` commits of a repository: message, author, date and the files each touched (none for a merge). What
- * seeds a folder's bank the first time Memory is used there (ADR-0071), as Hindsight's own integration seeds one from
+ * seeds a folder's bank the first time Memory is used there (ADR-0072), as Hindsight's own integration seeds one from
  * commit messages. A folder that is not a repository, or a failing git, gives none.
  */
 export async function recentCommits(repoPath: string, n: number): Promise<SeedCommit[]> {

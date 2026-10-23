@@ -1,6 +1,6 @@
 /**
  * The five knowledge pages Hindsight's own coding-agent integration keeps in a repository's bank — its names, questions
- * and tags, so a bank Foundry made reads the same as one the person's terminal made (ADR-0071). A page is a wiki-like
+ * and tags, so a bank Foundry made reads the same as one the person's terminal made (ADR-0072). A page is a wiki-like
  * text the server rewrites from the bank's facts, and what `reflect` reads first. Each refreshes once an hour, at a
  * minute of its own.
  */
