@@ -30,6 +30,10 @@ Some of what you want is not about one project: the package manager you use, the
 
 Each folder's Learnings are also written into the repository as a project skill, `foundry-learnings` (under `.claude/skills` for Claude Code and `.agents/skills` for Codex and Antigravity), so your own sessions there read them too. The file is kept out of git, rewritten whenever the Learnings change and when a goal starts in the folder, and removed with the last entry. Edit the Learnings on their page, not the file. **Settings → New goal defaults → Share Learnings with your own sessions** turns it off and removes the file.
 
+## Memory for this folder
+
+Learnings are the thirty lines. With a Hindsight server set up ([Memory](./memory.md)), each folder's card on the Learnings page also shows its bank (`coding-agent::<folder>`) and a **Memory** switch: off, that folder's goals neither read nor write the bank. Whatever is in the notebook is written into the bank too, in place of the notebook written before, so a Learning you write here is the surest way to correct a wrong memory.
+
 ## Seeing and editing them
 
 - **⚙ → Learnings** shows every folder that has some as a card you can fold. Each learning reads in two columns: its kind, then the text with where it came from under it (the goal, or **✎ yours**). The chips at the top (**all**, **build**, **test**, … **pitfall**) show one kind and count each; the search box finds a word in the learnings, the folders or the goals; **expand all** and **collapse all** open or fold every card, and the page remembers the ones you folded.

@@ -36,6 +36,7 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 | **Milestone**（里程碑） | 一个看得见、可以试的功能，设在完成它的那个任务上。功能完成时 Foundry 会录下它的样子，最终走查时再录一次。 |
 | **Inbox** | 等你处理的事项列表：**New goal** 旁边的托盘图标，上面会显示数字。 |
 | **Learnings** | Foundry 从一个项目文件夹里结束了的 goal 学到的东西，加上你自己添加的。这个文件夹之后的每个 goal 都会拿到，连同你在 **Yours, everywhere** 下为所有文件夹写的东西。见 [Learnings](./learnings.zh.md)。 |
+| **Memory**（记忆） | Learnings 的长篇版：你自己运行的一台 Hindsight 服务器记下一个文件夹里的 goal 做过、决定过、被驳回过、写过的一切，并在 goal 的每个阶段开始前先回答一句。可选；你自己在该仓库里的会话共用同一个 bank。见 [Memory](./memory.zh.md)。 |
 | **Schedule** | 存下来并加了时间的 New goal 表单：每天、每周或每月，Foundry 用它生成一个 goal 并自己跑完。见 [Schedules](./schedules.zh.md)。 |
 | **Progress folder**（进度文件夹） | 实际干活的文件夹，就在你的项目旁边：`<project>-foundry/<goal>/`，或者在 Settings 里设的文件夹下面。它以 goal 的标题（到第一个标点为止，最多 40 个字符）加上 goal id 的最后 6 个字符命名。你随时都能打开。 |
 | **Model preset**（模型预设） | 哪个模型负责规划、任务和审查。两种编码智能体各有独立的 Max、Production、Balanced 和 Economy 预设；Codex 还保存各角色的推理强度。 |

@@ -30,6 +30,10 @@ goal 的 **Activity** 会写明改了什么，例如 *Learnings for this folder:
 
 每个文件夹的 Learnings 也会写进仓库，作为一个项目技能 `foundry-learnings`（Claude Code 在 `.claude/skills` 下，Codex 和 Antigravity 在 `.agents/skills` 下），这样你自己在那里开的会话也能读到。这个文件不进 git，Learnings 一变就重写，goal 在这个文件夹开始时也会刷新，最后一条删掉它就消失。请在 Learnings 页面上编辑，不要改文件。**Settings → New goal defaults → Share Learnings with your own sessions** 可以关掉它并删除文件。
 
+## 这个文件夹的 Memory
+
+Learnings 是那三十行。设好了 Hindsight 服务器之后（见 [Memory](./memory.zh.md)），Learnings 页面上每个文件夹的卡片还会显示它的 bank（`coding-agent::<folder>`）和一个 **Memory** 开关：关掉后，这个文件夹的 goal 既不读也不写 bank。记事本里的内容也会写进 bank，替换上一次写的记事本，所以你在这里写的一条 Learning 是纠正错误记忆最可靠的办法。
+
 ## 查看和编辑
 
 - **⚙ → Learnings** 把每个有 Learnings 的文件夹显示成一张可以折叠的卡片。每条 learning 分两栏：左边是类别，右边是内容，内容下面一行写着它从哪里来（哪个 goal，或 **✎ yours**）。上方的标签（**all**、**build**、**test** …… **pitfall**）只显示一种类别，并标出各自的数量；搜索框在 Learnings、文件夹和 goal 里找字；**expand all** 和 **collapse all** 展开或折叠所有卡片，页面会记住你折叠了哪些。

@@ -1,6 +1,6 @@
 # ADR-0071: Memory — a Hindsight server the person runs remembers what a repository's goals did and taught; Foundry retains and reflects itself, and shares the bank with the person's own sessions
 
-**Status:** draft · 2026-10-23 · builds on ADR-0016, ADR-0040, ADR-0050 and ADR-0064
+**Status:** accepted · 2026-10-23 · builds on ADR-0016, ADR-0040, ADR-0050 and ADR-0064
 
 ## Context
 

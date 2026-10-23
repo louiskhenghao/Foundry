@@ -51,6 +51,7 @@ Dollar caps below apply only to Claude, whose native protocol reports cost. Code
 - a nature-specific section (`natureSection`): tech-stack question for an empty repo, style directions for UI, the docs/research/media rules, or all of them for an `auto` goal
 - Attachments and the markitdown hint
 - the context provider's repository overview (with base-sync and recent-commit notes)
+- what the goal follows, what it is part of, the folder's Learnings (ADR-0040) and what its Memory recalls about goals like it when a Hindsight server is set (ADR-0071) — the same `previous` sections go to the Planner
 - the clarifier skill hint
 - "Your job" requirements
 
@@ -73,6 +74,7 @@ The session runs with `CLARIFY_MAX_TURNS = 90` and `CLARIFY_MAX_BUDGET_USD = 6`,
 - `# Goal` and `# Your task` (with Area and "Attempt n of m")
 - the Decisions and the chosen Style direction, when the Scenario has a look (`styleApplies`)
 - `# Start here` (`relevantFiles`) and `# Repository context` (context provider `locate`)
+- `# Notes on this repository` (the folder's Learnings in short, ADR-0040) and `# What Memory recalls` (the folder's bank's answer about this task when a Hindsight server is set, with the bank's name for a worker that has the hindsight tools; ADR-0071)
 - `# Acceptance checks` and the Attachments
 - `# Hint from the human`
 - a note when the goal branch moved (Catch-up result) or the workspace was rolled back
@@ -91,7 +93,7 @@ A Continuation sends only `continuationMessage(reason)` into the resumed session
 
 **Drives** a blockers-only review of one Task's cumulative diff (task base ref → HEAD). Up to 20k characters are pasted (`fitDiff`): whole files in git's order while they fit, then the first part of the next one, cut at a line boundary and marked. A longer diff is also saved whole to `<internal>/review/task-diff-<attemptId>.patch`, and the prompt lists every changed file with how much of it is pasted, so a file past the cut is read rather than reported as incomplete or missing. It runs only after every Must command Check passed, and only when the task has reviewer-type Checks or `alwaysReviewTasks` is on and the goal's pace is not `fast`.
 
-**Input:** the task and its spec, the reviewer-check rubric, the chosen Style (UI and media scenarios), the Brief's Subjects with their pictures by absolute path when the scenario has a look (their folder is added to the session; `subjects.ts` `renderSubjects`), a media review section for `image` / `video` and a CAD review section for `cad`, the reviewer skill hint, the **Workflow** observation (which mandated skills the worker did or did not invoke, from `formatWorkflowObservation`), and the diff.
+**Input:** the task and its spec, the reviewer-check rubric, the chosen Style (UI and media scenarios), the Brief's Subjects with their pictures by absolute path when the scenario has a look (their folder is added to the session; `subjects.ts` `renderSubjects`), a media review section for `image` / `video` and a CAD review section for `cad`, the reviewer skill hint, the **Workflow** observation (which mandated skills the worker did or did not invoke, from `formatWorkflowObservation`), what the folder's **Memory** recalls about such a change when a Hindsight server is set (ADR-0071), and the diff.
 
 **Output:** `ReviewerVerdict` (`core/src/schema/observation.ts`). A missing verdict after the nudge turn marks the reviewer checks `skipped`, and the objective Checks decide. It runs with 20 turns and $0.80, and the nudge gets 2 turns and $0.20.
 
@@ -99,7 +101,7 @@ A Continuation sends only `continuationMessage(reason)` into the resumed session
 
 **Drives** the final judgement of the whole goal diff against `baseBranch`: Must strict, Stretch generous, and cross-task problems a Task reviewer could not see.
 
-**Input:** the goal, a media review section, Attachments, the approved understanding, Decisions, Style, the reviewer-goal skill hint, the "fixed point" (the base branch), every Check with its objective status, the **previous verdicts** from an earlier fix cycle (so a verdict flips only for a reason it can cite), and the diff. Diffs over 1500 lines are saved to `<internal>/review/goal-diff-<n>.patch` and referenced by path instead of pasted in.
+**Input:** the goal, a media review section, Attachments, the approved understanding, Decisions, Style, the reviewer-goal skill hint, the "fixed point" (the base branch), every Check with its objective status, the **previous verdicts** from an earlier fix cycle (so a verdict flips only for a reason it can cite), what the folder's **Memory** recalls of earlier goal reviews there when a Hindsight server is set (ADR-0071), and the diff. Diffs over 1500 lines are saved to `<internal>/review/goal-diff-<n>.patch` and referenced by path instead of pasted in.
 
 **Model.** A diff of at most `smallGoalLines` (default 400) lines uses the `taskReviewer` model and gets no skill hint. Larger diffs use `goalReviewer`.
 
