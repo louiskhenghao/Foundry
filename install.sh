@@ -3,18 +3,19 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
 #
-# It asks how to run Foundry, then sets up everything that way:
+# It asks how to run Foundry and which coding agents to use, then sets up everything that way:
 #
-#   source   on this computer: installs what is missing (git, Bun, uv, graphify, the coding agent's CLI, GitHub CLI,
+#   source   on this computer: installs what is missing (git, Bun, uv, graphify, the coding agents' CLIs, GitHub CLI,
 #            Node.js, and the optional tools you pick), builds Foundry, and runs it as a background service
 #   docker   in a container: installs Docker if needed, writes the compose files to the folder and starts it
 #
-# Then it offers to sign in to the coding agent and GitHub, opens Foundry in the browser, and leaves a `foundry`
+# Then it offers to sign in to the coding agents and GitHub, opens Foundry in the browser, and leaves a `foundry`
 # command behind: foundry start | stop | restart | status | logs | open | update | uninstall [--purge]
 #
 # Options (or the environment variables in brackets):
 #   --mode source|docker        how to run Foundry (asked when not given)       [FOUNDRY_MODE]
-#   --agent claude|codex|both   which coding agent to set up                    [FOUNDRY_AGENT, default claude]
+#   --agent claude,codex,agy    the coding agents to set up, one or more; agy is Antigravity (source only),
+#                               both is claude,codex and all is the three (asked when not given)   [FOUNDRY_AGENT]
 #   --dir PATH                  where Foundry goes                              [FOUNDRY_DIR, default ~/foundry]
 #   --repos PATH                docker: your projects folder                    [FOUNDRY_REPOS, default ~/Projects]
 #   --port N                    the port to serve on (default: 4111, or the next free one)    [FOUNDRY_PORT]
@@ -69,7 +70,7 @@ load_state() {
 }
 
 parse_flags() {
-  MODE="${FOUNDRY_MODE:-$MODE}" AGENT="${FOUNDRY_AGENT:-${AGENT:-claude}}" DIR="${FOUNDRY_DIR:-${DIR:-$HOME/foundry}}"
+  MODE="${FOUNDRY_MODE:-$MODE}" AGENT="${FOUNDRY_AGENT:-$AGENT}" DIR="${FOUNDRY_DIR:-${DIR:-$HOME/foundry}}"
   REPOS="${FOUNDRY_REPOS:-${REPOS:-$HOME/Projects}}" PORT="${FOUNDRY_PORT:-$PORT}" REF="${FOUNDRY_REF:-${REF:-main}}"
   REPO="${FOUNDRY_REPO:-${REPO:-https://github.com/louiskhenghao/Foundry.git}}"
   while [ $# -gt 0 ]; do
@@ -87,11 +88,11 @@ parse_flags() {
       --dry-run) DRY=1; shift ;;
       --purge) PURGE=1; shift ;;
       --with) WITH="$2"; shift 2 ;;
-      -h|--help) sed -n '2,29p' "${BASH_SOURCE[0]:-$0}" 2>/dev/null || printf 'see %s\n' "$RAW_URL"; exit 0 ;;
+      -h|--help) sed -n '2,30p' "${BASH_SOURCE[0]:-$0}" 2>/dev/null || printf 'see %s\n' "$RAW_URL"; exit 0 ;;
       *) fail "unknown option $1 (see --help)" ;;
     esac
   done
-  case "$AGENT" in claude|codex|both) ;; *) fail "--agent must be claude, codex or both" ;; esac
+  if [ -n "$AGENT" ]; then AGENT="$(agents_from "$AGENT")" || fail "--agent takes claude, codex, agy, both or all, or several of them: claude,agy"; fi
   case "$MODE" in ""|source|docker) ;; *) fail "--mode must be source or docker" ;; esac
   case "$PORT" in ""|[0-9]*) ;; *) fail "--port must be a number" ;; esac
 }
@@ -104,6 +105,22 @@ save_state() {
     for k in MODE AGENT DIR REPOS PORT REF REPO HOST_DOCKER SERVICE; do printf '%s=%q\n' "$k" "${!k}"; done
   } > "$STATE"
 }
+
+# the coding agents as one list in a fixed order: "agy,Claude" or "claude agy" → claude,agy; both (what earlier
+# installs saved) → claude,codex; all → claude,codex,agy. Fails on a name it does not know
+agents_from() {
+  local list a out=""
+  list=",$(printf '%s' "$1" | tr ' A-Z' ',a-z'),"
+  for a in $(printf '%s' "$list" | tr ',' ' '); do case "$a" in claude|codex|agy|antigravity|both|all) ;; *) return 1 ;; esac; done
+  case "$list" in *,both,*) list="$list,claude,codex," ;; esac
+  case "$list" in *,all,*) list="$list,claude,codex,agy," ;; esac
+  case "$list" in *,antigravity,*) list="$list,agy," ;; esac
+  for a in claude codex agy; do case "$list" in *",$a,"*) out="$out,$a" ;; esac; done
+  [ -n "$out" ] || return 1
+  printf '%s' "${out#,}"
+}
+uses() { case ",$AGENT," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
+agents_without() { printf ',%s,' "$AGENT" | sed "s/,$1,/,/; s/^,//; s/,\$//"; }
 
 # ---------- terminal ----------
 
@@ -165,6 +182,7 @@ arch() { case "$(uname -m)" in x86_64|amd64) echo x64 ;; arm64|aarch64) echo arm
 
 install() {
   [ -n "$MODE" ] || choose_mode
+  [ -n "$AGENT" ] || choose_agents
   if [ "$DRY" = 1 ]; then step "Dry run: nothing is installed, written or started"; fi
   case "$MODE" in
     source) install_source ;;
@@ -188,18 +206,52 @@ choose_mode() {
   case "$(ask "Choice [$suggested]: " "$suggested")" in 2|d*|D*) MODE=docker ;; *) MODE=source ;; esac
 }
 
+# Claude Code unless other agents are ticked; the Docker image has no Antigravity CLI, so it is not offered there
+choose_agents() {
+  local items="claude codex agy" n i pick
+  [ "$MODE" = docker ] && items="claude codex"
+  AGENT=claude
+  [ -z "$TTY" ] && return 0
+  path_add "$BIN_DIR"
+  while :; do
+    printf '\n\033[1mCoding agents\033[0m — type numbers to switch them on or off, Enter to go on:\n' >"$TTY"
+    i=0
+    for n in $items; do
+      i=$((i + 1))
+      printf '  %d) [%s] %s\n' "$i" "$(uses "$n" && echo x || echo ' ')" "$(agent_label "$n")" >"$TTY"
+    done
+    pick="$(ask "Switch: " "")"
+    # none ticked is the default again
+    if [ -z "$pick" ]; then AGENT="${AGENT:-claude}"; break; fi
+    for i in $pick; do
+      case "$i" in ''|*[!0-9]*) continue ;; esac
+      n="$(echo "$items" | awk -v i="$i" '{print $i}')"
+      [ -n "$n" ] || continue
+      if uses "$n"; then AGENT="$(agents_without "$n")"; else AGENT="$(agents_from "$AGENT,$n")"; fi
+    done
+  done
+}
+agent_label() {
+  case "$1" in
+    claude) echo "Claude Code   Anthropic, signs in with a Claude account$(have claude && echo ' — installed')" ;;
+    codex) echo "Codex         OpenAI, signs in with ChatGPT$(have codex && echo ' — installed')" ;;
+    agy) echo "Antigravity   Google's agy, signs in with a Google account$(have agy && echo ' — installed')" ;;
+  esac
+}
+
 # ---------- source mode ----------
 
 OPT_MARKITDOWN=y OPT_CHROMIUM=y OPT_DOCKER=y OPT_FFMPEG=n
 
 install_source() {
-  step "Foundry from source — coding agent: $AGENT, folder: $DIR"
+  step "Foundry from source — coding agents: ${AGENT//,/, }, folder: $DIR"
   have curl || fail "curl is needed"
   need_git
   need_bun
   need_uv
-  [ "$AGENT" = codex ] || need_claude
-  [ "$AGENT" = claude ] || need_codex
+  uses claude && need_claude
+  uses codex && need_codex
+  uses agy && need_agy
   need_graphify
   need_gh
   need_node
@@ -287,6 +339,9 @@ need_uv() {
   ok "uv $(uv --version | awk '{print $2}')"
 }
 
+# the x.y.z a CLI reports: "2.1.309 (Claude Code)", "codex-cli 0.160.0", "1.4.5"
+cli_version() { "$1" --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true; }
+
 need_claude() {
   path_add "$HOME/.local/bin"
   if have claude; then ok "Claude Code $(claude --version 2>/dev/null | awk '{print $1}')"; return; fi
@@ -312,6 +367,16 @@ need_codex() {
   have codex && ok "Codex $(codex --version 2>/dev/null | awk '{print $NF}')" || warn "Codex did not install; see https://github.com/openai/codex"
 }
 
+# the Antigravity CLI through Google's installer, which puts agy in ~/.local/bin
+need_agy() {
+  path_add "$BIN_DIR"
+  if have agy; then ok "Antigravity $(cli_version agy)"; return; fi
+  if [ "$DRY" = 1 ]; then plan "install the Antigravity CLI (agy)"; return; fi
+  step "Installing the Antigravity CLI"
+  fetch_run https://antigravity.google/cli/install.sh bash >/dev/null || true
+  have agy && ok "Antigravity $(cli_version agy)" || warn "the Antigravity CLI did not install; see https://antigravity.google/docs/cli"
+}
+
 need_graphify() {
   if ! have graphify; then
     if [ "$DRY" = 1 ]; then plan "install graphify (uv tool)"; return; fi
@@ -320,8 +385,10 @@ need_graphify() {
     have graphify || fail "graphify did not install; see https://github.com/safishamsi/graphify"
   fi
   [ "$DRY" = 1 ] && { ok "graphify"; return; }
-  [ "$AGENT" = codex ] || graphify install --platform claude >/dev/null 2>&1 || true
-  [ "$AGENT" = claude ] || graphify install --platform codex >/dev/null 2>&1 || true
+  uses claude && graphify install --platform claude >/dev/null 2>&1 || true
+  uses codex && graphify install --platform codex >/dev/null 2>&1 || true
+  # Antigravity reads the ~/.agents/skills Codex reads: Codex's copy serves both
+  uses agy && ! uses codex && graphify install --platform antigravity >/dev/null 2>&1 || true
   ok "graphify"
 }
 
@@ -450,14 +517,18 @@ get_foundry() {
 }
 
 sign_in_source() {
-  [ "$DRY" = 1 ] && { plan "offer to sign in to the coding agent and GitHub"; return; }
+  [ "$DRY" = 1 ] && { plan "offer to sign in to the coding agents and GitHub"; return; }
   [ -z "$TTY" ] && return 0
   step "Signing in (Enter on a question skips it; the Setup page can do it later)"
-  if [ "$AGENT" != codex ] && have claude && ! claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then
+  if uses claude && have claude && ! claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then
     if yesno "Sign in to Claude Code now?" y; then claude auth login <"$TTY" >"$TTY" 2>&1 || warn "Claude Code sign-in did not finish"; fi
   fi
-  if [ "$AGENT" != claude ] && have codex && ! codex login status >/dev/null 2>&1; then
+  if uses codex && have codex && ! codex login status >/dev/null 2>&1; then
     if yesno "Sign in to Codex now?" y; then codex login <"$TTY" >"$TTY" 2>&1 || warn "Codex sign-in did not finish"; fi
+  fi
+  # agy signs in from its own screen, which opens the browser; a read-only /usage answers once it has
+  if uses agy && have agy && ! AGY_CLI_HIDE_LOGO=1 agy -p /usage --output-format json --print-timeout 1m </dev/null 2>/dev/null | grep -q '"status": *"SUCCESS"'; then
+    if yesno "Sign in to Antigravity now (agy opens: sign in, then type /quit)?" y; then agy <"$TTY" >"$TTY" 2>&1 || warn "Antigravity sign-in did not finish"; fi
   fi
   if have gh && ! gh auth status >/dev/null 2>&1; then
     if yesno "Sign in to GitHub now (for pull requests)?" y; then gh auth login --web --git-protocol https <"$TTY" >"$TTY" 2>&1 || warn "GitHub sign-in did not finish"; fi
@@ -489,7 +560,8 @@ xml() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
 # systemd expands %-specifiers in unit values
 unit_value() { printf '%s' "$1" | sed 's/%/%%/g'; }
 
-provider() { [ "$AGENT" = codex ] && echo codex || echo claude; }
+# the launch profile: the first chosen agent, in the order Claude Code, Codex, Antigravity
+provider() { if uses codex && ! uses claude; then echo codex; elif [ "$AGENT" = agy ]; then echo agy; else echo claude; fi; }
 
 start_service() {
   if [ "$DRY" = 1 ]; then plan "run Foundry as a background service on port ${PORT:-4111} and open it"; return; fi
@@ -619,7 +691,12 @@ install_docker() {
   have curl || fail "curl is needed"
   # a source checkout in the same folder keeps it; the container's files go beside it
   [ -d "$DIR/.git" ] && DIR="$DIR-docker"
-  step "Foundry in Docker — coding agent: $AGENT, folder: $DIR"
+  if uses agy; then
+    [ "$AGENT" = agy ] && fail "the Docker image has no Antigravity CLI: run Foundry from source for it (--mode source)"
+    warn "the Docker image has no Antigravity CLI; run Foundry from source for it"
+    AGENT="$(agents_without agy)"
+  fi
+  step "Foundry in Docker — coding agents: ${AGENT//,/, }, folder: $DIR"
   ensure_docker
   if [ "$DRY" = 0 ] && ! $DOCKER compose version >/dev/null 2>&1; then
     fail "Docker Compose v2 (docker compose) is missing; install the compose plugin (https://docs.docker.com/compose/install/) and run this again"
@@ -700,10 +777,10 @@ sign_in_docker() {
   [ -z "$TTY" ] && return 0
   step "Signing in inside the container (Enter on a question skips it; the Setup page can do it later)"
   local it="$DOCKER exec -it foundry"
-  if [ "$AGENT" != codex ] && ! $DOCKER exec foundry claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then
+  if uses claude && ! $DOCKER exec foundry claude auth status --json 2>/dev/null | grep -q '"loggedIn": *true'; then
     if yesno "Sign in to Claude Code now?" y; then $it claude auth login <"$TTY" >"$TTY" 2>&1 || warn "Claude Code sign-in did not finish"; fi
   fi
-  if [ "$AGENT" != claude ] && ! $DOCKER exec foundry codex login status >/dev/null 2>&1; then
+  if uses codex && ! $DOCKER exec foundry codex login status >/dev/null 2>&1; then
     if yesno "Sign in to Codex now?" y; then $it codex login --device-auth <"$TTY" >"$TTY" 2>&1 || warn "Codex sign-in did not finish"; fi
   fi
   if ! $DOCKER exec foundry gh auth status >/dev/null 2>&1; then

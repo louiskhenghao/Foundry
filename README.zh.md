@@ -127,11 +127,12 @@ goal 暂停，预览已经跑起来了。按 **Continue**，或者说要改什�
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
-# 改用 Codex，或两种都要：  … | bash -s -- --agent codex   （或 --agent both）
+# 跳过编码智能体的提问：  … | bash -s -- --agent codex   （或 agy 即 Antigravity、claude,agy、all）
 ```
 
-它会先问你怎么运行 Foundry。**From source** 在你的电脑上运行：装好缺少的东西（git、Bun、uv、graphify、编码智能体的
-CLI、GitHub CLI、Node.js，以及你勾选的可选工具），构建 Foundry，并把它装成后台服务，登录电脑时自动启动。**Docker**
+它会先问你怎么运行 Foundry，以及要用哪些编码智能体：Claude Code、Codex 或 Antigravity（Antigravity 只能从源码运行）。
+**From source** 在你的电脑上运行：装好缺少的东西（git、Bun、uv、graphify、各编码智能体的 CLI、GitHub CLI、Node.js，
+以及你勾选的可选工具），构建 Foundry，并把它装成后台服务，登录电脑时自动启动。**Docker**
 在容器里运行：需要时帮你装 Docker，共用你的项目文件夹（你同意的话，也共用电脑上的 Docker 来跑预览要用的数据库），然后启动。
 两种方式都会问你要不要登录，打开 <http://127.0.0.1:4111>，并留下一个 `foundry` 命令：
 `foundry status | logs | stop | start | update | uninstall`。再跑一次这行命令，或者 `foundry update`，就能更新。
