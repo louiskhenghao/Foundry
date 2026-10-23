@@ -99,6 +99,7 @@ import { TelegramBot } from './notify/telegram-bot.ts';
 import { DiscordBot } from './notify/discord-bot.ts';
 import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
 import { Memory, memorySessionEnv, type MemoryDeps } from './memory/memory.ts';
+import { Conversations } from './conversation/conversations.ts';
 import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
 import { type RevertInfo, type RevertRequest, revertInfo, revertWork, startRevert } from './delivery/revert.ts';
 import { buildReport } from './reports.ts';
@@ -359,6 +360,8 @@ export class Engine {
   readonly memory: Memory;
   /** test seam: a fake server behind Memory, and timeouts a test can wait for */
   memoryDeps: MemoryDeps = {};
+  /** the Conversations on goals' pages (ADR-0073): the Explainer's answers, beside the goals' own work */
+  readonly conversations: Conversations;
   /** pushes escalations / goal endings / delivery results / usage pauses to Telegram & Discord (Settings → Notifications) */
   readonly notifications: NotificationDispatcher;
   /** Telegram's buttons and replies: reads the bot's updates while the engine serves (ADR-0038) */
@@ -554,6 +557,7 @@ export class Engine {
     this.context = this.buildContext();
     config.log(`[engine] context provider: ${this.context.name}`);
     this.memory = new Memory(this);
+    this.conversations = new Conversations(this);
     this.store.subscribe((e) => {
       if (e.type === 'session.usage' && e.payload.sessionId) this.ownedSessionIds.add(e.payload.sessionId);
       // a goal that ended teaches its folder something (ADR-0040)
@@ -568,7 +572,8 @@ export class Engine {
       if ((e.type === 'task.artifacts_landed' || e.type === 'goal.artifacts_delivered') && e.goalId) this.cadModelMemo.delete(e.goalId);
       // a milestone recorded in a goal with Subject pictures: the Likeness review compares the two (in the background)
       if (e.type === 'milestone.evidence') onMilestoneEvidence(this, e);
-      if (e.goalId) this.tick(e.goalId);
+      // a Conversation is the person's talk about the goal, not its work: no scheduling pass for its messages (ADR-0073)
+      if (e.goalId && !e.type.startsWith('conversation.')) this.tick(e.goalId);
       // a Delegated goal's progress is its main goal's business: what it costs counts there, and its state moves the main goal on
       if (e.goalId && PARENT_TICK_EVENTS.has(e.type)) {
         const g = getGoal(this.store.db, e.goalId);
@@ -1028,6 +1033,8 @@ export class Engine {
     this.reconciling = true;
     try {
       await this.reconcile();
+      // questions left unanswered when Foundry stopped are answered now (ADR-0073)
+      this.conversations.start();
     } finally {
       this.reconciling = false;
     }
@@ -1194,6 +1201,8 @@ export class Engine {
     await this.tailnet.unexposeAll();
     for (const [, f] of this.inFlight) f.handle?.kill('killed_manual');
     for (const set of this.background.values()) for (const h of set) h.kill('killed_manual');
+    // an answer in flight ends with the engine; its question stays asked, for the next start (ADR-0073)
+    await this.conversations.shutdown();
     // reviews, clarify, merges and probes are not in `inFlight`: kill every child the runner still owns
     const n = (this.runner as { killAll?: () => number }).killAll?.() ?? 0;
     if (n) this.config.log(`[engine] stopped ${n} agent session(s) on shutdown`);
@@ -2263,6 +2272,7 @@ export class Engine {
       state: 'draft',
       stateBeforeBlock: null,
       costUsd: 0,
+      conversationCostUsd: 0,
       fixCycles: 0,
       delivery: { ...IDLE_DELIVERY, policy: DeliveryPolicy.parse({ ...(this.config.defaultDelivery ?? {}), ...(input.delivery ?? {}) }) },
       attachments: [...(input.attachments?.length ? claimStaged(this.config.dataDir, id, input.attachments.map((a) => this.latestStaged(a))) : []), ...(followUp?.attachments ?? []), ...delegatedAttachments],
@@ -2975,6 +2985,7 @@ export class Engine {
   async deleteGoal(goalId: string, opts: { deleteBranch?: boolean } = {}): Promise<{ deletedBranch: string | null }> {
     const goal = this.mustGoal(goalId);
     this.cancelGoal(goalId);
+    await this.conversations.onGoalDeleted(goal);
     // an Imported Goal whose repository was never mapped has nothing here to clean up: its path may name another checkout
     const repoOk = repoHere(goal) && (await isGitRepo(goal.repoPath).catch(() => false));
     for (const t of listTasks(this.store.db, goalId)) {

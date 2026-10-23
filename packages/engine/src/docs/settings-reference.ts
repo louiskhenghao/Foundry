@@ -6,7 +6,7 @@
 import { DEFAULT_SETTINGS, RESTART_SETTINGS } from '@foundry/core';
 import { ENV_VARS, SETTING_PATHS } from '../settings.ts';
 
-type Section = 'New goal defaults' | 'Models & limits' | 'Skills' | 'Git & delivery' | 'Tools & keys' | 'Preview & self-check' | 'Notifications' | 'Safety' | 'Engine (install)';
+type Section = 'New goal defaults' | 'Models & limits' | 'Skills' | 'Git & delivery' | 'Tools & keys' | 'Preview & self-check' | 'Notifications' | 'Safety' | 'Beta' | 'Engine (install)';
 
 export const SETTING_DOCS: Record<string, { section: Section; help: string }> = {
   'engine.provider': { section: 'Engine (install)', help: 'Installation default (claude, codex or agy), fixed at launch. Each new goal can select any coding agent; existing goals keep theirs.' },
@@ -129,6 +129,8 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'safety.extraBoundaryPatterns': { section: 'Safety', help: "Extra command patterns (ERE, '|'-separated) the boundary guard blocks in sessions." },
   'safety.allowedRoots': { section: 'Safety', help: 'Folders the folder browser may enter; empty = home and /Volumes.' },
   'safety.desktopApps': { section: 'Safety', help: 'Let sessions open desktop apps and hand files to printers (text-to-cad\'s Bambu hand-off, `open …`, `xdg-open`, the slicers\' windows). Off: the boundary guard refuses those commands and the hand-off skill; headless slicing stays available.' },
+  // Beta (ADR-0073)
+  'beta.conversation': { section: 'Beta', help: "The Conversation on a goal's page: a bubble opens a read-only Explainer that answers questions about the goal's code and Foundry's records of it, on the preset's Conversation model. Off = no bubble and no Conversation tab." },
   // Engine (install)
   'engine.port': { section: 'Engine (install)', help: 'Port the UI and API listen on.' },
   'engine.host': { section: 'Engine (install)', help: 'Interface to bind; keep 127.0.0.1 unless the people using it have tokens (Settings → Access).' },
@@ -137,7 +139,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'engine.workspacesRoot': { section: 'Engine (install)', help: 'Where progress folders go: empty = next to each repository as <repo>-foundry/, or <root>/<repo>/ under this folder.' },
 };
 
-const SECTION_ORDER: Section[] = ['New goal defaults', 'Models & limits', 'Skills', 'Git & delivery', 'Tools & keys', 'Preview & self-check', 'Notifications', 'Safety', 'Engine (install)'];
+const SECTION_ORDER: Section[] = ['New goal defaults', 'Models & limits', 'Skills', 'Git & delivery', 'Tools & keys', 'Preview & self-check', 'Notifications', 'Safety', 'Beta', 'Engine (install)'];
 const get = (o: unknown, p: string): unknown => p.split('.').reduce<unknown>((x, k) => (x as Record<string, unknown> | undefined)?.[k], o);
 const show = (v: unknown) => (v === null ? '—' : typeof v === 'object' ? (Array.isArray(v) ? (v.length ? `\`${v.join(', ')}\`` : '—') : Object.keys(v as object).length ? '…' : '—') : `\`${String(v)}\``);
 

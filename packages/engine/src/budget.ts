@@ -1,7 +1,10 @@
 import type { Goal } from '@foundry/core';
 
 export interface BudgetStatus {
+  /** what the goal's work cost: a Conversation's answers (ADR-0073) are the goal's but left out of this and of the limit */
   costUsd: number;
+  /** what the goal's Conversations cost */
+  conversationUsd: number;
   /** null = no limit */
   maxCostUsd: number | null;
   elapsedMin: number;
@@ -24,7 +27,10 @@ export function budgetStatus(goal: Goal, now = Date.now()): BudgetStatus {
         ? Math.max(0, end - Date.parse(goal.runningSince)) / 60_000
         : 0;
   const { maxCostUsd, maxDurationMin } = goal.budgets;
-  const remainingUsd = maxCostUsd == null ? null : Math.max(0, maxCostUsd - goal.costUsd);
-  const exceeded = maxCostUsd != null && goal.costUsd >= maxCostUsd ? 'cost' : maxDurationMin != null && elapsedMin >= maxDurationMin ? 'time' : null;
-  return { costUsd: goal.costUsd, maxCostUsd, elapsedMin, maxDurationMin, remainingUsd, exceeded };
+  // a question must never hold up the work: what the Conversations cost is counted on the goal but outside the budget
+  const conversationUsd = goal.conversationCostUsd ?? 0;
+  const spent = Math.max(0, goal.costUsd - conversationUsd);
+  const remainingUsd = maxCostUsd == null ? null : Math.max(0, maxCostUsd - spent);
+  const exceeded = maxCostUsd != null && spent >= maxCostUsd ? 'cost' : maxDurationMin != null && elapsedMin >= maxDurationMin ? 'time' : null;
+  return { costUsd: spent, conversationUsd, maxCostUsd, elapsedMin, maxDurationMin, remainingUsd, exceeded };
 }

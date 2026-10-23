@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { boundaryHook, buildSettings, canaryHook, rmGuardHook, skillGuardHook } from '@foundry/runner';
+import { boundaryHook, buildSettings, canaryHook, readOnlyShellHook, rmGuardHook, skillGuardHook } from '@foundry/runner';
 
 /**
  * The mechanical enforcement of Escalation trigger 3. The patterns themselves live in
@@ -7,6 +7,11 @@ import { boundaryHook, buildSettings, canaryHook, rmGuardHook, skillGuardHook } 
  */
 export function boundarySettings(hooksDir: string): object {
   return buildSettings([canaryHook(join(hooksDir, 'canary.sh')), boundaryHook(join(hooksDir, 'boundary-guard.sh')), skillGuardHook(join(hooksDir, 'boundary-guard.sh')), rmGuardHook(join(hooksDir, 'rm-guard.ts'))]);
+}
+
+/** the Explainer's hooks (ADR-0073): the canary and the boundary every session has, and a shell kept to reading */
+export function explainerSettings(hooksDir: string): object {
+  return buildSettings([canaryHook(join(hooksDir, 'canary.sh')), boundaryHook(join(hooksDir, 'boundary-guard.sh')), skillGuardHook(join(hooksDir, 'boundary-guard.sh')), readOnlyShellHook(join(hooksDir, 'readonly-bash.ts'))]);
 }
 
 /** Tools a worker may use without asking. Bash is guarded by the boundary hook. */
