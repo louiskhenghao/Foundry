@@ -80,6 +80,7 @@ From top to bottom:
 
 - **Brief**: one line, for example **Brief APPROVED · 36 tasks · 11/11 assumptions accepted · 9/12 questions answered · est. $380 / 1500 min**. Click it to open the Brief, where the Understanding and everything else the Clarifier wrote are.
 - **What needs you**: the same cards as in the Inbox, with their buttons.
+- **You will provide**: the materials you promised during Clarify, each with its state and a slot to give it — see [You will provide](./approving-the-brief.md#you-will-provide).
 - **goal**: your original description. **Open full**, the icon with two diagonal arrows in its corner, reads it in a larger window.
 - **Goal review**: right under the goal once the final review ran: one line with the verdict (**passed**, **over-delivered** or **failed**) and the start of the reviewer's notes; **reviewer notes** unfolds them, and the **Open full** icon reads them in a larger window.
 - **Attachments**: right under the goal, as on the New goal form. You can add more at any time; new sessions receive them.

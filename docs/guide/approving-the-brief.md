@@ -95,6 +95,10 @@ A delegated goal and a follow-up start with the Subjects of the goal they come f
 
 **Assumptions (accepted unless you uncheck)**: things Foundry will take as true unless you say otherwise, for example "the existing login stays as it is". Leaving one ticked means you agree. Untick one that is wrong; it is crossed out and becomes a Decision ("assumption rejected").
 
+## You will provide
+
+Things you said during Clarify you would supply later — the real 3D models, the final logo files, photos, copy, a key — are listed here, each with the tasks that need it and a choice: **wait for it** (those tasks do not start until it arrives; Foundry asks you for it, in the Inbox, when they are ready) or **placeholder first** (they are built with a stand-in and a swap-in task follows when the real thing comes). Choose while the Brief can still change. **Give it** takes files and links with a word; **I have none** lets the tasks go on with a substitute. The same list is on the goal page while it runs, so you can hand things over whenever you have them.
+
 ## Decisions
 
 **Decisions (N)** lists every answer you gave, every note you wrote and every assumption you rejected, including your interview answers and notes. Every worker, reviewer and pull request receives them word for word.

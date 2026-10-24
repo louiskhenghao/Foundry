@@ -77,18 +77,19 @@ The session runs with `CLARIFY_MAX_TURNS = 90` and `CLARIFY_MAX_BUDGET_USD = 6`,
 - `# Start here` (`relevantFiles`) and `# Repository context` (context provider `locate`)
 - `# Notes on this repository` (the folder's Learnings in short, ADR-0040) and `# What Memory recalls` (the folder's bank's answer about this task when a Hindsight server is set, with the bank's name for a worker that has the hindsight tools; ADR-0072)
 - `# Acceptance checks` and the Attachments
+- `# You will provide` (`renderProvides`): the materials the person promised that this task needs — one that arrived with its files by path, one still to come that the task builds a placeholder for, one the person has none of (ADR-0074)
 - `# Hint from the human`
 - a note when the goal branch moved (Catch-up result) or the workspace was rolled back
 - `# What happened in the previous attempt` (the last Observation Report)
 - the worker skills section
 
-A Continuation sends only `continuationMessage(reason)` into the resumed session. The prompt is saved beside the transcript as `data/transcripts/<attemptId>.prompt.md`.
+A Continuation sends only `continuationMessage(reason)` into the resumed session; for `needs_input` it carries the person's answer — their words, the files they gave by path, the links, or that there is none (ADR-0074). The prompt is saved beside the transcript as `data/transcripts/<attemptId>.prompt.md`.
 
 **Model.** `workerModelFor` picks the Difficulty row and escalates to `complex` on the last budgeted attempt or a human-granted retry. On top of that, a Claude session running `opus` gets the CLI's own `--fallback-model sonnet`.
 
 **Caps.** `attemptMaxTurns` (default 150), `attemptMaxCostUsd` (default $10, clamped to the goal's remaining budget), `attemptTimeoutMs`.
 
-**Output.** Free text. The engine judges the workspace, not the answer: it commits a snapshot, runs command Checks and the Task reviewer, and quotes the final text in the Observation Report ("Worker's own summary").
+**Output.** Free text. The engine judges the workspace, not the answer: it commits a snapshot, runs command Checks and the Task reviewer, and quotes the final text in the Observation Report ("Worker's own summary"). One exception (ADR-0074): a final text ending in a ```` ```foundry-needs ```` block (`what`, `why`, `suggestions`, `canProceedWithout`; `parseNeedsBlock` in `core/src/schema/needs.ts`) is a Request for something only the person can give — the snapshot is committed, nothing is checked, the attempt waits as `interrupted` (`resultSubtype: 'needs_input'`, no retry spent) and a `needs_input` Escalation blocks the task; the role text allows it only for private assets, keys and decisions that are the person's. The answer resumes the same session.
 
 ### Task reviewer (`roles/reviewer-task.md`)
 

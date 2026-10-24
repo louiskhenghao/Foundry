@@ -122,14 +122,23 @@ The user asking the system to re-read the Brief in the light of the current Deci
 A Revise-shaped Proposal on a Brief awaiting approval written by a Role that did not write the Brief — the Brief Reviewer, on the Goal Reviewer's model row — reading it against the repository as the user's stand-in: what is wrong, missing, too big, in the wrong order, or decided by no Check. On demand from the Brief page, or once by itself when a Brief fills in and Settings say so; never a question. Written in the background with the room of a goal review; kept as an event, shown as a diff against the Brief as it is now — or, when it could not finish, why; the user applies the rows they take.
 _Avoid_: review (a Review judges a diff after the work; a second opinion judges the plan before it), Revise (the same Role rereading its own Brief in the light of Decisions)
 
+**Request**
+An Escalation of the seventh kind: a Task waits for something only the user can give. A Worker raises it by ending its segment with a `foundry-needs` block (what, why, where to get it, whether it could proceed without); Foundry raises it itself when a Task that needs a Material in *wait* mode becomes ready. The user answers with words, files and links (kept as Attachments of the Goal, marked with the Request), with "proceed without it", or by skipping the Task. A Worker's Request is answered into the same session (a Continuation), so it goes on from where it stopped; retries are not consumed and the wait does not count against the time budget.
+_Avoid_: question (an Interview question is Clarify's), blocker (any open Escalation blocks)
+
+**Material**
+Something the user said during Clarify they would provide later — realistic 3D models, photos, copy, a key — recorded in the Brief under *You will provide* with the Tasks that need it and a mode the user chooses: *wait* (the Task does not start until it arrives; Foundry raises a Request when the Task is ready) or *placeholder* (the Worker builds with a stand-in and a swap-in Task is added when the Material arrives). A Material is received by dropping files on its slot on the Goal page or the Brief page, or by answering its Request.
+_Avoid_: attachment (an Attachment is any file the user gave; a Material is one the Goal is waiting for), input
+
 **Escalation**
-The only way the system ever asks a human for anything after the Brief is approved. There are exactly six triggers, and nothing else interrupts the user:
+The only way the system ever asks a human for anything after the Brief is approved. There are exactly seven triggers, and nothing else interrupts the user:
 1. a Task exhausted its retry budget with Must Checks still failing (including a failed Goal review);
 2. an action that would leave the local workspace (push, pull request, deploy, shared database, paid service);
 3. the Goal's cost or time budget was exceeded;
 4. the agent runtime refused a tool call;
 5. a Milestone landed and the Goal waits for the human to look (a Checkpoint);
-6. a Delivery stopped (failing checks it cannot fix, a rejected push, …), answered by retrying the Delivery or marking it delivered.
+6. a Delivery stopped (failing checks it cannot fix, a rejected push, …), answered by retrying the Delivery or marking it delivered;
+7. a Request: a Task needs something only the user can give (a Material promised in the Brief, a private asset, a key, a decision), answered by providing it, by "proceed without it", or by skipping the Task.
 
 (The trigger enum also keeps `brief_question` so older events still read; nothing raises it any more.)
 
