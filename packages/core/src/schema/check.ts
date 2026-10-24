@@ -31,7 +31,15 @@ export const SelfCheckSpec = z.object({
   type: z.literal('selfcheck'),
 });
 
-export const CheckSpec = z.discriminatedUnion('type', [CommandCheckSpec, ReviewerCheckSpec, LlmJudgeCheckSpec, SelfCheckSpec]);
+/**
+ * the engine opens each figure page the task delivered (its `.html` Deliverables under artifacts/) in headless Chromium,
+ * screenshots it and fails on script errors or a page that drew nothing (task-level, no LLM; ADR-0076)
+ */
+export const FigureCheckSpec = z.object({
+  type: z.literal('figure'),
+});
+
+export const CheckSpec = z.discriminatedUnion('type', [CommandCheckSpec, ReviewerCheckSpec, LlmJudgeCheckSpec, SelfCheckSpec, FigureCheckSpec]);
 export type CheckSpec = z.infer<typeof CheckSpec>;
 
 export const Check = z.object({

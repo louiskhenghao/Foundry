@@ -28,6 +28,7 @@ import {
   EscalationAnswer,
   Goal,
   GoalNature,
+  FigurePack,
   GoalState,
   PreviewPlace,
   ObservationReport,
@@ -171,6 +172,10 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),
   /** the goal's nature was settled (user chose it at creation, or the Clarifier decided for an `auto` goal) */
   ev('goal.nature_set', { nature: GoalNature, reason: z.string() }),
+  /** the goal's Figure pack was settled for it (the Clarifier read the style from the goal's words, ADR-0076); Settings' default applies while unset */
+  ev('goal.figure_pack_set', { figurePack: FigurePack, reason: z.string() }),
+  /** a figure task's pages were opened headless by Foundry (ADR-0076): per page its screenshot(s) in the goal's screenshots folder and what went wrong */
+  ev('figure.checked', { taskId: z.string(), attemptId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), pages: z.array(z.object({ file: z.string(), screenshot: z.string().nullable(), inside: z.string().nullable(), errors: z.array(z.string()) })), summary: z.string() }),
   /** media artifacts were copied from the goal workspace to the goal's output folder at done; `startedAt`: when the copy
    * began (a file written after it may not be what the folder received), and `startedAfter` the id of the goal's last
    * state change then (a run again after it is delivered again); `copies`: each copy's identity in the output folder as

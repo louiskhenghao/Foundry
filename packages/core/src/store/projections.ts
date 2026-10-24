@@ -477,6 +477,11 @@ function project(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, nature: e.payload.nature, updatedAt: e.ts });
       break;
     }
+    case 'goal.figure_pack_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, figurePack: e.payload.figurePack, updatedAt: e.ts });
+      break;
+    }
     case 'goal.artifacts_delivered': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, completion: { ...g.completion, artifactsRun: { status: e.payload.status, files: e.payload.files, dest: e.payload.dest, detail: e.payload.detail, at: e.ts, ...(e.payload.model !== undefined ? { model: e.payload.model } : {}), ...(e.payload.startedAt ? { startedAt: e.payload.startedAt } : {}), ...(e.payload.copies ? { copies: e.payload.copies } : {}) } }, updatedAt: e.ts });
@@ -769,6 +774,7 @@ function normalizeGoal(g: Goal): Goal {
   g.delegation ??= { ...NO_DELEGATION };
   g.delegatedFrom ??= null;
   g.conversationCostUsd ??= 0;
+  g.figurePack ??= null;
   if (g.workflow && g.workflow.ponytail == null) g.workflow.ponytail = 'on';
   g.completion = { ...IDLE_COMPLETION, ...(g.completion ?? {}) };
   // delivery fields added after a goal was written: review rounds (ADR-0053) and reverts (ADR-0059). Readers use them

@@ -2,7 +2,7 @@ import { AgentProvider } from './provider.ts';
 import { CodexModelPreset } from './codex-presets.ts';
 import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
-import { Discipline, GoalMode, PonytailSwitch, WorkflowProfile } from './goal.ts';
+import { Discipline, FigurePack, GoalMode, PonytailSwitch, WorkflowProfile } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
 
 /**
@@ -100,6 +100,8 @@ export const WorkflowSettings = z.object({
   imagePack: ImagePack.default('gpt-image-2'),
   /** which video skill set media workers follow (scenario `video`) */
   videoPack: VideoPack.default('web-video-presentation'),
+  /** which figure skill figure workers follow (scenario `figure`, ADR-0076): Colorfigures, iso-glow or none; a goal may pick the other on the New goal form */
+  figurePack: FigurePack.default('colorfigures'),
   /** run `npx autoskills` in each goal's workspace to install skills matching the repository's stack */
   autoskills: z.boolean().default(true),
   /** when a goal ends, a cheap session adds what it taught about the repository to the folder's Learnings (ADR-0040); the notebook is given to later goals either way */
@@ -268,6 +270,8 @@ export type MemorySettings = z.infer<typeof MemorySettings>;
 export const BetaSettings = z.object({
   /** the Conversation on a goal's page (ADR-0073): a read-only Explainer answers questions about the goal's code and records */
   conversation: z.boolean().default(false),
+  /** figure goals (ADR-0076): the Figure nature and the Figure pack — interactive isometric figures of everyday objects and machines, one HTML page each, drawn with Colorfigures or iso-glow */
+  figure: z.boolean().default(false),
 });
 export type BetaSettings = z.infer<typeof BetaSettings>;
 

@@ -20,12 +20,12 @@ export const ACTION_INFO: Record<ModelAction, { label: string; help: string }> =
   styleSample: { label: 'Style samples', help: 'The one-image samples of a style direction on the Brief page, and the search for pictures of the Brief\'s Subjects.' },
 };
 
-/** Goal natures group into three tables: code (and unclassified), prose (docs, research), media (image, video). */
+/** Goal natures group into three tables: code (and unclassified), prose (docs, research), media (image, video, figure). */
 export const MODEL_NATURES = ['code', 'docs', 'media'] as const;
 export type ModelNature = (typeof MODEL_NATURES)[number];
 export const NATURE_LABEL: Record<ModelNature, string> = { code: 'Code', docs: 'Docs & research', media: 'Media' };
 export function natureKey(nature: string): ModelNature {
-  return nature === 'docs' || nature === 'research' ? 'docs' : nature === 'image' || nature === 'video' ? 'media' : 'code';
+  return nature === 'docs' || nature === 'research' ? 'docs' : nature === 'image' || nature === 'video' || nature === 'figure' ? 'media' : 'code';
 }
 /** rows a nature seldom runs — shown greyed, still editable */
 export const RARELY_USED: Record<ModelNature, ModelAction[]> = { code: [], docs: ['styleSample', 'merger'], media: ['merger', 'documenter'] };
