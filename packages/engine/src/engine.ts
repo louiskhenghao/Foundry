@@ -147,7 +147,7 @@ import { workerTools } from './guards/boundary.ts';
 import { DESKTOP_APPS_PATTERNS, SLICER_APP_PATTERNS, SLICER_HEADLESS_PATTERNS } from './guards/patterns.ts';
 import { pluginServerPrefix } from './mcp/servers.ts';
 import { serverBaseArgs } from './skills/installer.ts';
-import { motionStudioCheck } from './motion-studio.ts';
+import { MOTION_STUDIO, exportHouseStyle, motionStudioCheck } from './motion-studio.ts';
 
 /** where the Playwright package the engine imports lives, handed to sessions as FOUNDRY_PLAYWRIGHT; null when it cannot be resolved */
 const PLAYWRIGHT_PACKAGE_DIR: string | null = (() => {
@@ -1984,6 +1984,13 @@ export class Engine {
           return;
         }
         this.cadWaiting.delete(goalId);
+        // a motion-studio film renders through ffmpeg and Chromium: the goal waits for them (the Setup page's doctor offers both)
+        if (goal.nature === 'video' && this.videoPackOf(goal) === MOTION_STUDIO && !(await this.motionStudioReady())) {
+          if (!this.store.listByGoalOfTypes(goalId, ['engine.note']).some((ev) => String((ev.payload as { message?: string }).message ?? '').startsWith('ffmpeg or Chromium is missing'))) {
+            this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: 'ffmpeg or Chromium is missing: a motion-studio goal waits for them (Setup → the doctor\'s Motion studio check offers the install)' } });
+          }
+          return;
+        }
         // a goal with references: REA studies them first, so the Brief is grounded in how they work
         if (needsInvestigation(goal)) {
           this.startInvestigation(goal);
@@ -2018,6 +2025,8 @@ export class Engine {
         // media artifacts leave the workspace first (independent of delivery mode — they never ride a PR)
         // never delivered, or run again since its delivery (a restart): the output folder gets the files as they are now
         if (!this.deliveringArtifacts.has(goalId) && artifactsDue(this, goal)) {
+          // the house style a motion-studio film leaves becomes a project skill for the person's own sessions (ADR-0076)
+          if (this.videoPackOf(goal) === MOTION_STUDIO) void exportHouseStyle(this, goal);
           const copy = deliverArtifacts(this, goal)
             .catch((err) => void this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `artifact delivery crashed: ${String(err)}` } }))
             .finally(() => this.deliveringArtifacts.delete(goalId));
@@ -2140,6 +2149,16 @@ export class Engine {
     return goal.workflow.profile ?? this.config.workflowProfile;
   }
 
+  /** ffmpeg with ffprobe on PATH, and Chromium for the engine's Playwright: what a motion-studio film renders with (ADR-0076) */
+  async motionStudioReady(): Promise<boolean> {
+    return !!Bun.which('ffmpeg') && !!Bun.which('ffprobe') && (await this.playwrightStatus()).browser;
+  }
+
+  /** the tools arrived: the motion-studio goals that waited in Clarify go on */
+  private wakeMotionStudioGoals(): void {
+    for (const g of listGoals(this.store.db)) if (g.state === 'clarifying' && g.nature === 'video' && this.videoPackOf(g) === MOTION_STUDIO) void this.tick(g.id);
+  }
+
   /** the video engine a goal's sessions follow: its own pick, else Settings → workflow.videoPack (ADR-0076) */
   videoPackOf(goal: Pick<Goal, 'videoPack'>): string {
     return goal.videoPack ?? this.config.videoPack;
@@ -2253,6 +2272,9 @@ export class Engine {
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' && nature !== 'cad' ? 'simple' : this.config.defaultGoalMode);
     const issue = input.issue ? GoalIssue.parse(input.issue) : null;
     const title = input.title?.trim() || issue?.title.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
+    // the video engine, frozen at creation like the suite: the goal's own pick, else the Settings pack of the day (ADR-0076)
+    const videoPack = input.videoPack ?? (nature === 'video' ? (this.config.videoPack as Goal['videoPack']) : null);
+    const motion = videoPack === MOTION_STUDIO;
     const goal: Goal = {
       provider,
       id,
@@ -2264,14 +2286,15 @@ export class Engine {
       workspaceDir: defaultWorkspaceDir(this.config.workspacesRoot, { id, title, repoPath: input.repoPath }),
       checkpoint: null,
       selfCheck: input.selfCheck ?? this.config.selfCheck,
-      milestonePause: input.milestonePause ?? this.config.milestonePause,
+      milestonePause: input.milestonePause ?? (motion ? false : this.config.milestonePause),
       clarifyStage: null,
       references: (input.references ?? []).map((r) => ({ target: r.target.trim(), lookAt: (r.lookAt ?? '').trim() })).filter((r) => r.target),
       investigation: null,
       previewRef: null,
       previewPlace: 'auto',
-      effort: input.effort === undefined ? this.config.effort : input.effort,
-      videoPack: input.videoPack ?? null,
+      // a motion-studio film is built at xhigh unless Settings or the form said otherwise (ADR-0076)
+      effort: input.effort === undefined ? (motion && !this.config.effort ? 'xhigh' : this.config.effort) : input.effort,
+      videoPack,
       modelPreset: presetId,
       ...(codexPreset ? { codexPreset, codexFallbacks: [...this.config.codexFallbacks], ...(input.codexModel?.trim() ? { codexModelOverride: input.codexModel.trim() } : {}) } : {}),
       modelSubstitutions: {},
@@ -2283,8 +2306,9 @@ export class Engine {
       })(),
       baseBranch,
       branch: `goal/${id}`,
-      budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? 'custom'].budgets, ...(input.budgets ?? {}), ...(!reportsDollars(provider) ? { maxCostUsd: null } : {}) }),
-      budgetPreset: input.budgetPreset ?? 'custom',
+      // a motion-studio goal starts on Thorough with an hour per session: a film is built and rendered in long sessions (ADR-0076)
+      budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? (motion ? 'thorough' : 'custom')].budgets, ...(motion ? { attemptTimeoutMin: 60 } : {}), ...(input.budgets ?? {}), ...(!reportsDollars(provider) ? { maxCostUsd: null } : {}) }),
+      budgetPreset: input.budgetPreset ?? (motion ? 'thorough' : 'custom'),
       mode,
       nature,
       outputDir: input.outputDir ?? null,
@@ -2455,6 +2479,7 @@ export class Engine {
   async installTool(id: string, onLine: (l: string) => void, provider: AgentProvider = this.config.provider): Promise<{ ok: boolean; command: string; exitCode: number | null }> {
     if (id === 'playwright') {
       const r = await this.installPlaywright(onLine);
+      if (r.ok) this.wakeMotionStudioGoals();
       return { ok: r.ok, command: r.command.join(' '), exitCode: r.exitCode };
     }
     if (id === 'markitdown') {
@@ -2513,6 +2538,7 @@ export class Engine {
     const cad = await this.cadToolsCheck(provider);
     // the motion-studio engine's tools (ADR-0076), only while its Beta is on
     const motion = this.config.betaMotionStudio ? await this.playwrightStatus().then((pw) => motionStudioCheck({ ffmpeg: Bun.which('ffmpeg'), ffprobe: Bun.which('ffprobe'), browser: pw.browser, browserDetail: pw.detail, platform: process.platform })) : null;
+    if (motion?.ok) this.wakeMotionStudioGoals();
     return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
   }
 

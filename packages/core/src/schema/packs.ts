@@ -6,7 +6,7 @@ import { z } from 'zod';
  */
 export const DesignPack = z.enum(['ui-ux-pro-max', 'frontend-design', 'impeccable', 'bencium', 'garden', 'taste', 'none']);
 export const ImagePack = z.enum(['gpt-image-2', 'claude-image-gen', 'taste-imagegen', 'none']);
-export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'hyperframes', 'none']);
+export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'hyperframes', 'motion-studio', 'none']);
 export type DesignPack = z.infer<typeof DesignPack>;
 export type ImagePack = z.infer<typeof ImagePack>;
 export type VideoPack = z.infer<typeof VideoPack>;

@@ -2030,6 +2030,53 @@
       ]
     },
     {
+      "id": "motion-studio",
+      "name": "motion-studio",
+      "summary": "Foundry's motion-studio engine: a film as a pure function of time (window.seek(t)), rendered through a headless Chromium into H.264, scored and mixed in code, judged on contact sheets, measured by verify.mjs.",
+      "why": "The motion-studio video engine (ADR-0076, beta): the harness that turns a prompt into a repeatable film pipeline — renderer, springs, beat grid, sound, critique loop, verifier — shipped with Foundry so it moves with the engine's checks and prompts.",
+      "tier": "optional",
+      "source": {
+        "type": "bundled",
+        "path": "catalog/bundled/motion-studio"
+      },
+      "roles": [
+        "clarifier",
+        "planner",
+        "worker",
+        "reviewer-task"
+      ],
+      "tags": [
+        "video",
+        "motion"
+      ],
+      "aliases": [],
+      "pack": "video",
+      "packOption": "motion-studio",
+      "scenarios": [
+        "video"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "video"
+          ],
+          "instruction": "Build the film with this skill's harness and nothing else: scripts/scaffold.mjs once, then motion/lib/render.mjs, score.mjs, beats.mjs, sfx.mjs, mix.mjs, sheets.mjs and verify.mjs from the repository root. The film is a pure function of time (window.seek(t)); judge every round on the sheets by prompts/critique.md and log the scores; install nothing — Playwright is the repository's own or FOUNDRY_PLAYWRIGHT."
+        },
+        {
+          "role": "reviewer-task",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "video"
+          ],
+          "instruction": "Open the attempt's contact.png, strip.png and phone.png under artifacts/motion/<slug>/ and look at them; score the rubric's axes 1–10 in `scores`, name the worst frames by timestamp, and pass only when every scored axis is 8 or more."
+        }
+      ]
+    },
+    {
       "id": "reverse-engineer-anything",
       "name": "reverse-engineer-anything",
       "summary": "REA's own workflow for the rea tools: open the target, trace the feature, keep the evidence, state the limits.",

@@ -33,6 +33,7 @@ export const VIDEO_PACK_OPTIONS: PackOption[] = [
   { id: 'web-video-presentation', label: 'Web video presentation', summary: 'Turns a script or article into a click-driven 16:9 web presentation (cinematic HTML, optional narration audio) — video-as-a-web-page rather than a rendered file.', homepage: 'https://github.com/ConardLi/garden-skills' },
   { id: 'mmx-cli', label: 'MiniMax CLI', summary: 'MiniMax platform CLI (mmx): text/image-to-video generation and narration audio, rendered to real video files.', homepage: 'https://www.npmjs.com/package/mmx-cli' },
   { id: 'hyperframes', label: 'Hyperframes', summary: 'Herk Edit Kit: HTML + GSAP compositions rendered to real video — showreels and brand reels cut to a beat grid, talking-head reels and Shorts, long-form overlay beats, product demos and lessons. Workshop-style — the skills scaffold the pipeline in the workspace; needs Node 22+, FFmpeg and Chrome.', homepage: 'https://github.com/nateherkai/hyperframes-student-kit' },
+  { id: 'motion-studio', label: 'Motion studio (beta)', summary: "Foundry's own harness (ADR-0076): a film as a pure function of time rendered through a headless Chromium into H.264, springs and a beat grid, sound synthesised and mixed in code, a critique loop on contact sheets, a verifier that measures the file. Needs ffmpeg and Chromium; shown while the Beta is on.", homepage: null },
   { id: 'none', label: 'None', summary: 'No video skill is mandated; video tasks rely on the worker alone.', homepage: null },
 ];
 

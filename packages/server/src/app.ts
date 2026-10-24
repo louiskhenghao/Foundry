@@ -1374,7 +1374,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/skills', async (c) => {
     // ?goals=N: how many of the newest goals the usage counts over, clamped silently
     const n = Number.parseInt(c.req.query('goals') ?? '', 10);
-    return c.json(await skillsFor(c).overview(c.req.query('repo') || undefined, { goals: Number.isFinite(n) ? Math.min(500, Math.max(1, n)) : 30 }));
+    const overview = await skillsFor(c).overview(c.req.query('repo') || undefined, { goals: Number.isFinite(n) ? Math.min(500, Math.max(1, n)) : 30 });
+    // the motion-studio skill shows while its Beta is on (ADR-0076)
+    return c.json(engine.config.betaMotionStudio ? overview : { ...overview, catalog: overview.catalog.filter((s) => s.entry.packOption !== 'motion-studio') });
   });
   app.get('/api/skills/trash', (c) => c.json(skillsFor(c).trash()));
   // Grouped-by-source update report. ?refresh=1 starts an upstream fetch in the background and returns the
@@ -1606,7 +1608,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({
       design: view('design', DESIGN_PACK_OPTIONS, engine.config.designPack),
       image: view('image', IMAGE_PACK_OPTIONS, engine.config.imagePack),
-      video: view('video', VIDEO_PACK_OPTIONS, engine.config.videoPack),
+      // the motion-studio engine is offered while its Beta is on (ADR-0076)
+      video: view('video', engine.config.betaMotionStudio ? VIDEO_PACK_OPTIONS : VIDEO_PACK_OPTIONS.filter((o) => o.id !== 'motion-studio'), engine.config.videoPack),
     });
   });
   app.post('/api/skills/install-pack', async (c) => {
