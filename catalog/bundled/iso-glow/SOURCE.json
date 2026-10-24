@@ -1,0 +1,12 @@
+{
+  "name": "iso-glow",
+  "author": "April Zhu",
+  "homepage": "https://isoglow.dev",
+  "license": "MIT",
+  "archive": "https://iso-glow.vercel.app/iso-glow.tar.gz",
+  "fetchedAt": "2026-10-24",
+  "files": 14,
+  "bytes": 465407,
+  "sha256": "2dd4483de2befc264d3b7ef883e963c4392d955885a9e8252c63cd8ecf60e2b0",
+  "note": "A snapshot of the skill as its author publishes it, kept in Foundry so it installs offline and does not change under a goal; refresh with bun scripts/vendor-figure-skills.ts. The files are unmodified."
+}

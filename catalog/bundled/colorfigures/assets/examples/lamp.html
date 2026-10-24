@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Desk lamp</title></head><body>
+<script src="core.js"></script>
+<script>
+/* ---------- geometry (x = depth, y = width, z = up; 1 unit ≈ 1 cm) ---------- */
+const BW = 92, BDP = 64, BH = 3, BRAD = 7;              // desk board
+const BTOP = boardTop(0, 0, BW, BDP, BH, BRAD);
+const BX = 16, BY = 44;                                    // lamp base centre
+const PHI = -25 * Math.PI/180;                             // the arm swings in a vertical plane along U
+const U = [Math.cos(PHI), Math.sin(PHI), 0], NRM = [-Math.sin(PHI), Math.cos(PHI), 0];
+const BASE_R0 = 12.5, BASE_R1 = 11, BASE_H = 4.5, POST_TOP = BH + BASE_H + 8;
+const ARM1 = 34, ARM2 = 32;                                // lower / upper arm
+const SHD_R0 = 3.8, SHD_R1 = 10, SHD_LEN = 15;            // shade: back radius, mouth radius, length
+const BULB_T = 12.6, BULB_R = 4.4;
+const LAMP_TOP = 67;
+const POSES = { read:{ label:'Reading', a:[62,-12,-84] }, up:{ label:'Reach up', a:[74,18,-84] }, low:{ label:'Lean low', a:[40,-10,-86] } };
+const TILTS = { down:{ label:'Down', d:-10 }, mid:{ label:'Angled', d:0 }, out:{ label:'Out', d:10 } };
+const SWITCH = [BX + 6.5, BY + 3.5];
+const CANDELA = 180;                                       // a small LED reading lamp
+
+const rad = a => a * Math.PI/180;
+const addv = (a,b) => [a[0]+b[0], a[1]+b[1], a[2]+b[2]], scl = (a,k) => a.map(v => v*k);
+const Q = (s, z) => [BX + s*U[0], BY + s*U[1], z];        // point in the arm plane
+const dirOf = a => [Math.cos(rad(a))*U[0], Math.cos(rad(a))*U[1], Math.sin(rad(a))];
+function geo(ang){
+  const [a1, a2, a3] = ang, Sh = Q(0, POST_TOP);
+  const El = addv(Sh, scl(dirOf(a1), ARM1)), Wr = addv(El, scl(dirOf(a2), ARM2)), dd = dirOf(a3);
+  return { Sh, El, Wr, dd, at: t => addv(Wr, scl(dd, t)) };
+}
+// ring of points around axis ax through c
+function ringAx(c, ax, r, n=16){
+  let e1, e2;
+  if (Math.abs(dot(ax, NRM)) > .9){ e1 = U; e2 = [0,0,1]; } else if (Math.abs(ax[2]) > .99){ e1 = [1,0,0]; e2 = [0,1,0]; }
+  else { e1 = NRM; e2 = norm(cross(ax, NRM)); }
+  return Array.from({length:n}, (_,i) => { const t = i/n*2*Math.PI; return addv(c, addv(scl(e1, r*Math.cos(t)), scl(e2, r*Math.sin(t)))); });
+}
+const rodTone = (n, M) => { const c = tone(n, M); return c === M.d ? M.m : c; };   // thin rods: never the darkest tone
+// a cylinder between two 3D points, capped on the end that faces the viewer
+function cylAx(c0, c1, r, M, sh=tone, w=1.1, n=16){
+  const ax = norm(sub(c1, c0)), A = ringAx(c0, ax, r, n), B = ringAx(c1, ax, r, n);
+  let s = loft(A, B, nr => sh(nr, M));
+  const capB = vis(ax), cap = capB ? B : A, cn = capB ? ax : scl(ax, -1);
+  if (vis(cn)) s += fill(pd(cap), sh(cn, M));
+  s += hullInk([...A, ...B], w);
+  if (vis(cn)) s += ink(pd(cap), w*.7);
+  return s;
+}
+// a joint hub: short drum across the arm plane, with a little knob on the near side
+function hub(J, r, half, knob=true){
+  let s = cylAx(addv(J, scl(NRM, -half)), addv(J, scl(NRM, half)), r, DARK, tone, 1.1, 18);
+  if (knob) s += cylAx(addv(J, scl(NRM, half)), addv(J, scl(NRM, half + 1.4)), r*.5, METAL, toneI, .9, 12);
+  return s;
+}
+
+/* ---------- light: rays from a virtual apex behind the bulb through the mouth, onto the desk ---------- */
+function poolPts(g, frac=1){
+  const apex = g.at(-14), rim = ringAx(g.at(SHD_LEN), g.dd, SHD_R1*frac, 32), out = [];
+  for (const p of rim){ const v = sub(p, apex); if (v[2] > -1e-3) return null; const k = (BH - apex[2]) / v[2]; out.push(addv(apex, scl(v, k))); }
+  return out;
+}
+function luxAt(g){
+  if (g.dd[2] >= -.05) return 0;
+  const b = g.at(BULB_T), dist = (b[2] - BH) / -g.dd[2] / 100;      // metres along the beam
+  return CANDELA * -g.dd[2] / (dist*dist);
+}
+
+/* ---------- desk props ---------- */
+const NB = (() => { const c = [62, 25], a = rad(14), hx = 13, hy = 17;
+  return [[-hx,-hy],[hx,-hy],[hx,hy],[-hx,hy]].map(([u,v]) => [c[0] + u*Math.cos(a) - v*Math.sin(a), c[1] + u*Math.sin(a) + v*Math.cos(a)]); })();
+function notebook(){
+  const A = on(PZ(BH), NB), B = on(PZ(BH + .9), NB);
+  let s = loft(A, B, n => toneI(n, CERAMIC)) + fill(pd(B), '#fbf8ee');
+  const lerp = (p, q, t) => [p[0] + (q[0]-p[0])*t, p[1] + (q[1]-p[1])*t];
+  let ln = '';
+  for (let k = 1; k < 9; k++){ const t = k/9; ln += pd([[...lerp(NB[0], NB[3], t), BH+.95], [...lerp(NB[1], NB[2], t), BH+.95]].map(p => p), false); }
+  s += `<path d="${ln}" fill="none" stroke="#9fb6d6" stroke-width=".6"/>`;
+  s += line([[...lerp(NB[0], NB[1], .22), BH+.95], [...lerp(NB[3], NB[2], .22), BH+.95]], .6).replace(INK, '#e2706a');
+  s += ink(pd(B), 1) + hullInk([...A, ...B], 1.4);
+  return s;
+}
+// power cord: out of the back of the base, over the back edge of the desk
+function smooth3(pts, it=3){
+  for (let k = 0; k < it; k++){ const o = [pts[0]];
+    for (let i = 0; i < pts.length-1; i++){ const a = pts[i], b = pts[i+1]; o.push(a.map((v,j) => v*.75 + b[j]*.25), a.map((v,j) => v*.25 + b[j]*.75)); }
+    o.push(pts[pts.length-1]); pts = o; }
+  return pts;
+}
+function cord(pts, r=.8){
+  const d = pd(smooth3(pts), false), cap = 'fill="none" stroke-linecap="round" stroke-linejoin="round"';
+  return `<path d="${d}" ${cap} stroke="${INK}" style="stroke-width:${f(2*r + 1.8*INK_K)}"/><path d="${d}" ${cap} stroke="${DARK.l}" style="stroke-width:${f(2*r)}"/>`;
+}
+const CORD_ON = [[BX - 10, BY + 4, BH + .8], [BX - 16, BY + 7, BH + .8], [BX - 20, BY + 12, BH + .8], [6, BY + 16, BH + .8], [.3, BY + 17, BH + .8]];
+const CORD_OFF = [[.3, BY + 17, BH + .8], [-1.4, BY + 17.3, BH - .5], [-1.8, BY + 17.5, -9]];
+
+/* ---------- the lamp ---------- */
+function lamp(st, m, g){
+  let s = '';
+  const zt = BH + BASE_H;
+  // weighted base
+  const bA = on(PZ(BH), ellUV(BX, BY, BASE_R0, BASE_R0, 36)), bB = on(PZ(zt), ellUV(BX, BY, BASE_R1, BASE_R1, 36));
+  s += loft(bA, bB, n => tone(n, m)) + fill(pd(bB), m.l) + ink(pd(bB), 1.1) + hullInk([...bA, ...bB], 2.4);
+  // swivel collar + post
+  s += cyl(BX, BY, zt, zt + 1.6, 4.2, METAL, toneI, 1, 18);
+  s += cylAx(Q(0, zt + 1.6), g.Sh, 2, METAL, rodTone, 1.1, 12);
+  // lower arm, shoulder joint, balance spring (in front of the arm plane)
+  s += cylAx(g.Sh, g.El, 1.7, METAL, rodTone, 1.1, 12);
+  s += hub(g.Sh, 3, 3);
+  const ax = norm(sub(g.El, g.Sh)), side = scl(NRM, 4.2), lev = addv(g.Sh, scl(norm(cross(NRM, ax)), 4.5));
+  const A = addv(lev, side), B = addv(addv(g.Sh, scl(ax, ARM1*.55)), side);
+  s += cylAx(addv(g.Sh, side), A, .9, DARK, rodTone, .9, 8);                      // lever the spring hangs on
+  const sa = norm(sub(B, A)), e2 = norm(cross(sa, NRM)), coil = [];
+  for (let i = 0; i <= 160; i++){ const t = .08 + .84*i/160, th = t*2*Math.PI*14, c = addv(A, scl(sub(B, A), t));
+    coil.push(addv(c, addv(scl(NRM, 1.1*Math.cos(th)), scl(e2, 1.1*Math.sin(th))))); }
+  s += ink(pd([A, addv(A, scl(sub(B, A), .08))], false), 1) + ink(pd(coil, false), .8) + ink(pd([addv(A, scl(sub(B, A), .92)), B], false), 1);
+  s += ink(pd([B, addv(B, scl(NRM, -2.4))], false), 1);
+  // switch + pilot light on the base top
+  const pz = st.pressT > 0 ? .5 : 1.6;
+  s += act('switch', cyl(SWITCH[0], SWITCH[1], zt, zt + pz, 2.3, DARK, toneI, 1, 18));
+  const led = on(PZ(zt + .05), ellUV(BX + 5, BY - 4.5, 1.1, 1.1, 12));
+  s += fill(pd(led), st.on ? '#43c25c' : '#8d877a') + ink(pd(led), .6);
+  // upper arm + elbow
+  s += cylAx(g.El, g.Wr, 1.6, METAL, rodTone, 1.1, 12);
+  s += hub(g.El, 3, 3);
+  // light beam (behind the head, in front of everything below it)
+  const glow = st.glow;
+  if (glow > .01){ const pool = poolPts(g);
+    if (pool){ const rim = ringAx(g.at(SHD_LEN), g.dd, SHD_R1*.92, 32);
+      s += fill(sp(hull([...rim, ...pool].map(p => P(...p)))), '#ffe9a0', `opacity="${f(.3*glow)}" pointer-events="none"`); } }
+  // head: bulb (drawn first: the shade hides all but its tip), cone, back cap
+  let h = '';
+  const bc = P(...g.at(BULB_T)), br = BULB_R * 1.2247;
+  const mouthIn = vis(g.dd);
+  const bulb = () => (glow > .01 ? `<circle cx="${f(bc[0])}" cy="${f(bc[1])}" r="${f(br*1.9)}" fill="#ffe58a" opacity="${f(.55*glow)}"/>` : '')
+    + `<circle cx="${f(bc[0])}" cy="${f(bc[1])}" r="${f(br)}" fill="${glow > .5 ? '#fff7cf' : '#eef0ea'}" stroke="${INK}" stroke-width="1"/>`
+    + `<circle cx="${f(bc[0] - br*.35)}" cy="${f(bc[1] - br*.35)}" r="${f(br*.28)}" fill="#ffffff" opacity=".8"/>`;
+  const r0 = ringAx(g.at(1.5), g.dd, SHD_R0, 32), r1 = ringAx(g.at(SHD_LEN), g.dd, SHD_R1, 32);
+  const cone = loft(r0, r1, n => tone(n, m)) + hullInk([...r0, ...r1], 2.2);
+  const capC = cylAx(g.at(-2.2), g.at(1.5), SHD_R0, m, tone, 1.4, 24);
+  if (!mouthIn) h += bulb() + cone + capC;
+  else h += capC + cone + fill(pd(r1), glow > .5 ? '#fff4c4' : '#f4efe0') + clipTo(r1, bulb()) + ink(pd(r1), 1.6);
+  s += act('shade', h);
+  s += hub(g.Wr, 2.3, 4.6, false);
+  return s;
+}
+function shadows(g){
+  const zt = BH + BASE_H;
+  const parts = [
+    [...on(PZ(BH), ellUV(BX, BY, BASE_R0, BASE_R0, 24)), ...on(PZ(zt), ellUV(BX, BY, BASE_R1, BASE_R1, 24))],
+    [...ringAx(Q(0, zt), [0,0,1], 2.2, 10), ...ringAx(g.Sh, [0,0,1], 2.2, 10)],
+    [...ringAx(g.Sh, norm(sub(g.El, g.Sh)), 2.6, 10), ...ringAx(g.El, norm(sub(g.El, g.Sh)), 2.6, 10)],
+    [...ringAx(g.El, norm(sub(g.Wr, g.El)), 2.4, 10), ...ringAx(g.Wr, norm(sub(g.Wr, g.El)), 2.4, 10)],
+    [g.Wr, ...ringAx(g.at(-2.2), g.dd, SHD_R0, 16), ...ringAx(g.at(SHD_LEN), g.dd, SHD_R1, 24)],
+  ];
+  return clipTo(BTOP, parts.map(p => castShadow(p, BH)).join(''));
+}
+
+/* ---------- scene ---------- */
+function scene(st, m){
+  const g = geo(st.ang);
+  // the cord hanging down over the desk's back edge (x = 0) is behind the desk, or in front of it seen from behind
+  const behind = facing([-1, 0, 0]);
+  let s = (behind ? '' : cord(CORD_OFF)) + board(0, 0, BW, BDP, BH, BRAD, WOOD) + (behind ? cord(CORD_OFF) : '') + notebook() + shadows(g);
+  if (st.glow > .01){ const outer = poolPts(g), core = poolPts(g, .55);
+    const k = st.glow * (.45 + .4*Math.min(1, luxAt(g)/2500));
+    if (outer) s += clipTo(BTOP, fill(pd(outer), '#fff2b0', `opacity="${f(.75*k)}"`) + (core ? fill(pd(core), '#fffbe2', `opacity="${f(.6*k)}"`) : '')); }
+  const kx = ease(st.xr || 0);
+  s += cord(CORD_ON) + (kx > 0 ? `<g opacity="${f(1 - .62*kx)}">${lamp(st, m, g)}</g><g opacity="${f(kx)}">${lampMech(st, g)}</g>` + lampOuter(st, g, kx) : lamp(st, m, g));   // see-through: the lamp as a ghost, the inside over it, then the switch cap
+  return s;
+}
+
+/* ---------- behaviour ---------- */
+const target = st => { const p = POSES[st.pose].a; return [p[0], p[1], Math.max(-100, p[2] + TILTS[st.tilt].d)]; };
+function moveTo(st, ui){
+  st.from = st.ang.slice(); st.to = target(st); st.k = 0;
+  if (st.moving) return;                                     // the running loop picks up the new target
+  st.moving = true;
+  ui.animate(dt => { st.k = Math.min(1, st.k + dt/1.1); const e = ease(st.k);
+    st.ang = st.from.map((a, i) => a + (st.to[i] - a)*e);
+    if (st.k >= 1){ st.moving = false; return false; } return true; });
+}
+function toggle(st, ui){
+  st.on = !st.on; st.pressT = .16;
+  if (st.fading) return; st.fading = true;
+  ui.animate(dt => { st.pressT = Math.max(0, st.pressT - dt);
+    const goal = st.on ? 1 : 0; st.glow += Math.sign(goal - st.glow) * Math.min(Math.abs(goal - st.glow), dt/.3);
+    if (st.pressT === 0 && st.glow === goal){ st.fading = false; return false; } return true; });
+}
+const choose = (key, val) => (st, ui) => { if (st[key] === val && !st.moving) return ui.flash('it is already there'); st[key] = val; moveTo(st, ui); };
+const keys = Object.keys;
+const nextOf = (obj, cur) => { const k = keys(obj); return k[(k.indexOf(cur) + 1) % k.length]; };
+
+
+
+/* ---------- see-through: how a real balanced-arm desk lamp is built ----------
+   Truth: mains comes in on the cord, through a grommet in the base wall, under a cord grip, to a terminal block on a small
+   switch board. A push switch on the board breaks the live core; a dropper capacitor and resistor run the green pilot LED.
+   The lamp wire leaves the output block, enters the hollow threaded nipple that holds the post, runs up the post and inside
+   both arm tubes, loops round each joint bolt (so it bends, never twists), and ends on the socket of an LED bulb in the shade.
+   Each joint is a bolt through the hub with fibre friction washers inside, which hold the arm wherever it stops; the
+   balance spring between the shoulder lever and a clamp band on the lower arm carries the arm's weight; a cast-iron
+   counterweight bolted to the bottom plate keeps the lamp from tipping.
+   Parts (each sits on, or is held by, another part):
+   BASE    four felt pads . steel bottom plate . cast-iron counterweight . three screws holding it to the plate . threaded boss .
+           hollow nipple . locknut clamping the nipple under the base top . rubber grommet in the wall . cord sheath .
+           cord grip strap, its two feet and two screws . brown live core . blue neutral core
+   BOARD   switch board . four standoffs . input terminal block and its two screws . output terminal block and its two screws .
+           push switch body . plunger . pilot LED . dropper capacitor . series resistor and its leads . four copper traces
+   ARM     lamp wire up the post . shoulder, elbow and wrist joints: bolt head, three shank pieces, two fibre friction washers,
+           wrist nut, the wire looping round each bolt . wire inside the lower and upper arm tubes . balance spring: lever on the
+           shoulder axle, anchor pin, coil, two hooks, clamp band on the lower arm
+   HEAD    bakelite socket . E14 screw base and its thread . aluminium neck . LED board . six LED chips . frosted globe
+   OUTSIDE switch cap and pilot light, drawn over the ghost */
+const LM = { pcb:{ l:'#4fa36a', m:'#2f8a4a', d:'#1d5f31' }, iron: matOf('#6f7378'), steel: METAL, term: matOf('#3f7fc0'), cap: matOf('#e8c45a'),
+  felt: matOf('#5a524a'), rub: DARK, fibre: matOf('#c9a46a'), bake: matOf('#4a4440'), brass: matOf('#d8b25a'), res: matOf('#d9c49a'), alu: matOf('#d4d8da') };
+const LIT = matOf('#ff9a3a');
+const boxOf = (pts, e = .05) => [[0,1,2].map(i => Math.min(...pts.map(p => p[i])) - e), [0,1,2].map(i => Math.max(...pts.map(p => p[i])) + e)];
+// round each interior corner of a route (a cable bends, it doesn't kink)
+const bend = (pts, r = 1.2) => { if (pts.length < 3) return pts; const out = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++){ const [a, b, c] = [pts[i - 1], pts[i], pts[i + 1]];
+    const la = Math.hypot(...a.map((v, k) => v - b[k])), lc = Math.hypot(...c.map((v, k) => v - b[k])), d = Math.min(r, la/2.2, lc/2.2);
+    if (d < 1e-3){ out.push(b); continue; }
+    const p = a.map((v, k) => b[k] + (v - b[k]) * d/la), q = c.map((v, k) => b[k] + (v - b[k]) * d/lc);
+    for (let j = 0; j <= 4; j++){ const t = j/4; out.push([0,1,2].map(k => (1-t)*(1-t)*p[k] + 2*(1-t)*t*b[k] + t*t*q[k])); } }
+  out.push(pts[pts.length - 1]); return out; };
+// a cable cut into short pieces, each with its own box, so byDepth puts it behind or in front of the solids it passes
+const wireParts = (pts, col, w = .3, ends = true, L = 3) => { const q = bend(pts), out = [];
+  for (let i = 0; i < q.length - 1; ){
+    let j = i + 1, len = 0; while (j < q.length - 1 && len < L){ len += Math.hypot(...q[j].map((v, k) => v - q[j - 1][k])); j++; }
+    if (len < L) while (j < q.length - 1) j++;
+    const seg = q.slice(i, j + 1), d = pd(seg, false);
+    let svg = `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${f(2*w + .9)}" stroke-linecap="round" stroke-linejoin="round"/>`
+      + `<path d="${d}" fill="none" stroke="${col}" stroke-width="${f(2*w)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    if (ends && i === 0){ const [X, Y] = P(...q[0]); svg += `<circle cx="${f(X)}" cy="${f(Y)}" r=".9" fill="${INK}"/>`; }
+    if (ends && j === q.length - 1){ const [X, Y] = P(...q[j]); svg += `<circle cx="${f(X)}" cy="${f(Y)}" r=".9" fill="${INK}"/>`; }
+    out.push({ box: boxOf(seg), svg }); i = j; }
+  return out; };
+const B_ZT = BH + BASE_H, SHELL_IN = B_ZT - .5;                      // base top, underside of the base top
+const WZ = [BH + .7, BH + 2.2], WR = 8.5;                             // counterweight
+const PCB = [18.6, 38.5, 5.9, 24.6, 49.5, 6.1];                       // switch board
+const NIP_R = 1.5, WIRE_D = .9;                                       // hollow nipple; the wire's offset from each tube's axis
+const GROM = (() => { const a = Math.atan2(48.6 - BY, 4.8 - BX); return [Math.cos(a), Math.sin(a), 0]; })();
+const OUTDIR = norm([18.6 - BX, 42.4 - BY, 0]);                       // from the nipple toward the output block
+const gr = (r, z) => [BX + r*GROM[0], BY + r*GROM[1], z];
+// the lamp wire: up the post, round each joint bolt on an arc in the arm plane, along each tube, to the socket
+function wireRoute(ang, g){
+  const th = [0, ang[0] - 90, ang[1] - 90, ang[2] - 90];
+  const off = t => addv(scl(U, WIRE_D*Math.cos(rad(t))), [0, 0, WIRE_D*Math.sin(rad(t))]);
+  const J = [Q(0, B_ZT), g.Sh, g.El, g.Wr], pts = [addv(J[0], off(th[0]))];
+  for (let i = 1; i < 4; i++){ const n = Math.max(2, Math.ceil(Math.abs(th[i] - th[i-1]) / 12));
+    for (let k = 0; k <= n; k++) pts.push(addv(J[i], off(th[i-1] + (th[i] - th[i-1]) * k/n))); }
+  pts.push(addv(g.at(1.5), off(th[3])));
+  return pts;
+}
+function lampMech(st, g){
+  const parts = [], lit = !!st.on, H = '#3a3632', Hon = '#ffb347', put = (b, svg) => parts.push({ box: b, svg });
+  const ca = (c0, c1, r, M, w = .8, n = 16) => put(boxOf([...ringAx(c0, norm(sub(c1, c0)), r, 8), ...ringAx(c1, norm(sub(c1, c0)), r, 8)]), cylAx(c0, c1, r, M, toneI, w, n));
+  const vc = (x, y, z0, z1, r, M, w = .8, n = 20) => put([[x - r, y - r, z0], [x + r, y + r, z1]], cyl(x, y, z0, z1, r, M, toneI, w, n));
+  const bx = (x0, y0, z0, x1, y1, z1, M, w = .7, extra = '') => put([[x0, y0, z0], [x1, y1, z1]], box(x0, y0, z0, x1, y1, z1, M, toneI, w) + extra);
+  const top = facing([0,0,1]), dotZ = (x, y, z, r = .4, c = METAL.l) => fill(pd(on(PZ(z), ellUV(x, y, r, r, 10))), c) + ink(pd(on(PZ(z), ellUV(x, y, r, r, 10))), .35);
+  // ---- base: pads, bottom plate, counterweight and its screws, boss, nipple, locknut
+  for (const a of [45, 135, 225, 315]) vc(BX + 9.4*Math.cos(rad(a)), BY + 9.4*Math.sin(rad(a)), BH, BH + .3, 1.3, LM.felt, .5, 12);
+  vc(BX, BY, BH + .3, WZ[0], 11.3, LM.steel, .9, 40);
+  put([[BX - WR, BY - WR, WZ[0]], [BX + WR, BY + WR, WZ[1]]], cyl(BX, BY, WZ[0], WZ[1], WR, LM.iron, toneI, 1, 36)
+    + (top ? [105, 195, 285].map(a => dotZ(BX + 6.5*Math.cos(rad(a)), BY + 6.5*Math.sin(rad(a)), WZ[1] + .02, .6)).join('') : ''));
+  vc(BX, BY, WZ[1], WZ[1] + .4, 2.3, LM.iron, .7, 20);
+  const nz = [WZ[1] + .4, SHELL_IN - .6];
+  const slot = facing(OUTDIR) ? fill(pd(on(PZ(5.9), ellUV(BX + NIP_R*OUTDIR[0], BY + NIP_R*OUTDIR[1], .45, .45, 8))), '#1d1a16') : '';
+  vc(BX, BY, nz[0], nz[1], NIP_R, LM.brass, .7, 18); parts[parts.length - 1].svg += slot;
+  vc(BX, BY, nz[1], SHELL_IN, 2.2, LM.steel, .7, 6);                                       // locknut under the base top
+  vc(BX, BY, SHELL_IN, B_ZT, NIP_R, LM.brass, .7, 18);
+  // ---- cord: grommet in the wall, sheath over the weight, grip strap, the two cores to the input block
+  ca(gr(11.1, 3.95), gr(12.4, 3.95), .95, LM.rub, .7, 14);
+  parts.push(...wireParts([gr(11.1, 3.95), gr(10.3, 4.3), gr(9.9, 5.75), [10.4, 47.9, 5.75], [11.5, 47.9, 5.75]], DARK.l, .55, false));
+  bx(10, 46.9, 6.3, 11, 48.9, 6.55, LM.steel, .6); bx(10, 46.5, WZ[1], 11, 46.9, 6.55, LM.steel, .5); bx(10, 48.9, WZ[1], 11, 49.3, 6.55, LM.steel, .5);
+  bx(10, 45.3, WZ[1], 11, 46.5, WZ[1] + .25, LM.steel, .5, top ? dotZ(10.5, 45.9, WZ[1] + .27, .35) : '');
+  bx(10, 49.3, WZ[1], 11, 50.5, WZ[1] + .25, LM.steel, .5, top ? dotZ(10.5, 49.9, WZ[1] + .27, .35) : '');
+  parts.push(...wireParts([[11.4, 47.65, 5.75], [17.4, 47.65, 5.75], [18.6, 47.2, 6.5]], '#9a5a2c', .25, false));
+  parts.push(...wireParts([[11.4, 48.15, 5.75], [17.4, 48.15, 5.75], [18.6, 48.4, 6.5]], '#3c6fb4', .25, false));
+  // ---- switch board on standoffs: terminal blocks, push switch, pilot LED, dropper capacitor, resistor, traces
+  for (const [x, y] of [[19.6, 40], [23.2, 40], [19.6, 48], [23.2, 48]]) vc(x, y, WZ[1], PCB[2], .45, LM.steel, .5, 10);
+  let tr = '';
+  if (top) for (const t of [[[20.2, 47.4], [21.2, 47.4]], [[23.8, 48.2], [24.2, 48.2], [24.2, 45], [19.4, 45], [19.4, 43.6]], [[18.9, 46.6], [18.9, 43.6]], [[22.4, 42.5], [21, 42.5], [21, 40.25]]])
+    tr += `<path d="${pd(t.map(([x, y]) => [x, y, PCB[5] + .01]), false)}" fill="none" stroke="#d8a24a" stroke-width=".7" stroke-linecap="round" stroke-linejoin="round"/>`;
+  put([[PCB[0], PCB[1], PCB[2]], [PCB[3], PCB[4], PCB[5]]], box(...PCB, LM.pcb, toneI, .7) + tr);
+  for (const y0 of [41.2, 46.6]) bx(18.6, y0, PCB[5], 20.2, y0 + 2.4, 6.95, LM.term, .6, top ? dotZ(19.4, y0 + .6, 6.97) + dotZ(19.4, y0 + 1.8, 6.97) : '');
+  bx(21.2, 46.2, PCB[5], 23.8, 48.8, 6.85, lit ? LIT : LM.bake, .6);                         // push switch body
+  vc(SWITCH[0], SWITCH[1], 6.85, B_ZT, .6, METAL, .6, 12);                                  // plunger up to the cap
+  vc(BX + 5, BY - 4.5, PCB[5], B_ZT - .05, .75, lit ? matOf('#5fe07a') : matOf('#9fb8a2'), .6, 12);   // pilot LED
+  bx(22.4, 40.4, PCB[5], 24.2, 44.6, 6.9, LM.cap, .6);                                      // dropper capacitor
+  put([[20, 45, PCB[5]], [22.4, 45.8, 6.9]], line([[20.1, 45.4, PCB[5]], [20.1, 45.4, 6.5], [20.6, 45.4, 6.5]], .45) + line([[22.2, 45.4, 6.5], [22.6, 45.4, 6.5], [22.6, 45.4, PCB[5]]], .45)
+    + rod([20.6, 45.4, 6.5], [22.2, 45.4, 6.5], .35, LM.res, toneI, .6, .35, 10));
+  // ---- lamp wire: output block, into the nipple's side slot; then out of the nipple top, up the post and arms to the socket
+  const wc = lit ? Hon : H;
+  parts.push(...wireParts([[18.6, 42.4, 6.5], [17.9, 42.85, 5.95], [BX + NIP_R*OUTDIR[0], BY + NIP_R*OUTDIR[1], 5.9]], wc, .3, false));
+  parts.push(...wireParts(wireRoute(st.ang, g), wc, .3, false, 2.5));
+  // ---- joints: bolt head, shank in pieces either side of two friction washers, nut on the wrist
+  for (const [J, r, h, nut] of [[g.Sh, 3, 3, false], [g.El, 3, 3, false], [g.Wr, 2.3, 4.6, true]]){
+    const at = t => addv(J, scl(NRM, t));
+    ca(at(-h - .6), at(-h), 1.1, LM.steel, .6, 6);
+    for (const [a, b] of [[-h, -1.2], [-.8, .8], [1.2, h]]) ca(at(a), at(b), .42, LM.steel, .5, 10);
+    for (const a of [-1.2, .8]) ca(at(a), at(a + .4), 1.75, LM.fibre, .6, 18);
+    if (nut) ca(at(h), at(h + .6), 1.1, LM.steel, .6, 6);
+  }
+  // ---- balance spring: lever on the shoulder axle, anchor pin, coil, hooks, clamp band on the lower arm
+  { const ax = norm(sub(g.El, g.Sh)), side = scl(NRM, 4.2), pr = norm(cross(NRM, ax));
+    const A = addv(addv(g.Sh, scl(pr, 4.5)), side), B0 = addv(g.Sh, scl(ax, ARM1*.55)), B = addv(B0, side);
+    ca(addv(g.Sh, side), A, .7, DARK, .7, 10);
+    ca(addv(A, scl(NRM, -.6)), addv(A, scl(NRM, .6)), .5, LM.steel, .5, 10);
+    ca(addv(B0, scl(ax, -.7)), addv(B0, scl(ax, .7)), 1.95, LM.steel, .7, 18);
+    ca(addv(B0, scl(NRM, 1.9)), B, .25, LM.steel, .5, 8);
+    const sa = norm(sub(B, A)), e2 = norm(cross(sa, NRM)), coil = [];
+    for (let i = 0; i <= 160; i++){ const t = .08 + .84*i/160, th = t*2*Math.PI*14, c = addv(A, scl(sub(B, A), t));
+      coil.push(addv(c, addv(scl(NRM, 1.1*Math.cos(th)), scl(e2, 1.1*Math.sin(th))))); }
+    const ends = [[A, addv(A, scl(sub(B, A), .08))], [addv(A, scl(sub(B, A), .92)), B]];
+    const strk = (pts, c, w) => `<path d="${pd(pts, false)}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    put(boxOf([A, B, addv(A, scl(NRM, 1.2)), addv(B, scl(NRM, -1.2))]), [...ends, coil].map(p => strk(p, INK, 1.5)).join('') + [...ends, coil].map(p => strk(p, METAL.l, .6)).join(''));
+  }
+  // ---- head: socket, screw base, neck, LED board, globe (ordered by which end faces the viewer)
+  { const dd = g.dd, at = g.at, toward = vis(dd), h = [];
+    h.push(cylAx(at(1.5), at(5.6), 2.1, LM.bake, toneI, .8, 18));
+    let thr = cylAx(at(5.6), at(8), 1.4, LM.brass, toneI, .7, 16);
+    for (const t of [6.1, 6.7, 7.3]){ const rg = ringAx(at(t), dd, 1.42, 24), seg = [];
+      for (const p of rg){ if (vis(sub(p, at(t)))) seg.push(p); else if (seg.length){ thr += line(seg.splice(0), .35); } }
+      if (seg.length > 1) thr += line(seg, .35); }
+    h.push(thr);
+    h.push(rod(at(8), at(9.6), 1.5, LM.alu, toneI, .7, 2.5, 18));
+    let brd = cylAx(at(9.6), at(9.9), 2.5, LM.alu, toneI, .6, 20);
+    if (toward) for (let i = 0; i < 6; i++){ const a = i/6*2*Math.PI, p = addv(at(9.92), addv(scl(ringAx([0,0,0], dd, 1, 4)[0], 1.4*Math.cos(a)), scl(norm(cross(dd, ringAx([0,0,0], dd, 1, 4)[0])), 1.4*Math.sin(a))));
+      brd += shape(ringAx(p, dd, .45, 8), lit ? '#fff4b0' : '#e8dca0', .4); }
+    h.push(brd);
+    const bc = P(...at(BULB_T)), br = BULB_R*1.2247;
+    const globe = `<circle cx="${f(bc[0])}" cy="${f(bc[1])}" r="${f(br)}" fill="${lit ? '#fff2b0' : '#ffffff'}" fill-opacity="${lit ? .55 : .35}" stroke="${INK}" stroke-width=".9"/>`
+      + `<circle cx="${f(bc[0] - br*.35)}" cy="${f(bc[1] - br*.35)}" r="${f(br*.22)}" fill="#ffffff" opacity=".7"/>`;
+    const svg = toward ? h.join('') + globe : globe + h.reverse().join('');
+    const ends = [at(1.5), at(BULB_T + BULB_R)];
+    put(boxOf([...ringAx(ends[0], dd, BULB_R, 8), ...ringAx(ends[1], dd, BULB_R, 8)]), svg);
+  }
+  // outside parts on the base top, sorted with the rest: the switch cap you press (on its plunger) and the pilot light
+  { const pz = st.pressT > 0 ? .5 : 1.6, led = on(PZ(B_ZT + .05), ellUV(BX + 5, BY - 4.5, 1.1, 1.1, 12));
+    put([[SWITCH[0] - 2.3, SWITCH[1] - 2.3, B_ZT], [SWITCH[0] + 2.3, SWITCH[1] + 2.3, B_ZT + pz]], act('switch', cyl(SWITCH[0], SWITCH[1], B_ZT, B_ZT + pz, 2.3, DARK, toneI, 1, 18)));
+    if (top) put([[BX + 3.9, BY - 5.6, B_ZT], [BX + 6.1, BY - 3.4, B_ZT + .1]], fill(pd(led), st.on ? '#43c25c' : '#8d877a') + ink(pd(led), .6)); }
+  // the camera always looks down, so the base draws in layers (on the floor, on the weight, above the base top), each sorted
+  const lay = p => p.box[1][2] <= WZ[1] + .3 ? 0 : p.box[0][2] < B_ZT - .05 ? 1 : 2;
+  return [0, 1, 2].map(i => byDepth(parts.filter(p => lay(p) === i))).join('');
+}
+// outside parts over the ghost: the switch cap you press and the pilot light, both on the base's top
+function lampOuter(){ return ''; }   // the switch cap and pilot light are sorted inside lampMech
+const XR_OPTS = { getSt: () => { try { return ui.st; } catch (e) { return {}; } }, B: [0, BW, 0, BDP, 0, LAMP_TOP],
+  mech: () => '',
+  inside: st => { if (!st.ang) return []; const g = geo(st.ang), lit = !!st.on, ax = norm(sub(g.El, g.Sh));
+    return [ { at:[BX - 5, BY - 6, WZ[1]], text:'COUNTERWEIGHT', on: false },
+      { at:[10.5, 47.9, 6.55], text:'CORD GRIP', on: false },
+      { at:[19.4, 42.4, 6.95], text:'TERMINAL BLOCK', on: lit },
+      { at:[23.8, 47.5, 6.6], text:'PUSH SWITCH', on: lit },
+      { at:[23.3, 42.5, 6.9], text:'DROPPER CAPACITOR', on: lit },
+      { at: addv(g.Sh, scl(ax, ARM1*.3)), text:'LAMP WIRE', on: lit },
+      { at: addv(g.El, scl(NRM, -3.6)), text:'JOINT BOLT', on: !!st.moving },
+      { at: addv(g.Wr, scl(NRM, 1)), text:'FRICTION WASHERS', on: !!st.moving },
+      { at: addv(addv(g.Sh, scl(ax, ARM1*.35)), scl(NRM, 4.2)), text:'BALANCE SPRING', on: !!st.moving },
+      { at: g.at(3.5), text:'SOCKET', on: lit },
+      { at: g.at(BULB_T), text:'LED BULB', on: lit } ]; },
+  surface: st => { if (!st.ang) return []; const g = geo(st.ang); return [ { at:[BX, BY, BH + BASE_H], text:'BASE', on: false }, { at: g.El, text:'ELBOW JOINT', on: false }, { at: g.at(SHD_LEN), text:'SHADE', on: !!st.on } ]; } };
+const XR_CAPTION = st => {
+  if (st.moving) return 'Each joint turns on a bolt through its hub, squeezing two fibre friction washers that hold the arm wherever you stop. The balance spring from the shoulder lever to the clamp band carries the arm, and the lamp wire loops round each bolt so it bends instead of twisting.';
+  if (st.on) return 'On: the push switch on the board in the base closes the live core. Mains from the cord, held by the cord grip, runs from the terminal block into the hollow nipple, up the post and inside both arms to the socket, and the LED bulb lights. The dropper capacitor feeds the green pilot LED.';
+  return 'Off: the push switch on the board in the base breaks the live core, so the lamp wire up the post and arms is dead. The cast-iron counterweight bolted to the bottom plate keeps the lamp upright when the arm reaches out.';
+};
+
+XR_OPTS.inline = true;
+scene = xrWrap(scene, XR_OPTS);
+const ui = mountFigure({
+  fig:'15', turn:'full', title:'Desk lamp', hint:'switch it on, then bend the arm and tilt the shade',
+  size:[BW, BDP, LAMP_TOP], palette:'tomato',
+  state:{ on:false, glow:0, pressT:0, pose:'read', tilt:'mid', ang:POSES.read.a.slice(), moving:false, fading:false },
+  scene,
+  readout: st => `${st.on ? 'on' : 'off'} · ${POSES[st.pose].label} · ${TILTS[st.tilt].label}`,
+  stats: st => { const g = geo(st.ang), lx = Math.round(luxAt(g) * st.glow / 10) * 10;
+    return [ { label:'Light on desk', value: st.glow > .01 ? lx.toLocaleString('en-US') + ' lx' : 'off' },
+             { label:'Shade height', value: Math.round(g.at(SHD_LEN)[2] - BH) + ' cm', small:true } ]; },
+  buttonsLabel:'Lamp',
+  buttons:[
+    { label:'Switch on / off', onClick: toggle },
+    { label:'Bend the arm', choices: st => keys(POSES).map(k => ({ label: POSES[k].label, onClick: choose('pose', k) })) },
+    { label:'Tilt the shade', choices: st => keys(TILTS).map(k => ({ label: TILTS[k].label, onClick: choose('tilt', k) })) },
+  ],
+  acts:{ switch:(st, el, ui) => toggle(st, ui), shade:(st, el, ui) => { st.tilt = nextOf(TILTS, st.tilt); moveTo(st, ui); } },
+  params:(st, q) => {
+    if (q.get('on') === '1'){ st.on = true; st.glow = 1; }
+    if (POSES[q.get('pose')]) st.pose = q.get('pose');
+    if (TILTS[q.get('tilt')]) st.tilt = q.get('tilt');
+    st.ang = target(st);
+  },
+});
+xrMount(() => ui, XR_CAPTION);
+</script></body></html>
