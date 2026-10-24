@@ -743,11 +743,18 @@ function project(db: Database, e: EngineEvent): void {
       upsertConversation(db, { ...c, title: c.title || conversationTitle(e.payload.text), messages: [...c.messages, message], updatedAt: e.ts });
       break;
     }
+    case 'conversation.proposal_applied': {
+      const c = getConversation(db, e.payload.conversationId);
+      if (!c) break;
+      const p = e.payload;
+      upsertConversation(db, { ...c, messages: c.messages.map((m) => (m.id === p.messageId ? { ...m, proposals: (m.proposals ?? []).map((x) => (x.id === p.proposalId ? { ...x, applied: { at: e.ts, by: p.by ?? null, result: p.result } } : x)) } : m)), updatedAt: e.ts });
+      break;
+    }
     case 'conversation.answered': {
       const c = getConversation(db, e.payload.conversationId);
       if (!c) break;
       const p = e.payload;
-      const message = { id: p.messageId, role: 'explainer' as const, text: p.text, at: e.ts, by: null, askedId: p.askedId, status: p.status, reason: p.reason ?? null, costUsd: p.costUsd, costAvailable: p.costAvailable ?? true, model: p.model ?? null, durationMs: p.durationMs ?? 0, attachments: [] };
+      const message = { id: p.messageId, role: 'explainer' as const, text: p.text, at: e.ts, by: null, askedId: p.askedId, status: p.status, reason: p.reason ?? null, costUsd: p.costUsd, costAvailable: p.costAvailable ?? true, model: p.model ?? null, durationMs: p.durationMs ?? 0, attachments: [], proposals: p.proposals ?? [] };
       upsertConversation(db, { ...c, sessionId: p.sessionId ?? c.sessionId, costUsd: c.costUsd + p.costUsd, messages: [...c.messages, message], updatedAt: e.ts });
       break;
     }
@@ -927,7 +934,7 @@ export function upsertEscalation(db: Database, e: Escalation): void {
 
 /** a Conversation (ADR-0073), or null */
 /** rows skip zod on the way back: a message written before questions carried attachments reads as having none */
-const normalizeConversation = (c: Conversation): Conversation => ({ ...c, messages: c.messages.map((m) => ({ ...m, attachments: m.attachments ?? [] })) });
+const normalizeConversation = (c: Conversation): Conversation => ({ ...c, messages: c.messages.map((m) => ({ ...m, attachments: m.attachments ?? [], proposals: m.proposals ?? [] })) });
 export function getConversation(db: Database, id: string): Conversation | null {
   const c = row<Conversation>(db.query('SELECT data FROM conversations WHERE id = ?').get(id));
   return c ? normalizeConversation(c) : null;

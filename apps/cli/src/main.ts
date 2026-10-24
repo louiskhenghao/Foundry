@@ -2,7 +2,7 @@
 /**
  * foundry CLI — thin client over the local server, plus `serve` and `replay`.
  */
-import { AGENT_PROVIDERS, reportsDollars } from '@foundry/core';
+import { AGENT_PROVIDERS, reportsDollars, withoutProposalBlocks } from '@foundry/core';
 import type { AgentProvider } from '@foundry/core';
 import { help } from './help.ts';
 import { homedir } from 'node:os';
@@ -728,6 +728,31 @@ async function ask(goalId: string, text: string, fresh: boolean): Promise<void> 
   await new Promise<void>((done) => {
     let streamed = false;
     let finished = false;
+    // the proposal block that ends an answer is for Foundry (ADR-0075): held back from the stream and listed by id below
+    const FENCE = '```foundry-proposal';
+    let held = '';
+    let hidden = false;
+    const stream = (delta: string) => {
+      if (hidden) return;
+      held += delta;
+      const at = held.indexOf(FENCE);
+      if (at >= 0) {
+        process.stdout.write(held.slice(0, at).replace(/\s+$/, ''));
+        held = '';
+        hidden = true;
+        return;
+      }
+      // a line that could still become the fence waits for the next piece
+      const line = held.slice(held.lastIndexOf('\n') + 1);
+      if (line && FENCE.startsWith(line)) {
+        process.stdout.write(held.slice(0, held.length - line.length));
+        held = line;
+        return;
+      }
+      process.stdout.write(held);
+      held = '';
+    };
+    const proposed = (p: any) => (p.proposals?.length ? `\nProposed (apply on the goal page, Conversation tab):\n${p.proposals.map((x: { id: string; type: string; title: string }) => `  - ${x.id} · ${x.type} · ${x.title}`).join('\n')}\n` : '');
     const finish = (line: string) => {
       if (finished) return;
       finished = true;
@@ -740,7 +765,7 @@ async function ask(goalId: string, text: string, fresh: boolean): Promise<void> 
         await Bun.sleep(2000);
         const v = await api(`/api/goals/${goalId}/conversations`);
         const a = v.conversations.find((c: any) => c.id === conversationId)?.messages.find((m: any) => m.askedId === messageId);
-        if (a) return finish(`${a.text}${summary(a)}`);
+        if (a) return finish(`${withoutProposalBlocks(a.text)}${proposed(a)}${summary(a)}`);
       }
     };
     const ws = new WebSocket(wsAddress());
@@ -750,14 +775,15 @@ async function ask(goalId: string, text: string, fresh: boolean): Promise<void> 
         const ev = msg.stream.event;
         if (ev.kind === 'text_delta') {
           streamed = true;
-          process.stdout.write(ev.text);
-        } else if (ev.kind === 'text' && !streamed) console.log(ev.text);
+          stream(ev.text);
+        } else if (ev.kind === 'text' && !streamed) console.log(withoutProposalBlocks(ev.text));
         else if (ev.kind === 'tool_use') console.error(`  ⚙ ${describeTool(ev)}`);
       } else if (msg.kind === 'event' && msg.event.type === 'conversation.answered' && msg.event.payload.askedId === messageId) {
         const p = msg.event.payload;
-        if (streamed) process.stdout.write('\n');
-        else if (p.text && p.status !== 'done') console.log(p.text);
-        finish(summary(p));
+        if (streamed) process.stdout.write(`${hidden ? '' : held}\n`);
+        else if (p.text && p.status !== 'done') console.log(withoutProposalBlocks(p.text));
+        // what it proposed (ADR-0075): applied on the goal page
+        finish(`${proposed(p)}${summary(p)}`);
         ws.close();
       }
     };

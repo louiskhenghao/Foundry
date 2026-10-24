@@ -950,6 +950,16 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       throw e;
     }
   });
+  // the person applies what the Explainer proposed (ADR-0075)
+  app.post('/api/goals/:id/conversations/:cid/proposals/:pid/apply', async (c) => {
+    const goal = goalOr404(c);
+    try {
+      return c.json({ result: await engine.conversations.apply(goal.id, c.req.param('cid'), c.req.param('pid'), c.get('person')?.name ?? null) });
+    } catch (e) {
+      if (e instanceof ConversationError) throw new HttpError(e.status, { error: e.message });
+      throw e;
+    }
+  });
   app.post('/api/goals/:id/conversations/:cid/stop', (c) => {
     goalOr404(c);
     try {

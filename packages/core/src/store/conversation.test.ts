@@ -99,3 +99,22 @@ test('a question keeps what was attached to it, found by id like the goal\'s own
   store.db.query('UPDATE conversations SET data = ? WHERE id = ?').run(JSON.stringify(raw), 'c1');
   expect(getConversation(store.db, 'c1')!.messages.map((m) => m.attachments)).toEqual([[], []]);
 });
+
+test('an answer keeps what the Explainer proposed; applying one records when, who and what came of it; rows from before read as proposing nothing', () => {
+  const store = new EventStore(openDatabase(':memory:'));
+  store.append({ type: 'goal.created', goalId: 'g1', payload: { goal: goal('g1') } });
+  store.append({ type: 'conversation.started', goalId: 'g1', payload: { conversationId: 'c1', by: null } });
+  store.append({ type: 'conversation.asked', goalId: 'g1', payload: { conversationId: 'c1', messageId: 'm1', text: 'add it', by: null } });
+  const proposal = { id: 'prop_1', type: 'task' as const, title: 'Add it', summary: '', task: { title: 'add it', spec: 's', kind: 'feature' as const, scenario: 'general' as const, difficulty: 'standard' as const, dependsOn: [], relevantFiles: [], checks: [] }, applied: null };
+  store.append({ type: 'conversation.answered', goalId: 'g1', payload: { conversationId: 'c1', messageId: 'm2', askedId: 'm1', text: 'Here you go.', status: 'done', reason: null, costUsd: 0, costAvailable: false, model: null, sessionId: null, durationMs: 0, proposals: [proposal] } });
+  expect(getConversation(store.db, 'c1')!.messages[1]!.proposals).toEqual([proposal]);
+  store.append({ type: 'conversation.proposal_applied', goalId: 'g1', payload: { conversationId: 'c1', messageId: 'm2', proposalId: 'prop_1', by: 'ann', result: 'task t_9: add it' } });
+  const applied = getConversation(store.db, 'c1')!.messages[1]!.proposals![0]!.applied!;
+  expect([applied.by, applied.result]).toEqual(['ann', 'task t_9: add it']);
+  expect(applied.at).toBeTruthy();
+  // a row written before proposals existed
+  const raw = JSON.parse((store.db.query('SELECT data FROM conversations WHERE id = ?').get('c1') as { data: string }).data);
+  raw.messages = raw.messages.map(({ proposals: _, ...m }: { proposals: unknown }) => m);
+  store.db.query('UPDATE conversations SET data = ? WHERE id = ?').run(JSON.stringify(raw), 'c1');
+  expect(getConversation(store.db, 'c1')!.messages.map((m) => m.proposals)).toEqual([[], []]);
+});

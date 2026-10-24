@@ -22,7 +22,7 @@ function fakeFoundry(opts: { stream: boolean }) {
         return Response.json({ conversationId: 'c1', messageId: 'm1', channel: 'conversation-c1' }, { status: 202 });
       }
       if (url.pathname === '/api/goals/g1') return Response.json({ goal: { id: 'g1', provider: 'claude' } });
-      if (url.pathname === '/api/goals/g1/conversations') return Response.json({ enabled: true, conversations: [{ id: 'c1', messages: [{ id: 'm2', role: 'explainer', askedId: 'm1', text: 'It reads the table.', status: 'done', costUsd: 0.5, costAvailable: true, model: 'sonnet' }] }], live: {} });
+      if (url.pathname === '/api/goals/g1/conversations') return Response.json({ enabled: true, conversations: [{ id: 'c1', messages: [{ id: 'm2', role: 'explainer', askedId: 'm1', text: 'It reads the table.\n\n```foundry-proposal\n{ \"type\": \"task\", \"title\": \"Add the export button\", \"summary\": \"A button that downloads the table.\", \"task\": { \"title\": \"Add the export button\", \"spec\": \"Download the table as CSV.\" } }\n```', status: 'done', proposals: [{ id: 'prop_1', type: 'task', title: 'Add the export button' }], costUsd: 0.5, costAvailable: true, model: 'sonnet' }] }], live: {} });
       return new Response('Unexpected request', { status: 404 });
     },
     websocket: {
@@ -32,8 +32,11 @@ function fakeFoundry(opts: { stream: boolean }) {
           send({ kind: 'stream', stream: { goalId: 'g1', taskId: null, attemptId: 'conversation-c1', ts: 't', event: { kind: 'tool_use', id: 't1', name: 'Read', input: { file_path: '/x/src/app.ts' } } } });
           send({ kind: 'stream', stream: { goalId: 'g1', taskId: null, attemptId: 'conversation-c1', ts: 't', event: { kind: 'text_delta', text: 'It reads ' } } });
           send({ kind: 'stream', stream: { goalId: 'g1', taskId: null, attemptId: 'conversation-c1', ts: 't', event: { kind: 'text_delta', text: 'the table.' } } });
-          send({ kind: 'stream', stream: { goalId: 'g1', taskId: null, attemptId: 'conversation-c1', ts: 't', event: { kind: 'text', text: 'It reads the table.' } } });
-          send({ kind: 'event', event: { type: 'conversation.answered', goalId: 'g1', payload: { conversationId: 'c1', messageId: 'm2', askedId: 'm1', text: 'It reads the table.', status: 'done', reason: null, costUsd: 0.5, costAvailable: true, model: 'sonnet' } } });
+          send({ kind: 'stream', stream: { goalId: 'g1', taskId: null, attemptId: 'conversation-c1', ts: 't', event: { kind: 'text_delta', text: '\n\n``' } } });
+          send({ kind: 'stream', stream: { goalId: 'g1', taskId: null, attemptId: 'conversation-c1', ts: 't', event: { kind: 'text_delta', text: '`foundry-proposal\n{ "type": "task", "title": "Add the export button", "summary": "A button that downloads the table.", ' } } });
+          send({ kind: 'stream', stream: { goalId: 'g1', taskId: null, attemptId: 'conversation-c1', ts: 't', event: { kind: 'text_delta', text: '"task": { "title": "Add the export button", "spec": "Download the table as CSV." } }\n```' } } });
+          send({ kind: 'stream', stream: { goalId: 'g1', taskId: null, attemptId: 'conversation-c1', ts: 't', event: { kind: 'text', text: 'It reads the table.\n\n```foundry-proposal\n{ \"type\": \"task\", \"title\": \"Add the export button\", \"summary\": \"A button that downloads the table.\", \"task\": { \"title\": \"Add the export button\", \"spec\": \"Download the table as CSV.\" } }\n```' } } });
+          send({ kind: 'event', event: { type: 'conversation.answered', goalId: 'g1', payload: { conversationId: 'c1', messageId: 'm2', askedId: 'm1', text: 'It reads the table.\n\n```foundry-proposal\n{ \"type\": \"task\", \"title\": \"Add the export button\", \"summary\": \"A button that downloads the table.\", \"task\": { \"title\": \"Add the export button\", \"spec\": \"Download the table as CSV.\" } }\n```', status: 'done', reason: null, costUsd: 0.5, costAvailable: true, model: 'sonnet', proposals: [{ id: 'prop_1', type: 'task', title: 'Add the export button' }] } } });
         } else ws.close();
       },
       message() {},
@@ -58,6 +61,12 @@ describe('foundry ask (ADR-0073)', () => {
       expect(r.stdout).toContain('It reads the table.');
       expect(r.stdout.split('It reads the table.').length).toBe(2);
       expect(r.stdout).toContain('— done · $0.500 · sonnet');
+      // what the Explainer proposed is listed with its id, to be applied on the goal page
+      expect(r.stdout).toContain('Proposed (apply on the goal page');
+      expect(r.stdout).toContain('prop_1 · task · Add the export button');
+      // the block itself is for Foundry: not a character of it reaches the terminal
+      expect(r.stdout).not.toContain('foundry-proposal');
+      expect(r.stdout).not.toContain('"type": "task"');
       expect(r.stderr).toContain('⚙ reading src/app.ts');
       // the live feed carries the person's token on its address
       expect(f.token()).toBe('tok-1');
@@ -74,6 +83,8 @@ describe('foundry ask (ADR-0073)', () => {
       expect(f.asked()).toEqual({ text: 'What does T1 read?', fresh: false });
       expect(r.stdout).toContain('It reads the table.');
       expect(r.stdout).toContain('— done · $0.500 · sonnet');
+      expect(r.stdout).toContain('prop_1 · task · Add the export button');
+      expect(r.stdout).not.toContain('foundry-proposal');
     } finally {
       f.server.stop(true);
     }

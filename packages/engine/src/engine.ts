@@ -2580,6 +2580,13 @@ export class Engine {
    * a material of the Brief; ADR-0074). One that answers nothing, added while the goal runs, is announced to the tasks
    * not yet started (a running attempt learns of it at its next continuation).
    */
+  /** staged uploads moved under this goal's attachments folder (a question's files, ADR-0073), no longer staged */
+  claimUploads(goalId: string, atts: Attachment[], existingCount: number): Attachment[] {
+    const claimed = claimStaged(this.config.dataDir, goalId, atts.map((a) => this.latestStaged(a)), existingCount);
+    for (const a of atts) this.staged.delete(a.id);
+    return claimed;
+  }
+
   addAttachment(goalId: string, att: Attachment, marks: { requestId?: string | null; materialKey?: string | null } = {}): Attachment {
     const goal = this.mustGoal(goalId);
     const [first] = claimStaged(this.config.dataDir, goalId, [this.latestStaged(att)], goal.attachments.length);

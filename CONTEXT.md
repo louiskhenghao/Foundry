@@ -198,8 +198,12 @@ A thread of questions a user asks about one Goal on its page, and the Explainer'
 _Avoid_: chat; session (an Explainer session is how an answer is produced, the Conversation is what the user sees); Interview (Clarify asking the user)
 
 **Explainer**
-The Role that answers a Conversation: a read-only session of the Goal's Coding agent that reads the Goal's code in a detached checkout of its own and Foundry's records of the Goal, and explains — what was done and why, where things are, what went wrong. It never acts: asked to change something, it says where in Foundry that is done and drafts the words. One session per Conversation, resumed for each question.
+The Role that answers a Conversation: a read-only session of the Goal's Coding agent that reads the Goal's code in a detached checkout of its own and Foundry's records of the Goal, and explains — what was done and why, where things are, what went wrong. It never acts by itself: asked to change something, it answers with a Proposal the user applies. One session per Conversation, resumed for each question.
 _Avoid_: assistant, chatbot
+
+**Proposal**
+What the Explainer suggests be done to the Goal when the user asks for a change, as a card under its answer: a Task of this Goal, a Decision for the rest of it, a Note on the Brief while it awaits approval, a Follow-up once the Goal is over, or files the user gave in the Conversation handed to a Request or a Material. Nothing changes until the user applies it; applied once, it records who did and what came of it.
+_Avoid_: suggestion (a Suggestion is the AI's advice on an Escalation), action, command
 
 ## Delivery
 

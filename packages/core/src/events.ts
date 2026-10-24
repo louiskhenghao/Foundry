@@ -7,6 +7,7 @@ import { InterviewQuestion } from './schema/interview.ts';
 import { Learning } from './schema/learnings.ts';
 import { Schedule } from './schema/schedule.ts';
 import { AnswerStatus } from './schema/conversation.ts';
+import { Proposal } from './schema/proposal.ts';
 import { DeployProvider, SmokeScript } from './schema/deploy.ts';
 import {
   Attempt,
@@ -251,7 +252,9 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** a Conversation on the goal's page (ADR-0073): one started, a question of the person's, and the Explainer's answer to one (its text as far as it got, how it ended, what it cost; the session the next turn resumes) */
   ev('conversation.started', { conversationId: z.string(), by: z.string().nullable().default(null) }),
   ev('conversation.asked', { conversationId: z.string(), messageId: z.string(), text: z.string(), by: z.string().nullable().default(null), attachments: z.array(Attachment).optional() }),
-  ev('conversation.answered', { conversationId: z.string(), messageId: z.string(), askedId: z.string(), text: z.string(), status: AnswerStatus, reason: z.string().nullable().default(null), costUsd: z.number().nonnegative(), costAvailable: z.boolean().default(true), model: z.string().nullable().default(null), sessionId: z.string().nullable().default(null), durationMs: z.number().nonnegative().default(0) }),
+  ev('conversation.answered', { conversationId: z.string(), messageId: z.string(), askedId: z.string(), text: z.string(), status: AnswerStatus, reason: z.string().nullable().default(null), costUsd: z.number().nonnegative(), costAvailable: z.boolean().default(true), model: z.string().nullable().default(null), sessionId: z.string().nullable().default(null), durationMs: z.number().nonnegative().default(0) , proposals: z.array(Proposal).optional() }),
+  /** the person applied what the Explainer proposed (ADR-0075) */
+  ev('conversation.proposal_applied', { conversationId: z.string(), messageId: z.string(), proposalId: z.string(), by: z.string().nullable().default(null), result: z.string() }),
 
   ev('task.created', { task: Task }),
   ev('task.state_changed', { taskId: z.string(), from: TaskState, to: TaskState, reason: z.string() }),

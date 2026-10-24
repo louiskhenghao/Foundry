@@ -47,4 +47,6 @@ export const IdPrefix = {
   /** a Conversation on a goal's page and one of its messages (ADR-0073) */
   conversation: 'conv',
   message: 'msg',
+  /** what the Explainer proposed (ADR-0075) */
+  proposal: 'prop',
 } as const;
