@@ -162,9 +162,9 @@ Foundry does not define skills. It sees the ones installed on the host, and it t
 
 | Call site | Call |
 |---|---|
-| `clarify.ts` | `sectionFor('clarifier', { scenario })` and `sectionFor('planner', { scenario })`; the scenario is set only for docs/research/media natures (`natureScenario`) |
+| `clarify.ts` | `sectionFor('clarifier', { scenario, packs })` and `sectionFor('planner', { scenario, packs })`; the scenario is set only for docs/research/media/figure natures (`natureScenario`); `packs` is `engine.packsFor(goal)`, the goal's own Figure pack over Settings' (ADR-0076) |
 | `brief-draft.ts` | `sectionFor('clarifier', { scenario })` |
-| `attempt-loop.ts` | `sectionFor('worker', { taskKind, scenario, projectSkills, discipline, files })` and `mandatedFor('worker', ...)`; `files` is the task's `relevantFiles` |
+| `attempt-loop.ts` | `sectionFor('worker', { taskKind, scenario, projectSkills, discipline, files, packs })` and `mandatedFor('worker', ...)`; `files` is the task's `relevantFiles` |
 | `docs-generate.ts` | `sectionFor('documenter', { scenario: 'docs' })` |
 | `learnings.ts` | `sectionFor('learnings')`, and `invokeFor('retro')` for the slash name that opens the session; on the pstack suite the opener is reflect's lenses as text (ADR-0050) |
 | `checks/reviewer.ts` | `sectionFor('reviewer-task', { scenario })` |
@@ -174,7 +174,7 @@ Foundry does not define skills. It sees the ones installed on the host, and it t
 
 `formatWorkflowSection` (`engine/src/skills/workflow.ts`) turns that into a `# Workflow skills` block:
 
-- Only **installed** skills count. Members of an exclusive pack the user did not choose (Design, Image, Video Pack) are invisible (`packAllows`, `skills/packs.ts`).
+- Only **installed** skills count. Members of an exclusive pack the user did not choose (Design, Image, Video, Figure Pack) are invisible (`packAllows`, `skills/packs.ts`); a goal's own pack choice (`Goal.figurePack`) is laid over Settings' by `SkillsHints` (`packs` in `SectionOpts`).
 - `applicableRules` keeps the rules for this role whose `when` matches the Task Kind, whose `scenarios` match, and whose `whenFiles` (if any) match one of the task's files. Media scenarios see only skills that explicitly list them.
 - **Discipline** changes the TDD rule: `off` drops it entirely (not even listed as installed), and `preferred` downgrades MUST to Prefer. `resolveDiscipline` lets a task's `tdd: 'off'` override the goal.
 - Each rule becomes `- MUST: invoke \`/<invoke>\` — <instruction>` or `- Prefer: ...`. The invoke name is the one actually loaded on this machine, plugin copy first. A rule whose skill needs an env var the session lacks gets a "degraded" warning.

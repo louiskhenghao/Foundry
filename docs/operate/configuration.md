@@ -38,7 +38,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `models.codexPresets` | — | — | Independent Codex presets: model and reasoning effort per role and goal type, including housekeeping. Saved changes affect new Codex goals only. |
 | `models.codexPresetCode` | `production` | — | Codex preset for code and unclassified goals; its complete tables are captured when a goal is created. |
 | `models.codexPresetDocs` | `balanced` | — | Codex preset for document and research goals. |
-| `models.codexPresetMedia` | `balanced` | — | Codex preset for image and video goals. |
+| `models.codexPresetMedia` | `balanced` | — | Codex preset for image, video and figure goals. |
 | `models.codexFallbacks` | — | — | Codex fallback model IDs, tried in order only for model-unavailability errors. Captured per new goal; empty pauses for a decision. Does not switch providers or retry authentication and quota errors with another model. |
 | `models.agyModel` | `agy-default` | `FOUNDRY_AGY_MODEL` | The model every role of a new Antigravity goal runs on. agy-default follows the model the CLI itself is set to. |
 | `models.agyEffort` | `high` | — | The Antigravity reasoning effort of every role: low, medium, high, xhigh or max. |
@@ -47,7 +47,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `models.presets` | — | — | Presets you edited or created (edit them in the Presets editor, not by hand). Built-ins you never touched are not stored. |
 | `models.presetCode` | `production` | — | Model preset for code goals and goals not yet classified. |
 | `models.presetDocs` | `balanced` | — | Model preset for documents and research goals. |
-| `models.presetMedia` | `balanced` | — | Model preset for image and video goals. |
+| `models.presetMedia` | `balanced` | — | Model preset for image, video and figure goals. |
 | `models.escalateLastAttempt` | `true` | — | A task's last attempt (budget ≥ 2) and every retry you grant run on the preset's Complex-task model. |
 | `sessions.maxContinuations` | `2` | `FOUNDRY_MAX_CONTINUATIONS` | How often one attempt may resume its session before a fresh attempt starts; 0 = never. |
 | `sessions.attemptMaxTurns` | `150` | `FOUNDRY_ATTEMPT_MAX_TURNS` | Model-turn cap for a Claude attempt; tool-call cap for a Codex attempt; three tool calls per turn for an Antigravity attempt. |
@@ -66,6 +66,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `workflow.designPack` | `ui-ux-pro-max` | `FOUNDRY_DESIGN_PACK` | Design skill set for UI tasks. |
 | `workflow.imagePack` | `gpt-image-2` | `FOUNDRY_IMAGE_PACK` | Image-generation skill set for image tasks. |
 | `workflow.videoPack` | `web-video-presentation` | `FOUNDRY_VIDEO_PACK` | Video skill set for video tasks. |
+| `workflow.figurePack` | `colorfigures` | `FOUNDRY_FIGURE_PACK` | Figure skill set for figure tasks (beta, ADR-0076): Colorfigures, iso-glow or none. Both are bundled with Foundry; a goal may pick the other installed style on the New goal form. |
 | `workflow.autoskills` | `true` | `FOUNDRY_AUTOSKILLS` | Install project skills matched to each goal repository's stack. |
 | `workflow.settingSources` | — | — | Which Claude settings sources sessions load (e.g. user, project, local); empty = all of them. |
 | `workflow.mcpAllowed` | `mcp__plugin_media-pipeline_media-pipeline` | — | Claude MCP servers worker sessions may use, as tool prefixes (`mcp__<server>`, `mcp__plugin_<plugin>_<server>`, `mcp__claude_ai_<name>`). Set with the switches on the Skills page's MCP tab; sessions run without asking, so an unlisted server's tools are refused. |
@@ -155,6 +156,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
 | `beta.conversation` | `false` | `FOUNDRY_BETA_CONVERSATION` | The Conversation on a goal's page: a bubble opens a read-only Explainer that answers questions about the goal's code and Foundry's records of it, on the preset's Conversation model. Off = no bubble and no Conversation tab. |
+| `beta.figure` | `false` | `FOUNDRY_BETA_FIGURE` | Figure goals: a kind of goal of its own — interactive isometric figures of everyday objects and machines, one web page each, drawn by the Figure pack (Colorfigures or iso-glow, bundled with Foundry) and opened headless by Foundry when a task lands. Off = the kind, the Figure skills picker and the CLI's figure nature stay hidden; figure goals made before still open. |
 
 ## Engine (install)
 

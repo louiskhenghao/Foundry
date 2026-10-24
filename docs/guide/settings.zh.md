@@ -199,7 +199,7 @@ skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foun
 - **Setting sources**（仅 Claude）：会话加载哪些 Claude Code 设置。留空。
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
 - **MCP tools that run or change things**（关）：让会话使用已允许的 MCP server 里会运行或改动东西的工具。对 REA 来说：启动目标程序、挂调试器、操作连接的 Android 设备。关着时会话只能做静态分析。
-- **Design skills**、**Image skills**、**Video skills**：每类选一个包；只有这个包会交给前端、图片或视频任务。每个包显示 **installed** 或 **N missing**，并带一个 **Install** 按钮。选包会立即保存。图片包只有在 [Tools & keys](#tools--keys) 里有 key 时，才能生成真正的图片。已安装的技能缺少它需要的 key 时，它的卡片上会显示 **⚠ key missing**，写明是哪个 key、缺了它会少什么；点它就会跳到 **Tools & keys**。
+- **Design skills**、**Image skills**、**Video skills**（以及打开 [Figure goals](#beta) 后的 **Figure skills**）：每类选一个包；只有这个包会交给前端、图片、视频或 figure 任务。Figure 包的两个技能随 Foundry 附带，安装就是复制、不用下载，而且一个 goal 可以在 New goal 表单上选另一种已安装的风格；见 [Figure goal](./figures.zh.md)。每个包显示 **installed** 或 **N missing**，并带一个 **Install** 按钮。选包会立即保存。图片包只有在 [Tools & keys](#tools--keys) 里有 key 时，才能生成真正的图片。已安装的技能缺少它需要的 key 时，它的卡片上会显示 **⚠ key missing**，写明是哪个 key、缺了它会少什么；点它就会跳到 **Tools & keys**。
 - **Memory**——记住每个文件夹的 goal 做过什么、学到什么的 Hindsight 服务器——不在这里设置，而是在 Extensions 页面的 MCP servers 标签页（这张卡片上有链接过去）；每个文件夹的开关在 Learnings 页面上。见 [Memory](./memory.zh.md)。
 
 顶栏上的 **Extensions** 页面放着 skill、MCP server 和原生 Codex 插件。页面上的分组一开始都是收起的，所以整页是一张短清单：点分组名称就能展开。搜索或筛选时，有匹配结果的分组会自动展开；收起的分组如果里面有来源可以更新，标题旁会注明。下述技能更新状态及整包卸载细节适用于 Claude。Codex 的 **Skills** 清单显示原生及共享技能，以及 Codex 已启用的每个插件里的技能，按插件分组（这些由 Codex 自己更新和移除，行上会说明怎么做）。在 Foundry 之外安装的技能，下次打开页面就会出现。插件包本身另在 **Plugins** 显示。以插件形式提供的设计或图像技能包，只要 Codex 装了那个插件就算已安装。共享技能（在 `~/.agents/skills`，其他智能体也会读取）可以在这里卸载，包括手动安装的；卸载后进入回收站，恢复时回到原来的文件夹。如果 Claude Code 也通过它自己技能目录里的链接使用某个共享技能，就不能在这里卸载：请先在 **Claude Code** 那边卸载，免得 Claude Code 留下一个失效的链接。每个技能都有一个状态：**outdated**（有新版本 —— 按 **Update**）、**unreleased**（插件作者在上游改了它，但没有提高版本号，所以 CLI 暂时没有新东西可装）、**modified**（你的副本被改过）或 **up to date**（只有 README 或 changelog 不同不算）。像 ffmpeg 这样的命令行工具，只要找得到它的命令就算已安装。插件的技能只能一起删除，用 **Uninstall plugin**。你手动安装的副本，如果 Foundry 自己能安装这个技能，就会出现 **Adopt**：用一个由 Foundry 负责更新的副本替换它。本身是链接、或者 `SKILL.md` 是链接、指向别的文件夹的技能文件夹（别的工具装的，或你自己的 clone），会列在 **Linked from another folder** 下，交给它链接到的地方管：不会出现 **Adopt**，不会被当成同名插件技能的过期副本，安装整个 bundle 时也会保留它。你在那里发起的每次安装、更新、接管（adopt）或卸载，都会在页面底部的 **Operations** 栏里打开一个标签页，带着它自己的日志；几个操作可以同时进行。完成的标签页会一直留着，直到你关掉它；这个栏也可以收起成一行计数。右边的 **Catalog** 在你滚动列表时一直留在视野里；点某个技能的名字会弹出它的详情窗口：为什么在目录里、在这台电脑上的状态、来自哪里，以及哪些角色按什么规则使用它。**Install required**、**+ recommended** 和 **+ optional** 会把到那一级为止还没装的全部装上；某一级还有没装的技能时，它的标题上会出现 **Install N**，只装那一级。已经装好的不会动。
@@ -346,6 +346,7 @@ Access 打开后，每个人做的事都记在自己名下：goal 页面会写�
 试用中的功能。每一项都默认关闭，要在这里打开；以后的版本里可能会变，也可能去掉；开着的时候，它出现的地方会标上 **Beta**。
 
 - **Conversation on the goal page**：goal 页面和它的 Brief 页面右下角的泡泡，打开一条与这个 goal 的 **Explainer** 的 Conversation —— goal 所用编码智能体的一个只读会话，在页面旁边的小窗里回答你关于 goal 的代码和 Foundry 对它的记录的问题。它用的模型是预设里的 **Conversation** 一行。关着时：没有泡泡，也没有 Conversation 标签页；已有的 Conversation 会保留，再打开时回来。见 [Conversation](./while-it-runs.zh.md#conversation)。
+- **Figure goals**：一种自己的 goal 类型 —— 日常物件和机器的可交互等轴测图，每张一个网页，由 Figure 包（Colorfigures 或 iso-glow）画出来，任务落地时由 Foundry 在无头浏览器里打开检查。开着时：goal 类型里有 **Figures**，Skills 下有 **Figure skills**，命令行接受 `--nature figure`，doctor 会检查相关工具。关着时：这些都不出现；之前做的 figure goal 仍能打开。见 [Figure goal](./figures.zh.md)。
 
 ## Engine (install)
 
