@@ -10,7 +10,7 @@ FROM node:22-bookworm-slim AS base
 ARG BUN_VERSION
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git ripgrep ca-certificates curl gnupg \
+ && apt-get install -y --no-install-recommends git ripgrep ca-certificates curl gnupg ffmpeg \
  && rm -rf /var/lib/apt/lists/*
 RUN npm install -g bun@${BUN_VERSION} && npm cache clean --force
 WORKDIR /app
@@ -94,6 +94,7 @@ COPY --from=build /app/apps/web/dist ./apps/web/dist
 
 # everything Claude Code keeps (login, sessions, skills) lives in one mounted directory
 # Chromium goes to one fixed, node-owned folder whatever HOME is; the compose file keeps it in a volume across updates
+# (the one-click install serves the self-check and the motion-studio engine; ffmpeg, from apt above, renders and measures video, ADR-0076)
 ENV CODEX_HOME=/home/node/.codex \
     COREPACK_ENABLE_DOWNLOAD_PROMPT=0 \
     CLAUDE_CONFIG_DIR=/home/node/.claude \
