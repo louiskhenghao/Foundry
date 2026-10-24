@@ -14,6 +14,7 @@ import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { MilestonesCard } from './MilestoneEvidence.tsx';
 import { BriefStrip, GoalReview } from './OverviewTab.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
+import { AdjustCard } from './AdjustCard.tsx';
 
 const STATE_TEXT: Record<string, string> = {
   draft: 'Getting ready.',
@@ -179,6 +180,7 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
           <MergeStatus goal={g} className="mt-3" />
         </Card>
       )}
+      <AdjustCard d={d} />
       {review && <GoalReview review={review} />}
       <MarkdownPanel title="what you asked for" source={g.prompt} maxHeight={160} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
       {g.state !== 'awaiting_brief_approval' && <BriefStrip d={d} />}

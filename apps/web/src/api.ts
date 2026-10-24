@@ -1,5 +1,5 @@
 import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeliveryRevert, InterviewQuestion, MergeMethod } from '@foundry/core/browser';
-import type { Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
+import type { Adjustment, AdjustmentMode, Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 import type { IssueRead } from './pages/new-goal-issue.ts';
 import type { Calibration, GoalRecipe, Schedule, ScheduleCadence, ThemeEntry, ThemeProblem } from '@foundry/core/browser';
 import type { Conversation } from '@foundry/core/browser';
@@ -442,6 +442,20 @@ export interface ConversationsView {
   live: Record<string, ConversationLive>;
 }
 
+/** the goal page's view of Adjust the result (ADR-0077), as the server computes it */
+export interface AdjustView {
+  /** Settings → Beta → Adjust the result is on */
+  enabled: boolean;
+  can: boolean;
+  /** why not, when `can` is false */
+  reason: string | null;
+  mode: AdjustmentMode | null;
+  /** the number the next Adjustment gets */
+  next: number;
+  /** the Adjustments made, oldest first, each with the files of the version kept before it (under artifacts/.history/<n>/) */
+  history: (Adjustment & { files: string[] })[];
+}
+
 export interface GoalDetail {
   goal: Goal;
   /** how far earlier goals ran from their estimate (ADR-0056) */
@@ -453,6 +467,8 @@ export interface GoalDetail {
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
   paths: { repo: string; workspace: string | null };
   budget: BudgetStatus;
+  /** Adjust the result (ADR-0077): whether an Adjustment can be asked for now, and those made with the versions kept before each */
+  adjust?: AdjustView;
   /** live: a slot held / a session process alive; waiting: why a ready task is not running (null: nothing holds it back);
    * waitingKind: the scheduler's caution (slots, running alone, shared files), which Start now may override, or 'hard' */
   tasks: (Task & { depth: number; usage: TaskUsage | null; live?: { inFlight: boolean; session: boolean; since: string | null }; waiting?: string | null; waitingKind?: WaitingKind | null; delegated?: DelegatedView })[];
@@ -762,6 +778,8 @@ export function apiForProvider(provider?: AgentProvider) {
   taskFiles: (goalId: string, taskId: string) => req<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[]; delivers?: { rel: string; open: FileRef | null }[] }>(`/api/goals/${goalId}/tasks/${taskId}/files`),
   streamEvent: (ref: { file: string; line: number; block: number }) => req<{ event: any }>(`/api/transcripts/${encodeURIComponent(ref.file)}/event?line=${ref.line}&block=${ref.block}`),
   workspace: (id: string) => req<{ path: string; exists: boolean; branch: string; head: string | null; packageManager: string | null; install: string | null; scripts: { name: string; command: string }[]; baseSync: Goal['baseSync']; upstream: BaseSync | null; tasks: { id: string; title: string; path: string; branch: string | null }[] }>(`/api/goals/${id}/workspace`),
+  /** Adjust the result (ADR-0077): the words and the staged uploads going with them; 202 once the goal runs again */
+  adjust: (id: string, body: { text: string; attachments?: Attachment[] }) => req<{ adjustment: Adjustment }>(`/api/goals/${id}/adjust`, { method: 'POST', body: JSON.stringify(body) }),
   restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
   ports: () => req<PortsView>('/api/ports'),
   releasePort: (id: string) => req<{ released: PortRow }>('/api/ports/release', { method: 'POST', body: JSON.stringify({ id }) }),

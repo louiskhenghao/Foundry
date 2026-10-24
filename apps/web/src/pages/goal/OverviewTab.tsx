@@ -19,6 +19,7 @@ import { CHECK_RESULT, CheckSquare, CompletionCard } from './CompletionCard.tsx'
 import { MilestonesCard } from './MilestoneEvidence.tsx';
 import { ProjectSkillsCard } from './ProjectSkillsCard.tsx';
 import { ProvidesCard } from './ProvidesCard.tsx';
+import { AdjustCard } from './AdjustCard.tsx';
 
 /** a label inside a card, in small capitals */
 const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em]';
@@ -106,6 +107,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           )}
           <ProjectSkillsCard d={d} />
           <CompletionCard d={d} />
+          <AdjustCard d={d} />
         </div>
         <div className="space-y-4">
           {/* the right column reads as the Wayfinding sample has it: what the goal has used, then how it stands */}
