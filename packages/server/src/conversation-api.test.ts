@@ -87,3 +87,24 @@ test('off until Settings → Beta switches it on: the view says so and a questio
   expect(refused.status).toBe(409);
   expect((await refused.json()).error).toContain('Settings → Beta');
 }, 30_000);
+
+test("a question's attachments: the staged uploads go with the ask, and the file is served like the goal's own", async () => {
+  const { engine, app } = make(true);
+  const goal = await engine.createGoal({ prompt: 'a student portal', repoPath: repo });
+  await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+  const form = new FormData();
+  form.append('files', new File([new Uint8Array([1, 2, 3, 4])], 'shot.png', { type: 'image/png' }));
+  const up = await app.request('/api/uploads', { method: 'POST', body: form });
+  expect(up.status).toBe(201);
+  const { attachments: [staged] } = await up.json();
+  const asked = await post(app, `/api/goals/${goal.id}/conversations/ask`, { text: 'What is this?', attachments: [staged] });
+  expect(asked.status).toBe(202);
+  const view = await (await app.request(`/api/goals/${goal.id}/conversations`)).json();
+  expect(view.conversations[0].messages[0].attachments.map((a: { name: string }) => a.name)).toEqual(['shot.png']);
+  const served = await app.request(`/api/goals/${goal.id}/attachments/${staged.id}`);
+  expect(served.status).toBe(200);
+  expect(served.headers.get('content-type')).toBe('image/png');
+  expect(new Uint8Array(await served.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3, 4]));
+  expect((await app.request(`/api/goals/${goal.id}/attachments/att_nope`)).status).toBe(404);
+  await waitFor(() => engine.conversations.view(goal.id).conversations[0]?.messages.length === 2, 30_000);
+}, 60_000);

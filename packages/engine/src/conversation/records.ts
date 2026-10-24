@@ -4,10 +4,10 @@
  * the attachments, the Learnings, and the sessions' transcripts in short. Rewritten before every answer, so they say
  * what the goal is now; a transcript is rendered again only once its session wrote more.
  */
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { getBrief, getObservation, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listTasks, renderDecisions, reportsDollars, type Attempt, type Check, type EngineEvent, type Goal, type Task } from '@foundry/core';
-import { renderAttachments } from '../attachments.ts';
+import { getBrief, getObservation, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listTasks, renderDecisions, reportsDollars, type Attempt, type Check, type ConversationMessage, type EngineEvent, type Goal, type Task } from '@foundry/core';
+import { attachmentAbsPath, markdownAbsPath, markdownFileName, renderAttachments } from '../attachments.ts';
 import { briefSummary } from '../brief-draft.ts';
 import type { Engine } from '../engine.ts';
 import { learningsContext } from '../learnings.ts';
@@ -340,4 +340,33 @@ export function writeGoalRecords(engine: Engine, goal: Goal, root: string): stri
     }
   }
   return dir;
+}
+
+/**
+ * The pictures and files the person attached to the Conversation's questions, copied under the records
+ * (`asked/<question>/`) so the session reads them like any file; a ready markdown rendition comes along. A link has
+ * nothing to copy but its snapshot. Idempotent: a file already there at its size is left alone.
+ */
+export function writeQuestionFiles(engine: Engine, goal: Goal, messages: ConversationMessage[], root: string): void {
+  for (const m of messages) {
+    if (m.role !== 'person' || !m.attachments?.length) continue;
+    const dir = join(root, RECORDS_DIR, 'asked', m.id);
+    for (const a of m.attachments) {
+      try {
+        const copies: [string | null, string][] = [
+          [attachmentAbsPath(engine.config.dataDir, goal.id, a), a.name],
+          [markdownAbsPath(engine.config.dataDir, goal.id, a), markdownFileName(a)],
+        ];
+        for (const [from, name] of copies) {
+          if (!from) continue;
+          mkdirSync(dir, { recursive: true });
+          const to = join(dir, name);
+          if (existsSync(to) && statSync(to).size === statSync(from).size) continue;
+          copyFileSync(from, to);
+        }
+      } catch (err) {
+        engine.config.log(`[conversation] ${goal.id}: could not place ${a.name} for the Explainer: ${String((err as Error).message ?? err)}`);
+      }
+    }
+  }
 }

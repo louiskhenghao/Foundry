@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { openDatabase } from './db.ts';
 import { EventStore } from './event-store.ts';
-import { applyEvent, clearReadModels, getConversation, getGoal, listConversations, upsertGoal } from './projections.ts';
+import { applyEvent, clearReadModels, findConversationAttachment, getConversation, getGoal, listConversations, upsertGoal } from './projections.ts';
 import { IDLE_DELIVERY, type Goal, pendingQuestions } from '../schema/index.ts';
 
 function goal(id: string): Goal {
@@ -79,4 +79,23 @@ describe('a Conversation on a goal (ADR-0073): events to read model', () => {
     store.append({ type: 'goal.deleted', goalId: 'g1', payload: { title: 't', deletedBranch: null, reason: 'test' } });
     expect(listConversations(store.db, 'g1')).toEqual([]);
   });
+});
+
+test('a question keeps what was attached to it, found by id like the goal\'s own; a message from before attachments reads as having none', () => {
+  const store = new EventStore(openDatabase(':memory:'));
+  store.append({ type: 'goal.created', goalId: 'g1', payload: { goal: goal('g1') } });
+  store.append({ type: 'conversation.started', goalId: 'g1', payload: { conversationId: 'c1', by: null } });
+  const att = { id: 'att1', kind: 'file' as const, name: 'shot.png', mime: 'image/png', size: 4, path: 'attachments/g1/att1/shot.png', url: null, note: null, addedAt: 't', markdown: null };
+  store.append({ type: 'conversation.asked', goalId: 'g1', payload: { conversationId: 'c1', messageId: 'm1', text: 'see', by: null, attachments: [att] } });
+  store.append({ type: 'conversation.asked', goalId: 'g1', payload: { conversationId: 'c1', messageId: 'm2', text: 'plain', by: null } });
+  const c = getConversation(store.db, 'c1')!;
+  expect(c.messages[0]!.attachments).toEqual([att]);
+  expect(c.messages[1]!.attachments).toEqual([]);
+  expect(findConversationAttachment(store.db, 'g1', 'att1')?.name).toBe('shot.png');
+  expect(findConversationAttachment(store.db, 'g1', 'nope')).toBeNull();
+  // a row written before questions carried attachments
+  const raw = JSON.parse((store.db.query('SELECT data FROM conversations WHERE id = ?').get('c1') as { data: string }).data);
+  raw.messages = raw.messages.map(({ attachments: _, ...m }: { attachments: unknown }) => m);
+  store.db.query('UPDATE conversations SET data = ? WHERE id = ?').run(JSON.stringify(raw), 'c1');
+  expect(getConversation(store.db, 'c1')!.messages.map((m) => m.attachments)).toEqual([[], []]);
 });

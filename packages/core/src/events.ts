@@ -241,7 +241,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('brief.second_opinion_failed', { auto: z.boolean(), costUsd: z.number(), reason: z.string() }),
   /** a Conversation on the goal's page (ADR-0073): one started, a question of the person's, and the Explainer's answer to one (its text as far as it got, how it ended, what it cost; the session the next turn resumes) */
   ev('conversation.started', { conversationId: z.string(), by: z.string().nullable().default(null) }),
-  ev('conversation.asked', { conversationId: z.string(), messageId: z.string(), text: z.string(), by: z.string().nullable().default(null) }),
+  ev('conversation.asked', { conversationId: z.string(), messageId: z.string(), text: z.string(), by: z.string().nullable().default(null), attachments: z.array(Attachment).optional() }),
   ev('conversation.answered', { conversationId: z.string(), messageId: z.string(), askedId: z.string(), text: z.string(), status: AnswerStatus, reason: z.string().nullable().default(null), costUsd: z.number().nonnegative(), costAvailable: z.boolean().default(true), model: z.string().nullable().default(null), sessionId: z.string().nullable().default(null), durationMs: z.number().nonnegative().default(0) }),
 
   ev('task.created', { task: Task }),

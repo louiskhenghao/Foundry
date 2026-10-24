@@ -12,6 +12,8 @@ import { modelFor } from '../models/roles.ts';
 import { makeRepo, sh, waitFor } from '../test-helpers.ts';
 import { CONVERSATION_MAX_TURNS, ConversationError, conversationChannel } from './conversations.ts';
 import { RECORDS_DIR, conversationWorkspacePath } from './workspace.ts';
+import { CONVERSATION_ATTACHMENTS_MAX, CONVERSATION_FILES_ONLY_TEXT } from '@foundry/core';
+import { stageFile } from '../attachments.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 let dataDir: string;
@@ -260,3 +262,31 @@ describe('a Conversation on a goal (ADR-0073)', () => {
 function listTasksFiles(cwd: string): string[] {
   return require('node:fs').readdirSync(join(cwd, RECORDS_DIR, 'tasks')) as string[];
 }
+
+test("a question can carry pictures and files: the staged uploads are claimed into the goal's attachments, copied beside the records, and named to the Explainer", async () => {
+  const runner = new ChatRunner(() => 'A red button.');
+  const engine = track(new Engine(cfg(), runner));
+  const goal = await engine.createGoal({ prompt: 'a student portal', repoPath: repo });
+  await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+  const bytes = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
+  const staged = engine.stage(stageFile(engine.config.dataDir, { name: 'screen.png', mime: 'image/png', bytes }), { convert: false });
+  // too many is refused before anything moves
+  expect(() => engine.conversations.ask(goal.id, 'x', { attachments: Array.from({ length: CONVERSATION_ATTACHMENTS_MAX + 1 }, () => staged) })).toThrow(/at most/);
+  // a question that is only its files has the words for it
+  const asked = engine.conversations.ask(goal.id, '', { attachments: [staged] });
+  const [c] = listConversations(engine.store.db, goal.id);
+  const q = c!.messages[0]!;
+  expect(q.text).toBe(CONVERSATION_FILES_ONLY_TEXT);
+  expect(q.attachments.map((a) => [a.id, a.path])).toEqual([[staged.id, `attachments/${goal.id}/${staged.id}/screen.png`]]);
+  expect(existsSync(join(engine.config.dataDir, q.attachments[0]!.path!))).toBe(true);
+  await waitFor(() => answered(engine, goal.id, 1), 30_000);
+  const spec = chatCalls(runner)[0]!;
+  expect(spec.prompt).toContain('## Attached to this question');
+  expect(spec.prompt).toContain(`.foundry-goal/asked/${asked.messageId}/screen.png`);
+  expect(spec.prompt).toContain('(image, 1 KB)');
+  const copied = join(conversationWorkspacePath(engine.config.dataDir, getGoal(engine.store.db, goal.id)!), '.foundry-goal', 'asked', asked.messageId, 'screen.png');
+  expect(new Uint8Array(readFileSync(copied))).toEqual(bytes);
+  // the goal's own attachments are untouched, and a used-up upload cannot be sent again
+  expect(getGoal(engine.store.db, goal.id)!.attachments).toHaveLength(0);
+  expect(() => engine.conversations.ask(goal.id, 'again', { attachments: [staged] })).toThrow(/no longer available/);
+}, 60_000);
