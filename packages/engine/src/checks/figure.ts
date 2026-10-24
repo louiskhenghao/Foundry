@@ -41,12 +41,13 @@ export function figureReviewSection(base: string, lines: string[]): string {
 /** the name of the engine-made must check of a figure task: its pages open and draw */
 export const FIGURE_CHECK_NAME = 'Figure pages render';
 
-/** the figure pages a task delivered: its `.html` Deliverables under artifacts/, else every page under artifacts/ (two levels deep, dot folders left out) */
+/** where a figure's pages are looked for when the task names none: the repository's figures folder, then the worker's artifacts */
+const PAGE_DIRS = ['figures', ARTIFACTS_DIR];
+
+/** the figure pages a task delivered: its `.html` Deliverables (committed, or under artifacts/), else every page under figures/ or artifacts/ (two levels deep, dot folders left out) */
 export function figurePages(cwd: string, task: Pick<Task, 'delivers'>): string[] {
-  const dir = join(cwd, ARTIFACTS_DIR);
-  const named = (task.delivers ?? []).filter((p) => /\.html?$/i.test(p) && p.startsWith(`${ARTIFACTS_DIR}/`)).map((p) => join(cwd, p)).filter((p) => existsSync(p));
+  const named = (task.delivers ?? []).filter((p) => /\.html?$/i.test(p) && !p.split('/').includes('..')).map((p) => join(cwd, p)).filter((p) => existsSync(p));
   if (named.length) return named;
-  if (!existsSync(dir)) return [];
   const out: string[] = [];
   const walk = (d: string, depth: number) => {
     for (const e of readdirSync(d, { withFileTypes: true })) {
@@ -57,7 +58,7 @@ export function figurePages(cwd: string, task: Pick<Task, 'delivers'>): string[]
       } else if (e.isFile() && /\.html?$/i.test(e.name)) out.push(p);
     }
   };
-  walk(dir, 1);
+  for (const dir of PAGE_DIRS) if (existsSync(join(cwd, dir))) walk(join(cwd, dir), 1);
   return out.sort();
 }
 

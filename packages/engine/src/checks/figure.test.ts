@@ -40,6 +40,12 @@ describe('which pages a figure task delivered', () => {
     mkdirSync(join(cwd, 'artifacts', 'more'), { recursive: true });
     writeFileSync(join(cwd, 'artifacts', 'more', 'lamp.htm'), '<svg></svg>');
     expect(figurePages(cwd, task(['artifacts/kettle.html', 'docs/artifacts/kettle.md'])).map((p) => p.slice(cwd.length + 1))).toEqual(['artifacts/kettle.html']);
+    // the page committed in the repository (ADR-0076): a Deliverable anywhere, never a path that climbs out
+    mkdirSync(join(cwd, 'figures'), { recursive: true });
+    writeFileSync(join(cwd, 'figures', 'kettle.html'), '<svg></svg>');
+    expect(figurePages(cwd, task(['figures/kettle.html', 'docs/artifacts/kettle.md'])).map((p) => p.slice(cwd.length + 1))).toEqual(['figures/kettle.html']);
+    expect(figurePages(cwd, task(['../outside.html'])).map((p) => p.slice(cwd.length + 1))).toEqual(['artifacts/draft.html', 'artifacts/kettle.html', 'artifacts/more/lamp.htm', 'figures/kettle.html']);
+    rmSync(join(cwd, 'figures'), { recursive: true, force: true });
     expect(figurePages(cwd, task()).map((p) => p.slice(cwd.length + 1))).toEqual(['artifacts/draft.html', 'artifacts/kettle.html', 'artifacts/more/lamp.htm']);
     // a Deliverable that is not there yet falls back to the scan, so a misnamed page is still looked at
     expect(figurePages(cwd, task(['artifacts/missing.html'])).length).toBe(3);

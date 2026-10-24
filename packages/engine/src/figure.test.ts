@@ -23,6 +23,7 @@ describe('figure goals (ADR-0076)', () => {
     expect(figureClarifySection({ pack: 'colorfigures', installed: [] })).toContain('No figure skill is installed');
     expect(figureClarifySection(null)).toContain('No figure skill is installed');
     expect(both).toContain('plan no check for that');
-    expect(FIGURE_PLAN).toContain('test -f artifacts/<name>.html');
+    expect(FIGURE_PLAN).toContain('test -f figures/<name>.html');
+    expect(both).toContain('committed in the repository, one self-contained file at `figures/<name>.html`');
   });
 });

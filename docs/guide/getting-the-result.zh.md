@@ -157,7 +157,7 @@ Foundry 不会往 GitHub 写别的东西：开始时不留言，也不会自己�
 
 ## 媒体类与 CAD 类 goal 和输出文件夹
 
-图片、视频、figure 和 CAD goal 产出的是文件，不只是代码。这些文件从不加入 git；分支上只记录它们的清单（每个文件是什么内容、怎么做出来的）。[figure goal](./figures.zh.md) 的文件是网页：任务抽屉会在 **Files** 下列出每一个，点开就在预览里运行这个页面，它在一个碰不到 Foundry 的沙箱里。CAD goal 会提交模型的源码（一个 build123d Python 脚本，放在仓库存放这类东西的位置），导出件则不进 git：STEP 文件、你要求的其它格式，以及审查要看的前视、俯视、右视和等轴测快照。
+图片、视频、figure 和 CAD goal 产出的是文件，不只是代码。这些文件从不加入 git；分支上只记录它们的清单（每个文件是什么内容、怎么做出来的）。[figure goal](./figures.zh.md) 的页面提交在仓库里（`figures/<name>.html`），随 push 或 pull request 一起走；任务抽屉会在 **Files** 下列出它，点开就在预览里运行这个页面，它在一个碰不到 Foundry 的沙箱里。只有 worker 自己的截图是 artifact。CAD goal 会提交模型的源码（一个 build123d Python 脚本，放在仓库存放这类东西的位置），导出件则不进 git：STEP 文件、你要求的其它格式，以及审查要看的前视、俯视、右视和等轴测快照。
 
 - 如果你在 New goal 表单里选了 **Output folder**，goal 完成时成品文件会复制到那里；你重启过的 goal 再次完成时会再复制一次，但你在输出文件夹里改过的文件会保持原样，新版本留在进度文件夹里。Result 卡片会显示 "N file(s) are in … — open the folder and have a look."
 - 没选输出文件夹时，它们留在进度文件夹里的 `artifacts` 文件夹中。用 **Open ▾** 过去。

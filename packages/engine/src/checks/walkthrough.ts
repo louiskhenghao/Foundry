@@ -33,6 +33,8 @@ export const WalkPlan = z.object({ steps: z.array(WalkStep).max(16), summary: z.
 export type WalkPlan = z.infer<typeof WalkPlan>;
 
 export interface MilestoneEvidence {
+  /** a figure task's pages committed in the repository (repo-relative), opened sandboxed from the task's commit (ADR-0076) */
+  pages?: string[];
   taskId: string;
   /** file names under the goal's screenshots folder */
   video: string | null;
@@ -317,6 +319,9 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
     // the deliverables first (models, drawings), then what was too large to copy
     const linked = [...named, ...tooLarge];
     if (linked.length) evidence.files = linked.slice(0, MAX_NAMED);
+    // a figure task's pages live in the repository (ADR-0076): the ones its Deliverables name, as the landing left them
+    const pages = task.scenario === 'figure' ? (task.delivers ?? []).filter((d) => /\.html?$/i.test(d) && !d.startsWith('artifacts/') && existsSync(join(ws, d))) : [];
+    if (pages.length) evidence.pages = pages;
     const shown = evidence.shots.length + shownClips.length;
     const uncopied = missed.images + missed.clips;
     // what the shots and clips do not say; the files themselves are listed apart (the card links them)
@@ -330,7 +335,7 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
     if (linked.length > MAX_NAMED) notes.push(`${linked.length - MAX_NAMED} more file(s) not listed`);
     if (uncopied) notes.push(`${uncopied} file(s) could not be copied for the card`);
     evidence.summary = notes.map((n) => `${n[0]!.toUpperCase()}${n.slice(1)}.`).join(' ');
-    if (shown || linked.length) {
+    if (shown || linked.length || pages.length) {
       evidence.status = 'pass';
     } else {
       evidence.status = 'fail';

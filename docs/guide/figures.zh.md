@@ -28,13 +28,13 @@ Figures 是 **beta** 功能：默认关闭，打开后它出现的地方会标�
 
 类型下面会多出一行 **Style**：**Default**（Figure skills 的设置）、**Colorfigures** 或 **iso-glow**。选 Default 时，如果你的措辞明显要另一种风格的样子，Foundry 仍可能选它：*暗底*、*发光*、*霓虹*、*线稿*、*天际线* 偏向 iso-glow；*彩色*、*手绘*、*剖视* 偏向 Colorfigures。你的编码智能体没装的风格会灰掉。
 
-Figures 是媒体类 goal：表单会切到 **Simple**、勾上 **Fast mode**，并出现可选的 **Output folder**，goal 完成时成品页面会复制到那里。然后 Brief 会在动笔之前定下这张图必须展示什么：真实物件一步步怎么工作、每个按钮做什么、颜色、要不要内部视图、页面的文件名。你像批准任何 Brief 一样批准它；命令行是 `foundry goal new "…" --repo <path> --nature figure`，加 `--figure-pack iso-glow` 选另一种风格。
+Figures 是媒体类 goal：表单会切到 **Simple**、勾上 **Fast mode**，并出现可选的 **Output folder**（它收到的是 worker 自己的截图；页面本身进仓库）。然后 Brief 会在动笔之前定下这张图必须展示什么：真实物件一步步怎么工作、每个按钮做什么、颜色、要不要内部视图、页面的文件名。你像批准任何 Brief 一样批准它；命令行是 `foundry goal new "…" --repo <path> --nature figure`，加 `--figure-pack iso-glow` 选另一种风格。
 
 Colorfigures 的页面不带页脚，标签是技能画出来的那种大写字母。描述用中文或其它语言都没问题；想让按钮文字用某种语言，在 goal 里说一句就行。
 
 ## 你拿到什么
 
-每张图是进度文件夹 `artifacts/` 下的一个 `.html` 文件，goal 完成时复制到 Output folder，和[图片与视频类 goal](./getting-the-result.zh.md#媒体类与-cad-类-goal-和输出文件夹)一样。分支上记录它的清单：这张图展示什么、每个按钮做什么。
+每张图是一个自包含的 `.html` 文件，**提交进仓库**，默认在 `figures/<name>.html`（仓库已有存放此类页面的约定则跟约定），源码放在旁边的 `figures/<name>/` 下，以后的 goal 可以接着改；push、pull request 或自动合并都会带上这个页面。分支上还记录一份清单：这张图展示什么、每个按钮做什么。worker 自己的截图留在进度文件夹的 `artifacts/` 下（不进 git）；可选的 **Output folder** 收到的是这些截图，不是页面。
 
 任务落地时，Foundry 自己会在无头浏览器里打开这个页面：抛出错误、打印错误或什么都没画出来的页面会让任务失败，于是再来一轮。**Have a look** 卡片和任务抽屉里显示 Foundry 拍的截图——合起来的物件，以及 Colorfigures 页面的透视图——卡片还直接链接到页面本身；抽屉在 **Files** 下列出它。点它会在预览里打开页面，是能跑的：拖动它、按它的按钮。**Source** 显示文件内容；**Open in a new tab** 单独打开它。页面在一个碰不到 Foundry 的沙箱里运行，所以一张 figure 永远读不到你的会话，也调不了 Foundry 的 API。
 

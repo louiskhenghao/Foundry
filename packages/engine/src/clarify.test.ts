@@ -731,7 +731,7 @@ test('a style the interview already settled starts answered on the Brief; withou
 });
 
 describe('figure goals (ADR-0076)', () => {
-  const figureBrief = (figurePack?: 'colorfigures' | 'iso-glow'): BriefOutput => ({ ...briefWith([{ ...task('T1', 'A1', 'draw the kettle'), scenario: 'figure' as const, delivers: ['artifacts/kettle.html'] }], [check('C1', 'T1')]), nature: 'figure' as const, ...(figurePack ? { figurePack } : {}) });
+  const figureBrief = (figurePack?: 'colorfigures' | 'iso-glow'): BriefOutput => ({ ...briefWith([{ ...task('T1', 'A1', 'draw the kettle'), scenario: 'figure' as const, delivers: ['figures/kettle.html'] }], [check('C1', 'T1')]), nature: 'figure' as const, ...(figurePack ? { figurePack } : {}) });
   const withBeta = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, betaFigure: true, log: () => {} });
 
   test('with the beta on, an auto goal classified as a figure gets the figure sections, and its figure task lands with the render check', async () => {
@@ -752,7 +752,7 @@ describe('figure goals (ADR-0076)', () => {
     expect(t.scenario).toBe('figure');
     expect(t.tdd).toBe('off');
     const checks = listChecks(engine.store.db, goal.id).filter((c) => c.taskId === t.id);
-    expect(checks.map((c) => [c.name, c.spec.type, c.tier])).toEqual(expect.arrayContaining([['Delivers artifacts/kettle.html', 'command', 'must'], [FIGURE_CHECK_NAME, 'figure', 'must']]));
+    expect(checks.map((c) => [c.name, c.spec.type, c.tier])).toEqual(expect.arrayContaining([['Delivers figures/kettle.html', 'command', 'must'], [FIGURE_CHECK_NAME, 'figure', 'must']]));
     engine.cancelGoal(goal.id);
     await Bun.sleep(150);
   }, 20_000);

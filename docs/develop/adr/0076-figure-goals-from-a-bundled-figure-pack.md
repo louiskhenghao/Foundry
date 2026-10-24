@@ -25,13 +25,19 @@ here. The feature ships as a **beta** behind `beta.figure`, as the Conversation 
 ## Decision
 
 - **A nature of its own, `figure`.** It is a media nature (judged by eye, the fast pace by default, Simple view) and an
-  artifact nature (its files live under `artifacts/`, out of git, delivered to the Output Folder); tasks carry the
-  scenario `figure`; model presets use the Media table; TDD and Ponytail are off for figure work. The Clarifier
+  artifact nature (the worker's own shots live under `artifacts/`, out of git, delivered to the Output Folder); tasks carry
+  the scenario `figure`; model presets use the Media table; TDD and Ponytail are off for figure work. The Clarifier
   classifies an `auto` goal as figure only while the beta is on — off, a figure verdict is image work and a figure goal
   cannot be made — and gets a `# Nature: figure` section: one task per figure, what the Brief must settle before anything
   is drawn (how the real object works, the actions, the colour, whether an inside view is wanted, the page's name), no
   style options (the skill's look is the style), no build or test checks. Image goals keep their "no image backend"
   warning; figure goals need no key and never get it.
+- **The page is committed.** A figure's finished page — one self-contained HTML file of about 100 KB — is a Deliverable in
+  the repository, at `figures/<name>.html` unless the repository keeps such pages elsewhere, with its source beside it under
+  `figures/<name>/` so a later goal can change it; the figure check opens the committed page. The first design kept the
+  page out of git as an image is, delivered to the Output Folder alone; the live run was merged with auto-merge and the
+  repository held only the manifest, which is not what a person who asked for a figure in their project expects. Working
+  files and the worker's shots stay under `artifacts/`; the Output Folder, optional, receives those.
 - **A Figure pack, with a per-goal Style.** `workflow.figurePack` in Settings (Colorfigures, iso-glow or none) chooses and
   installs like the Design, Image and Video packs, and `packAllows` hides the other member from sessions. Unlike those
   packs, a goal may choose the other installed style: `Goal.figurePack` (null = Settings'), set on the New goal form
@@ -48,15 +54,15 @@ here. The feature ships as a **beta** behind `beta.figure`, as the Conversation 
   what Foundry wants different is said in prompts, never patched into the skill.
 - **Foundry opens the pages itself.** When a figure task's Brief is approved it gets a must check of type `figure` beside
   its Deliverable checks. After the attempt, with the command checks, `runFigureCheck` opens each page the task
-  delivered (its `.html` Deliverables under `artifacts/`, else every page there) in Playwright's headless Chromium over
+  delivered (its `.html` Deliverables, else every page under `figures/` or `artifacts/`) in Playwright's headless Chromium over
   `file://`, fails on a script error, a console error, Colorfigures' `data-errors`, or a page that drew nothing (no svg,
   no canvas), screenshots it — and a Colorfigures page's see-through (`?xr=1&labels=1`) — into the goal's screenshots
   folder, and records a `figure.checked` event the task drawer and the milestone's **Have a look** card show (the card also links
-  the page, a Deliverable like a CAD export). It is objective, like a command: a failing one
+  the committed page, opened sandboxed from the task's commit). It is objective, like a command: a failing one
   sends the attempt round again. The task and goal reviewers are pointed at the shots and the page's source rather than
   at the diff. iso-glow's rule against browsers is kept: the worker is told not to open one; Foundry is not the worker.
 - **What the worker is told.** The pack member's rule mandates the skill and summarises its workflow; `# Figure
-  conventions` adds Foundry's rules: the page under `artifacts/` as `delivers` names it, the manifest, no footer or
+  conventions` adds Foundry's rules: the page at the repository path `delivers` names, its source beside it, the manifest, no footer or
   credit line on the page (Colorfigures' `credit: false`, iso-glow's footer deleted — the author allows it when asked),
   labels as the skill says, no browser for the person, and what to do when python3 or a Chrome is missing. The task
   reviewer's and goal reviewer's prompts gain figure review sections.
@@ -111,5 +117,8 @@ here. The feature ships as a **beta** behind `beta.figure`, as the Conversation 
 - **A reviewer's visual pass over the shots, or a second opinion.** A figure is already a few hundred thousand tokens; the
   person looks at the preview and the shots, which is the review that matters. The headless render check is kept because
   it is objective and free.
+- **The page as an artifact, delivered to the Output Folder alone** (the first design, as for images). Rejected after the
+  live run: a pull request or an auto-merge carried only the manifest. A figure is small, text and self-contained — it belongs
+  in the repository like a document does.
 - **Showing only screenshots, never the running page.** Safer by construction, but the whole point of a figure is to press
   its buttons. The sandbox directive with an opaque origin gives the same safety for a running page.

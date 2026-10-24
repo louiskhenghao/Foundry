@@ -149,6 +149,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     taskId: z.string(),
     video: z.string().nullable(),
     shots: z.array(z.object({ file: z.string(), caption: z.string() })),
+    /** a figure task's pages committed in the repository (repo-relative), opened sandboxed from the task's commit (ADR-0076) */
+    pages: z.array(z.string()).optional(),
     summary: z.string(),
     error: z.string().nullable(),
     app: z.string().nullable().optional(),
