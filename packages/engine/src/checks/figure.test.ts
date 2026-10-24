@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import type { Check, Goal, Task } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
-import { FIGURE_CHECK_NAME, figurePages, runFigureCheck } from './figure.ts';
+import { FIGURE_CHECK_NAME, figurePages, figureShots, runFigureCheck } from './figure.ts';
 import { playwrightStatus } from './selfcheck.ts';
 
 /** Foundry's render check of a figure task's pages (ADR-0076): what it opens, and what it says */
@@ -86,4 +86,21 @@ describe('the figure check', () => {
     expect(ok.status).toBe('pass');
     expect(ok.summary).toContain('1 page(s) opened headless and drew without script errors');
   }, 60_000);
+});
+
+describe("a milestone's evidence of a figure task", () => {
+  test('lists the shots the figure check last took, the see-through after the closed object', () => {
+    const store = {
+      listByGoalOfTypes: () => [
+        { type: 'figure.checked', payload: { taskId: 't1', pages: [{ file: 'artifacts/old.html', screenshot: 'old.png', inside: null }] } },
+        { type: 'figure.checked', payload: { taskId: 't2', pages: [{ file: 'artifacts/other.html', screenshot: 'other.png', inside: null }] } },
+        { type: 'figure.checked', payload: { taskId: 't1', pages: [{ file: 'artifacts/kettle.html', screenshot: 'k.png', inside: 'k-inside.png' }, { file: 'artifacts/lamp.html', screenshot: null, inside: null }] } },
+      ],
+    } as never;
+    expect(figureShots(store, 'g1', 't1')).toEqual([
+      { file: 'k.png', caption: 'artifacts/kettle.html — as Foundry opened it' },
+      { file: 'k-inside.png', caption: 'artifacts/kettle.html — see-through' },
+    ]);
+    expect(figureShots(store, 'g1', 't3')).toEqual([]);
+  });
 });

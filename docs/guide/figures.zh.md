@@ -36,7 +36,7 @@ Colorfigures 的页面不带页脚，标签是技能画出来的那种大写字�
 
 每张图是进度文件夹 `artifacts/` 下的一个 `.html` 文件，goal 完成时复制到 Output folder，和[图片与视频类 goal](./getting-the-result.zh.md#媒体类与-cad-类-goal-和输出文件夹)一样。分支上记录它的清单：这张图展示什么、每个按钮做什么。
 
-任务落地时，Foundry 自己会在无头浏览器里打开这个页面：抛出错误、打印错误或什么都没画出来的页面会让任务失败，于是再来一轮。任务抽屉里显示 Foundry 拍的截图——合起来的物件，以及 Colorfigures 页面的透视图——并在 **Files** 下列出这个页面。点它会在预览里打开页面，是能跑的：拖动它、按它的按钮。**Source** 显示文件内容；**Open in a new tab** 单独打开它。页面在一个碰不到 Foundry 的沙箱里运行，所以一张 figure 永远读不到你的会话，也调不了 Foundry 的 API。
+任务落地时，Foundry 自己会在无头浏览器里打开这个页面：抛出错误、打印错误或什么都没画出来的页面会让任务失败，于是再来一轮。**Have a look** 卡片和任务抽屉里显示 Foundry 拍的截图——合起来的物件，以及 Colorfigures 页面的透视图——卡片还直接链接到页面本身；抽屉在 **Files** 下列出它。点它会在预览里打开页面，是能跑的：拖动它、按它的按钮。**Source** 显示文件内容；**Open in a new tab** 单独打开它。页面在一个碰不到 Foundry 的沙箱里运行，所以一张 figure 永远读不到你的会话，也调不了 Foundry 的 API。
 
 iso-glow 的页面打开时会加载一个网页字体，3D 模式还会从 CDN 加载 three.js；Colorfigures 的页面什么都不加载。在 Foundry 之外，双击文件就行：它是一个普通网页。
 

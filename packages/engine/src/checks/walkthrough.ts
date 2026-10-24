@@ -11,6 +11,7 @@ import type { PreviewAppStatus } from '../preview/manager.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
 import { ARTIFACTS_DIR, goalWorkspacePath, isStyleSample, listArtifacts, screenshotsDir } from '../workspace.ts';
 import { runMilestoneScript, type ScriptDeps } from './milestone-script.ts';
+import { figureShots } from './figure.ts';
 
 export const WALK_MAX_BUDGET_USD = 0.5;
 const VIEWPORT = { width: 1280, height: 800 };
@@ -161,7 +162,8 @@ async function captureScripted(engine: Engine, goal: Goal, task: Task, opts: Cap
 const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
 const VIDEO = /\.(mp4|webm|mov)$/i;
 /** what a milestone of files names without showing: models, and drawings (a drawing task's one PDF) */
-const NAMED = /\.(step|stp|stl|3mf|glb|dxf|pdf)$/i;
+// …and a figure's page (ADR-0076), which the card opens in a new tab, sandboxed
+const NAMED = /\.(step|stp|stl|3mf|glb|dxf|pdf|html?)$/i;
 const MAX_SHOTS = 8;
 const MAX_CLIPS = 4;
 const MAX_NAMED = 12;
@@ -301,6 +303,8 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
       const file = await copy(x, 'images');
       if (file) evidence.shots.push({ file, caption: x.f });
     }
+    // a figure task's pages (ADR-0076): Foundry's own shots of them, taken by the figure check, are what there is to look at
+    if (task.scenario === 'figure') for (const s of figureShots(store, goal.id, task.id)) if (!evidence.shots.some((x) => x.file === s.file)) evidence.shots.push(s);
     const tooLarge = [...images.filter((x) => x.size > MAX_IMAGE_BYTES), ...clips.slice(0, MAX_CLIPS).filter((x) => x.size > MAX_CLIP_BYTES)].map((x) => x.f);
     const shownClips: { file: string; caption: string }[] = [];
     for (const x of clips.slice(0, MAX_CLIPS).filter((c) => c.size <= MAX_CLIP_BYTES)) {
@@ -334,7 +338,9 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
         ? "the task's files could not be copied for the card"
         : task.scenario === 'cad'
           ? 'the task left no snapshots or exports under artifacts/: there is nothing to look at'
-          : 'the task left no images or video under artifacts/';
+          : task.scenario === 'figure'
+            ? 'the task left no page under artifacts/: there is nothing to look at'
+            : 'the task left no images or video under artifacts/';
     }
   } catch (err) {
     // the code, not the message: a file system error names absolute paths, and this text reaches the notification channels

@@ -3,7 +3,19 @@ import { basename, join, relative } from 'node:path';
 import type { Check, CheckResult, Goal, Task } from '@foundry/core';
 import { IdPrefix, newId } from '@foundry/core';
 import type { Engine } from '../engine.ts';
+import type { EventStore } from '@foundry/core';
 import { ARTIFACTS_DIR, screenshotsDir } from '../workspace.ts';
+
+/** the shots the figure check last took of a task's pages (the closed object, then a Colorfigures page's see-through), as a milestone's evidence lists them */
+export function figureShots(store: Pick<EventStore, 'listByGoalOfTypes'>, goalId: string, taskId: string): { file: string; caption: string }[] {
+  const last = store
+    .listByGoalOfTypes(goalId, ['figure.checked'])
+    .filter((e) => (e.payload as { taskId: string }).taskId === taskId)
+    .at(-1);
+  if (!last) return [];
+  const pages = (last.payload as { pages: { file: string; screenshot: string | null; inside: string | null }[] }).pages;
+  return pages.flatMap((p) => [...(p.screenshot ? [{ file: p.screenshot, caption: `${p.file} — as Foundry opened it` }] : []), ...(p.inside ? [{ file: p.inside, caption: `${p.file} — see-through` }] : [])]);
+}
 
 /** the name of the engine-made must check of a figure task: its pages open and draw */
 export const FIGURE_CHECK_NAME = 'Figure pages render';

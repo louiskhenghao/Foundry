@@ -51,7 +51,8 @@ here. The feature ships as a **beta** behind `beta.figure`, as the Conversation 
   delivered (its `.html` Deliverables under `artifacts/`, else every page there) in Playwright's headless Chromium over
   `file://`, fails on a script error, a console error, Colorfigures' `data-errors`, or a page that drew nothing (no svg,
   no canvas), screenshots it — and a Colorfigures page's see-through (`?xr=1&labels=1`) — into the goal's screenshots
-  folder, and records a `figure.checked` event the task drawer shows. It is objective, like a command: a failing one
+  folder, and records a `figure.checked` event the task drawer and the milestone's **Have a look** card show (the card also links
+  the page, a Deliverable like a CAD export). It is objective, like a command: a failing one
   sends the attempt round again. The task and goal reviewers are pointed at the shots and the page's source rather than
   at the diff. iso-glow's rule against browsers is kept: the worker is told not to open one; Foundry is not the worker.
 - **What the worker is told.** The pack member's rule mandates the skill and summarises its workflow; `# Figure
