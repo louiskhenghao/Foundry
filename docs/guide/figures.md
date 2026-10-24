@@ -20,7 +20,7 @@ Two styles are available, from two skills by April Zhu that Foundry ships with:
    - **python3**: Colorfigures builds its one-file page with it; iso-glow can do without. The Docker image has it.
    - **A Chrome on this computer** (Colorfigures only): the skill checks its own drawing from every side in headless Chrome. Without one it skips those shots and says so; Foundry's own check still runs. The Docker image provides one.
 
-No image model and no API key are involved: the whole cost is the worker's tokens and time, like a code goal's.
+No image model and no API key are involved: the whole cost is the worker's tokens and time, like a code goal's. A figure task's session may run 45 minutes before Foundry cuts and resumes it, whatever the attempt timeout under Settings → Models & limits says: Colorfigures draws in a few long turns.
 
 ## Asking for a figure
 

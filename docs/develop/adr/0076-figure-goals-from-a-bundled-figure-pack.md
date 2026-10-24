@@ -65,6 +65,9 @@ here. The feature ships as a **beta** behind `beta.figure`, as the Conversation 
   file kind of its own, and the file preview shows a page in a sandboxed `<iframe>` with its source a click away and
   "Open in a new tab" (still sandboxed). iso-glow's pages fetch a web font and, in 3D, three.js from a CDN when opened;
   accepted and documented.
+- **A longer session.** A figure task's session may run 45 minutes before Foundry cuts and resumes it, whatever
+  `sessions.attemptTimeoutMin` says: Colorfigures draws in a few very long turns and takes 15–30 minutes a figure, and
+  the first live run was cut mid-turn by the 20-minute default (the resume kept its context, at the price of a replay).
 - **The tools.** The doctor, while the beta is on and a pack is chosen, checks Playwright's Chromium (the figure check
   needs it), `python3` (the skills' build steps) and, for Colorfigures, a `google-chrome` or `chromium` on PATH or the
   Mac app (its own shots; skipped without one). The Docker image gains `python3-minimal` and a `google-chrome` shim

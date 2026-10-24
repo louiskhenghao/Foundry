@@ -11,6 +11,18 @@ export type FigureStyle = Exclude<FigurePack, 'none'>;
 export const FIGURE_STYLES: readonly FigureStyle[] = ['colorfigures', 'iso-glow'];
 export const isFigureStyle = (v: unknown): v is FigureStyle => FIGURE_STYLES.includes(v as FigureStyle);
 
+/**
+ * How long a figure task's session may run before Foundry cuts and resumes it, whatever the attempt timeout in Settings:
+ * Colorfigures draws in a few very long turns and takes 15–30 minutes a figure, so the default 20-minute cap cut the
+ * first live run mid-turn (the resume kept the context, at the price of a replay).
+ */
+export const FIGURE_SESSION_MIN = 45;
+
+/** the session cap for one attempt: the Settings cap, raised to FIGURE_SESSION_MIN for a figure task (ADR-0076) */
+export function attemptTimeoutMs(config: { attemptTimeoutMs: number }, task: { scenario?: string }): number {
+  return task.scenario === 'figure' ? Math.max(config.attemptTimeoutMs, FIGURE_SESSION_MIN * 60_000) : config.attemptTimeoutMs;
+}
+
 /** the figure skills as a goal sees them: the pack it follows (its own choice, else Settings') and which styles are installed for its coding agent */
 export interface FigureInfo {
   pack: FigurePack;
@@ -65,7 +77,7 @@ Acceptance: Foundry itself opens every delivered page in a headless browser, fai
 
 /** the planner's rules for a figure goal */
 export const FIGURE_PLAN = `# Figures
-One task per figure (scenario \`figure\`), in the order the person would want them; a short research task before a figure only when the Brief says the facts about the real object are missing. Each task's spec states, verbatim, the page's name under \`artifacts/\` (named in \`delivers\`), the manifest \`docs/artifacts/<task-slug>.md\`, the no-footer rule, and the Brief's answers for that figure: how the object works, the actions, the colour, whether an inside view is wanted. Independent figures are independent tasks and run in parallel. Never build/test/lint checks; Foundry opens each page itself when the task lands, so plan no render check.`;
+One task per figure (scenario \`figure\`), in the order the person would want them; a short research task before a figure only when the Brief says the facts about the real object are missing. Each task's spec states, verbatim, the page's name under \`artifacts/\` (named in \`delivers\`), the manifest \`docs/artifacts/<task-slug>.md\`, the no-footer rule, and the Brief's answers for that figure: how the object works, the actions, the colour, whether an inside view is wanted. Independent figures are independent tasks and run in parallel. Never build/test/lint checks; Foundry opens each page itself when the task lands, so plan no render check. A command check that reads the page (no footer, a label present) MUST fail when the page is missing: \`test -f artifacts/<name>.html && ! grep …\`, never a bare \`! grep\`.`;
 
 /** the worker's conventions on a figure task */
 export const FIGURE_WORKER_CONVENTIONS = `# Figure conventions

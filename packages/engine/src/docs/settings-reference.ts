@@ -53,7 +53,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'sessions.maxContinuations': { section: 'Models & limits', help: 'How often one attempt may resume its session before a fresh attempt starts; 0 = never.' },
   'sessions.attemptMaxTurns': { section: 'Models & limits', help: 'Model-turn cap for a Claude attempt; tool-call cap for a Codex attempt; three tool calls per turn for an Antigravity attempt.' },
   'sessions.attemptMaxCostUsd': { section: 'Models & limits', help: 'Claude-only cost cap (USD) for one attempt session, also bounded by the goal budget. Codex does not report USD costs.' },
-  'sessions.attemptTimeoutMin': { section: 'Models & limits', help: 'Wall-clock cap for one attempt session.' },
+  'sessions.attemptTimeoutMin': { section: 'Models & limits', help: 'Wall-clock cap for one attempt session. A figure task (beta) gets at least 45 minutes whatever this says: its skill draws in a few long turns.' },
   // Skills
   'workflow.profile': { section: 'New goal defaults', help: "Workflow suite new goals start with — whose skills the roles follow: mattpocock (Matt Pocock's suite), pstack (with Matt Pocock's skills where it has none) or plain (the installed-skills hint only). Each goal fixes its own on the New goal form." },
   'workflow.suiteReleases': { section: 'Skills', help: "The release each workflow suite was moved to (suite → tag, e.g. `{ \"pstack\": \"v0.9.101\" }`). Set with **Move** under Workflow suites on the Extensions page, after its forecast of the skills that release removes, deprecates and adds. The newer of this and the release Foundry's catalog pins is used, so a Foundry update never moves a suite back; empty = the catalog's pins." },

@@ -52,7 +52,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `sessions.maxContinuations` | `2` | `FOUNDRY_MAX_CONTINUATIONS` | How often one attempt may resume its session before a fresh attempt starts; 0 = never. |
 | `sessions.attemptMaxTurns` | `150` | `FOUNDRY_ATTEMPT_MAX_TURNS` | Model-turn cap for a Claude attempt; tool-call cap for a Codex attempt; three tool calls per turn for an Antigravity attempt. |
 | `sessions.attemptMaxCostUsd` | `10` | `FOUNDRY_ATTEMPT_MAX_COST` | Claude-only cost cap (USD) for one attempt session, also bounded by the goal budget. Codex does not report USD costs. |
-| `sessions.attemptTimeoutMin` | `20` | — | Wall-clock cap for one attempt session. |
+| `sessions.attemptTimeoutMin` | `20` | — | Wall-clock cap for one attempt session. A figure task (beta) gets at least 45 minutes whatever this says: its skill draws in a few long turns. |
 | `workflow.investigationMaxCostUsd` | `3` | `FOUNDRY_INVESTIGATION_MAX_COST` | Cost cap of the session that investigates a goal's reference with REA before Clarify. |
 | `workflow.investigationMaxMinutes` | `20` | `FOUNDRY_INVESTIGATION_MAX_MINUTES` | Time cap of that investigation, in minutes. |
 | `accounts.autoSwitchClaude` | `false` | — | When the current Claude account's usage limit stops a session, new sessions move to the next signed-in Claude account and the stopped session resumes there; off = new sessions pause until the limit resets. Turned on from the Accounts page, which quotes the provider's terms first. |

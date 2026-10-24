@@ -18,6 +18,7 @@ import { handoffSection } from './handoff.ts';
 import { learningsForWorker } from './learnings.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { runFigureCheck } from './checks/figure.ts';
+import { attemptTimeoutMs } from './figure.ts';
 import { reviewTaskDiff } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
@@ -236,7 +237,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : []), ...(subjects ? subjectsAddDirs(config.dataDir, goal.id, brief) : [])]),
-      timeoutMs: config.attemptTimeoutMs,
+      // a figure task's session runs a few very long turns: at least 45 minutes before a cut and resume (ADR-0076)
+      timeoutMs: attemptTimeoutMs(config, task),
       transcriptPath: attempt.transcriptPath!,
       resumeSessionId,
       env: { FOUNDRY_ATTEMPT_ID: attempt.id, FOUNDRY_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) },

@@ -20,7 +20,7 @@ Figures 是 **beta** 功能：默认关闭，打开后它出现的地方会标�
    - **python3**：Colorfigures 用它组装单文件页面；iso-glow 没有也行。Docker 镜像里已带。
    - **这台电脑上的 Chrome**（只有 Colorfigures 需要）：技能用无头 Chrome 从各个角度自检它画的图。没有的话它会跳过这些截图并说明；Foundry 自己的检查照常运行。Docker 镜像里提供了一个。
 
-不涉及任何图像模型或 API key：全部花费就是 worker 的 token 和时间，和代码类 goal 一样。
+不涉及任何图像模型或 API key：全部花费就是 worker 的 token 和时间，和代码类 goal 一样。figure 任务的会话可以跑满 45 分钟才会被 Foundry 切断再续接，不管 Settings → Models & limits 里的 attempt 时限设成多少：Colorfigures 的每一轮都很长。
 
 ## 要一张 figure
 
