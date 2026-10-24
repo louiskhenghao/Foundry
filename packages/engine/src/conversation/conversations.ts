@@ -9,7 +9,7 @@
 import type { Attachment } from '@foundry/core';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONVERSATION_ATTACHMENTS_MAX, CONVERSATION_FILES_ONLY_TEXT, CONVERSATION_QUESTION_MAX, IdPrefix, getConversation, getGoal, isHistory, listConversations, listGoals, newId, pendingQuestions, reportsDollars, type AnswerStatus, type Conversation, type Goal } from '@foundry/core';
+import { CONVERSATION_ATTACHMENTS_MAX, CONVERSATION_FILES_ONLY_TEXT, CONVERSATION_QUESTION_MAX, IdPrefix, getConversation, getGoal, isHistory, listConversations, listGoals, newId, pendingQuestions, reportsDollars, type AnswerStatus, type Conversation, type Goal, parseProposalBlocks } from '@foundry/core';
 import { resumeRefused, type RunHandle, type RunResult } from '@foundry/runner';
 import { attachmentsDir } from '../attachments.ts';
 import type { Engine } from '../engine.ts';
@@ -18,6 +18,7 @@ import { MCP_SERVER_PREFIX } from '../memory/memory.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
 import { AttachmentError, claimStaged } from '../attachments.ts';
 import { conversationSoFar, openingPrompt, turnPrompt } from './prompt.ts';
+import { applyProposal } from './proposals.ts';
 import { describeEvents, goalSummary, writeGoalRecords, writeQuestionFiles } from './records.ts';
 import { conversationWorkspacePath, prepareConversationWorkspace, removeConversationWorkspace } from './workspace.ts';
 
@@ -129,6 +130,18 @@ export class Conversations {
     return { conversationId: conversation.id, messageId, channel: conversationChannel(conversation.id) };
   }
 
+  /** the person applies what the Explainer proposed (ADR-0075); what came of it, in a few words */
+  async apply(goalId: string, conversationId: string, proposalId: string, by: string | null): Promise<string> {
+    const goal = getGoal(this.engine.store.db, goalId);
+    if (!goal) throw new ConversationError('goal not found', 404);
+    const c = getConversation(this.engine.store.db, conversationId);
+    if (!c || c.goalId !== goalId) throw new ConversationError('conversation not found', 404);
+    const m = c.messages.find((x) => (x.proposals ?? []).some((p) => p.id === proposalId));
+    const p = m?.proposals?.find((x) => x.id === proposalId);
+    if (!m || !p) throw new ConversationError('proposal not found', 404);
+    return applyProposal(this.engine, goal, c, m, p, by);
+  }
+
   /** the person pressed Stop: the answer being written ends where it is, and the questions waiting their turn are let go; false when nothing was running */
   stopAnswer(conversationId: string): boolean {
     const c = getConversation(this.engine.store.db, conversationId);
@@ -221,10 +234,12 @@ export class Conversations {
     const settle = (status: AnswerStatus, text: string, reason: string | null, r: RunResult | null) => {
       // the engine is stopping (the question stays asked, for the next start) or the goal went: nothing more is written
       if (this.ending || this.gone.has(goal.id)) return;
+      // what the Explainer proposed, as cards the person applies (ADR-0075); only a finished answer proposes
+      const proposals = status === 'done' ? parseProposalBlocks(text).map((p) => ({ ...p, id: newId(IdPrefix.proposal), applied: null })) : [];
       store.append({
         type: 'conversation.answered',
         goalId: goal.id,
-        payload: { conversationId, messageId: newId(IdPrefix.message), askedId, text, status, reason, costUsd: r?.costUsd ?? 0, costAvailable: !!r && reportsDollars(provider) && r.costStatus !== 'unavailable', model: model ?? row.model, sessionId: r?.sessionId ?? sessionId, durationMs: Date.now() - started },
+        payload: { conversationId, messageId: newId(IdPrefix.message), askedId, text, status, reason, proposals, costUsd: r?.costUsd ?? 0, costAvailable: !!r && reportsDollars(provider) && r.costStatus !== 'unavailable', model: model ?? row.model, sessionId: r?.sessionId ?? sessionId, durationMs: Date.now() - started },
       });
     };
     try {
