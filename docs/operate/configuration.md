@@ -155,6 +155,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
 | `beta.conversation` | `false` | `FOUNDRY_BETA_CONVERSATION` | The Conversation on a goal's page: a bubble opens a read-only Explainer that answers questions about the goal's code and Foundry's records of it, on the preset's Conversation model. Off = no bubble and no Conversation tab. |
+| `beta.motionStudio` | `false` | `FOUNDRY_BETA_MOTION_STUDIO` | The motion-studio video engine: video goals get an Engine picker (motion-studio beside the Video skills pack), the bundled motion-studio skill shows in the catalog, and the doctor checks ffmpeg and Chromium for it. Off: the Video skills pack alone, as before. |
 
 ## Engine (install)
 

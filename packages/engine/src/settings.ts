@@ -91,6 +91,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'memory.seedCommits': { name: 'FOUNDRY_MEMORY_SEED_COMMITS', parse: num },
   // Beta (ADR-0073)
   'beta.conversation': { name: 'FOUNDRY_BETA_CONVERSATION', parse: bool },
+  'beta.motionStudio': { name: 'FOUNDRY_BETA_MOTION_STUDIO', parse: bool },
 };
 
 /** setting path → the environment variable that seeds it (documentation, reference.test.ts) */
@@ -327,6 +328,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('workflow.codexMcpAllowed')) config.codexMcpAllowed = s.workflow.codexMcpAllowed;
   if (on('reviews.alwaysReviewTasks')) config.alwaysReviewTasks = s.reviews.alwaysReviewTasks;
   if (on('beta.conversation')) config.betaConversation = s.beta.conversation;
+  if (on('beta.motionStudio')) config.betaMotionStudio = s.beta.motionStudio;
   if (on('reviews.maxFixCycles')) config.maxFixCycles = s.reviews.maxFixCycles;
   if (on('delivery.defaultMode') || on('delivery.defaultUnit') || on('delivery.defaultRemote')) {
     config.defaultDelivery = { ...(config.defaultDelivery ?? {}) };
