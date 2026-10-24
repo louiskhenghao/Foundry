@@ -247,7 +247,7 @@ flowchart LR
 | Prefix | Purpose |
 |---|---|
 | `/api/goals`, `/api/goals/:id/...` | create, read, follow-up draft and link (`/follow-up-draft`, `/follows`), brief edit/draft/approve, style samples, reclarify, interview answer, feedback classify, cancel/restart/delete, diff, deliver and delivery plan, preview, self-check, attachments, screenshots, artifacts, workspace, open-in-editor, manual resolve (`/tasks/:taskId/resolve/*`) |
-| `/api/goals/:id/conversations`, `.../conversations/ask`, `.../conversations/:cid/stop` | the goal's Conversations with what is being answered; a question, kept at once and answered in the background (`202`) on the `conversation-<conversationId>` channel; Stop ([ADR-0073](adr/0073-a-conversation-about-a-goal.md)) |
+| `/api/goals/:id/conversations`, `.../conversations/ask`, `.../conversations/:cid/stop` | the goal's Conversations with what is being answered; a question, with staged uploads as its attachments, kept at once and answered in the background (`202`) on the `conversation-<conversationId>` channel; Stop. A question's attachments are served by `/api/goals/:id/attachments/:attId` like the goal's own ([ADR-0073](adr/0073-a-conversation-about-a-goal.md)) |
 | `/api/escalations` | list, `:id/suggest`, `:id/answer` |
 | `/api/stream/:id/history` | decoded transcript tail for a live channel (the Live log after a page refresh) |
 | `/api/transcripts/:file/event?line=&block=` | one live-log event in full, read back from the transcript line its `ref` names |

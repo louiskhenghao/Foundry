@@ -1,3 +1,4 @@
+import type { Attachment } from '@foundry/core/browser';
 import { MessageCircle, MessageSquarePlus } from 'lucide-react';
 import { useState } from 'react';
 import { BetaChip } from '../../components/conversation/ConversationBubble.tsx';
@@ -28,11 +29,11 @@ export function ConversationTab({ goalId }: { goalId: string }) {
         Settings → Beta switches it on: a read-only Explainer that answers your questions about this goal's code and Foundry's records of it.
       </EmptyState>
     );
-  const ask = async (text: string) => {
+  const ask = async (text: string, attachments: Attachment[]) => {
     setBusy(true);
     setErr(null);
     try {
-      await askQuestion(goalId, text, { conversationId: fresh ? null : (shown?.id ?? null), fresh });
+      await askQuestion(goalId, text, { conversationId: fresh ? null : (shown?.id ?? null), fresh, attachments });
       setFresh(false);
       select(goalId, null);
     } catch (e: any) {
@@ -61,27 +62,22 @@ export function ConversationTab({ goalId }: { goalId: string }) {
         }
         bodyClassName="!p-2"
       >
-        {!fresh && (
-          <button
-            type="button"
-            onClick={() => {
-              setFresh(true);
-              select(goalId, null);
-            }}
-            title="Start a new Conversation; the earlier ones stay readable"
-            className="mb-1 flex w-full items-center gap-2 rounded-md border border-dashed border-line-strong px-2.5 py-2 text-left text-[13px] font-semibold text-ink-soft transition-colors hover:border-accent hover:text-ink"
-          >
-            <MessageSquarePlus size={15} aria-hidden="true" />
-            New Conversation
-          </button>
-        )}
-        {!view.conversations.length && !fresh && <p className="px-2 py-3 text-xs text-ink-faint">None yet: the first question starts one.</p>}
-        <ul className="space-y-0.5">
-          {fresh && (
-            <li className="rounded-md bg-panel px-2.5 py-2 text-[13px] font-bold text-ink shadow-[inset_3px_0_0_var(--color-accent),0_0_0_1px_var(--color-line)]">
-              New Conversation <span className="block text-[11px] font-normal text-ink-faint">the first question starts it</span>
-            </li>
-          )}
+        {/* the row stays where it is and only marks itself chosen: the new Conversation becomes a row of the list once its first question is sent */}
+        <button
+          type="button"
+          onClick={() => {
+            setFresh(true);
+            select(goalId, null);
+          }}
+          aria-pressed={fresh}
+          title="Start a new Conversation; the earlier ones stay readable"
+          className={cn('mb-3 flex w-full items-center gap-2 rounded-md border border-dashed px-2.5 py-2 text-left text-[13px] font-semibold transition-colors', fresh ? 'border-accent bg-accent/5 text-ink' : 'border-line-strong text-ink-soft hover:border-accent hover:text-ink')}
+        >
+          <MessageSquarePlus size={15} aria-hidden="true" />
+          New Conversation
+        </button>
+        {!view.conversations.length && <p className="px-2 py-3 text-xs text-ink-faint">None yet: the first question starts one.</p>}
+        <ul className="space-y-1">
           {[...view.conversations].reverse().map((c) => {
             const active = !fresh && shown?.id === c.id;
             const asked = c.messages.filter((m) => m.role === 'person').length;

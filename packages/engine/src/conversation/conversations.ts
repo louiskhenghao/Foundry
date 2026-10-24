@@ -6,17 +6,19 @@
  * of their own and are kept as events, with what they cost on the goal but outside its budget. Nothing here takes a
  * slot from the goal's work, and nothing the Explainer does changes the goal.
  */
+import type { Attachment } from '@foundry/core';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONVERSATION_QUESTION_MAX, IdPrefix, getConversation, getGoal, isHistory, listConversations, listGoals, newId, pendingQuestions, reportsDollars, type AnswerStatus, type Conversation, type Goal } from '@foundry/core';
+import { CONVERSATION_ATTACHMENTS_MAX, CONVERSATION_FILES_ONLY_TEXT, CONVERSATION_QUESTION_MAX, IdPrefix, getConversation, getGoal, isHistory, listConversations, listGoals, newId, pendingQuestions, reportsDollars, type AnswerStatus, type Conversation, type Goal } from '@foundry/core';
 import { resumeRefused, type RunHandle, type RunResult } from '@foundry/runner';
 import { attachmentsDir } from '../attachments.ts';
 import type { Engine } from '../engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundaryEnv, explainerSettings } from '../guards/boundary.ts';
 import { MCP_SERVER_PREFIX } from '../memory/memory.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
+import { AttachmentError, claimStaged } from '../attachments.ts';
 import { conversationSoFar, openingPrompt, turnPrompt } from './prompt.ts';
-import { describeEvents, goalSummary, writeGoalRecords } from './records.ts';
+import { describeEvents, goalSummary, writeGoalRecords, writeQuestionFiles } from './records.ts';
 import { conversationWorkspacePath, prepareConversationWorkspace, removeConversationWorkspace } from './workspace.ts';
 
 /** one answer's room: enough to read a few dozen files and a transcript or two, wider than a Suggestion, narrower than a second opinion */
@@ -87,12 +89,14 @@ export class Conversations {
    * answered in the background, on the channel the answer streams on; a question that arrives while another is being
    * answered waits its turn.
    */
-  ask(goalId: string, text: string, opts: { by?: string | null; conversationId?: string | null; fresh?: boolean } = {}): { conversationId: string; messageId: string; channel: string } {
+  ask(goalId: string, text: string, opts: { by?: string | null; conversationId?: string | null; fresh?: boolean; /** staged uploads (and links) the person put on the question, as the upload answered them */ attachments?: Attachment[] } = {}): { conversationId: string; messageId: string; channel: string } {
     const { store, config } = this.engine;
     const goal = getGoal(store.db, goalId);
     if (!goal) throw new ConversationError('goal not found', 404);
     if (!this.enabled()) throw new ConversationError('the Conversation is off: Settings → Beta switches it on', 409);
-    const question = text.trim();
+    const staged = opts.attachments ?? [];
+    if (staged.length > CONVERSATION_ATTACHMENTS_MAX) throw new ConversationError(`a question takes at most ${CONVERSATION_ATTACHMENTS_MAX} attachments`, 400);
+    const question = text.trim() || (staged.length ? CONVERSATION_FILES_ONLY_TEXT : '');
     if (!question) throw new ConversationError('ask something', 400);
     if (question.length > CONVERSATION_QUESTION_MAX) throw new ConversationError(`a question is at most ${CONVERSATION_QUESTION_MAX} characters`, 400);
     const provider = goal.provider ?? config.provider;
@@ -109,7 +113,15 @@ export class Conversations {
       conversation = getConversation(store.db, id)!;
     }
     const messageId = newId(IdPrefix.message);
-    store.append({ type: 'conversation.asked', goalId, payload: { conversationId: conversation.id, messageId, text: question, by } });
+    // the uploads move from staging to the goal's attachments folder, as a goal's own do; the records keep the final paths
+    let attachments: Attachment[] = [];
+    try {
+      attachments = staged.length ? claimStaged(config.dataDir, goalId, staged.map((a) => this.engine.stagedView(a.id) ?? a), goal.attachments.length) : [];
+    } catch (e) {
+      if (e instanceof AttachmentError) throw new ConversationError(e.message, 400);
+      throw e;
+    }
+    store.append({ type: 'conversation.asked', goalId, payload: { conversationId: conversation.id, messageId, text: question, by, attachments } });
     const queue = this.queues.get(conversation.id) ?? [];
     queue.push(messageId);
     this.queues.set(conversation.id, queue);
@@ -219,6 +231,7 @@ export class Conversations {
       say('— reading the goal: a read-only checkout of its code and Foundry\'s records of it are being prepared…');
       const place = await prepareConversationWorkspace(this.engine, goal);
       writeGoalRecords(this.engine, goal, place.cwd);
+      writeQuestionFiles(this.engine, goal, c0.messages, place.cwd);
       if (entry.stopAsked) return settle('stopped', '', 'stopped before it was answered', null);
       const prior = c0.messages.filter((m) => m.id !== askedId);
       // the session goes on where an earlier answer left it; a Conversation whose answers all failed starts anew
@@ -227,7 +240,7 @@ export class Conversations {
       const policy = this.engine.mcpToolPolicy(provider, this.engine.mcpAllowedFor(goal));
       // Memory's tools reach the Explainer when the person installed its server and allowed it in goals (ADR-0072)
       const bank = policy.allowed.includes(MCP_SERVER_PREFIX) ? await this.engine.memory.bankFor(goal.repoPath) : null;
-      const opening = () => openingPrompt({ goal, summary: goalSummary(this.engine, goal), place, question: asked.text, history: conversationSoFar(prior), memoryBank: bank });
+      const opening = () => openingPrompt({ goal, summary: goalSummary(this.engine, goal), place, question: asked.text, asked, history: conversationSoFar(prior), memoryBank: bank });
       const delta = resumable ? describeEvents(this.engine, goal, store.listByGoal(goal.id, 5000).filter((e) => e.seq > (lastAnswer?.seq ?? 0))) : [];
       const run = async (prompt: string, resume: string | undefined): Promise<RunResult> => {
         const handle = await this.engine.runner.run({
@@ -275,7 +288,7 @@ export class Conversations {
         }
         return result;
       };
-      let result = await run(resumable ? turnPrompt({ delta, question: asked.text }) : opening(), resumable ? c0.sessionId! : undefined);
+      let result = await run(resumable ? turnPrompt({ delta, question: asked.text, asked }) : opening(), resumable ? c0.sessionId! : undefined);
       if (resumable && resumeRefused(result) && !this.ending && !entry.stopAsked) {
         say('— the earlier session could not be resumed; a fresh one is given the conversation so far…');
         said = [];

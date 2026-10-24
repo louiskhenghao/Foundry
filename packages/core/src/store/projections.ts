@@ -1,4 +1,5 @@
 import type { AgentProvider } from '../schema/provider.ts';
+import type { Attachment } from '../schema/attachment.ts';
 import type { Database } from 'bun:sqlite';
 import type { EngineEvent } from '../events.ts';
 import { AgentAccount, NATIVE_ACCOUNT, FINAL_WALK, IDLE_COMPLETION, IDLE_DELIVERY, NO_DELEGATION, conversationTitle, isHistory, type Attempt, type Brief, type Check, type CheckResult, type Conversation, type Escalation, type Goal, type RepoLearnings, type Task, Schedule } from '../schema/index.ts';
@@ -726,7 +727,7 @@ function project(db: Database, e: EngineEvent): void {
     case 'conversation.asked': {
       const c = getConversation(db, e.payload.conversationId);
       if (!c) break;
-      const message = { id: e.payload.messageId, role: 'person' as const, text: e.payload.text, at: e.ts, by: e.payload.by ?? null, askedId: null, status: null, reason: null, costUsd: 0, costAvailable: true, model: null, durationMs: 0 };
+      const message = { id: e.payload.messageId, role: 'person' as const, text: e.payload.text, at: e.ts, by: e.payload.by ?? null, askedId: null, status: null, reason: null, costUsd: 0, costAvailable: true, model: null, durationMs: 0, attachments: e.payload.attachments ?? [] };
       upsertConversation(db, { ...c, title: c.title || conversationTitle(e.payload.text), messages: [...c.messages, message], updatedAt: e.ts });
       break;
     }
@@ -734,7 +735,7 @@ function project(db: Database, e: EngineEvent): void {
       const c = getConversation(db, e.payload.conversationId);
       if (!c) break;
       const p = e.payload;
-      const message = { id: p.messageId, role: 'explainer' as const, text: p.text, at: e.ts, by: null, askedId: p.askedId, status: p.status, reason: p.reason ?? null, costUsd: p.costUsd, costAvailable: p.costAvailable ?? true, model: p.model ?? null, durationMs: p.durationMs ?? 0 };
+      const message = { id: p.messageId, role: 'explainer' as const, text: p.text, at: e.ts, by: null, askedId: p.askedId, status: p.status, reason: p.reason ?? null, costUsd: p.costUsd, costAvailable: p.costAvailable ?? true, model: p.model ?? null, durationMs: p.durationMs ?? 0, attachments: [] };
       upsertConversation(db, { ...c, sessionId: p.sessionId ?? c.sessionId, costUsd: c.costUsd + p.costUsd, messages: [...c.messages, message], updatedAt: e.ts });
       break;
     }
@@ -905,12 +906,20 @@ export function upsertEscalation(db: Database, e: Escalation): void {
 }
 
 /** a Conversation (ADR-0073), or null */
+/** rows skip zod on the way back: a message written before questions carried attachments reads as having none */
+const normalizeConversation = (c: Conversation): Conversation => ({ ...c, messages: c.messages.map((m) => ({ ...m, attachments: m.attachments ?? [] })) });
 export function getConversation(db: Database, id: string): Conversation | null {
-  return row<Conversation>(db.query('SELECT data FROM conversations WHERE id = ?').get(id));
+  const c = row<Conversation>(db.query('SELECT data FROM conversations WHERE id = ?').get(id));
+  return c ? normalizeConversation(c) : null;
 }
 /** a goal's Conversations, oldest first: the last one is the one that goes on */
 export function listConversations(db: Database, goalId: string): Conversation[] {
-  return (db.query('SELECT data FROM conversations WHERE goal_id = ? ORDER BY rowid').all(goalId) as { data: string }[]).map((r) => JSON.parse(r.data) as Conversation);
+  return (db.query('SELECT data FROM conversations WHERE goal_id = ? ORDER BY rowid').all(goalId) as { data: string }[]).map((r) => normalizeConversation(JSON.parse(r.data) as Conversation));
+}
+/** an attachment on one of a goal's Conversation questions, by id: it lives beside the goal's own attachments */
+export function findConversationAttachment(db: Database, goalId: string, attachmentId: string): Attachment | null {
+  for (const c of listConversations(db, goalId)) for (const m of c.messages) for (const a of m.attachments) if (a.id === attachmentId) return a;
+  return null;
 }
 export function upsertConversation(db: Database, c: Conversation): void {
   db.run('INSERT INTO conversations (id, goal_id, data) VALUES (?, ?, ?) ON CONFLICT(id) DO UPDATE SET data = excluded.data', [c.id, c.goalId, JSON.stringify(c)]);

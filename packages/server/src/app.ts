@@ -1,4 +1,4 @@
-import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, POOLED_PROVIDERS, isPooled, type PooledProvider } from '@foundry/core';
+import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, POOLED_PROVIDERS, isPooled, type PooledProvider, findConversationAttachment } from '@foundry/core';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -661,7 +661,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   };
   app.get('/api/goals/:id/attachments/:attId/markdown', (c) => {
     const goal = getGoal(db, c.req.param('id'));
-    const att = goal?.attachments.find((a) => a.id === c.req.param('attId'));
+    const att = goal?.attachments.find((a) => a.id === c.req.param('attId')) ?? (goal ? findConversationAttachment(db, goal.id, c.req.param('attId')) : null);
     if (!goal || !att) throw new HttpError(404, { error: 'attachment not found' });
     return mdResponse(markdownAbsPath(engine.config.dataDir, goal.id, att));
   });
@@ -671,9 +671,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return mdResponse(stagedMarkdownAbsPath(engine.config.dataDir, a));
   });
   // Serves the file by id only; the path comes from the stored record, never from the request.
+  // Serves the goal's own attachments and the ones on its Conversations' questions alike (ADR-0073)
   app.get('/api/goals/:id/attachments/:attId', (c) => {
     const goal = getGoal(db, c.req.param('id'));
-    const att = goal?.attachments.find((a) => a.id === c.req.param('attId'));
+    const att = goal?.attachments.find((a) => a.id === c.req.param('attId')) ?? (goal ? findConversationAttachment(db, goal.id, c.req.param('attId')) : null);
     if (!goal || !att) throw new HttpError(404, { error: 'attachment not found' });
     if (att.kind === 'link') return c.redirect(att.url!, 302);
     const abs = attachmentAbsPath(engine.config.dataDir, goal.id, att);
@@ -915,9 +916,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/goals/:id/conversations', (c) => c.json(engine.conversations.view(goalOr404(c).id)));
   app.post('/api/goals/:id/conversations/ask', async (c) => {
     const goal = goalOr404(c);
-    const body = z.object({ text: z.string(), conversationId: z.string().nullable().optional(), fresh: z.boolean().optional() }).parse(await c.req.json());
+    const body = z.object({ text: z.string(), conversationId: z.string().nullable().optional(), fresh: z.boolean().optional(), attachments: z.array(Attachment).optional() }).parse(await c.req.json());
     try {
-      return c.json(engine.conversations.ask(goal.id, body.text, { by: c.get('person')?.name ?? null, conversationId: body.conversationId ?? null, fresh: body.fresh }), 202);
+      return c.json(engine.conversations.ask(goal.id, body.text, { by: c.get('person')?.name ?? null, conversationId: body.conversationId ?? null, fresh: body.fresh, attachments: body.attachments }), 202);
     } catch (e) {
       if (e instanceof ConversationError) throw new HttpError(e.status, { error: e.message });
       throw e;

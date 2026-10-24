@@ -60,6 +60,11 @@ Access on (ADR-0061).
   answer streams: Claude and agy by token (`--include-partial-messages`, a `text_delta` event), Codex by message,
   with the latest tool call as an activity line; **Stop** keeps what was said. An answer has 50 turns, $3 and
   8 minutes; one cut by a limit says so and keeps what it had.
+- **A question can carry pictures and files.** They go through the same staged uploads as a goal's attachments and
+  are claimed into the goal's attachments folder (so one id space and one route serve both), kept on the
+  `conversation.asked` event, and copied under the records (`.foundry-goal/asked/<question>/`) before each answer, with
+  a ready markdown rendition beside them; the prompt names them and tells the Explainer to open them. Up to eight a
+  question; a question that is only its files reads "See the attached files."
 - **Lane `aside`.** The Explainer takes no concurrency slot and waits for none; the goal's work is never held up by a
   question, and a question never waits behind the work. Conversation events do not tick the goal's scheduler.
 - **Cost on the goal, outside the Budget.** Each answer is booked as `goal.cost_added` with `source: 'conversation'`

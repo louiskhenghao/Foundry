@@ -1,13 +1,15 @@
 import { describe, expect, test } from 'bun:test';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import type { Attachment } from '@foundry/core/browser';
 import type { Conversation, ConversationMessage } from '../src/api.ts';
 import { ConversationThread, describeActivity, liveAnswer } from '../src/components/conversation/ConversationThread.tsx';
 import type { StreamItem } from '../src/store.ts';
 
 const at = '2026-10-23T10:00:00.000Z';
-const person = (id: string, text: string, by: string | null = null): ConversationMessage => ({ id, role: 'person', text, at, by, askedId: null, status: null, reason: null, costUsd: 0, costAvailable: true, model: null, durationMs: 0 });
-const answer = (id: string, askedId: string, text: string, extra: Partial<ConversationMessage> = {}): ConversationMessage => ({ id, role: 'explainer', text, at, by: null, askedId, status: 'done', reason: null, costUsd: 0.5, costAvailable: true, model: 'claude-sonnet-4-5', durationMs: 9_000, ...extra });
+const person = (id: string, text: string, by: string | null = null, attachments: Attachment[] = []): ConversationMessage => ({ id, role: 'person', text, at, by, askedId: null, status: null, reason: null, costUsd: 0, costAvailable: true, model: null, durationMs: 0, attachments });
+const file = (id: string, name: string, mime: string): Attachment => ({ id, kind: 'file', name, mime, size: 1234, path: `attachments/g1/${id}/${name}`, url: null, note: null, addedAt: at, markdown: null });
+const answer = (id: string, askedId: string, text: string, extra: Partial<ConversationMessage> = {}): ConversationMessage => ({ id, role: 'explainer', text, at, by: null, askedId, status: 'done', reason: null, costUsd: 0.5, costAvailable: true, model: 'claude-sonnet-4-5', durationMs: 9_000, attachments: [], ...extra });
 const conversation = (messages: ConversationMessage[]): Conversation => ({ id: 'c1', goalId: 'g1', title: 'Why does T2 depend on T1?', startedAt: at, updatedAt: at, by: 'ann', sessionId: 's1', costUsd: 0.5, messages });
 const item = (event: unknown): StreamItem => ({ goalId: 'g1', taskId: null, attemptId: 'conversation-c1', ts: at, event });
 const noop = () => {};
@@ -22,7 +24,8 @@ describe('ConversationThread (ADR-0073)', () => {
     expect(html).toContain('sonnet-4-5');
     expect(html).toContain('$0.500');
     expect(html).toContain('cut short: the answer ran out of turns');
-    expect(html).toContain(' Ask</button>');
+    expect(html).toContain('aria-label="Ask"');
+    expect(html).toContain('aria-label="Attach files"');
     expect(html).not.toContain(' Stop</button>');
   });
 
@@ -38,6 +41,14 @@ describe('ConversationThread (ADR-0073)', () => {
     expect(html).toContain('It reads the table.');
     expect(html).toContain('writing…');
     expect(html).not.toContain('reading src/app.ts');
+  });
+
+  test('a question shows the pictures it carried, and the other files as chips, served from the goal', () => {
+    const c = conversation([person('m1', 'What is wrong in this screen?', null, [file('att1', 'screen.png', 'image/png'), file('att2', 'notes.pdf', 'application/pdf')]), answer('m2', 'm1', 'The label.')]);
+    const html = renderToStaticMarkup(<ConversationThread conversation={c} live={undefined} items={[]} onAsk={noop} onStop={noop} />);
+    expect(html).toContain('<img src="/api/goals/g1/attachments/att1"');
+    expect(html).toContain('notes.pdf');
+    expect(html).toContain('href="/api/goals/g1/attachments/att2"');
   });
 
   test('an earlier Conversation is read, not continued; an empty one invites the first question', () => {

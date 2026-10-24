@@ -692,7 +692,7 @@ export function apiForProvider(provider?: AgentProvider) {
   secondOpinion: (id: string) => req<{ started: true }>(`/api/goals/${id}/brief/second-opinion`, { method: 'POST' }),
   /** Conversations on the goal's page (ADR-0073): the view; a question, kept at once (202) and answered in the background on `channel`; Stop */
   conversations: (id: string) => req<ConversationsView>(`/api/goals/${id}/conversations`),
-  ask: (id: string, body: { text: string; conversationId?: string | null; fresh?: boolean }) => req<{ conversationId: string; messageId: string; channel: string }>(`/api/goals/${id}/conversations/ask`, { method: 'POST', body: JSON.stringify(body) }),
+  ask: (id: string, body: { text: string; conversationId?: string | null; fresh?: boolean; /** staged uploads going with the question */ attachments?: Attachment[] }) => req<{ conversationId: string; messageId: string; channel: string }>(`/api/goals/${id}/conversations/ask`, { method: 'POST', body: JSON.stringify(body) }),
   stopConversation: (id: string, conversationId: string) => req<{ stopped: boolean }>(`/api/goals/${id}/conversations/${encodeURIComponent(conversationId)}/stop`, { method: 'POST' }),
   draftBrief: (id: string, body: DraftRequest) => req<{ proposal: DraftProposal }>(`/api/goals/${id}/brief/draft`, { method: 'POST', body: JSON.stringify(body) }),
   /** the answers to the round a Revise asked: the proposal, or one more round */

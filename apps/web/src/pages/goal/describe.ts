@@ -116,7 +116,7 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
     case 'conversation.started':
       return { text: `Conversation started${p.by ? ` by ${p.by}` : ''}`, tone: 'muted' };
     case 'conversation.asked':
-      return { text: `Asked${p.by ? ` by ${p.by}` : ''}: ${p.text.split('\n')[0]?.slice(0, 120)}`, tone: 'muted', ...cut(p.text, 120) };
+      return { text: `Asked${p.by ? ` by ${p.by}` : ''}${p.attachments?.length ? ` (${p.attachments.length} file${p.attachments.length === 1 ? '' : 's'})` : ''}: ${p.text.split('\n')[0]?.slice(0, 120)}`, tone: 'muted', ...cut(p.text, 120) };
     case 'conversation.answered':
       return { text: `The Explainer ${p.status === 'done' ? 'answered' : `${p.status}${p.reason ? ` (${p.reason})` : ''}`}${p.text ? `: ${p.text.split('\n')[0]?.slice(0, 120)}` : ''}`, tone: p.status === 'failed' ? 'warn' : 'muted', ...cut(p.text, 120) };
     default:

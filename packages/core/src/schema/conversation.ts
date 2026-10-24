@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Attachment } from './attachment.ts';
 
 /**
  * A Conversation (ADR-0073): the person's running exchange with the goal's coding agent about the goal, on its page. A
@@ -28,6 +29,8 @@ export const ConversationMessage = z.object({
   costAvailable: z.boolean().default(true),
   model: z.string().nullable().default(null),
   durationMs: z.number().nonnegative().default(0),
+  /** what the person attached to a question (pictures, files, links), kept under the goal's attachments folder; none on the Explainer's */
+  attachments: z.array(Attachment).default([]),
 });
 export type ConversationMessage = z.infer<typeof ConversationMessage>;
 
@@ -51,6 +54,10 @@ export type Conversation = z.infer<typeof Conversation>;
 /** a question is one message of the person's, bounded; a document is not a question */
 export const CONVERSATION_QUESTION_MAX = 8_000;
 export const CONVERSATION_TITLE_MAX = 60;
+/** pictures and files on one question */
+export const CONVERSATION_ATTACHMENTS_MAX = 8;
+/** the words of a question that is only its attachments */
+export const CONVERSATION_FILES_ONLY_TEXT = 'See the attached files.';
 
 /** a Conversation is titled by its first question's opening words, on one line */
 export function conversationTitle(question: string): string {
