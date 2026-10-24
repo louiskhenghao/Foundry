@@ -301,6 +301,10 @@ _Avoid_: video pack (the Settings default; the engine is the goal's), renderer (
 A Catalog Skill Foundry ships itself (`source: { type: 'bundled', path }`): a folder under `catalog/bundled/` of the Foundry that runs, copied into the skills folder on install, marked with repo `foundry` and the folder's content fingerprint, grouped on the Updates page as "Bundled with Foundry" and outdated when a newer Foundry ships a different folder; never a third-party credit ([ADR-0076](docs/develop/adr/0076-the-motion-studio-video-engine.md)).
 _Avoid_: built-in skill, local skill (a Linked Folder is a person's own; a bundled skill is Foundry's)
 
+**House Style**
+What a motion-studio film leaves for the next film of the same product: `docs/motion/house-style.md`, written by the goal's last task (brand colours and faces, the motif and its grammar, the sound, what went wrong), and at completion also a project skill (`motion-house-style`) kept out of git for the person's own sessions ([ADR-0076](docs/develop/adr/0076-the-motion-studio-video-engine.md)).
+_Avoid_: style guide (the document written from the reference before the film), Learnings (what Foundry learned about the repository, not about the film)
+
 **Skill Source**
 Where an installed Skill comes from and who updates it: a GitHub repository managed by Foundry, by the community `skills` CLI, or by a Claude Code plugin; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Native Codex plugin packages are managed separately from loose skills; their lifecycle belongs to the native CLI. Skills of the same Foundry-managed Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.
 
