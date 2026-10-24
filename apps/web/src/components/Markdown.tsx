@@ -4,6 +4,30 @@ import rehypeSanitize from 'rehype-sanitize';
 import remarkGfm from 'remark-gfm';
 import { cn } from '../ui.tsx';
 
+type Node = { type: string; value?: string; children?: Node[] };
+/** the containers whose children are words, where a stray tag is part of a sentence */
+const PHRASING = new Set(['paragraph', 'heading', 'emphasis', 'strong', 'delete', 'link', 'linkReference', 'tableCell']);
+/**
+ * Raw HTML in the words is shown as written. Left to itself remark drops it, and a sentence about `<p>` or `<title>`
+ * loses its nouns (the models here write about HTML all day). A comment stays hidden: nobody is meant to read it.
+ */
+function remarkHtmlAsWords() {
+  const walk = (node: Node) => {
+    if (!node.children) return;
+    node.children = node.children.flatMap((child): Node[] => {
+      if (child.type !== 'html') {
+        walk(child);
+        return [child];
+      }
+      const value = child.value ?? '';
+      if (value.trimStart().startsWith('<!--')) return [];
+      const text: Node = { type: 'text', value };
+      return [PHRASING.has(node.type) ? text : { type: 'paragraph', children: [text] }];
+    });
+  };
+  return (tree: Node) => walk(tree);
+}
+
 const PREF_KEY = 'foundry.md.raw';
 let rawPref: boolean | null = null;
 function readPref(): boolean {
@@ -39,7 +63,7 @@ export function useRawPref(): [boolean, (v: boolean) => void] {
 export function Markdown({ source, className }: { source: string; className?: string }) {
   return (
     <div className={cn('md', className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkHtmlAsWords]} rehypePlugins={[rehypeSanitize]}>
         {source}
       </ReactMarkdown>
     </div>
