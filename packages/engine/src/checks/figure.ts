@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import type { Check, CheckResult, Goal, Task } from '@foundry/core';
-import { IdPrefix, newId } from '@foundry/core';
+import { IdPrefix, listCheckResultsByGoal, listChecks, listTasks, newId } from '@foundry/core';
+import type { Database } from 'bun:sqlite';
 import type { Engine } from '../engine.ts';
 import type { EventStore } from '@foundry/core';
 import { ARTIFACTS_DIR, screenshotsDir } from '../workspace.ts';
@@ -15,6 +16,26 @@ export function figureShots(store: Pick<EventStore, 'listByGoalOfTypes'>, goalId
   if (!last) return [];
   const pages = (last.payload as { pages: { file: string; screenshot: string | null; inside: string | null }[] }).pages;
   return pages.flatMap((p) => [...(p.screenshot ? [{ file: p.screenshot, caption: `${p.file} — as Foundry opened it` }] : []), ...(p.inside ? [{ file: p.inside, caption: `${p.file} — see-through` }] : [])]);
+}
+
+/**
+ * The figure checks' latest results of a goal, or of one task: what a reviewer reads in place of a diff — whether each
+ * page drew, and the paths of Foundry's screenshots of it (the goal's screenshots folder is added to the session).
+ */
+export function figureCheckLines(db: Database, goalId: string, taskId?: string): string[] {
+  const titles = new Map(listTasks(db, goalId).map((t) => [t.id, t.title]));
+  const results = listCheckResultsByGoal(db, goalId);
+  return listChecks(db, goalId)
+    .filter((c) => c.spec.type === 'figure' && (!taskId || c.taskId === taskId))
+    .flatMap((c) => {
+      const last = results.filter((r) => r.checkId === c.id).sort((a, b) => a.at.localeCompare(b.at)).at(-1);
+      return last ? [`- ${c.taskId ? titles.get(c.taskId) ?? c.taskId : 'goal'}: ${last.status} — ${last.summary}`] : [];
+    });
+}
+
+/** a reviewer's figure section with the checks' results under it; the section alone when no check has run yet */
+export function figureReviewSection(base: string, lines: string[]): string {
+  return lines.length ? `${base}\n\nThe figure checks' results (the screenshots' paths are in them; open the PNGs with the Read tool):\n${lines.join('\n')}` : base;
 }
 
 /** the name of the engine-made must check of a figure task: its pages open and draw */

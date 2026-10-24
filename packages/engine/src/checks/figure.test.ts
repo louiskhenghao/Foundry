@@ -3,9 +3,10 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Check, Goal, Task } from '@foundry/core';
+import { EventStore, openDatabase } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
-import { FIGURE_CHECK_NAME, figurePages, figureShots, runFigureCheck } from './figure.ts';
+import { FIGURE_CHECK_NAME, figureCheckLines, figurePages, figureReviewSection, figureShots, runFigureCheck } from './figure.ts';
 import { playwrightStatus } from './selfcheck.ts';
 
 /** Foundry's render check of a figure task's pages (ADR-0076): what it opens, and what it says */
@@ -102,5 +103,23 @@ describe("a milestone's evidence of a figure task", () => {
       { file: 'k-inside.png', caption: 'artifacts/kettle.html — see-through' },
     ]);
     expect(figureShots(store, 'g1', 't3')).toEqual([]);
+  });
+});
+
+describe("what the reviewers read of a figure task's checks", () => {
+  test('the latest result of each figure check, with its screenshots, under the review section', () => {
+    const store = new EventStore(openDatabase(':memory:'));
+    const fig: Check = { id: 'c_fig', goalId: 'g1', taskId: 't1', name: FIGURE_CHECK_NAME, tier: 'must', spec: { type: 'figure' } };
+    const cmd: Check = { id: 'c_cmd', goalId: 'g1', taskId: 't1', name: 'Delivers artifacts/kettle.html', tier: 'must', spec: { type: 'command', cmd: 'test -e artifacts/kettle.html', timeoutMs: 1000, expectExitCode: 0 } };
+    store.append({ type: 'check.created', goalId: 'g1', payload: { check: fig } });
+    store.append({ type: 'check.created', goalId: 'g1', payload: { check: cmd } });
+    const result = (id: string, status: 'pass' | 'fail', summary: string, at: string) => ({ id, checkId: 'c_fig', goalId: 'g1', taskId: 't1', attemptId: 'a1', status, summary, rawRef: null, durationMs: 1, at });
+    store.append({ type: 'check.finished', goalId: 'g1', payload: { result: result('r1', 'fail', 'no figure page was delivered', '2026-10-25T00:00:01.000Z') } });
+    store.append({ type: 'check.finished', goalId: 'g1', payload: { result: result('r2', 'pass', '1 page(s) opened headless and drew without script errors.\n✓ artifacts/kettle.html — screenshot /shots/figure-1-kettle.png', '2026-10-25T00:00:02.000Z') } });
+    const lines = figureCheckLines(store.db, 'g1');
+    expect(lines).toEqual(['- t1: pass — 1 page(s) opened headless and drew without script errors.\n✓ artifacts/kettle.html — screenshot /shots/figure-1-kettle.png']);
+    expect(figureCheckLines(store.db, 'g1', 't2')).toEqual([]);
+    expect(figureReviewSection('# Figure review', lines)).toContain("The figure checks' results (the screenshots' paths are in them; open the PNGs with the Read tool):\n- t1: pass");
+    expect(figureReviewSection('# Figure review', [])).toBe('# Figure review');
   });
 });
