@@ -2,7 +2,7 @@ import { LoaderCircle, SendHorizontal, Square } from 'lucide-react';
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import type { Conversation, ConversationLive, ConversationMessage } from '../../api.ts';
 import type { StreamItem } from '../../store.ts';
-import { Button, Textarea, cn, fmtUsd } from '../../ui.tsx';
+import { Button, cn, fmtUsd } from '../../ui.tsx';
 import { clock } from '../../time.ts';
 import { Markdown } from '../Markdown.tsx';
 
@@ -80,14 +80,28 @@ export function liveAnswer(items: StreamItem[]): { text: string; activity: strin
 /** how an answer ended, when not as it should */
 const ending = (m: ConversationMessage) => (m.status === 'cut' ? `cut short: ${m.reason ?? 'it ran out'}` : m.status === 'stopped' ? 'stopped' : m.status === 'failed' ? `failed: ${m.reason ?? 'no answer'}` : null);
 
+/** three ways into an empty Conversation; each is sent as it stands */
+export const STARTER_QUESTIONS = ['Summarise what this goal did, and why.', 'Which task was the hardest, and why?', 'Where in the code did the changes land?'];
+
+/** the thread's measure: prose reads best under about 90 characters a line, whatever the card's width */
+const COLUMN = 'mx-auto w-full max-w-[44rem]';
+
 /**
  * One Conversation: the questions and answers, the answer being written with what the Explainer is reading, and the
  * composer. `readOnly`: an earlier Conversation, read and not continued. Shown in the bubble's window (compact) and on
- * the Conversation tab alike.
+ * the Conversation tab alike; on the tab the thread keeps to a readable column in the middle of the card.
  */
 export function ConversationThread({ conversation, live, items, readOnly = false, compact = false, busy = false, onAsk, onStop }: { conversation: Conversation | null; live: ConversationLive | undefined; items: StreamItem[]; readOnly?: boolean; compact?: boolean; /** a question is on its way to the server */ busy?: boolean; onAsk: (text: string) => void | Promise<void>; onStop: () => void | Promise<void> }) {
   const [draft, setDraft] = useState('');
   const scroller = useRef<HTMLDivElement>(null);
+  const box = useRef<HTMLTextAreaElement>(null);
+  // the composer grows with the draft, one line to about eight
+  useEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    el.style.height = '0px';
+    el.style.height = `${Math.min(el.scrollHeight, 192)}px`;
+  }, [draft, readOnly]);
   const messages = conversation?.messages ?? [];
   const answering = live?.answering ?? null;
   const queued = new Set(live?.queued ?? []);
@@ -115,18 +129,29 @@ export function ConversationThread({ conversation, live, items, readOnly = false
     }
   };
   const working = !!answering || queued.size > 0;
+  const prose = compact ? 'text-sm' : 'text-[15px] leading-relaxed';
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div ref={scroller} className={cn('min-h-0 flex-1 overflow-auto', compact ? 'px-3 py-3 space-y-3' : 'px-4 py-4 space-y-4')}>
-        {!messages.length && (
-          <p className="text-sm leading-relaxed text-ink-faint">
-            Ask anything about this goal: why a task was done the way it was, where something lives in the code, what went wrong and when. The Explainer reads the goal's code and Foundry's records of it; it changes nothing.
-          </p>
+      <div ref={scroller} className={cn('min-h-0 flex-1 overflow-auto', compact ? 'px-3 py-3' : 'px-5 py-5')}>
+        <div className={cn(COLUMN, compact ? 'space-y-3' : 'space-y-5')}>
+        {!messages.length && !readOnly && (
+          <div className={cn('space-y-3', compact ? 'pt-1' : 'pt-6')}>
+            <p className={cn('text-ink-faint', prose)}>
+              Ask anything about this goal: why a task was done the way it was, where something lives in the code, what went wrong and when. The Explainer reads the goal's code and Foundry's records of it; it changes nothing.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {STARTER_QUESTIONS.map((q) => (
+                <button key={q} type="button" disabled={busy} onClick={() => void onAsk(q)} className="rounded-full border border-line-strong bg-panel px-3 py-1.5 text-left text-[13px] font-semibold text-ink-soft transition-colors hover:border-accent hover:text-ink disabled:opacity-40">
+                  {q}
+                </button>
+              ))}
+            </div>
+          </div>
         )}
         {messages.map((m) =>
           m.role === 'person' ? (
             <div key={m.id} className="flex flex-col items-end gap-1">
-              <div className="max-w-[88%] whitespace-pre-wrap rounded-xl rounded-br-sm bg-accent/10 px-3 py-2 text-sm text-ink ring-1 ring-inset ring-accent/30 [overflow-wrap:anywhere]">{m.text}</div>
+              <div className={cn('max-w-[85%] whitespace-pre-wrap rounded-xl rounded-br-sm bg-accent/10 px-3.5 py-2 text-ink ring-1 ring-inset ring-accent/30 [overflow-wrap:anywhere]', prose)}>{m.text}</div>
               <div className="text-[11px] text-ink-faint">
                 {m.by ? `${m.by} · ` : ''}
                 {clock(m.at)}
@@ -136,7 +161,7 @@ export function ConversationThread({ conversation, live, items, readOnly = false
             </div>
           ) : (
             <div key={m.id} className="flex flex-col items-start gap-1">
-              <div className={cn('max-w-[96%] rounded-xl rounded-bl-sm px-3 py-2 text-sm text-ink ring-1 ring-inset', m.status === 'failed' ? 'bg-bad/5 ring-bad/40' : 'bg-sunken ring-line')}>
+              <div className={cn('max-w-full rounded-xl rounded-bl-sm px-3.5 py-2.5 text-ink ring-1 ring-inset', prose, m.status === 'failed' ? 'bg-bad/5 ring-bad/40' : 'bg-sunken ring-line')}>
                 {m.text.trim() ? <Markdown source={m.text} /> : <span className="text-ink-faint">{m.status === 'stopped' ? 'Stopped before it said anything.' : 'No answer came.'}</span>}
               </div>
               <div className="text-[11px] text-ink-faint">
@@ -150,30 +175,43 @@ export function ConversationThread({ conversation, live, items, readOnly = false
         )}
         {answering && (
           <div className="flex flex-col items-start gap-1" aria-live="polite">
-            {writing?.text ? <div className="max-w-[96%] rounded-xl rounded-bl-sm bg-sunken px-3 py-2 text-sm text-ink ring-1 ring-inset ring-line"><Markdown source={writing.text} /></div> : null}
+            {writing?.text ? <div className={cn('max-w-full rounded-xl rounded-bl-sm bg-sunken px-3.5 py-2.5 text-ink ring-1 ring-inset ring-line', prose)}><Markdown source={writing.text} /></div> : null}
             <div className="flex items-center gap-1.5 text-[12px] font-semibold text-work-ink">
               <LoaderCircle size={13} className="motion-safe:animate-spin" aria-hidden="true" />
               {writing?.activity ?? (writing?.started ? 'writing…' : 'reading the goal…')}
             </div>
           </div>
         )}
+        </div>
       </div>
-      <div className={cn('shrink-0 border-t border-line', compact ? 'p-2' : 'p-3')}>
+      <div className={cn('shrink-0 border-t border-line', compact ? 'p-2' : 'px-5 py-3')}>
         {readOnly ? (
-          <p className="text-xs text-ink-faint">An earlier Conversation: read it here; the newest one is the one that goes on.</p>
+          <p className={cn(COLUMN, 'text-xs text-ink-faint')}>An earlier Conversation: read it here; the newest one is the one that goes on.</p>
         ) : (
-          <div className="flex items-end gap-2">
-            <Textarea rows={compact ? 2 : 3} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={onKey} placeholder="Ask about this goal… (Enter sends, Shift+Enter for a new line)" aria-label="Your question" className="min-h-[2.5rem] resize-none" />
-            <div className="flex shrink-0 flex-col gap-1.5">
-              <Button variant="primary" size="sm" onClick={() => void send()} disabled={!draft.trim() || busy} title="Send (Enter)">
-                <SendHorizontal size={14} aria-hidden="true" /> Ask
-              </Button>
-              {working && (
-                <Button variant="danger" size="sm" onClick={() => void onStop()} title="Stop the answer being written; questions waiting their turn are let go">
-                  <Square size={12} aria-hidden="true" /> Stop
+          <div className={COLUMN}>
+            <div className="flex items-end gap-2">
+              <textarea
+                ref={box}
+                rows={1}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={onKey}
+                placeholder="Ask about this goal…"
+                aria-label="Your question"
+                className="w-full min-h-[2.5rem] max-h-48 resize-none overflow-auto rounded-md border border-line-strong bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+              />
+              <div className="flex shrink-0 flex-col gap-1.5">
+                <Button variant="primary" size="sm" onClick={() => void send()} disabled={!draft.trim() || busy} title="Send (Enter)">
+                  <SendHorizontal size={14} aria-hidden="true" /> Ask
                 </Button>
-              )}
+                {working && (
+                  <Button variant="danger" size="sm" onClick={() => void onStop()} title="Stop the answer being written; questions waiting their turn are let go">
+                    <Square size={12} aria-hidden="true" /> Stop
+                  </Button>
+                )}
+              </div>
             </div>
+            {!compact && <p className="mt-1.5 text-[11px] text-ink-faint">Enter sends · Shift+Enter for a new line</p>}
           </div>
         )}
       </div>

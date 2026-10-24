@@ -1,11 +1,11 @@
-import { MessageCircle, Plus } from 'lucide-react';
+import { MessageCircle, MessageSquarePlus } from 'lucide-react';
 import { useState } from 'react';
 import { BetaChip } from '../../components/conversation/ConversationBubble.tsx';
 import { ConversationThread } from '../../components/conversation/ConversationThread.tsx';
 import { askQuestion, conversationChannel, stopAnswer, useConversationStore, useConversations } from '../../components/conversation/store.ts';
 import { useLive } from '../../store.ts';
 import { clock } from '../../time.ts';
-import { Button, Card, EmptyState, Loading, cn } from '../../ui.tsx';
+import { Card, EmptyState, Loading, cn } from '../../ui.tsx';
 
 /**
  * Every Conversation of the goal (ADR-0073): the list, newest first, and the one chosen beside it. The newest is the one
@@ -59,21 +59,22 @@ export function ConversationTab({ goalId }: { goalId: string }) {
             Conversations <BetaChip />
           </span>
         }
-        actions={
-          <Button
-            size="sm"
+        bodyClassName="!p-2"
+      >
+        {!fresh && (
+          <button
+            type="button"
             onClick={() => {
               setFresh(true);
               select(goalId, null);
             }}
-            disabled={fresh}
             title="Start a new Conversation; the earlier ones stay readable"
+            className="mb-1 flex w-full items-center gap-2 rounded-md border border-dashed border-line-strong px-2.5 py-2 text-left text-[13px] font-semibold text-ink-soft transition-colors hover:border-accent hover:text-ink"
           >
-            <Plus size={13} aria-hidden="true" /> New
-          </Button>
-        }
-        bodyClassName="!p-2"
-      >
+            <MessageSquarePlus size={15} aria-hidden="true" />
+            New Conversation
+          </button>
+        )}
         {!view.conversations.length && !fresh && <p className="px-2 py-3 text-xs text-ink-faint">None yet: the first question starts one.</p>}
         <ul className="space-y-0.5">
           {fresh && (
@@ -108,7 +109,18 @@ export function ConversationTab({ goalId }: { goalId: string }) {
           })}
         </ul>
       </Card>
-      <Card title={fresh ? 'New Conversation' : shown?.title || 'Conversation'} bodyClassName="!p-0 flex h-[70vh] min-h-[28rem] flex-col">
+      <Card
+        title={
+          <span className="flex min-w-0 items-baseline gap-2.5">
+            <span className="shrink-0">Conversation</span>
+            <span className="no-caps min-w-0 truncate text-[13px] font-semibold text-ink-soft" title={fresh ? undefined : shown?.title}>
+              {fresh ? 'new: the first question starts it' : shown?.title || ''}
+            </span>
+          </span>
+        }
+        actions={shown && !fresh ? <span className="text-[11px] text-ink-faint">{questions(shown.messages.filter((m) => m.role === 'person').length)} · {clock(shown.startedAt)}</span> : undefined}
+        bodyClassName="!p-0 flex h-[70vh] min-h-[28rem] flex-col"
+      >
         {err && <p className="border-b border-bad/30 bg-bad/5 px-3 py-1.5 text-xs text-bad-ink">{err}</p>}
         <ConversationThread conversation={shown} live={shown ? view.live[shown.id] : undefined} items={items} readOnly={readOnly} busy={busy} onAsk={ask} onStop={stop} />
       </Card>

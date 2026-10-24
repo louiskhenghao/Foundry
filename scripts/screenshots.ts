@@ -191,10 +191,13 @@ try {
   // Conversation (ADR-0073), a beta feature: switched on for these two shots only, so no other page shows the bubble
   await seedConversation(demo.engine, g.done!);
   await demo.engine.updateSettings({ beta: { conversation: true } });
-  await shot('goal-conversation', `/goals/${g.done}#conversation`, undefined, 760);
+  // the thread opens at its newest message; the pictures show it from the first question
+  const fromTheTop = () => page.evaluate(() => document.querySelectorAll<HTMLElement>('.overflow-auto').forEach((el) => (el.scrollTop = 0)));
+  await shot('goal-conversation', `/goals/${g.done}#conversation`, fromTheTop, 760);
   await shot('conversation-bubble', `/goals/${g.done}#overview`, async () => {
     await page.getByRole('button', { name: 'Ask about this goal' }).click();
     await page.waitForTimeout(600);
+    await fromTheTop();
   });
   await demo.engine.updateSettings({ beta: { conversation: false } });
   // the demo's sessions end in milliseconds: the Timeline shows a goal of an afternoon instead, a delegated goal in it
