@@ -1,9 +1,13 @@
-import { LoaderCircle, SendHorizontal, Square } from 'lucide-react';
-import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import type { Attachment } from '@foundry/core/browser';
+import { CONVERSATION_ATTACHMENTS_MAX, attachmentKindLabel } from '@foundry/core/browser';
+import { LoaderCircle, Paperclip, SendHorizontal, Square } from 'lucide-react';
+import { type ClipboardEvent, type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
+import { api } from '../../api.ts';
 import type { Conversation, ConversationLive, ConversationMessage } from '../../api.ts';
 import type { StreamItem } from '../../store.ts';
 import { Button, cn, fmtUsd } from '../../ui.tsx';
 import { clock } from '../../time.ts';
+import { AttachmentList, previews } from '../Attachments.tsx';
 import { Markdown } from '../Markdown.tsx';
 
 /** the first string in a tool call's input whose key matches, for inputs named differently by each coding agent */
@@ -86,15 +90,42 @@ export const STARTER_QUESTIONS = ['Summarise what this goal did, and why.', 'Whi
 /** the thread's measure: prose reads best under about 90 characters a line, whatever the card's width */
 const COLUMN = 'mx-auto w-full max-w-[44rem]';
 
+/** what the person attached to a question: pictures shown, the rest as chips; all open from the goal's attachments */
+function QuestionFiles({ goalId, items }: { goalId: string; items: Attachment[] }) {
+  const pictures = items.filter((a) => attachmentKindLabel(a) === 'image');
+  const rest = items.filter((a) => attachmentKindLabel(a) !== 'image');
+  return (
+    <div className="flex max-w-[85%] flex-col items-end gap-1.5">
+      {pictures.length > 0 && (
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {pictures.map((a) => (
+            <a key={a.id} href={api.attachmentUrl(goalId, a.id)} target="_blank" rel="noreferrer" title={a.name} className="block overflow-hidden rounded-lg border border-line bg-sunken">
+              <img src={api.attachmentUrl(goalId, a.id)} alt={a.name} className="max-h-44 max-w-full object-contain" />
+            </a>
+          ))}
+        </div>
+      )}
+      {rest.length > 0 && <AttachmentList items={rest} goalId={goalId} compact />}
+    </div>
+  );
+}
+
 /**
  * One Conversation: the questions and answers, the answer being written with what the Explainer is reading, and the
- * composer. `readOnly`: an earlier Conversation, read and not continued. Shown in the bubble's window (compact) and on
- * the Conversation tab alike; on the tab the thread keeps to a readable column in the middle of the card.
+ * composer, which takes pictures and files too (the clip, a paste, a drop). `readOnly`: an earlier Conversation, read
+ * and not continued. Shown in the bubble's window (compact) and on the Conversation tab alike; on the tab the thread
+ * keeps to a readable column in the middle of the card.
  */
-export function ConversationThread({ conversation, live, items, readOnly = false, compact = false, busy = false, onAsk, onStop }: { conversation: Conversation | null; live: ConversationLive | undefined; items: StreamItem[]; readOnly?: boolean; compact?: boolean; /** a question is on its way to the server */ busy?: boolean; onAsk: (text: string) => void | Promise<void>; onStop: () => void | Promise<void> }) {
+export function ConversationThread({ conversation, live, items, readOnly = false, compact = false, busy = false, onAsk, onStop }: { conversation: Conversation | null; live: ConversationLive | undefined; items: StreamItem[]; readOnly?: boolean; compact?: boolean; /** a question is on its way to the server */ busy?: boolean; onAsk: (text: string, attachments: Attachment[]) => void | Promise<void>; onStop: () => void | Promise<void> }) {
   const [draft, setDraft] = useState('');
+  /** uploads already staged on the server, waiting to go with the next question */
+  const [files, setFiles] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [drag, setDrag] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLTextAreaElement>(null);
+  const picker = useRef<HTMLInputElement>(null);
   // the composer grows with the draft, one line to about eight
   useEffect(() => {
     const el = box.current;
@@ -116,17 +147,50 @@ export function ConversationThread({ conversation, live, items, readOnly = false
     shown.current = conversation?.id ?? null;
     if (opened || el.scrollHeight - el.scrollTop - el.clientHeight < 160) el.scrollTop = el.scrollHeight;
   }, [conversation?.id, messages.length, writing?.text, writing?.activity]);
+  const addFiles = async (list: FileList | File[]) => {
+    setUploadError(null);
+    const room = CONVERSATION_ATTACHMENTS_MAX - files.length;
+    const picked = Array.from(list);
+    if (picked.length > room) setUploadError(`a question takes at most ${CONVERSATION_ATTACHMENTS_MAX} files`);
+    for (const f of picked.slice(0, Math.max(0, room))) {
+      setUploading((n) => n + 1);
+      try {
+        const a = await api.upload(f);
+        if (f.type.startsWith('image/')) previews.set(a.id, URL.createObjectURL(f));
+        setFiles((cur) => (cur.length < CONVERSATION_ATTACHMENTS_MAX ? [...cur, a] : cur));
+      } catch (e: any) {
+        setUploadError(`${f.name}: ${e.message}`);
+      } finally {
+        setUploading((n) => n - 1);
+      }
+    }
+  };
+  const canSend = !readOnly && !busy && uploading === 0 && (!!draft.trim() || files.length > 0);
   const send = async () => {
+    if (!canSend) return;
     const text = draft.trim();
-    if (!text || readOnly || busy) return;
+    const attachments = files;
     setDraft('');
-    await onAsk(text);
+    setFiles([]);
+    setUploadError(null);
+    await onAsk(text, attachments);
   };
   const onKey = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
       e.preventDefault();
       void send();
     }
+  };
+  const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const pasted = Array.from(e.clipboardData?.files ?? []);
+    if (!pasted.length) return;
+    e.preventDefault();
+    void addFiles(pasted);
+  };
+  const onDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setDrag(false);
+    if (e.dataTransfer.files.length) void addFiles(e.dataTransfer.files);
   };
   const working = !!answering || queued.size > 0;
   const prose = compact ? 'text-sm' : 'text-[15px] leading-relaxed';
@@ -141,7 +205,7 @@ export function ConversationThread({ conversation, live, items, readOnly = false
             </p>
             <div className="flex flex-wrap gap-2">
               {STARTER_QUESTIONS.map((q) => (
-                <button key={q} type="button" disabled={busy} onClick={() => void onAsk(q)} className="rounded-full border border-line-strong bg-panel px-3 py-1.5 text-left text-[13px] font-semibold text-ink-soft transition-colors hover:border-accent hover:text-ink disabled:opacity-40">
+                <button key={q} type="button" disabled={busy} onClick={() => void onAsk(q, [])} className="rounded-full border border-line-strong bg-panel px-3 py-1.5 text-left text-[13px] font-semibold text-ink-soft transition-colors hover:border-accent hover:text-ink disabled:opacity-40">
                   {q}
                 </button>
               ))}
@@ -152,6 +216,7 @@ export function ConversationThread({ conversation, live, items, readOnly = false
           m.role === 'person' ? (
             <div key={m.id} className="flex flex-col items-end gap-1">
               <div className={cn('max-w-[85%] whitespace-pre-wrap rounded-xl rounded-br-sm bg-accent/10 px-3.5 py-2 text-ink ring-1 ring-inset ring-accent/30 [overflow-wrap:anywhere]', prose)}>{m.text}</div>
+              {m.attachments?.length && conversation ? <QuestionFiles goalId={conversation.goalId} items={m.attachments} /> : null}
               <div className="text-[11px] text-ink-faint">
                 {m.by ? `${m.by} · ` : ''}
                 {clock(m.at)}
@@ -189,29 +254,51 @@ export function ConversationThread({ conversation, live, items, readOnly = false
           <p className={cn(COLUMN, 'text-xs text-ink-faint')}>An earlier Conversation: read it here; the newest one is the one that goes on.</p>
         ) : (
           <div className={COLUMN}>
-            <div className="flex items-end gap-2">
+            {/* one box: the files going with the question, the words, and the clip and the send button on one row below them */}
+            <div
+              className={cn('rounded-xl border bg-panel transition-colors', drag ? 'border-accent ring-2 ring-accent/30' : 'border-line-strong focus-within:border-accent')}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDrag(true);
+              }}
+              onDragLeave={() => setDrag(false)}
+              onDrop={onDrop}
+            >
+              {files.length > 0 && (
+                <div className="px-2 pt-2">
+                  <AttachmentList items={files} compact onRemove={(a) => setFiles((cur) => cur.filter((x) => x.id !== a.id))} />
+                </div>
+              )}
               <textarea
                 ref={box}
                 rows={1}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={onKey}
-                placeholder="Ask about this goal…"
+                onPaste={onPaste}
+                placeholder={files.length ? 'Say what to look at in them… (or just send)' : 'Ask about this goal…'}
                 aria-label="Your question"
-                className="w-full min-h-[2.5rem] max-h-48 resize-none overflow-auto rounded-md border border-line-strong bg-panel px-3 py-2 text-sm text-ink placeholder:text-ink-faint focus:border-accent focus:outline-none"
+                className="block w-full min-h-[2.5rem] max-h-48 resize-none overflow-auto bg-transparent px-3 pt-2.5 pb-1 text-sm text-ink placeholder:text-ink-faint focus:outline-none"
               />
-              <div className="flex shrink-0 flex-col gap-1.5">
-                <Button variant="primary" size="sm" onClick={() => void send()} disabled={!draft.trim() || busy} title="Send (Enter)">
-                  <SendHorizontal size={14} aria-hidden="true" /> Ask
-                </Button>
+              <div className="flex items-center gap-1.5 px-1.5 pb-1.5">
+                <button type="button" onClick={() => picker.current?.click()} disabled={busy || files.length >= CONVERSATION_ATTACHMENTS_MAX} className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-ink-soft transition-colors hover:bg-sunken hover:text-ink disabled:opacity-40" title="Attach pictures or files; pasting or dropping them here works too" aria-label="Attach files">
+                  <Paperclip size={15} aria-hidden="true" />
+                </button>
+                <input ref={picker} type="file" multiple className="hidden" onChange={(e) => e.target.files && void addFiles(e.target.files).then(() => (e.target.value = ''))} />
+                {uploading > 0 && <span className="text-[11px] text-ink-faint">uploading…</span>}
+                {uploadError && <span className="min-w-0 truncate text-[11px] text-bad-ink">{uploadError}</span>}
+                <span className="flex-1" />
                 {working && (
                   <Button variant="danger" size="sm" onClick={() => void onStop()} title="Stop the answer being written; questions waiting their turn are let go">
                     <Square size={12} aria-hidden="true" /> Stop
                   </Button>
                 )}
+                <button type="button" onClick={() => void send()} disabled={!canSend} aria-label="Ask" title="Send (Enter)" className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent text-on-accent transition hover:bg-accent/85 disabled:cursor-not-allowed disabled:opacity-40">
+                  <SendHorizontal size={15} aria-hidden="true" />
+                </button>
               </div>
             </div>
-            {!compact && <p className="mt-1.5 text-[11px] text-ink-faint">Enter sends · Shift+Enter for a new line</p>}
+            {!compact && <p className="mt-1.5 text-[11px] text-ink-faint">Enter sends · Shift+Enter for a new line · pictures and files can be pasted or dropped in</p>}
           </div>
         )}
       </div>

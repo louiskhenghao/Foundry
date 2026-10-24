@@ -1,3 +1,4 @@
+import type { Attachment } from '@foundry/core/browser';
 /**
  * The Conversations of the goals this browser looks at (ADR-0073): each goal's view from the server, fetched when a page
  * shows it and again whenever one of its Conversation events arrives (never on the goal's other events: a question is
@@ -94,7 +95,7 @@ export function useConversations(goalId: string): ConversationsView | null {
 }
 
 /** a question: kept by the server at once, so the view is refreshed right after it is accepted */
-export async function askQuestion(goalId: string, text: string, opts: { conversationId?: string | null; fresh?: boolean } = {}): Promise<{ conversationId: string; messageId: string; channel: string }> {
+export async function askQuestion(goalId: string, text: string, opts: { conversationId?: string | null; fresh?: boolean; attachments?: Attachment[] } = {}): Promise<{ conversationId: string; messageId: string; channel: string }> {
   const r = await api.ask(goalId, { text, ...opts });
   await refreshConversations(goalId);
   return r;

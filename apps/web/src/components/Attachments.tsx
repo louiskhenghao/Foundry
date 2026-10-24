@@ -66,7 +66,8 @@ export function AttachmentViewer({ a, goalId, onClose }: { a: Attachment; goalId
 const fmtSize = (n: number | null) => (n == null ? '' : n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`);
 
 /** Local preview URL for staged images (before the goal exists) keyed by attachment id. */
-const previews = new Map<string, string>();
+/** object URLs of staged image uploads, by attachment id, for a thumbnail before the file has a goal to be served from */
+export const previews = new Map<string, string>();
 
 /**
  * Each kind of attachment in a category colour of its own (ADR-0067), the hues the kinds had before themes: images blue,

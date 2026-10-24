@@ -1,3 +1,4 @@
+import type { Attachment } from '@foundry/core/browser';
 import { MessageCircle, PanelsTopLeft, Plus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -17,8 +18,9 @@ export function BetaChip({ className }: { className?: string }) {
 
 /**
  * The bubble at the bottom right of a goal's page and its Brief page (ADR-0073): it opens the goal's newest Conversation
- * in a window beside the page (the page stays usable), pulses in the colour of work while an answer is being written,
- * and shows a dot when an answer came while it was closed. Nothing while the feature is off.
+ * in a window above it (the page stays usable), pulses in the colour of work while an answer is being written, and
+ * shows a dot when an answer came while it was closed. The window and the bubble share one corner, the window stacked
+ * over the bubble, so neither can cover the other. Nothing while the feature is off.
  */
 export function ConversationBubble({ goalId }: { goalId: string }) {
   const view = useConversations(goalId);
@@ -45,11 +47,11 @@ export function ConversationBubble({ goalId }: { goalId: string }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
   if (!view?.enabled) return null;
-  const ask = async (text: string) => {
+  const ask = async (text: string, attachments: Attachment[]) => {
     setBusy(true);
     setErr(null);
     try {
-      await askQuestion(goalId, text, { conversationId: fresh ? null : (current?.id ?? null), fresh });
+      await askQuestion(goalId, text, { conversationId: fresh ? null : (current?.id ?? null), fresh, attachments });
       setFresh(false);
     } catch (e: any) {
       setErr(e.message);
@@ -66,22 +68,9 @@ export function ConversationBubble({ goalId }: { goalId: string }) {
     }
   };
   return (
-    <>
-      {/* 48px round, above the page's content; a ring pings behind it in the colour of work while an answer is written */}
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        aria-label={open ? 'Close the Conversation' : 'Ask about this goal'}
-        aria-expanded={open}
-        title={working ? 'An answer is being written' : 'Ask about this goal'}
-        className={cn('fixed bottom-4 right-4 z-40 grid h-12 w-12 place-items-center rounded-full shadow-xl ring-1 ring-inset transition-colors', open ? 'bg-panel text-ink ring-line-strong hover:bg-line' : 'bg-accent text-on-accent ring-accent hover:bg-accent/85')}
-      >
-        {working && <span aria-hidden="true" className="absolute inset-0 -z-10 rounded-full bg-work motion-safe:animate-ping" />}
-        {open ? <X size={20} aria-hidden="true" /> : <MessageCircle size={22} aria-hidden="true" />}
-        {unseen && <span aria-label="an answer came" className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full bg-work ring-2 ring-page" />}
-      </button>
+    <div className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-3">
       {open && (
-        <section aria-label="Conversation about this goal" className="fixed bottom-20 right-4 z-40 flex h-[70vh] w-[420px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-line bg-panel shadow-2xl max-sm:inset-0 max-sm:bottom-0 max-sm:right-0 max-sm:h-auto max-sm:w-auto max-sm:max-w-none max-sm:rounded-none">
+        <section aria-label="Conversation about this goal" className="flex h-[70vh] max-h-[calc(100vh-6rem)] w-[420px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-line bg-panel shadow-2xl max-sm:fixed max-sm:inset-0 max-sm:h-auto max-sm:max-h-none max-sm:w-auto max-sm:max-w-none max-sm:rounded-none">
           <header className="flex items-center gap-2 border-b border-line px-3 py-2">
             <MessageCircle size={15} className="shrink-0 text-ink-soft" aria-hidden="true" />
             <h3 className="min-w-0 flex-1 truncate text-sm font-bold text-ink" title={shown?.title || 'Conversation'}>
@@ -104,6 +93,19 @@ export function ConversationBubble({ goalId }: { goalId: string }) {
           <ConversationThread conversation={shown} live={live} items={items} compact busy={busy} onAsk={ask} onStop={stop} />
         </section>
       )}
-    </>
+      {/* 48px round; a ring pings behind it in the colour of work while an answer is written */}
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        aria-label={open ? 'Close the Conversation' : 'Ask about this goal'}
+        aria-expanded={open}
+        title={working ? 'An answer is being written' : 'Ask about this goal'}
+        className={cn('relative grid h-12 w-12 shrink-0 place-items-center rounded-full shadow-xl ring-1 ring-inset transition-colors', open ? 'bg-panel text-ink ring-line-strong hover:bg-line' : 'bg-accent text-on-accent ring-accent hover:bg-accent/85')}
+      >
+        {working && <span aria-hidden="true" className="absolute inset-0 -z-10 rounded-full bg-work motion-safe:animate-ping" />}
+        {open ? <X size={20} aria-hidden="true" /> : <MessageCircle size={22} aria-hidden="true" />}
+        {unseen && <span aria-label="an answer came" className="absolute -right-0.5 -top-0.5 h-3.5 w-3.5 rounded-full bg-work ring-2 ring-page" />}
+      </button>
+    </div>
   );
 }

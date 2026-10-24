@@ -1,3 +1,4 @@
+import type { Attachment } from '@foundry/core/browser';
 import { MessageCircle, MessageSquarePlus } from 'lucide-react';
 import { useState } from 'react';
 import { BetaChip } from '../../components/conversation/ConversationBubble.tsx';
@@ -28,11 +29,11 @@ export function ConversationTab({ goalId }: { goalId: string }) {
         Settings → Beta switches it on: a read-only Explainer that answers your questions about this goal's code and Foundry's records of it.
       </EmptyState>
     );
-  const ask = async (text: string) => {
+  const ask = async (text: string, attachments: Attachment[]) => {
     setBusy(true);
     setErr(null);
     try {
-      await askQuestion(goalId, text, { conversationId: fresh ? null : (shown?.id ?? null), fresh });
+      await askQuestion(goalId, text, { conversationId: fresh ? null : (shown?.id ?? null), fresh, attachments });
       setFresh(false);
       select(goalId, null);
     } catch (e: any) {
