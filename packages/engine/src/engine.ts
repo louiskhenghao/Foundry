@@ -1,4 +1,4 @@
-import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow } from '@foundry/core';
+import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, assignMaterials } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
 import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
 import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
@@ -91,6 +91,7 @@ import { startOver, structuralChanges } from './delivery/start-over.ts';
 import { runDocsAfterMerge, runDocsGeneration } from './docs-generate.ts';
 import { checkGoalPrs, checkOpenPrs, markDelivered, recheckPr } from './delivery/pr-watch.ts';
 import { startReviewRun } from './delivery/reviews.ts';
+import { markMaterial } from './materials.ts';
 import { attachmentDir, claimStaged, conversionTmpPath, markdownFileName, sweepStaging, trashAttachment } from './attachments.ts';
 import { Markitdown } from './convert/markitdown.ts';
 import { SettingsError, SettingsStore, applySettingsToConfig } from './settings.ts';
@@ -2526,14 +2527,42 @@ export class Engine {
       : { id: 'rea-native', label: 'REA native engines (optional)', ok: false, severity: 'warn' as const, detail: 'no Hopper, Ghidra or IDA found — REA analyses websites, JavaScript/Electron apps, .NET and Android packages; native apps and binaries need one of them (Ghidra is free: install it and set GHIDRA_INSTALL_DIR)', fix: { url: 'https://github.com/morluto/rea/blob/main/docs/installation.md' } };
   }
 
-  /** Attach a staged upload or a link to an existing goal; later sessions see it. */
-  addAttachment(goalId: string, att: Attachment): Attachment {
+  /**
+   * Attach a staged upload or a link to an existing goal; later sessions see it. `marks` say what it answers (a Request,
+   * a material of the Brief; ADR-0074). One that answers nothing, added while the goal runs, is announced to the tasks
+   * not yet started (a running attempt learns of it at its next continuation).
+   */
+  addAttachment(goalId: string, att: Attachment, marks: { requestId?: string | null; materialKey?: string | null } = {}): Attachment {
     const goal = this.mustGoal(goalId);
-    const [claimed] = claimStaged(this.config.dataDir, goalId, [this.latestStaged(att)], goal.attachments.length);
+    const [first] = claimStaged(this.config.dataDir, goalId, [this.latestStaged(att)], goal.attachments.length);
+    const claimed: Attachment = { ...first!, requestId: marks.requestId ?? first!.requestId ?? null, materialKey: marks.materialKey ?? first!.materialKey ?? null };
     this.staged.delete(att.id);
-    this.store.append({ type: 'goal.attachment_added', goalId, payload: { attachment: claimed! } });
-    if (claimed!.markdown?.status === 'pending') void this.runConversion(claimed!);
-    return claimed!;
+    this.store.append({ type: 'goal.attachment_added', goalId, payload: { attachment: claimed } });
+    if (claimed.markdown?.status === 'pending') void this.runConversion(claimed);
+    if (!claimed.requestId && !claimed.materialKey && goal.state === 'running') {
+      const line = `The person added an attachment: ${claimed.name}${claimed.kind === 'link' && claimed.url ? ` (${claimed.url})` : ''} — see "Attachments from the user".`;
+      for (const t of listTasks(this.store.db, goalId).filter((t) => t.state === 'pending' || t.state === 'ready')) {
+        this.store.append({ type: 'task.hint_set', goalId, payload: { taskId: t.id, hint: t.hint ? `${t.hint}\n${line}` : line, extraAttempts: 0 } });
+      }
+    }
+    return claimed;
+  }
+
+  /** the goal's Brief as it stands, or undefined before Clarify wrote one */
+  briefOf(goalId: string): Brief | undefined {
+    return getBrief(this.store.db, goalId)?.brief;
+  }
+
+  /**
+   * A material the person promised in the Brief arrived (ADR-0074): its files and links become attachments of the goal
+   * marked with it, the Brief records it, the Requests waiting for it are answered and their tasks go on, and a task
+   * that built with a placeholder gets a swap-in task. `waived`: the person has none; the tasks go on with a stand-in.
+   */
+  receiveMaterial(goalId: string, key: string, i: { attachments?: Attachment[]; note?: string | null; by?: string | null; waived?: boolean } = {}): void {
+    const goal = this.mustGoal(goalId);
+    if (!(this.briefOf(goalId)?.provides ?? []).some((p) => p.key === key)) throw new Error(`the Brief names no material "${key}"`);
+    const given = (i.attachments ?? []).map((a) => this.addAttachment(goalId, a, { materialKey: key }));
+    markMaterial(this, this.mustGoal(goal.id), key, { attachmentIds: given.map((a) => a.id), note: i.note?.trim() || null, by: i.by ?? null, waived: !!i.waived });
   }
 
   removeAttachment(goalId: string, attachmentId: string): void {
@@ -2649,6 +2678,12 @@ export class Engine {
     const now = new Date().toISOString();
     const idByKey = new Map<string, string>();
     for (const t of brief.tasks) idByKey.set(t.key, newId(IdPrefix.task));
+    // which tasks need each material (ADR-0074): the tasks' own `needs`, or their words, or all of them
+    if (brief.provides?.length) {
+      const assigned = assignMaterials(brief.tasks, brief.provides);
+      brief.tasks = assigned.tasks;
+      brief.provides = assigned.provides;
+    }
     this.store.append({ type: 'brief.approved', goalId, payload: { brief, by: by ?? null } });
     for (const t of brief.tasks) {
       const area = brief.areas.find((a) => a.key === t.areaKey) ?? null;
@@ -2687,6 +2722,7 @@ export class Engine {
         commitMessage: null,
         hint: null,
         extraAttempts: 0,
+        needs: (t.needs ?? []).filter((k) => (brief.provides ?? []).some((p) => p.key === k)),
         delegatedGoalId: null,
         summary: null,
         createdAt: now,

@@ -1,11 +1,12 @@
+import type { NeedsBlock } from '@foundry/core';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { reportsDollars } from '@foundry/core';
+import { reportsDollars, parseNeedsBlock, withoutNeedsBlock } from '@foundry/core';
 import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@foundry/core';
 import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
 import { LIMIT_TEXT, resumeRefused, type RunResult } from '@foundry/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
-import { buildAttemptPrompt, styleApplies, summarizeReport } from './attempt-prompt.ts';
+import { buildAttemptPrompt, styleApplies, summarizeReport, renderProvides } from './attempt-prompt.ts';
 import { MCP_SERVER_PREFIX } from './memory/memory.ts';
 import { memoryQuestion, memorySection } from './memory/prompt.ts';
 import type { CatchUp } from './catchup.ts';
@@ -32,10 +33,22 @@ export interface AttemptOutcome {
   nonBoundaryDenials: RunResult['permissionDenials'];
   /** this segment committed a workspace snapshot (it changed something) */
   committed: boolean;
+  /** the worker stopped to ask the person for something (ADR-0074); the task waits for the answer */
+  needs: NeedsBlock | null;
 }
 
 /** Why an attempt's session is resumed instead of a new attempt being started. */
-export type ContinueReason = 'orphaned' | 'max_turns' | 'max_budget' | 'timeout' | 'checks_failed' | 'usage_limit';
+export type ContinueReason = 'orphaned' | 'max_turns' | 'max_budget' | 'timeout' | 'checks_failed' | 'usage_limit' | 'needs_input';
+
+/** what the person answered a Request with (ADR-0074), for the session that asked */
+export interface RequestAnswer {
+  words: string | null;
+  /** files given, as the session reads them (absolute paths) */
+  files: { name: string; path: string }[];
+  links: string[];
+  /** there is no such thing: go on with a stand-in */
+  proceedWithout: boolean;
+}
 
 export interface Continuation {
   attempt: Attempt;
@@ -44,7 +57,7 @@ export interface Continuation {
 }
 
 /** The message that resumes a session. It never restates the task: the session still has all of that. */
-export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string } = {}): string {
+export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string; answer?: RequestAnswer } = {}): string {
   switch (reason) {
     case 'usage_limit':
       return 'Your session was stopped by a usage limit before you finished. The workspace is exactly as you left it (uncommitted edits were snapshotted). Continue from where you stopped; do not redo finished steps. When done, reply with the usual short summary.';
@@ -62,6 +75,16 @@ export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: 
 ${ctx.report ?? '(see above)'}
 
 Fix them; everything else you did is kept. Do not start over. When done, reply with the usual short summary.`;
+    case 'needs_input': {
+      const a = ctx.answer;
+      const head = a?.proceedWithout
+        ? 'The person decided: there is no such thing, and you are to PROCEED WITHOUT IT. Where the task\'s words forbid a stand-in, this decision overrides them: use a placeholder or a substitute, keep the swap easy, finish the task, and say in your summary what stands in for it.'
+        : 'The person answered your request.';
+      const words = a?.words?.trim() ? `\n\nTheir words:\n${a.words.trim()}` : '';
+      const files = a?.files.length ? `\n\nWhat they gave, read it from these paths:\n${a.files.map((f) => `- ${f.path} (${f.name})`).join('\n')}` : '';
+      const links = a?.links.length ? `\n\nLinks they gave:\n${a.links.map((l) => `- ${l}`).join('\n')}` : '';
+      return `${head}${words}${files}${links}\n\nThe workspace is exactly as you left it (your edits were snapshotted). Continue from where you stopped; do not redo finished steps. When done, reply with the usual short summary.`;
+    }
   }
 }
 
@@ -188,7 +211,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const style = brief && styleApplies(task.scenario) ? chosenStyle(brief) : null;
   // the real things the result depicts, with their pictures (outside the worktree: their folder is added to the session)
   const subjects = renderSubjects(config.dataDir, goal.id, brief, 'worker', task.scenario);
-  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, memory, style, subjects, baseMoved: opts.baseMoved ?? null });
+  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), provides: renderProvides(goal, brief, task, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, memory, style, subjects, baseMoved: opts.baseMoved ?? null });
   const prompt = resume ? resume.message : freshPrompt(relevantContext, prevReport);
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection (continuations append)
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });
@@ -255,7 +278,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     // the coding agent could not pick the session up (another account's home or signatures, a cleaned record): a new
     // session takes over in the same workspace, told what the earlier one did (ADR-0065)
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `attempt ${attempt.id}: its session could not be resumed (${(result.errorMessage ?? result.subtype).slice(0, 160)}); a new session takes over with a handoff` } });
-    const why = resume.reason === 'usage_limit' ? 'stopped by a usage limit' : resume.reason === 'orphaned' ? 'interrupted by an engine restart' : `cut short: ${resume.reason.replace('_', ' ')}`;
+    const why = resume.reason === 'usage_limit' ? 'stopped by a usage limit' : resume.reason === 'orphaned' ? 'interrupted by an engine restart' : resume.reason === 'needs_input' ? 'paused to ask the person for something, which they have now answered (see the hint)' : `cut short: ${resume.reason.replace('_', ' ')}`;
     const handoff = await handoffSection({ cwd, attemptBaseRef: attempt.baseRef, taskBaseRef, transcriptPath: attempt.transcriptPath, provider: goal.provider ?? 'claude', why });
     const latest = prior.length ? getObservation(store.db, prior[prior.length - 1]!.id) : null;
     const text = `${freshPrompt(await engine.context.locate(goal, task).catch(() => null), latest)}\n\n${handoff}`;
@@ -267,6 +290,21 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
 
   const commit = await commitAll(cwd, taskCommitMessage(goal, task, { attempt: index }));
   if (commit.committed) store.append({ type: 'workspace.committed', goalId: goal.id, payload: { taskId: task.id, attemptId: attempt.id, ref: commit.ref } });
+  // the worker stopped to ask the person for something it cannot finish without (ADR-0074): what it did is committed,
+  // the attempt waits as interrupted (no retry spent) and its session resumes with the answer; nothing is checked now
+  const needs = !limited && !result.isError && result.subtype === 'success' ? parseNeedsBlock(result.finalText) : null;
+  if (needs) {
+    const soFarNeeds = resume ? (getAttempt(store.db, attempt.id) ?? attempt) : null;
+    store.append({
+      type: 'attempt.finished',
+      goalId: goal.id,
+      payload: { attemptId: attempt.id, state: 'interrupted', resultSubtype: 'needs_input', costUsd: (soFarNeeds?.costUsd ?? 0) + result.costUsd, numTurns: (soFarNeeds?.numTurns ?? 0) + result.numTurns, endRef: commit.ref, permissionDenials: [], skillsUsed: result.skillsUsed ?? [], toolsUsed: result.toolsUsed ?? {} },
+    });
+    const report: ObservationReport = { attemptId: attempt.id, taskId: task.id, goalId: goal.id, results: [], reviewerVerdict: null, changedFiles: [], summary: `The worker stopped to ask the person for something: ${needs.what}\n\nWorker's own summary:\n${withoutNeedsBlock(result.finalText ?? '').slice(0, 1500)}`, allMustPassed: false, failedCount: 0 };
+    store.append({ type: 'observation.reported', goalId: goal.id, payload: { report } });
+    store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: attempt.id, state: 'interrupted', reason: `waiting for the person: ${needs.what.slice(0, 160)}` } });
+    return { attempt: getAttempt(store.db, attempt.id) ?? attempt, report, result, passed: false, nonBoundaryDenials: [], committed: commit.committed, needs };
+  }
   // an attempt's cost and turns are cumulative over its continuations
   const soFar = resume ? (getAttempt(store.db, attempt.id) ?? attempt) : null;
   store.append({
@@ -359,5 +397,5 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
 
   const nonBoundaryDenials = result.permissionDenials.filter((d) => !(d.tool_name === 'Bash' && isBoundaryCommand((d.tool_input as any)?.command)));
   store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: attempt.id, state: allMustPassed ? 'passed' : 'failed', reason: allMustPassed ? 'all must checks passed' : `${failedCount} failing` } });
-  return { attempt: getAttempt(store.db, attempt.id) ?? attempt, report, result, passed: allMustPassed, nonBoundaryDenials, committed: commit.committed };
+  return { attempt: getAttempt(store.db, attempt.id) ?? attempt, report, result, passed: allMustPassed, nonBoundaryDenials, committed: commit.committed, needs: null };
 }

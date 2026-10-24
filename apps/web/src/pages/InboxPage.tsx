@@ -1,12 +1,13 @@
 import { reportsDollars } from '@foundry/core/browser';
-import type { EscalationAction } from '@foundry/core/browser';
-import { ACTIONS_BY_TRIGGER } from '@foundry/core/browser';
+import type { Attachment, EscalationAction } from '@foundry/core/browser';
+import { ACTIONS_BY_TRIGGER, needsOf } from '@foundry/core/browser';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Ban, CheckCircle2, Eye, GitPullRequest, HelpCircle, RotateCcw, ShieldAlert, Sparkles, Wallet, type LucideIcon } from 'lucide-react';
+import { AlertTriangle, Ban, CheckCircle2, Eye, GitPullRequest, HandHelping, HelpCircle, RotateCcw, ShieldAlert, Sparkles, Wallet, type LucideIcon } from 'lucide-react';
 import { api, apiForProvider, type EscalationRow } from '../api.ts';
 import { FullTextDialog, OpenFullButton } from '../components/FullTextDialog.tsx';
-import { MarkdownPanel } from '../components/Markdown.tsx';
+import { AttachmentInput } from '../components/Attachments.tsx';
+import { Markdown, MarkdownPanel } from '../components/Markdown.tsx';
 import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { suggestEscalation, useEscalationDraft, useEscalationDrafts, useLive } from '../store.ts';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
@@ -22,6 +23,7 @@ const TRIGGER_LABEL: Record<string, string> = {
   permission_denial: 'Tool denied',
   milestone: 'Have a look',
   delivery_failed: 'Delivery stopped',
+  needs_input: 'Needs something from you',
 };
 /** one plain sentence per trigger, for people who do not want to read the details */
 const PLAIN: Record<string, string> = {
@@ -32,6 +34,7 @@ const PLAIN: Record<string, string> = {
   permission_denial: 'The agent could not use one of the tools it needed.',
   milestone: 'A milestone landed. Look at the result, then continue or say what to change.',
   delivery_failed: 'The delivery stopped. The reason is below; fix it, then retry — or mark it delivered if you finished it yourself.',
+  needs_input: 'A task needs something only you can give. What, why and where to get it are below: give it here, or say there is none and it goes on with a stand-in.',
 };
 const ACTION_LABEL: Record<EscalationAction, string> = {
   retry_with_hint: 'Retry with hint',
@@ -45,6 +48,8 @@ const ACTION_LABEL: Record<EscalationAction, string> = {
   feedback: 'Give feedback',
   retry_delivery: 'Retry delivery',
   mark_delivered: 'Mark as delivered',
+  provide: 'Send what I gave',
+  proceed_without: 'Continue without it',
 };
 
 export function InboxPage() {
@@ -120,6 +125,9 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   const [answerErr, setErr] = useState<string | null>(null);
   const err = answerErr ?? draft.error;
   const [full, setFull] = useState(false);
+  // a Request (ADR-0074): what the task asks for, and the files and links given with the answer (staged until sent)
+  const need = needsOf(e);
+  const [given, setGiven] = useState<Attachment[]>([]);
   // the details panel scrolls at 260px; a long report also opens in the full-text dialog
   const long = e.message.length > 1200 || e.message.split('\n').length > 12;
   const actions = ACTIONS_BY_TRIGGER[e.trigger];
@@ -168,6 +176,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
         extraAttempts: action === 'retry_with_hint' ? attempts : undefined,
         newMaxCostUsd: reportsDollars(e.provider) && action === 'raise_budget' && cost ? Number(cost) : undefined,
         newMaxDurationMin: action === 'raise_budget' && minutes ? Number(minutes) : undefined,
+        attachments: action === 'provide' ? given : undefined,
       });
     } catch (x: any) {
       setErr(x.message);
@@ -181,7 +190,7 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
   const plain = kind === 'merge' ? 'Two pieces of work changed the same files and the automatic merge could not combine them.' : kind === 'engine' ? 'The engine itself hit an error (not the model).' : kind === 'desktop' ? 'It wants to open a desktop app or hand a file to a printer on this computer (Settings → Safety → Desktop apps & printers is off) and needs your OK.' : (PLAIN[e.trigger] ?? '');
   const choices = actions.filter((a) => a !== 'resolve_manually' && a !== 'feedback');
   const label = (a: EscalationAction) => (a === 'skip_task' && !e.taskId ? 'Accept as-is (finish goal)' : ACTION_LABEL[a]);
-  const variant = (a: EscalationAction) => (a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' || a === 'retry_delivery' ? 'primary' : 'default');
+  const variant = (a: EscalationAction) => (a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' || a === 'retry_delivery' || a === 'provide' ? 'primary' : 'default');
   const provider = e.provider ? PROVIDER_STYLE[e.provider] : null;
   /** the card's side padding: tighter inside the task view */
   const pad = embedded ? 'px-3 sm:px-4' : 'px-4 sm:px-5';
@@ -300,6 +309,37 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
             </Button>
           </div>
         )}
+        {/* a Request: what the task asks for, why, where to get it; then the answer — words, files and links */}
+        {need && (
+          <div className="space-y-1.5 text-sm text-ink">
+            <p>
+              <span className={cn(LABEL, 'mr-2')}>What</span>
+              {need.what}
+            </p>
+            {need.why && (
+              <p>
+                <span className={cn(LABEL, 'mr-2')}>Why</span>
+                {need.why}
+              </p>
+            )}
+            {need.suggestions && (
+              <div>
+                <span className={LABEL}>Where to get it</span>
+                <Markdown source={need.suggestions} className="mt-0.5" />
+              </div>
+            )}
+            <p className="text-xs text-ink-faint">
+              {need.source === 'foundry' ? 'You said you would provide this when the goal was planned; the task waits for it.' : need.canProceedWithout ? 'The task could go on without it, with a placeholder.' : 'The task cannot go on without it.'}
+            </p>
+          </div>
+        )}
+        {open && actions.includes('provide') && (
+          <div className="space-y-1.5">
+            <span className={LABEL}>Your answer</span>
+            <AttachmentInput items={given} onChange={setGiven} />
+            <Textarea className="min-h-[60px] resize-y" rows={2} placeholder="A word with it: which file is which, where it is, or why there is none…" value={hint} onChange={(x) => setHint(x.target.value)} />
+          </div>
+        )}
         {/* what the answer carries: a hint and its extra attempts, or the new limits */}
         {open && actions.includes('retry_with_hint') && (
           <div className="space-y-1.5">
@@ -413,6 +453,7 @@ const TRIGGER_ICON: Record<string, LucideIcon> = {
   permission_denial: Ban,
   milestone: Eye,
   delivery_failed: GitPullRequest,
+  needs_input: HandHelping,
 };
 /** buttons in the footer, quieter first so the main answer sits rightmost */
 const RANK: Record<string, number> = { default: 0, danger: 1, primary: 2 };

@@ -95,6 +95,10 @@ Delegated goal 和 follow-up 会带着来源 goal 的 Subject 和图片开始，
 
 **Assumptions (accepted unless you uncheck)**：除非你另有说法，否则 Foundry 会当作事实的事情，比如"现有的登录保持不变"。保持勾选就表示你同意。把不对的那条取消勾选；它会被划掉，并变成一个决定（"assumption rejected"）。
 
+## You will provide
+
+你在 Clarify 时说"之后会给"的东西——真实的 3D 模型、最终的 logo 文件、照片、文案、密钥——会列在这里，每项标出需要它的任务，并让你选：**wait for it**（需要它的任务等它到了才开始；任务就绪时 Foundry 会在 Inbox 里向你要）或 **placeholder first**（先用占位做，真东西到了再加一个换入任务）。趁 Brief 还能改的时候选。**Give it** 可以交文件、链接并附一句话；**I have none** 表示没有，任务用替代品继续。goal 运行时它的页面上也有同一张列表，手头有了随时可以交。
+
 ## Decisions
 
 **Decisions (N)** 列出你给出的每一个答案、写下的每一条备注和否决的每一个假设，包括你在访谈中的回答和备注。每个执行者、审查员和 pull request 都会一字不差地收到它们。

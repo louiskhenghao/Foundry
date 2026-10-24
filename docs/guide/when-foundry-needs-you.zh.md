@@ -8,7 +8,7 @@ Brief 一经批准，Foundry 就会自己往下做。只有本页列出的情况
 
 goal 运行时你看到的其它信息都属正常，不需要你做什么。本页后半部分解释这些信息。
 
-## Foundry 停下来的八种原因
+## Foundry 停下来的九种原因
 
 每一种都是一张卡片，卡片顶部是一条黄色横条，和所有等你处理的事一样：表示停下原因的图标、用大字写明是什么停了下来、已经等了多久，以及一句白话说明；不在任务里显示时，还会写明是哪个 goal、哪个任务。接着是详情，再下面是你的回答要带上的内容（提示和额外尝试次数，或者新的限额）。按钮在卡片底部：左边是 AI 帮忙，右边是你的回答，主要的那个在最右边。回答之后，底部会写明选了什么。
 
@@ -80,6 +80,18 @@ goal 达到了你设的费用或时间上限。按 **Raise budget**（留空就�
 - 如果你自己完成了交付，就按 **Mark as delivered**。Foundry 会先读 pull request：已经合并的，就按合并完成（更新你自己的文件夹并清理 goal）；否则只记为由你完成。
 
 如果你自己在 GitHub 上合并了 pull request，Foundry 会在几分钟内（或你打开 goal 时）发现，并关掉这一项。不是 Foundry 能读取日志的 CI 检查 —— 比如部署集成的状态 —— 不会派修复任务去"修"；Foundry 会停下来告诉你是哪个检查。常见原因：部署集成只接受其团队成员的提交。见 [Settings → Git & delivery](./settings.zh.md#git--delivery) 里的 **Commit author**。
+
+### 它需要只有你能给的东西
+
+**Inbox：** *Needs something from you* —— 任务要什么、为什么、去哪里拿（链接、步骤、格式），下面有文字框、文件和链接的上传槽，以及 **Send what I gave**、**Continue without it** 或 **Skip task**。**goal 页面：** 同一张卡片，还有 **You will provide** 列表。
+
+worker 只会为它自己找不到、也决定不了的东西停下来：你的真实 3D 模型、logo 文件或照片、某个服务的密钥、只有你能做的决定。做到一半的工作会保留，不消耗尝试次数，任务等着。你在 Clarify 时承诺之后会给、且选了 **wait for it** 的材料，等需要它的任务就绪时，Foundry 会自己来要，不会先启动 worker（见 [You will provide](./approving-the-brief.zh.md#you-will-provide)）。
+
+- **Send what I gave**：文件和链接成为 goal 的附件，标上是回应这个请求的；同一个会话带着它们和你的话继续。
+- **Continue without it**：没有这东西；任务用占位或替代品继续，并在总结里说明。
+- **Skip task**：和别处一样，后面的任务继续。
+
+在 Telegram 或 Discord 里回复的文字算作你的话；文件要在页面上传。只剩等你这一件事时，goal 显示为 **blocked**，计时停止。
 
 ### 里程碑可以看了
 

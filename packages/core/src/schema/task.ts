@@ -15,7 +15,7 @@ export type TaskDifficulty = 'simple' | 'standard' | 'complex';
 /** the task id a goal's final walkthrough uses where a milestone's task id goes (its checkpoint, its feedback fixes) */
 export const FINAL_WALK = 'final';
 
-export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix', 'audit-fix', 'likeness-fix', 'review-fix', 'qa-fix']);
+export const TaskOrigin = z.enum(['brief', 'goal-review-fix', 'merge', 'delivery-fix', 'feedback-fix', 'audit-fix', 'likeness-fix', 'review-fix', 'qa-fix', 'material-swap']);
 
 /**
  * What kind of work a task is; selects the workflow discipline the worker is asked to follow (tdd vs diagnosing-bugs …).
@@ -83,6 +83,8 @@ export const Task = z.object({
   /** human hint injected into the next attempt (from an escalation answer) */
   hint: z.string().nullable(),
   extraAttempts: z.number().int().nonnegative(),
+  /** the Brief materials (`provides[].key`) this task needs (ADR-0074); in wait mode the task does not start before they arrive */
+  needs: z.array(z.string()).optional(),
   /** a `goal` task: the Delegated goal doing it (set once it is created; a restart of this task starts a new one) */
   delegatedGoalId: z.string().nullable().default(null),
   /** what this task delivered, written when it landed, for the tasks that depend on it (a Delegated goal's summary; null = none yet) */

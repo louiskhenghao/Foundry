@@ -32,6 +32,7 @@ const TRIGGER_COPY: Record<EscalationTrigger, string> = {
   permission_denial: 'the coding agent refused a tool call',
   milestone: 'a milestone landed — have a look, then continue or say what to change',
   delivery_failed: 'the delivery stopped — the reason and a Retry are in the Inbox',
+  needs_input: 'a task needs something only you can give — see what, and where to get it, in the Inbox',
 };
 
 /** Event → message for the non-escalation families; null = nothing to say about this event. */

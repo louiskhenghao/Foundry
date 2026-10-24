@@ -8,7 +8,7 @@ Each Inbox card carries the full report under **details**. The box scrolls; for 
 
 Everything else you see while a goal runs is normal and needs nothing from you. The second half of this page explains those messages.
 
-## The eight reasons Foundry stops
+## The nine reasons Foundry stops
 
 Each one is a card whose head is a yellow strip, as everything that waits for you is: an icon for the kind of stop, what stopped in large letters, how long it has waited, and one plain sentence; outside its task it also says which goal and task. The details come next, then what your answer carries (a hint and its extra attempts, or new limits). The buttons sit in the card's footer: help from the AI on the left, your answers on the right with the main one last. Once answered, the footer says what was chosen.
 
@@ -80,6 +80,18 @@ The work is done, but pushing it or getting the pull request merged did not go t
 - **Mark as delivered** if you finished it yourself. Foundry reads the pull requests first: if they are merged it finishes as merged (your own folder is updated and the goal tidied up); otherwise it only records it as delivered by you.
 
 If you merge the pull request on GitHub yourself, Foundry notices within a few minutes (or when you open the goal) and closes this item. A check that is not a CI run Foundry can read — a deploy integration's status, for example — is never "fixed" by a fix task; Foundry stops and tells you which check it is. A common cause: a deploy integration that only accepts commits from members of its team. See **Commit author** in [Settings → Git & delivery](./settings.md#git--delivery).
+
+### It needs something only you can give
+
+**Inbox:** *Needs something from you* — what the task asks for, why, and where to get it (links, steps, formats), with a box for your words, an upload slot for files and links, and **Send what I gave**, **Continue without it** or **Skip task**. **Goal page:** the same card, and the **You will provide** list.
+
+A worker stops here only for what it cannot find or decide itself: your real 3D models, logo files or photos, a key for a service, a decision that is yours. What it did so far is kept, no attempt is used up, and the task waits. Foundry asks on its own, without starting a worker, when a task is ready that needs something you promised during Clarify in **wait for it** mode (see [You will provide](./approving-the-brief.md#you-will-provide)).
+
+- **Send what I gave**: the files and links become attachments of the goal, marked with this request, and the same session goes on with them and your words.
+- **Continue without it**: there is none; the task goes on with a placeholder or a substitute and says so in its summary.
+- **Skip task**: as elsewhere, the tasks after it continue.
+
+A reply in Telegram or Discord counts as your words; files come through the page. While the only thing left is waiting for you, the goal shows **blocked** and its clock stops.
 
 ### A milestone is ready to look at
 

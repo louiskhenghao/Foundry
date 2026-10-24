@@ -1,10 +1,11 @@
 import { reportsDollars } from '@foundry/core';
 import type { Escalation, EscalationAnswer, EscalationTrigger, Goal, Task } from '@foundry/core';
-import { ACTIONS_BY_TRIGGER, IdPrefix, getEscalation, getGoal, getTask, listEscalations, newId } from '@foundry/core';
+import { ACTIONS_BY_TRIGGER, IdPrefix, getEscalation, getGoal, getTask, listEscalations, needsOf, newId } from '@foundry/core';
 import type { Engine } from './engine.ts';
 import { exec } from './git/git.ts';
 import { applyFeedback, closeCheckpoint } from './checkpoint.ts';
 import { type FixSpec, createFixTasks, genericFixSpec } from './fix-tasks.ts';
+import { markMaterial } from './materials.ts';
 import { goalWorkspacePath } from './workspace.ts';
 import { takeBackStuck, type StuckCommit } from './take-back.ts';
 
@@ -117,6 +118,24 @@ async function applyAnswer(engine: Engine, id: string, answer: EscalationAnswer,
       } else if (task.state === 'blocked') store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'blocked', to: 'ready', reason: 'human: retry with hint' } });
       break;
     }
+    case 'provide':
+    case 'proceed_without': {
+      // a Request (ADR-0074): what the person gave becomes attachments of the goal marked with it; the task goes on — a
+      // worker's session resumes with the answer (scheduler), a material Foundry asked for is recorded as arrived
+      const need = needsOf(esc);
+      const given = (answer.attachments ?? []).map((a) => engine.addAttachment(goal.id, a, { requestId: esc.id, materialKey: need?.materialKey ?? null }));
+      const words = answer.hint?.trim() || null;
+      if (need?.materialKey) markMaterial(engine, goal, need.materialKey, { attachmentIds: given.map((a) => a.id), note: words, by: by ?? null, waived: answer.action === 'proceed_without' });
+      if (task) {
+        // for a session that cannot be resumed: the answer rides on the task's hint into the fresh attempt
+        if (need?.source !== 'foundry') {
+          const line = answer.action === 'proceed_without' ? `Your request "${need?.what ?? esc.message}" has no answer: the person has no such thing${words ? ` (${words})` : ''}; proceed with a placeholder or a substitute.` : `Your request "${need?.what ?? esc.message}" was answered${words ? `: ${words}` : ''}${given.length ? ` — see ${given.map((a) => a.name).join(', ')} under Attachments from the user` : ''}.`;
+          store.append({ type: 'task.hint_set', goalId: goal.id, payload: { taskId: task.id, hint: task.hint ? `${task.hint}\n${line}` : line, extraAttempts: 0 } });
+        }
+        if (task.state === 'blocked') store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'blocked', to: 'ready', reason: answer.action === 'provide' ? 'human: provided what was asked' : 'human: proceed without it' } });
+      }
+      break;
+    }
     case 'skip_task': {
       // goal-level review escalation: "skip" = accept the result as-is and finish — re-running the same
       // review would fail the same checks and escalate again (a paid loop with no exit)
@@ -183,6 +202,13 @@ async function applyAnswer(engine: Engine, id: string, answer: EscalationAnswer,
     }
   }
 
+  unblockGoalIfFree(engine, goal.id, resumeTo);
+}
+
+/** the goal leaves `blocked` once nothing keeps it there: a budget or goal-level escalation, or a commit git would not take back */
+export function unblockGoalIfFree(engine: Engine, goalId: string, resumeTo: 'running' | null = null): void {
+  const { store } = engine;
+  const goal = getGoal(store.db, goalId)!;
   // unblock the goal if nothing else keeps it blocked: a commit a merge attempt left that git would not take back does
   const fresh = getGoal(store.db, goal.id)!;
   const stillOpen = listEscalations(store.db, { goalId: goal.id, openOnly: true }).filter((e) => e.trigger === 'budget_exceeded' || (e.taskId === null && e.trigger === 'retries_exhausted') || !!(e.payload as { stuck?: unknown }).stuck);

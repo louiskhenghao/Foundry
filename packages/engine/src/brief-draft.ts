@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { jsonSchemaFor, reportsDollars } from '@foundry/core';
+import { jsonSchemaFor, reportsDollars, assignMaterials } from '@foundry/core';
 import type { Brief, BriefCheck, BriefTask, Goal, InterviewQuestion, InterviewRound } from '@foundry/core';
 import { AreaDraftOutput, Brief as BriefSchema, REVISE_MAX_ROUNDS, ReviseTurnOutput, RevisionOutput, TaskDraftOutput, type BriefDiff, diffBrief, getBrief, getGoal, noteQuestion, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
@@ -309,6 +309,14 @@ export function cancelRevise(engine: Engine, goal: Goal): void {
  * rounds the Revise asked as applied Decisions, new non-blocking questions appended.
  */
 export function toRevisedBrief(current: Brief, out: RevisionOutput, decided: Brief['questions'] = []): Omit<Brief, 'goalId'> {
+  const materials = [
+    ...(out.provides ?? []).map((p) => {
+      const prev = (current.provides ?? []).find((x) => x.key === p.key);
+      return prev ? { ...prev, what: p.what, mode: prev.status === 'waiting' ? (p.mode ?? prev.mode) : prev.mode } : { key: p.key, what: p.what, neededBy: [], mode: p.mode ?? ('wait' as const), status: 'waiting' as const, receivedAt: null, attachmentIds: [], note: null };
+    }),
+    ...(current.provides ?? []).filter((x) => x.status !== 'waiting' && !(out.provides ?? []).some((p) => p.key === x.key)),
+  ];
+  const revised = assignMaterials(out.tasks, materials);
   const areaKeys = new Set(out.areas.map((a) => a.key));
   const area = (k: string | null | undefined) => (k && areaKeys.has(k) ? k : null);
   const usedQ = new Set<string>();
@@ -328,7 +336,9 @@ export function toRevisedBrief(current: Brief, out: RevisionOutput, decided: Bri
     checks: out.checks
       .filter((c) => !c.taskKey || taskKeys.has(c.taskKey))
       .map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey ?? null, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey ?? null) })),
-    tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], milestone: t.milestone === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestone ?? null) : t.milestone, milestoneScript: t.milestoneScript === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestoneScript ?? null) : t.milestoneScript, difficulty: t.difficulty ?? 'standard' })),
+    tasks: revised.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, needs: t.needs, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], milestone: t.milestone === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestone ?? null) : t.milestone, milestoneScript: t.milestoneScript === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestoneScript ?? null) : t.milestoneScript, difficulty: t.difficulty ?? 'standard' })),
+    // materials keep what already arrived; a revision renames or adds, and drops only ones still waiting (ADR-0074)
+    provides: revised.provides,
     costEstimateUsd: out.costEstimateUsd,
     run: out.run ?? current.run,
     apps: out.apps ?? current.apps,

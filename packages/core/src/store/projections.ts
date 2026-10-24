@@ -77,6 +77,13 @@ function project(db: Database, e: EngineEvent): void {
       db.run('DELETE FROM goals WHERE id = ?', [e.goalId!]);
       break;
     }
+    case 'goal.material_received': {
+      const b = getBrief(db, e.goalId!);
+      if (!b) break;
+      const p = e.payload;
+      upsertBrief(db, { ...b.brief, provides: (b.brief.provides ?? []).map((m) => (m.key === p.key ? { ...m, status: p.waived ? ('waived' as const) : ('received' as const), receivedAt: e.ts, attachmentIds: [...m.attachmentIds, ...(p.attachmentIds ?? []).filter((id) => !m.attachmentIds.includes(id))], note: p.note ?? m.note } : m)) }, b.approved, b.skeleton);
+      break;
+    }
     case 'goal.attachment_removed': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, attachments: g.attachments.filter((a) => a.id !== e.payload.attachmentId) });
@@ -604,8 +611,8 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'attempt.continued': {
       const a = getAttempt(db, e.payload.attemptId);
-      // a usage limit's cut does not count towards the continuation cap
-      if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + (e.payload.reason === 'usage_limit' ? 0 : 1), endedAt: null, pid: null });
+      // a usage limit's cut, and a wait for the person's answer (ADR-0074), do not count towards the continuation cap
+      if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + (e.payload.reason === 'usage_limit' || e.payload.reason === 'needs_input' ? 0 : 1), endedAt: null, pid: null });
       break;
     }
     case 'check.finished':
@@ -796,7 +803,14 @@ export function upsertGoal(db: Database, g: Goal): void {
 function normalizeTask(t: Task): Task {
   t.delegatedGoalId ??= null;
   t.summary ??= null;
+  t.needs ??= [];
   return t;
+}
+/** rows skip zod on the way back: a Brief from before materials has none, and its tasks need none */
+function normalizeBrief(b: Brief): Brief {
+  b.provides ??= [];
+  for (const t of b.tasks) t.needs ??= [];
+  return b;
 }
 export function getTask(db: Database, id: string): Task | null {
   const t = row<Task>(db.query('SELECT data FROM tasks WHERE id = ?').get(id));
@@ -865,7 +879,7 @@ export function upsertCheckResult(db: Database, r: CheckResult): void {
 /** the goal's Brief; `skeleton` = the Clarifier's Brief without its tasks, the planner still at work (ADR-0046) */
 export function getBrief(db: Database, goalId: string): { brief: Brief; approved: boolean; skeleton: boolean } | null {
   const r = db.query('SELECT data, approved, skeleton FROM briefs WHERE goal_id = ?').get(goalId) as { data: string; approved: number; skeleton: number } | null;
-  return r ? { brief: JSON.parse(r.data), approved: r.approved === 1, skeleton: r.skeleton === 1 } : null;
+  return r ? { brief: normalizeBrief(JSON.parse(r.data)), approved: r.approved === 1, skeleton: r.skeleton === 1 } : null;
 }
 export function upsertBrief(db: Database, b: Brief, approved: boolean, skeleton = false): void {
   db.run(

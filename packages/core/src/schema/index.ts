@@ -6,6 +6,7 @@ export * from './goal.ts';
 export * from './brief.ts';
 export * from './subject.ts';
 export * from './escalation.ts';
+export * from './needs.ts';
 export * from './feedback.ts';
 export * from './interview.ts';
 export * from './model-presets.ts';

@@ -1,6 +1,6 @@
 import type { Brief, BriefArea, BriefCheck, BriefTask } from '@foundry/core/browser';
 import { areaSlug } from '@foundry/core/browser';
-import { BookOpenText, Eye, Flag, Gavel, Image, LayoutGrid, Lightbulb, ListChecks, type LucideIcon, MessageCircleQuestion, Play, ScanSearch, ShieldCheck, Wallet } from 'lucide-react';
+import { BookOpenText, Eye, Flag, Gavel, Image, LayoutGrid, Lightbulb, ListChecks, type LucideIcon, MessageCircleQuestion, Play, ScanSearch, ShieldCheck, Wallet, PackageOpen } from 'lucide-react';
 import { code } from '../../ui.tsx';
 
 /** a section's category colour (ADR-0067): its icon's ink, the dot before it in the side list, the edge of its group */
@@ -13,12 +13,13 @@ const hue = (i: number) => {
  * The parts of the Brief page, each with its icon and a category colour of its own, so the page reads at a glance: the
  * hues the sections had before themes (understanding blue, decisions green, acceptance red…), in the theme's colours.
  */
-export type BriefSection = 'understanding' | 'questions' | 'subjects' | 'assumptions' | 'decisions' | 'opinion' | 'areas' | 'plan' | 'acceptance' | 'reference' | 'run' | 'completion' | 'budget';
+export type BriefSection = 'understanding' | 'questions' | 'subjects' | 'assumptions' | 'provides' | 'decisions' | 'opinion' | 'areas' | 'plan' | 'acceptance' | 'reference' | 'run' | 'completion' | 'budget';
 export const SECTION_STYLE: Record<BriefSection, { Icon: LucideIcon; ink: string; dot: string; bar: string }> = {
   understanding: { Icon: BookOpenText, ...hue(0) },
   questions: { Icon: MessageCircleQuestion, ...hue(3) },
   subjects: { Icon: Image, ...hue(6) },
   assumptions: { Icon: Lightbulb, ...hue(2) },
+  provides: { Icon: PackageOpen, ...hue(6) },
   decisions: { Icon: Gavel, ...hue(1) },
   opinion: { Icon: Eye, ...hue(5) },
   areas: { Icon: LayoutGrid, ...hue(7) },

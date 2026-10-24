@@ -1,4 +1,5 @@
-import type { BriefStyleOption, Check, Goal, ObservationReport, Task } from '@foundry/core';
+import { attachmentAbsPath } from './attachments.ts';
+import type { BriefStyleOption, Check, Goal, ObservationReport, Task, Brief } from '@foundry/core';
 import { renderReferences } from './references.ts';
 import { skillMatches } from './skills/usage.ts';
 
@@ -35,6 +36,8 @@ export interface AttemptPromptInput {
   skillsHint?: string | null;
   /** rendered `# Attachments from the user` section (see attachments.ts), or '' */
   attachments?: string;
+  /** rendered `# You will provide` section (renderProvides): the materials the person promised that this task needs, or '' (ADR-0074) */
+  provides?: string;
   /** one line from markitdownHint() when the tool is installed, or '' */
   markitdownHint?: string;
   /** description of the task's Area from the Brief, or '' */
@@ -82,6 +85,7 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   if (i.task.relevantFiles.length) lines.push(`# Start here\n${i.task.relevantFiles.map((f) => `- ${f}`).join('\n')}`);
   if (i.task.delivers?.length) lines.push(`# Deliverables\nThe tasks after this one read these files; each must exist when you stop (the engine checks):\n${i.task.delivers.map((f) => `- ${f}`).join('\n')}`);
   if (i.attachments) lines.push(i.attachments);
+  if (i.provides) lines.push(i.provides);
   // the shipped software the goal learns from: the report is among the attachments, the rules travel with it
   if (i.goal.references?.length) lines.push(renderReferences(i.goal));
   if (i.relevantContext) lines.push(`# Repository context\n${i.relevantContext}`);
@@ -159,4 +163,23 @@ export function summarizeReport(r: { results: { status: string; summary: string 
   }
   if (r.changedFiles.length) lines.push(`Files changed so far: ${r.changedFiles.map((f) => f.path).slice(0, 30).join(', ')}${r.changedFiles.length > 30 ? ' …' : ''}`);
   return lines.join('\n');
+}
+
+/**
+ * The materials the person promised in the Brief that this task needs (ADR-0074): one arrived (its files, by path), one is
+ * still to come and the task builds with a stand-in meanwhile, one the person has none of. A task that needs none, or a
+ * material in wait mode still to come (the task does not start then), adds nothing.
+ */
+export function renderProvides(goal: Goal, brief: Brief | undefined, task: Task, dataDir: string): string {
+  const needed = (brief?.provides ?? []).filter((p) => (task.needs ?? []).includes(p.key));
+  if (!needed.length) return '';
+  const lines = needed.map((p) => {
+    if (p.status === 'received') {
+      const files = goal.attachments.filter((a) => a.materialKey === p.key || p.attachmentIds.includes(a.id)).map((a) => (a.kind === 'link' ? `  - ${a.url}` : `  - ${attachmentAbsPath(dataDir, goal.id, a) ?? a.name}`));
+      return `- ${p.what} — arrived${p.note ? ` (${p.note})` : ''}:\n${files.join('\n') || '  (listed under Attachments from the user)'}`;
+    }
+    if (p.status === 'waived') return `- ${p.what} — the person has none${p.note ? ` (${p.note})` : ''}: use a substitute, keep it easy to swap, and say so in your summary.`;
+    return p.mode === 'placeholder' ? `- ${p.what} — not here yet: build with a placeholder (name it clearly), keep the swap trivial, and do not ask for it; a swap-in task follows when it arrives.` : '';
+  }).filter(Boolean);
+  return lines.length ? `# You will provide\nWhat the person said they would provide, as it stands:\n${lines.join('\n')}` : '';
 }

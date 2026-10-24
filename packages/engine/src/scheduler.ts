@@ -1,4 +1,4 @@
-import { PROVIDER_NAME } from '@foundry/core';
+import { PROVIDER_NAME, getBrief, listEscalations } from '@foundry/core';
 import type { Goal, Task } from '@foundry/core';
 import { ARTIFACT_SCENARIOS, listTasks, getTask, getGoal, listAttempts, getObservation } from '@foundry/core';
 import { type Continuation, type ContinueReason, continuationMessage, cutByLimit, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
@@ -7,6 +7,7 @@ import type { Engine } from './engine.ts';
 import { runAudit } from './audit.ts';
 import { runQa } from './qa.ts';
 import { dueCheckpoint, finalLookDue, openCheckpoint, openFinalCheckpoint, passMilestone, runFinalWalk, scriptedMilestones } from './checkpoint.ts';
+import { materialsAwaited, requestAnswerFor } from './materials.ts';
 import { raiseEscalation } from './escalation.ts';
 import { headRef } from './git/git.ts';
 import { recoverOverlays } from './goal-artifacts.ts';
@@ -155,6 +156,14 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   const goalWsBusy = tasks.some((t) => engine.isInFlight(t.id) && !t.worktreePath) || !!delegating(tasks);
   const started: Task[] = [];
   for (const t of ready) {
+    // a material the person promised in wait mode (ADR-0074): the task waits for it, asked for by Foundry itself, so no
+    // worker session is spent on a task that cannot finish
+    const awaited = materialsAwaited(getBrief(store.db, goal.id)?.brief, t);
+    if (awaited.length) {
+      const first = awaited[0]!;
+      raiseEscalation(engine, { goal, task: t, trigger: 'needs_input', message: `"${t.title}" needs ${awaited.map((m) => m.what).join(' and ')} — you said you would provide it.`, payload: { kind: 'needs_input', source: 'foundry', materialKey: first.key, what: first.what, why: `the task "${t.title}" cannot start without it`, suggestions: '', canProceedWithout: false } });
+      continue;
+    }
     // Start now: the person chose to start this one past the scheduler's caution (a full set of slots, running alone,
     // files another task is changing); it gets its own worktree whenever anything else runs
     const forced = engine.forceStart.has(t.id);
@@ -187,6 +196,14 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
     started.push(t);
     engine.forceStart.delete(t.id);
     void startTask(engine, goal, t, useOwnWorktree);
+  }
+  // nothing runs and nothing can start while a Request waits for the person: the goal is blocked meanwhile, so the wait
+  // reads as one and the working clock stops; the answer unblocks it (ADR-0074)
+  if (!started.length && !inFlight.length && goal.state === 'running') {
+    const now = listTasks(store.db, goal.id);
+    if (!now.some((t) => t.state === 'ready' || t.state === 'running' || t.state === 'observing' || t.state === 'merging') && listEscalations(store.db, { goalId: goal.id, openOnly: true }).some((e) => e.trigger === 'needs_input')) {
+      store.append({ type: 'goal.state_changed', goalId: goal.id, payload: { from: 'running', to: 'blocked', reason: 'waiting for what you will provide' } });
+    }
   }
 }
 
@@ -238,14 +255,16 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     // an attempt cut by an engine restart or a usage limit is resumed (its session keeps its context) instead of being
     // redone; a usage limit's cut is no fault of the session's and resumes past the continuation cap
     const last = listAttempts(store.db, task.id).filter((a) => a.kind === 'work').at(-1);
-    const cutBy: ContinueReason = last?.resultSubtype === 'usage_limit' ? 'usage_limit' : 'orphaned';
-    let resume: Continuation | null = last && last.state === 'interrupted' && last.sessionId && (cutBy === 'usage_limit' || last.continuations < config.maxContinuations) ? { attempt: last, reason: cutBy, message: continuationMessage(cutBy) } : null;
+    const cutBy: ContinueReason = last?.resultSubtype === 'usage_limit' ? 'usage_limit' : last?.resultSubtype === 'needs_input' ? 'needs_input' : 'orphaned';
+    // a session that stopped to ask the person resumes with their answer (ADR-0074), past the continuation cap too
+    const answer = cutBy === 'needs_input' ? requestAnswerFor(engine, goal, task) : undefined;
+    let resume: Continuation | null = last && last.state === 'interrupted' && last.sessionId && (cutBy === 'usage_limit' || cutBy === 'needs_input' || last.continuations < config.maxContinuations) ? { attempt: last, reason: cutBy, message: continuationMessage(cutBy, { answer }) } : null;
     const attemptsSoFar = engine.attemptCount(task.id);
     if (!resume && attemptsSoFar >= maxAttemptsFor(task)) {
       raiseEscalation(engine, { goal, task, trigger: 'retries_exhausted', message: `Task "${task.title}" used ${attemptsSoFar} attempts without passing its Must checks.`, payload: { attempts: attemptsSoFar } });
       return;
     }
-    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: resume ? `resuming attempt ${resume.attempt.index} after ${cutBy === 'usage_limit' ? 'the usage limit' : 'the engine restart'}` : `attempt ${attemptsSoFar + 1}` } });
+    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: resume ? `resuming attempt ${resume.attempt.index} after ${cutBy === 'usage_limit' ? 'the usage limit' : cutBy === 'needs_input' ? 'the person answered its request' : 'the engine restart'}` : `attempt ${attemptsSoFar + 1}` } });
 
     // a task in its own worktree first catches up with what other tasks landed on the goal branch (not while another
     // task's merge holds the goal workspace: the catch-up before its landing brings that)
@@ -255,6 +274,14 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     let fresh = getTask(store.db, task.id)!;
     if (fresh.state !== 'running' || lost()) return; // cancelled / aborted / unstuck meanwhile
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'attempt finished' } });
+    // the worker stopped to ask the person for something (ADR-0074): the task waits for the answer, and the session
+    // resumes with it through the start path above — after the first segment, and after any continuation
+    const asked = (o: typeof outcome): boolean => {
+      if (!o.needs) return false;
+      raiseEscalation(engine, { goal, task: getTask(store.db, task.id)!, attemptId: o.attempt.id, trigger: 'needs_input', message: o.needs.what, payload: { kind: 'needs_input', source: 'worker', materialKey: null, ...o.needs } });
+      return true;
+    };
+    if (asked(outcome)) return;
     // Continuations: while the session was cut or is making progress, resume it rather than paying for a fresh one
     let prevFailed: number | null = null;
     while (!outcome.passed) {
@@ -277,6 +304,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       fresh = getTask(store.db, task.id)!;
       if (fresh.state !== 'running' || lost()) return;
       store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'continuation finished' } });
+      if (asked(outcome)) return;
     }
 
     if (outcome.passed) {

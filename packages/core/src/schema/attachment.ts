@@ -28,6 +28,10 @@ export const Attachment = z.object({
   url: z.string().url().nullable().default(null),
   /** optional note from the user: what this is for */
   note: z.string().nullable().default(null),
+  /** the Request (escalation id) this attachment answers, when it came with one (ADR-0074) */
+  requestId: z.string().nullable().optional(),
+  /** the Brief material (`provides[].key`) this attachment delivers, when it does (ADR-0074) */
+  materialKey: z.string().nullable().optional(),
   addedAt: z.string(),
   /** markdown rendition; null = not applicable / never attempted. Default keeps older events replayable. */
   markdown: AttachmentMarkdown.nullable().default(null),

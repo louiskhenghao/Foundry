@@ -405,6 +405,18 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       return attachmentError(e);
     }
   });
+  // a material the person promised in the Brief arrives (ADR-0074): staged uploads and links, or "I have none" (waived)
+  app.post('/api/goals/:id/materials/:key', async (c) => {
+    const goal = goalOr404(c);
+    const body = z.object({ attachments: z.array(Attachment).optional(), note: z.string().nullable().optional(), waived: z.boolean().optional() }).parse(await c.req.json().catch(() => ({})));
+    try {
+      engine.receiveMaterial(goal.id, c.req.param('key'), { attachments: body.attachments, note: body.note ?? null, by: c.get('person')?.name ?? null, waived: body.waived });
+    } catch (e) {
+      if (e instanceof AttachmentError) return attachmentError(e);
+      throw new HttpError(400, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ ok: true, brief: getBrief(db, goal.id)?.brief ?? null });
+  });
   app.post('/api/goals/:id/attachments/:attId/convert', async (c) => c.json({ markdown: await engine.reconvertAttachment(c.req.param('id'), c.req.param('attId')) }));
   // one-click tool installs (markitdown, catalog cli entries such as graphify), in the background as a Skills operation.
   // A caller that names its own operation (`opId`, the Skills page) follows `skills-op:<id>`; the others (Setup,
