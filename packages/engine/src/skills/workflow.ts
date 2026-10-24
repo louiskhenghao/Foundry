@@ -53,7 +53,7 @@ export interface Discipline {
 /** the skills Ponytail brings; they come and go with the goal's switch */
 const PONYTAIL_SKILLS = new Set(['ponytail', 'ponytail-review', 'ponytail-audit']);
 /** work that is not code: Ponytail, a coding discipline, is never mentioned there */
-const NO_PONYTAIL_SCENARIOS = new Set(['docs', 'research', 'image', 'video']);
+const NO_PONYTAIL_SCENARIOS = new Set(['docs', 'research', 'image', 'video', 'figure']);
 
 /**
  * Discipline a session runs under: the task may switch tdd off, otherwise the goal decides; Ponytail follows the goal's
@@ -117,7 +117,7 @@ export function visibleStatuses(i: Pick<WorkflowSectionInput, 'statuses' | 'pack
   return i.statuses.filter((s) => SATISFIED.includes(s.status) && packAllows(s.entry, i.packs ?? {}) && (!s.entry.gate || !!i.gates?.[s.entry.gate]));
 }
 
-const MEDIA_SCENARIOS: readonly string[] = ['image', 'video'];
+const MEDIA_SCENARIOS: readonly string[] = ['image', 'video', 'figure'];
 /** Empty `scenarios` means "any" — except for media sessions, which only get skills that explicitly opt in (a code-review skill has no business judging posters). */
 const scenarioOk = (wanted: readonly string[], scenario: TaskScenario | undefined) => {
   const s = scenario ?? 'general';

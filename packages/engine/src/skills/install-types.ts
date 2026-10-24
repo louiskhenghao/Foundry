@@ -23,4 +23,6 @@ export interface InstallContext {
   env?: Record<string, string>;
   /** the catalog's workflow suites: a `suite` source installs the whole suite (ADR-0049) */
   suites?: CatalogSuite[];
+  /** the folder of catalog/skills.json: a `bundled` source is copied from under it (ADR-0076) */
+  catalogDir?: string;
 }

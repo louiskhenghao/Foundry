@@ -292,3 +292,28 @@ describe('ponytail discipline', () => {
     expect(resolveDiscipline(goal, { tdd: 'inherit', scenario: 'cad', kind: 'feature' })).toEqual({ tdd: 'required', ponytail: 'on' });
   });
 });
+
+describe('figure work (ADR-0076)', () => {
+  const color = st(entry({ id: 'colorfigures', roles: ['worker'], pack: 'figure', packOption: 'colorfigures', scenarios: ['figure'], workflow: [{ role: 'worker', mandate: 'must', when: 'any', scenarios: ['figure'], instruction: 'draw it' }] }), 'installed', '/colorfigures');
+  const glow = st(entry({ id: 'iso-glow', roles: ['worker'], pack: 'figure', packOption: 'iso-glow', scenarios: ['figure'], workflow: [{ role: 'worker', mandate: 'must', when: 'any', scenarios: ['figure'], instruction: 'make it glow' }] }), 'installed', '/iso-glow');
+  const all = [...statuses, color, glow];
+  test('a figure worker sees the chosen pack member alone, and nothing scenario-blind', () => {
+    const s = formatWorkflowSection({ role: 'worker', taskKind: 'feature', scenario: 'figure', profile: 'mattpocock', statuses: all, packs: { figure: 'colorfigures' } })!;
+    expect(s).toContain('Scenario: figure.');
+    expect(s).toContain('MUST: invoke `/colorfigures` — draw it');
+    expect(s).not.toContain('/iso-glow');
+    expect(s).not.toContain('tdd');
+    expect(s).not.toContain('/webapp-testing');
+    // a goal's own choice is laid over Settings' (SkillsHints merges them): the other style, or none at all
+    const other = formatWorkflowSection({ role: 'worker', taskKind: 'feature', scenario: 'figure', profile: 'mattpocock', statuses: all, packs: { figure: 'iso-glow' } })!;
+    expect(other).toContain('MUST: invoke `/iso-glow` — make it glow');
+    expect(other).not.toContain('/colorfigures');
+    expect(formatWorkflowSection({ role: 'worker', taskKind: 'feature', scenario: 'figure', profile: 'mattpocock', statuses: all, packs: { figure: 'none' } })).toBeNull();
+    // a code task never hears of the figure skills
+    expect(formatWorkflowSection({ role: 'worker', taskKind: 'feature', scenario: 'frontend', profile: 'mattpocock', statuses: all, packs: { figure: 'colorfigures' } })).not.toContain('colorfigures');
+  });
+  test('Ponytail, a coding discipline, is off for figure work', () => {
+    expect(resolveDiscipline({ workflow: { tdd: 'required', ponytail: 'on' } } as never, { tdd: 'inherit', scenario: 'figure', kind: 'feature' } as never).ponytail).toBe('off');
+    expect(goalScenario([{ scenario: 'figure', origin: 'plan' }, { scenario: 'figure', origin: 'plan' }, { scenario: 'docs', origin: 'plan' }] as never)).toBe('figure');
+  });
+});
