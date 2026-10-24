@@ -32,6 +32,8 @@ export interface AttemptPromptInput {
   prevReport: ObservationReport | null;
   rolledBack: { toRef: string; reason: string } | null;
   hint: string | null;
+  /** rendered `# Adjustment asked by the person` section (adjust.ts renderAdjustment) when the task carries one out, or '' (ADR-0077) */
+  adjustment?: string;
   relevantContext: string | null;
   /** one line from SkillsHints, or null */
   skillsHint?: string | null;
@@ -100,6 +102,7 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
     lines.push(`# Acceptance checks\nThe engine will run these after you finish. Run the command checks yourself before you stop.\n${[...must, ...stretch].map(fmt).join('\n')}`);
   }
   if (i.hint) lines.push(`# Hint from the human\n${i.hint}`);
+  if (i.adjustment) lines.push(i.adjustment);
   // a feature milestone is shown by its own script: the task writes it, and it must pass on a bare checkout
   if (i.task.milestone && i.task.milestoneScript) {
     lines.push(milestoneScriptSection(i.task.milestone, i.task.milestoneScript));

@@ -64,9 +64,10 @@ export function ccHeader(i: { type: CcType; scope?: string | null; subject: stri
 }
 
 /** The message for a task's commits: attempt snapshots (`attempt` given) and the final squash (no `attempt`). */
-export function taskCommitMessage(goal: Pick<Goal, 'id'>, task: Pick<Task, 'id' | 'title' | 'kind' | 'scope'>, o: { attempt?: number } = {}): string {
-  const header = ccHeader({ type: typeForKind(task.kind), scope: task.scope, subject: task.title });
+export function taskCommitMessage(goal: Pick<Goal, 'id'>, task: Pick<Task, 'id' | 'title' | 'kind' | 'scope'>, o: { attempt?: number; /** the Adjustment the task carried out (ADR-0077): its commit is one of its own, named after it */ adjustment?: number | null } = {}): string {
+  const header = ccHeader({ type: typeForKind(task.kind), scope: task.scope, subject: o.adjustment ? `${task.title} (adjustment ${o.adjustment})` : task.title });
   const body = [`Task: ${task.id}`, `Goal: ${goal.id}`];
+  if (o.adjustment) body.push(`Adjustment: ${o.adjustment}`);
   if (o.attempt != null) body.push(`Attempt: ${o.attempt} (intermediate snapshot; squashed when the task completes)`);
   return `${header}\n\n${body.join('\n')}`;
 }

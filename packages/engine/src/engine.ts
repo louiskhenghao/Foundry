@@ -7,7 +7,7 @@ import { AgyQuotaReader } from './usage/agy-quota.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
 import { basename, dirname, join } from 'node:path';
-import type { Attachment, Attempt, Brief, BriefApp, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check } from '@foundry/core';
+import type { Attachment, Attempt, Brief, BriefApp, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check, Adjustment } from '@foundry/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -67,6 +67,7 @@ import { needsInvestigation } from './references.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
 import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
 import { FIGURE_CHECK_NAME } from './checks/figure.ts';
+import { adjustGoal, adjustView, adjustedSinceDelivery, type AdjustView } from './adjust.ts';
 import type { DoctorCheck } from './skills/types.ts';
 import { isFigureStyle, type FigureInfo } from './figure.ts';
 import { filesOverlap } from './catchup.ts';
@@ -369,6 +370,8 @@ export class Engine {
   memoryDeps: MemoryDeps = {};
   /** the Conversations on goals' pages (ADR-0073): the Explainer's answers, beside the goals' own work */
   readonly conversations: Conversations;
+  /** goals whose Adjustment is being set up (ADR-0077): one at a time per goal */
+  readonly adjusting = new Set<string>();
   /** pushes escalations / goal endings / delivery results / usage pauses to Telegram & Discord (Settings → Notifications) */
   readonly notifications: NotificationDispatcher;
   /** Telegram's buttons and replies: reads the bot's updates while the engine serves (ADR-0038) */
@@ -2045,6 +2048,12 @@ export class Engine {
             .catch((err) => this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `graph refresh crashed: ${String(err)}` } }))
             .finally(() => this.completing.delete(goalId));
         }
+        // a branch already out — pushed, or a pull request open — adjusted since (ADR-0077): the delivery carries on with
+        // the new commit, nothing new chosen; a merged goal is never adjusted, so no merge is redone here
+        if (!this.delivering.has(goalId) && adjustedSinceDelivery(this, goal)) {
+          void this.resumeDelivery(goalId).catch((err) => this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `the delivery did not carry on after the adjustment: ${String((err as Error).message ?? err)} — Resume it on the Delivery tab` } }));
+          return;
+        }
         if (goal.delivery.policy.mode === 'local' || goal.delivery.status !== 'idle' || this.delivering.has(goalId)) return;
         const ac = new AbortController();
         this.delivering.set(goalId, ac);
@@ -2594,7 +2603,7 @@ export class Engine {
     this.staged.delete(att.id);
     this.store.append({ type: 'goal.attachment_added', goalId, payload: { attachment: claimed } });
     if (claimed.markdown?.status === 'pending') void this.runConversion(claimed);
-    if (!claimed.requestId && !claimed.materialKey && goal.state === 'running') {
+    if (!claimed.requestId && !claimed.materialKey && !claimed.adjustId && goal.state === 'running') {
       const line = `The person added an attachment: ${claimed.name}${claimed.kind === 'link' && claimed.url ? ` (${claimed.url})` : ''} — see "Attachments from the user".`;
       for (const t of listTasks(this.store.db, goalId).filter((t) => t.state === 'pending' || t.state === 'ready')) {
         this.store.append({ type: 'task.hint_set', goalId, payload: { taskId: t.id, hint: t.hint ? `${t.hint}\n${line}` : line, extraAttempts: 0 } });
@@ -3009,7 +3018,7 @@ export class Engine {
    * budget; tasks upstream keep their results. Without `fromTaskId` every task restarts. A failed / cancelled / finished
    * goal goes back to `running`; the goal branch keeps the work done so far, so restarted tasks build on it.
    */
-  async restartGoal(goalId: string, opts: { fromTaskId?: string; fromTaskIds?: string[] } = {}): Promise<{ restarted: string[] }> {
+  async restartGoal(goalId: string, opts: { fromTaskId?: string; fromTaskIds?: string[]; /** who or what restarts it, for the record (default: the user, or the main goal for `fromTaskIds`) */ by?: string } = {}): Promise<{ restarted: string[] }> {
     // not while the tidy-up after its merge removes its folders, and none starts removing them while this runs
     if (this.removingFolders.has(goalId)) throw new Error("the goal's folders are being removed (Clean up anyway); restart it once that has finished");
     this.restarting.add(goalId);
@@ -3020,7 +3029,20 @@ export class Engine {
     }
   }
 
-  private async restartNow(goalId: string, opts: { fromTaskId?: string; fromTaskIds?: string[] }): Promise<{ restarted: string[] }> {
+  /**
+   * Adjust the result (ADR-0077): the person's words on a finished goal's result, with the files they gave (staged
+   * uploads), carried out by the goal itself — see adjust.ts for how. Refused (AdjustError) while the beta is off, while
+   * the goal is at work, once its work was merged, or when its budget is used up.
+   */
+  adjust(goalId: string, text: string, opts: { by?: string | null; attachments?: Attachment[] } = {}): Promise<Adjustment> {
+    return adjustGoal(this, goalId, text, opts);
+  }
+  /** the goal page's view of Adjust: whether it can be done now and why not, and the Adjustments made with the versions kept */
+  adjustView(goal: Goal): AdjustView {
+    return adjustView(this, goal);
+  }
+
+  private async restartNow(goalId: string, opts: { fromTaskId?: string; fromTaskIds?: string[]; by?: string }): Promise<{ restarted: string[] }> {
     const goal = this.mustGoal(goalId);
     if (!['failed', 'cancelled', 'done', 'over_delivered', 'blocked', 'running'].includes(goal.state)) throw new Error(`goal is ${goal.state}; restart applies to running or finished goals`);
     const tasks = listTasks(this.store.db, goalId);
@@ -3065,7 +3087,7 @@ export class Engine {
     for (const t of targets) {
       const used = this.attemptCount(t.id);
       const over = Math.max(0, used - t.retryBudget - t.extraAttempts + t.retryBudget); // refresh: used attempts no longer count
-      const by = opts.fromTaskIds?.length ? 'the main goal' : 'user';
+      const by = opts.by ?? (opts.fromTaskIds?.length ? 'the main goal' : 'user');
       this.store.append({ type: 'task.restarted', goalId, payload: { taskId: t.id, extraAttempts: over, reason: roots.length ? `restarted by ${by} from ${roots.includes(t.id) ? 'this task' : 'an upstream task'}` : 'restarted by user' } });
     }
     if (goal.state !== 'running') this.store.append({ type: 'goal.state_changed', goalId, payload: { from: goal.state, to: 'running', reason: roots.length ? `restarted from task${roots.length > 1 ? 's' : ''} ${roots.join(', ')}` : 'restarted' } });

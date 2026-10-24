@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { renderStyle, styleApplies } from './attempt-prompt.ts';
 import { FIGURE_REVIEW_GOAL } from './figure.ts';
 import { figureCheckLines, figureReviewSection } from './checks/figure.ts';
+import { renderAdjustments } from './adjust.ts';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
@@ -157,6 +158,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     `# Goal\n${goal.title}\n\n${goal.prompt}`,
     media,
     renderAttachments(goal, engine.config.dataDir),
+    renderAdjustments(goal, engine.config.dataDir),
     brief ? `# Approved understanding\n${brief.understanding}` : '',
     brief ? renderDecisions(brief) : '',
     brief && styleApplies(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '',

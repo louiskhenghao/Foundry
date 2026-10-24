@@ -61,7 +61,7 @@ export function integrateTask(engine: Engine, goal: Goal, task: Task): Promise<{
 async function integrateTaskUnlocked(engine: Engine, goal: Goal, task: Task): Promise<boolean> {
   const { store } = engine;
   const goalWs = goalWorkspacePath(engine.config.dataDir, goal);
-  const message = taskCommitMessage(goal, task);
+  const message = taskCommitMessage(goal, task, { adjustment: task.adjustment?.n ?? null });
   let ref: string | null = null;
 
   if (task.branch && task.worktreePath) {

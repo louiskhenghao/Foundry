@@ -2,6 +2,7 @@ import { constants, cpSync, existsSync, lstatSync, mkdirSync, readdirSync, realp
 import { copyFile, lstat, mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import type { Goal, Task } from '@foundry/core';
+import { ARTIFACTS_HISTORY_DIR } from '@foundry/core';
 import { ensureWorktree, git, headRef, removeWorktree } from './git/git.ts';
 import { copyProjectSkills } from './skills/autoskills.ts';
 
@@ -24,6 +25,7 @@ const hashOf = async (file: string) => String(Bun.hash(await readFile(file)));
  * Every file under a workspace's artifacts/, as paths relative to that folder (the inherited-files marker and copies
  * in progress are not). No symbolic link is followed: one can point anywhere, or at its own folder. A folder that
  * cannot be read is left out, not the whole listing, and `onSkip` hears of it (and of an artifacts/ that is a link).
+ * The versions kept before each Adjustment (`.history/<n>/`, ADR-0077) are not artifacts: never listed, copied or delivered.
  */
 export function listArtifacts(ws: string, opts: { onSkip?: (rel: string, err: unknown) => void } = {}): string[] {
   const root = join(ws, ARTIFACTS_DIR);
@@ -47,8 +49,10 @@ export function listArtifacts(ws: string, opts: { onSkip?: (rel: string, err: un
       return;
     }
     for (const e of entries) {
-      if (e.isDirectory()) walk(join(dir, e.name));
-      else if (e.isFile() && e.name !== INHERITED && !e.name.startsWith(PART) && !OS_CLUTTER.test(e.name)) files.push(relative(root, join(dir, e.name)));
+      if (e.isDirectory()) {
+        if (dir === root && e.name === ARTIFACTS_HISTORY_DIR) continue;
+        walk(join(dir, e.name));
+      } else if (e.isFile() && e.name !== INHERITED && !e.name.startsWith(PART) && !OS_CLUTTER.test(e.name)) files.push(relative(root, join(dir, e.name)));
     }
   };
   walk(root);
