@@ -272,6 +272,8 @@ export const BetaSettings = z.object({
   conversation: z.boolean().default(false),
   /** figure goals (ADR-0076): the Figure nature and the Figure pack — interactive isometric figures of everyday objects and machines, one HTML page each, drawn with Colorfigures or iso-glow */
   figure: z.boolean().default(false),
+  /** Adjust the result (ADR-0077): a finished goal takes the person's words on its result and carries them out itself — the finished task's session resumed, or a task appended */
+  adjust: z.boolean().default(false),
 });
 export type BetaSettings = z.infer<typeof BetaSettings>;
 

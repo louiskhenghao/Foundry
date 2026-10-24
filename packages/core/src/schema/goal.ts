@@ -1,6 +1,7 @@
 import { AgentProvider } from './provider.ts';
 import { CodexEffort, CodexModelPreset } from './codex-presets.ts';
 import { z } from 'zod';
+import { Adjustment } from './adjust.ts';
 import { Attachment } from './attachment.ts';
 import { BriefStyleOption } from './brief.ts';
 import { BriefSubject } from './subject.ts';
@@ -374,6 +375,8 @@ export const Goal = z.object({
   nature: GoalNature.default('auto'),
   /** the Figure pack this goal's figure tasks follow when one was chosen for the goal (on the New goal form, or by the Clarifier from the goal's words); null = Settings' default at run time; absent on goals from before, read as null */
   figurePack: FigurePack.nullable().optional(),
+  /** the Adjustments asked for on this goal's result (ADR-0077), oldest first; absent on goals from before, read as [] */
+  adjustments: z.array(Adjustment).optional(),
   /** where media artifacts are copied when the goal finishes; null = they stay in the goal workspace */
   outputDir: z.string().nullable().default(null),
   /** the progress folder — the goal worktree the human opens, next to the repository; null = the legacy `<dataDir>/worktrees/<id>/_goal` */

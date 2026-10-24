@@ -32,6 +32,8 @@ export const Attachment = z.object({
   requestId: z.string().nullable().optional(),
   /** the Brief material (`provides[].key`) this attachment delivers, when it does (ADR-0074) */
   materialKey: z.string().nullable().optional(),
+  /** the Adjustment this attachment came with (ADR-0077), when it did */
+  adjustId: z.string().nullable().optional(),
   addedAt: z.string(),
   /** markdown rendition; null = not applicable / never attempted. Default keeps older events replayable. */
   markdown: AttachmentMarkdown.nullable().default(null),
