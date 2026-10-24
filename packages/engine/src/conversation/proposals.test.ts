@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { Attachment, Brief, BriefOutput, ProposalInput } from '@foundry/core';
 import { getBrief, getGoal, listEscalations, listChecks, listTasks, newId } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
-import { claimStaged, stageFile } from '../attachments.ts';
+import { stageFile } from '../attachments.ts';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { makeRepo, waitFor } from '../test-helpers.ts';
@@ -122,12 +122,18 @@ describe('what the Explainer proposed, applied by the person (ADR-0075)', () => 
     const goal = await engine.createGoal({ prompt: 'a showroom', repoPath: repo, brief: brief([task('T1', 'build it')], [check('C1', 'T1', 'done.txt')]) });
     await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).some((e) => e.trigger === 'needs_input'), 30_000);
     const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;
-    // the person's question carried a file, claimed into the goal's attachments folder as a question's are
-    const [given] = claimStaged(dataDir, goal.id, [stageFile(dataDir, { name: 'car.glb', mime: 'model/gltf-binary', bytes: new Uint8Array([1, 2, 3]) })]);
+    // the person's question carried a file: an upload, claimed into the goal's attachments folder as a question's are
+    const staged = engine.stage(stageFile(dataDir, { name: 'car.glb', mime: 'model/gltf-binary', bytes: new Uint8Array([1, 2, 3]) }), { convert: false });
+    const [given] = engine.claimUploads(goal.id, [staged], 0);
     const { cid, ids } = proposed(engine, goal.id, [{ type: 'fulfil', title: 'Hand the model to the request', summary: '', fulfil: { requestId: esc.id, materialKey: null, attachmentIds: [given!.id], note: 'the only car for now' } }], [given!]);
     expect(await engine.conversations.apply(goal.id, cid, ids[0]!, 'ann')).toContain('Request answered');
     expect(listEscalations(engine.store.db, { goalId: goal.id })[0]!.state).toBe('answered');
-    expect(getGoal(engine.store.db, goal.id)!.attachments.find((a) => a.name === 'car.glb')!.requestId).toBe(esc.id);
+    // the goal gets a copy of its own, marked with the Request; the Conversation keeps the file it was given
+    const handed = getGoal(engine.store.db, goal.id)!.attachments.find((a) => a.name === 'car.glb')!;
+    expect(handed.requestId).toBe(esc.id);
+    expect(handed.id).not.toBe(given!.id);
+    expect(existsSync(resolve(dataDir, handed.path!))).toBe(true);
+    expect(existsSync(resolve(dataDir, given!.path!))).toBe(true);
     await waitFor(() => listTasks(engine.store.db, goal.id)[0]!.state === 'done', 30_000);
     expect(runner.calls.filter((c) => c.label?.startsWith('attempt')).at(-1)!.prompt).toContain('the only car for now');
     await expect(engine.conversations.apply(goal.id, cid, ids[0]!, 'ann')).rejects.toThrow(/already applied/);

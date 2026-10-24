@@ -168,3 +168,19 @@ test('a request block written in a continuation (the checks failed, the session 
   expect(last.prompt).toMatch(/proceed without it/i);
   expect(last.prompt).toContain('there is none; use a placeholder');
 }, 120_000);
+
+test('a Request answered with a file that is gone stays open, so it can be answered again', async () => {
+  const runner = new Worker((spec): Turn => (spec.resumeSessionId ? { write: { 'done.txt': 'ok' } } : { finalText: `Built.\n\n${NEEDS}` }));
+  const engine = track(new Engine(cfg(), runner));
+  const goal = await engine.createGoal({ prompt: 'a car showroom', repoPath: repo, brief: brief([task('T1', 'build the showroom')], [check('C1', 'T1', 'done.txt')]) });
+  await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).some((e) => e.trigger === 'needs_input'), 30_000);
+  const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).find((e) => e.trigger === 'needs_input')!;
+  const staged = engine.stage(stageFile(dataDir, { name: 'car.glb', mime: 'model/gltf-binary', bytes }), { convert: false });
+  rmSync(resolve(dataDir, staged.path!), { force: true });
+  await expect(engine.answerEscalation(esc.id, { action: 'provide', attachments: [staged] }, 'ann')).rejects.toThrow(/no longer available/);
+  // nothing was recorded: the Request is still open, the goal has no attachment
+  expect(getEscalationState(engine, esc.id)).toBe('open');
+  expect(getGoal(engine.store.db, goal.id)!.attachments).toHaveLength(0);
+  await engine.answerEscalation(esc.id, { action: 'proceed_without', hint: 'none after all' }, 'ann');
+  expect(getEscalationState(engine, esc.id)).toBe('answered');
+}, 60_000);

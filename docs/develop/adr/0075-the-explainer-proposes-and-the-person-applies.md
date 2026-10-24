@@ -31,7 +31,8 @@ Explainer may **propose**, the person **applies**.
   - `note` — a Note on the Brief while it awaits approval, for the next Revise.
   - `follow-up` — once the goal is over: Apply opens the New goal form prefilled with the proposal's prompt.
   - `fulfil` — files or links the person attached to their question, handed to an open Request or a material of the
-    Brief (ADR-0074); the Explainer finds both, with ids and keys, in `materials.md` among its records.
+    Brief (ADR-0074); the Explainer finds both, with ids and keys, in `materials.md` among its records. The goal gets
+    copies of the files as attachments of its own, marked with the Request or the material; the Conversation keeps its.
 - **Applying is recorded, once.** `conversation.proposal_applied` carries who (Access) and what came of it (a task id,
   the form's path, a word); the card shows it; a second Apply is refused. Dismiss hides a card on the page only.
 - **Everywhere the Conversation is**: the bubble's window, the Conversation tab, and `foundry ask`, which lists what was

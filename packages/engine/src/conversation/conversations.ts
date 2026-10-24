@@ -16,7 +16,7 @@ import type { Engine } from '../engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundaryEnv, explainerSettings } from '../guards/boundary.ts';
 import { MCP_SERVER_PREFIX } from '../memory/memory.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
-import { AttachmentError, claimStaged } from '../attachments.ts';
+import { AttachmentError } from '../attachments.ts';
 import { conversationSoFar, openingPrompt, turnPrompt } from './prompt.ts';
 import { applyProposal } from './proposals.ts';
 import { describeEvents, goalSummary, writeGoalRecords, writeQuestionFiles } from './records.ts';
@@ -117,7 +117,7 @@ export class Conversations {
     // the uploads move from staging to the goal's attachments folder, as a goal's own do; the records keep the final paths
     let attachments: Attachment[] = [];
     try {
-      attachments = staged.length ? claimStaged(config.dataDir, goalId, staged.map((a) => this.engine.stagedView(a.id) ?? a), goal.attachments.length) : [];
+      attachments = staged.length ? this.engine.claimUploads(goalId, staged, goal.attachments.length) : [];
     } catch (e) {
       if (e instanceof AttachmentError) throw new ConversationError(e.message, 400);
       throw e;

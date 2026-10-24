@@ -5,6 +5,7 @@
  */
 import type { Attachment, Check, Conversation, ConversationMessage, Goal, Proposal, Task } from '@foundry/core';
 import { IdPrefix, getBrief, listChecks, listEscalations, listTasks, needsOf, newId, noteQuestion } from '@foundry/core';
+import { AttachmentError, copyAttachment } from '../attachments.ts';
 import type { Engine } from '../engine.ts';
 import { ConversationError } from './conversations.ts';
 
@@ -109,23 +110,32 @@ export async function applyProposal(engine: Engine, goal: Goal, c: Conversation,
     case 'fulfil': {
       if (!p.fulfil) throw new ConversationError('the proposal hands over nothing', 400);
       const given = givenIn(c);
-      const files = p.fulfil.attachmentIds.map((id) => {
+      const found = p.fulfil.attachmentIds.map((id) => {
         const a = given.get(id);
         if (!a) throw new ConversationError(`no attachment ${id} in this Conversation`, 400);
         return a;
       });
       const note = p.fulfil.note?.trim() || null;
+      // the Conversation keeps its files; the goal gets copies of its own, marked with what they answer
+      const files = () => {
+        try {
+          return found.map((a) => copyAttachment(engine.config.dataDir, goal.id, a));
+        } catch (e) {
+          if (e instanceof AttachmentError) throw new ConversationError(e.message, 400);
+          throw e;
+        }
+      };
       if (p.fulfil.requestId) {
         const esc = listEscalations(store.db, { goalId: goal.id }).find((e) => e.id === p.fulfil!.requestId);
         if (!esc || !needsOf(esc)) throw new ConversationError('no such Request on this goal', 404);
         if (esc.state !== 'open') throw new ConversationError(`that Request is already ${esc.state}`, 409);
-        await engine.answerEscalation(esc.id, { action: 'provide', hint: note ?? undefined, attachments: files }, by);
+        await engine.answerEscalation(esc.id, { action: 'provide', hint: note ?? undefined, attachments: files() }, by);
         result = `Request answered: ${needsOf(esc)!.what}`;
       } else if (p.fulfil.materialKey) {
         const material = (getBrief(store.db, goal.id)?.brief.provides ?? []).find((x) => x.key === p.fulfil!.materialKey);
         if (!material) throw new ConversationError('the Brief names no such material', 404);
         if (material.status !== 'waiting') throw new ConversationError(`${material.what} is already ${material.status}`, 409);
-        engine.receiveMaterial(goal.id, material.key, { attachments: files, note, by });
+        engine.receiveMaterial(goal.id, material.key, { attachments: files(), note, by });
         result = `${material.what}: received`;
       } else throw new ConversationError('the proposal names neither a Request nor a material', 400);
       break;

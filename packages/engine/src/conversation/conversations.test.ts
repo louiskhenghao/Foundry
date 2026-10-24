@@ -274,6 +274,8 @@ test("a question can carry pictures and files: the staged uploads are claimed in
   expect(() => engine.conversations.ask(goal.id, 'x', { attachments: Array.from({ length: CONVERSATION_ATTACHMENTS_MAX + 1 }, () => staged) })).toThrow(/at most/);
   // a question that is only its files has the words for it
   const asked = engine.conversations.ask(goal.id, '', { attachments: [staged] });
+  // claimed, the upload is no longer staged
+  expect(engine.stagedView(staged.id)).toBeNull();
   const [c] = listConversations(engine.store.db, goal.id);
   const q = c!.messages[0]!;
   expect(q.text).toBe(CONVERSATION_FILES_ONLY_TEXT);
