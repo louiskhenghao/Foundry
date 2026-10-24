@@ -10,7 +10,7 @@ import { delegationNeedsHuman } from '@foundry/engine';
 import { ConversationError } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
-import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
+import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles, deliveredFile } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
 import { copyTheme, deleteTheme, importTheme, renameTheme, themeFileText, listThemes, prepareThemesDir, themesDir } from './themes.ts';
 import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
@@ -565,6 +565,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       return { source, name: rel.split('/').pop()!, rel, note: source.kind === 'commit' ? 'commit' : null };
     }
     const path = q('path') ?? '';
+    // a copy a goal's delivery made in its Output folder (the goal's own folder may be gone): only the files it recorded
+    const delivered = path ? deliveredFile(path, listGoals(db)) : null;
+    if (delivered) return { source: { kind: 'folder', abs: delivered.abs, size: delivered.size }, name: delivered.rel.split('/').pop()!, rel: `artifacts/${delivered.rel}`, note: null };
     const landed = path ? landedPath(path, dataDir, listGoals(db)) : null;
     if (existsSync(landed ?? path)) {
       try {
@@ -616,7 +619,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       if (source) files.push({ name: rel.split('/').pop()!, rel, kind: fileKind(rel), size: source.size, open: open(rel) });
     }
     const ws = goalWorkspacePath(dataDir, goal);
-    for (const abs of made.artifacts) files.push({ name: abs.split('/').pop()!, rel: abs.slice(ws.length + 1), kind: fileKind(abs), size: statSync(abs).size, open: { path: abs } });
+    const dest = goal.completion.artifactsRun?.status === 'ok' ? goal.completion.artifactsRun.dest : null;
+    // a delivered copy (the goal's folder gone) is listed under its artifacts/ name, as it was in the folder
+    for (const abs of made.artifacts) files.push({ name: abs.split('/').pop()!, rel: abs.startsWith(ws + '/') ? abs.slice(ws.length + 1) : dest && abs.startsWith(dest + '/') ? `artifacts/${abs.slice(dest.length + 1)}` : abs, kind: fileKind(abs), size: statSync(abs).size, open: { path: abs } });
     const relevant = [];
     for (const rel of task.relevantFiles) relevant.push({ rel, open: (await taskFileSource(dataDir, goal, task, rel, exec, tree)) ? open(rel) : null });
     const delivers = [];

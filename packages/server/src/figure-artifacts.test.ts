@@ -61,3 +61,25 @@ test('the file preview renders a page only on request, still sandboxed; without 
     await done();
   }
 });
+
+test("once the goal's folder is gone, the copies its delivery made stand in: served (sandboxed when rendered), and nothing else in the Output folder", async () => {
+  const { engine, app, goal, done } = await setup();
+  const out = mkdtempSync(join(tmpdir(), 'foundry-figure-out-'));
+  try {
+    writeFileSync(join(out, 'toaster.html'), '<!doctype html><svg></svg>');
+    writeFileSync(join(out, 'notes.txt'), 'mine, not delivered');
+    engine.store.append({ type: 'goal.artifacts_delivered', goalId: goal.id, payload: { status: 'ok', files: ['toaster.html'], dest: out, detail: '1 artifact(s) copied' } });
+    const q = (f: string, render = false) => `/api/files?path=${encodeURIComponent(join(out, f))}${render ? '&render=1' : ''}`;
+    const source = await app.request(q('toaster.html'));
+    expect([source.status, source.headers.get('content-type'), source.headers.get('content-security-policy')]).toEqual([200, 'text/plain; charset=utf-8', 'sandbox']);
+    const rendered = await app.request(q('toaster.html', true));
+    expect([rendered.status, rendered.headers.get('content-type'), rendered.headers.get('content-security-policy')]).toEqual([200, 'text/html; charset=utf-8', 'sandbox allow-scripts']);
+    expect(await rendered.text()).toContain('<svg>');
+    expect((await app.request(q('notes.txt'))).status).toBe(403);
+    // the artifacts route reads the same copy
+    expect((await app.request(`/api/goals/${goal.id}/artifacts/toaster.html`)).status).toBe(200);
+  } finally {
+    rmSync(out, { recursive: true, force: true });
+    await done();
+  }
+});

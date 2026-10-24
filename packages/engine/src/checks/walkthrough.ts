@@ -276,7 +276,9 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
         .sort((a, b) => b.rank - a.rank || b.at - a.at || a.f.localeCompare(b.f));
     const images = ranked(IMAGE);
     const clips = ranked(VIDEO);
-    const named = pool.filter((x) => NAMED.test(x.f)).map((x) => x.f).sort();
+    // a figure task's working files (the un-built page, a copy of the engine) stay off the card when its Deliverables name the pages (ADR-0076)
+    const promised = task.scenario === 'figure' ? (task.delivers ?? []).filter((d) => /\.html?$/i.test(d)).map((d) => d.replace(/^artifacts\//, '')) : [];
+    const named = pool.filter((x) => NAMED.test(x.f) && (!promised.length || !/\.html?$/i.test(x.f) || promised.includes(x.f))).map((x) => x.f).sort();
     const dir = screenshotsDir(config.dataDir, goal);
     mkdirSync(dir, { recursive: true });
     const missed = { images: 0, clips: 0 };
