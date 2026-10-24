@@ -42,7 +42,7 @@ iso-glow 的页面打开时会加载一个网页字体，3D 模式还会从 CDN 
 
 ## 改一张 figure
 
-goal 完成后，用 follow-up 提修改：goal 页面上的 **Continue with a follow-up…**，把改动写成一句话（*把门再开大一点*，*加一个退币口*）。新 goal 从做完的那个接着来，worker 能在原处找到页面和它的源码。
+goal 完成后，小改动走 goal 页面上的 **Adjust the result**（beta，见[调整结果](./getting-the-result.zh.md#调整结果)）：*把门再开大一点*，*加一个退币口*，需要的话附一张图。画这张 figure 的会话从停下的地方接着画；Foundry 再次在无头浏览器里打开页面检查，并把改之前的页面留在 **Before it** 下。要另一张 figure，或者 goal 的工作已经合并进去了，就用 follow-up 提：**Continue with a follow-up…**，把改动写成一句话。新 goal 从做完的那个接着来，worker 能在原处找到页面和它的源码。
 
 ## 致谢
 

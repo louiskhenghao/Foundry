@@ -157,6 +157,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 |---|---|---|---|
 | `beta.conversation` | `false` | `FOUNDRY_BETA_CONVERSATION` | The Conversation on a goal's page: a bubble opens a read-only Explainer that answers questions about the goal's code and Foundry's records of it, on the preset's Conversation model. Off = no bubble and no Conversation tab. |
 | `beta.figure` | `false` | `FOUNDRY_BETA_FIGURE` | Figure goals: a kind of goal of its own — interactive isometric figures of everyday objects and machines, one web page each, drawn by the Figure pack (Colorfigures or iso-glow, bundled with Foundry) and opened headless by Foundry when a task lands. Off = the kind, the Figure skills picker and the CLI's figure nature stay hidden; figure goals made before still open. |
+| `beta.adjust` | `false` | `FOUNDRY_BETA_ADJUST` | Adjust the result (ADR-0077): a finished goal's page takes your words on its result — what should change, with pictures or files — and the goal carries them out itself: the finished task's session resumes with them, or a task is appended, or a failed goal's failed tasks run again with them; the checks and reviews run again, the output folder and an open pull request get the new result, and the earlier result is kept under artifacts/.history. Off = no Adjust box; adjustments already made stay on the goal. |
 
 ## Engine (install)
 

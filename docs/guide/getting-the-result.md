@@ -244,6 +244,22 @@ Foundry then starts a branch from your base branch as it is online, undoes each 
 
 What it needs: a delivery that merged through Foundry (**Open a PR** or **PR + auto-merge** — a Local only goal, or one you marked as delivered yourself, has nothing Foundry knows to revert), GitHub CLI signed in, and the merges still on the base branch. A merge that no longer reverts cleanly, because a later change touched the same lines, is refused with the files in conflict: revert it by hand, or start a [follow-up](#continue-with-a-follow-up) that undoes it. No model writes anything here, and nothing of your own folder is changed. To bring the work back, revert the revert's pull request on GitHub, or start a follow-up goal.
 
+## Adjusting the result
+
+*Beta: switch it on under [Settings → Beta](./settings.md#beta).*
+
+When a goal has finished and the result is nearly right — the lid should be red, the chart needs one more line, the door should open further — you do not need a new goal. On the goal page, the **Adjust the result** card takes your words on what should change, with pictures or files if they help (paste or drop them in, up to 8), and **Adjust** sets the goal going again. It carries the change out itself, and the card says how:
+
+- **a goal of one task** picks up the session that did the work, which knows every decision it made, and hands it your words;
+- **a goal of several tasks** gets a task added after the finished ones — *Adjustment 1: …* — a fresh session told what each step delivered;
+- **a failed goal** runs its failed tasks again with your words.
+
+The goal shows as running meanwhile, as it did the first time: the task in progress, then the checks, the task review and the final review, all run again. The adjustment lands on the goal branch as a commit of its own (*… (adjustment 1)*), so a branch you already pushed is never rewritten. When the goal finishes again, the output folder gets the new files, and a branch already pushed or a pull request already open gets the new commit — nothing new to choose. Each adjustment costs the goal, inside its budget: the card shows what is left, and refuses when it is used up (raise the budget first).
+
+Before anything changes, the result as it stands is kept: the artifacts and a figure's page go to `artifacts/.history/<n>/` inside the progress folder, and the card lists them under each adjustment as **Before it**, so you can open an earlier version (a page opens in the same sandbox as the current one). The output folder holds only the latest. The code's earlier versions are in the branch's history as ever.
+
+What it will not do: adjust a goal whose work was merged (its branch is gone from the base; start a [follow-up](#continue-with-a-follow-up)), a goal whose progress folder was cleaned up, an imported goal held as history, or a Delegated goal (adjust its main goal). While the goal is at work, wait for it to finish. An adjustment stays within the goal's acceptance checks, which run again as they are: one that goes against them (*add a heading* to a note whose check says *no heading*) fails them, and the task says so — for a different result, start a follow-up. An adjustment is an instruction, not a conversation: for questions about the result, use the [Conversation](./while-it-runs.md#conversation); for a different piece of work, a follow-up.
+
 ## Continue with a follow-up
 
 For Codex, an explicitly selected all-role model override is prefilled in the follow-up, even after the default model changes in Settings. Without an explicit override, the selected preset keeps its separate role assignments. The follow-up is a new goal and captures the preset’s current tables at creation; it does not copy the earlier goal’s frozen table. For Antigravity, the earlier goal's model is prefilled when it is not the one Settings names now.
