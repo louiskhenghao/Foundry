@@ -45,6 +45,9 @@ export async function ensureCache(src: GitSource, ctx: InstallContext, refresh =
           await exec(['git', 'reset', '-q', '--hard', 'FETCH_HEAD'], dir, { timeoutMs: 60_000 });
         }
       }
+    } else if (isCommitRef(src.ref) && (await exec(['git', 'rev-parse', 'HEAD'], dir, { timeoutMs: 10_000 })).stdout.trim() !== src.ref) {
+      // another entry of the same repository left the cache at a different commit: pinned means this one
+      await resetToCommit(src, dir, depth);
     }
     return dir;
   }

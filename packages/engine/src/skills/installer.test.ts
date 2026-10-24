@@ -160,6 +160,32 @@ describe('a git source pinned to a commit', () => {
     expect(readFileSync(skill, 'utf8')).not.toContain('newer');
   });
 
+  test('a cache another entry left at a newer commit is moved to the pinned commit before the copy', async () => {
+    const up = join(fake.home, 'upstream-shared');
+    for (const n of ['old', 'tip']) {
+      mkdirSync(join(up, 'skills', n), { recursive: true });
+      writeFileSync(join(up, 'skills', n, 'SKILL.md'), skillMd(n, 'first'));
+    }
+    const g = (args: string) => Bun.$`sh -c ${`cd ${up} && git -c user.name=t -c user.email=t@t ${args}`}`.quiet();
+    await g('init -q -b main');
+    await g('add -A');
+    await g('commit -q -m one');
+    const first = (await Bun.$`sh -c ${`cd ${up} && git rev-parse HEAD`}`.quiet()).text().trim();
+    for (const n of ['old', 'tip']) writeFileSync(join(up, 'skills', n, 'SKILL.md'), skillMd(n, 'second'));
+    await g('commit -q -am two');
+    const catalogPath = writeCatalog(join(fake.home, 'catalog-shared'), [
+      { id: 'tip', name: 'tip', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'acme/shared', url: `file://${up}`, path: 'skills/tip' } },
+      { id: 'old', name: 'old', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'acme/shared', url: `file://${up}`, ref: first, path: 'skills/old' } },
+    ]);
+    const m = new SkillsManager({ claudeHome: fake.claudeHome, dataDir: fake.dataDir, catalogPath, which: () => null });
+    // the unpinned entry clones the shared cache at main's tip
+    expect((await m.install('tip')).ok).toBe(true);
+    expect(readFileSync(join(fake.paths.skillsDir, 'tip', 'SKILL.md'), 'utf8')).toContain('second');
+    // the pinned one finds that cache and moves it to its commit before copying
+    expect((await m.install('old')).ok).toBe(true);
+    expect(readFileSync(join(fake.paths.skillsDir, 'old', 'SKILL.md'), 'utf8')).toContain('first');
+  });
+
   test('a commit the repository does not have fails the install and leaves no cache behind', async () => {
     const up = join(fake.home, 'upstream-nocommit');
     mkdirSync(join(up, 'skills', 'nofix'), { recursive: true });
