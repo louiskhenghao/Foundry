@@ -783,6 +783,8 @@ export function apiForProvider(provider?: AgentProvider) {
   },
   escalations: (openOnly = true) => req<EscalationRow[]>(`/api/escalations${openOnly ? '?open=1' : ''}`),
   answer: (id: string, answer: EscalationAnswer) => req<{ ok: true }>(`/api/escalations/${id}/answer`, { method: 'POST', body: JSON.stringify(answer) }),
+  /** a material the person promised in the Brief arrives (ADR-0074): staged uploads and links with a word, or none (waived) */
+  receiveMaterial: (goalId: string, key: string, body: { attachments?: Attachment[]; note?: string | null; waived?: boolean }) => req<{ ok: true }>(`/api/goals/${goalId}/materials/${encodeURIComponent(key)}`, { method: 'POST', body: JSON.stringify(body) }),
   /** AI analyses a blocked task; `apply` = answer retry_with_hint right away when that is the suggestion */
   suggest: (id: string, apply = false) => req<{ suggestion: EscalationSuggestion; applied: boolean }>(`/api/escalations/${id}/suggest`, { method: 'POST', body: JSON.stringify({ apply }) }),
   // skills & setup

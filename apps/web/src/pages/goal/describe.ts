@@ -28,6 +28,8 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: p.passed ? (p.overDelivered ? 'Goal review: over-delivered ✨' : 'Goal review: passed') : `Goal review failed; ${p.fixTaskIds.length} fix task(s)`, tone: p.passed ? 'ok' : 'warn' };
     case 'goal.audit_finished':
       return { text: p.status === 'ok' ? `Audit: ${p.detail}` : `Audit ${p.status}: ${p.detail}`, tone: p.status === 'failed' ? 'warn' : p.fixTaskIds.length ? 'warn' : 'ok', ...cut(p.summary) };
+    case 'goal.material_received':
+      return { text: p.waived ? `You have no ${p.key}: the tasks go on without it` : `Received: ${p.key}${p.attachmentIds?.length ? ` (${p.attachmentIds.length} file${p.attachmentIds.length === 1 ? '' : 's'})` : ''}${p.by ? ` · by ${p.by}` : ''}`, tone: 'ok' };
     case 'escalation.raised':
       return { text: `Needs you: ${p.escalation.trigger.replace(/_/g, ' ')} — ${p.escalation.message.split('\n')[0]}`, tone: 'warn', ...cut(p.escalation.message) };
     case 'escalation.answered':

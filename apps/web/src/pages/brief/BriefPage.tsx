@@ -31,6 +31,7 @@ import { ACCEPTED_TICK, AnsweredTick, ApprovalBar, ReadOnlyTick, answerChip, blo
 import { areaOf, areaStyle, checkProblem, taskProblem, withPlan } from './shared.ts';
 import { ProviderBadge } from '../agents/rows.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { ProvidesCard } from '../goal/ProvidesCard.tsx';
 import { SectionTitle } from './SectionTitle.tsx';
 import { ConversationBubble } from '../../components/conversation/ConversationBubble.tsx';
 
@@ -241,6 +242,7 @@ export function BriefPage() {
     ...(asked.length ? [{ id: 'brief-questions', label: 'Questions', status: blockingUnanswered.length ? `${blockingUnanswered.length} blocking` : `${answered}/${asked.length}`, warn: editable && blockingUnanswered.length > 0, ...(answered === asked.length ? { tone: 'ok' as const } : {}) }] : []),
     ...(subjectsCard ? [{ id: 'brief-subjects', label: 'Looks like', status: searching.length ? 'searching' : subjects.length ? String(subjects.length) : null, ...(searching.length ? { tone: 'work' as const } : {}) }] : []),
     { id: 'brief-assumptions', label: 'Assumptions', status: brief.assumptions.length ? `${brief.assumptions.filter((a) => a.accepted).length}/${brief.assumptions.length}` : null },
+    ...(brief.provides?.length ? [{ id: 'brief-provides', label: 'You will provide', status: `${brief.provides.filter((p) => p.status !== 'waiting').length}/${brief.provides.length}` }] : []),
     ...(decisions.length || editable ? [{ id: 'brief-decisions', label: 'Decisions', status: pending.length ? `${pending.length} to apply` : decisions.length ? String(decisions.length) : null, warn: editable && pending.length > 0 }] : []),
     // while the planner works every Area is still empty: nothing to warn about yet
     { id: 'brief-areas', label: 'Areas', status: gaps.length && !skeleton ? `${gaps.length} empty` : String(brief.areas.length), warn: editable && !skeleton && gaps.length > 0 },
@@ -348,6 +350,12 @@ export function BriefPage() {
               </div>
             </Card>
           </section>
+
+          {(brief.provides?.length ?? 0) > 0 && (
+            <section id="brief-provides" className={sec}>
+              <ProvidesCard goalId={id} provides={brief.provides!} attachments={g.attachments} taskTitles={Object.fromEntries(brief.tasks.map((t) => [t.key, t.title]))} editableMode={editable} onMode={(key, mode) => update({ provides: brief.provides!.map((p) => (p.key === key ? { ...p, mode } : p)) })} />
+            </section>
+          )}
 
           {(decisions.length > 0 || editable) && (
             <section id="brief-decisions" className={sec}>

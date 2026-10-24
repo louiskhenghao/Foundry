@@ -18,6 +18,7 @@ import { CheckDialog } from './CheckDialog.tsx';
 import { CHECK_RESULT, CheckSquare, CompletionCard } from './CompletionCard.tsx';
 import { MilestonesCard } from './MilestoneEvidence.tsx';
 import { ProjectSkillsCard } from './ProjectSkillsCard.tsx';
+import { ProvidesCard } from './ProvidesCard.tsx';
 
 /** a label inside a card, in small capitals */
 const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em]';
@@ -68,6 +69,8 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
             <AttachmentInput items={g.attachments} goalId={g.id} onChange={() => {}} />
             <p className="text-[11px] text-ink-faint mt-2">Attachments are handed to every new session of this goal (Clarify, workers, goal review) as read-only references.</p>
           </Card>
+          {/* what the person said they would provide (ADR-0074): each material's state, and a slot to give it */}
+          {(d.brief?.brief.provides?.length ?? 0) > 0 && <ProvidesCard goalId={g.id} provides={d.brief!.brief.provides!} attachments={g.attachments} taskTitles={Object.fromEntries(d.tasks.map((t) => [t.id, t.title]))} />}
           <CodexModelsCard goal={g} />
           {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} goal={g} />}
           {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <MilestonesCard d={d} />}
