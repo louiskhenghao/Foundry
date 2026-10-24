@@ -17,7 +17,7 @@ import { renderUpstream } from './delegation.ts';
 import { handoffSection } from './handoff.ts';
 import { learningsForWorker } from './learnings.ts';
 import { runCommandCheck } from './checks/command.ts';
-import { reviewTaskDiff } from './checks/reviewer.ts';
+import { verdictSummary, reviewTaskDiff } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
 import { commitAll, headRef, numstat, resetHard } from './git/git.ts';
@@ -359,7 +359,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
         // no verdict = infrastructure problem (model ran out of turns, bad JSON…), never the worker's fault:
         // the check is skipped for this attempt and the objective checks decide
         status: reviewerVerdict ? (reviewerVerdict.pass ? 'pass' : 'fail') : 'skipped',
-        summary: reviewerVerdict ? (reviewerVerdict.pass ? 'Reviewer: no blockers.' : reviewerVerdict.blockers.join('\n')) : 'reviewer returned no verdict — skipped for this attempt (objective checks decide)',
+        summary: reviewerVerdict ? verdictSummary(reviewerVerdict) : 'reviewer returned no verdict — skipped for this attempt (objective checks decide)',
         rawRef: null,
         durationMs: 0,
         at: new Date().toISOString(),
