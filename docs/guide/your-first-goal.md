@@ -223,7 +223,7 @@ The card below the picker says where the new goal starts. If the earlier goal's 
 | **Quick** | $3 · 30 min · 2 parallel · 2 attempts per task. For a small fix or a question about the code. |
 | **Thorough** | $25 · 8 h · 3 parallel · 4 attempts per task. A feature with tests and review. |
 | **Unlimited** | No cost or time limit. Attempts per task and parallel sessions still apply. |
-| **Custom** | Set **Max cost (USD est.)**, **Max minutes**, **Parallel sessions** and **Attempts per task** yourself. |
+| **Custom** | Set **Max cost (USD est.)**, **Max minutes**, **Parallel sessions**, **Attempts per task** and, for a goal whose sessions run long (a video render), **Attempt timeout** yourself; a blank timeout keeps the Settings value. |
 
 If you are unsure, keep **Auto**. More in [Costs and usage](./costs-and-usage.md).
 

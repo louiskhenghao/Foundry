@@ -225,7 +225,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 | **Quick** | $3 · 30 分钟 · 2 个并行 · 每个任务 2 次尝试。适合小修复或关于代码的提问。 |
 | **Thorough** | $25 · 8 小时 · 3 个并行 · 每个任务 4 次尝试。一个带测试和审查的功能。 |
 | **Unlimited** | 没有费用和时间上限。每个任务的尝试次数和并行会话数仍然有效。 |
-| **Custom** | 自己设 **Max cost (USD est.)**、**Max minutes**、**Parallel sessions** 和 **Attempts per task**。 |
+| **Custom** | 自己设 **Max cost (USD est.)**、**Max minutes**、**Parallel sessions**、**Attempts per task**，以及会话跑得久的 goal（比如渲染影片）用的 **Attempt timeout**；超时留空就沿用 Settings 的值。 |
 
 拿不准就保持 **Auto**。更多内容见 [费用与用量](./costs-and-usage.zh.md)。
 

@@ -38,3 +38,16 @@ describe('decideNext (continuation vs fresh attempt)', () => {
     expect(continuationMessage('checks_failed', { report: '- ❌ tests' })).toContain('- ❌ tests');
   });
 });
+
+import { attemptTimeoutMs } from './attempt-loop.ts';
+
+describe('the wall-clock cap of one session (ADR-0076)', () => {
+  const config = { attemptTimeoutMs: 20 * 60_000 };
+  const budgets = { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 };
+  test("a goal without its own cap takes Settings → sessions.attemptTimeoutMin", () => {
+    expect(attemptTimeoutMs({ budgets: { ...budgets, attemptTimeoutMin: null } }, config)).toBe(20 * 60_000);
+  });
+  test('a goal with its own cap (a long render) takes that', () => {
+    expect(attemptTimeoutMs({ budgets: { ...budgets, attemptTimeoutMin: 60 } }, config)).toBe(60 * 60_000);
+  });
+});

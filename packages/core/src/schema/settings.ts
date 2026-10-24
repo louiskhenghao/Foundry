@@ -4,19 +4,16 @@ import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
 import { Discipline, GoalMode, PonytailSwitch, WorkflowProfile } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
+import { DesignPack, ImagePack, VideoPack } from './packs.ts';
+
+export { DesignPack, ImagePack, VideoPack } from './packs.ts';
 
 /**
  * User-editable engine settings (Settings page, `data/settings.json`). Every field has a default so a
  * missing/partial file is fine. Precedence at runtime: settings file > environment variable > default.
  */
-export const DesignPack = z.enum(['ui-ux-pro-max', 'frontend-design', 'impeccable', 'bencium', 'garden', 'taste', 'none']);
-export type DesignPack = z.infer<typeof DesignPack>;
 
-export const ImagePack = z.enum(['gpt-image-2', 'claude-image-gen', 'taste-imagegen', 'none']);
-export type ImagePack = z.infer<typeof ImagePack>;
 
-export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'hyperframes', 'none']);
-export type VideoPack = z.infer<typeof VideoPack>;
 
 export const EngineSettings = z.object({
   provider: AgentProvider.default('claude'),

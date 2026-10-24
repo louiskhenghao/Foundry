@@ -3,6 +3,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { reportsDollars, parseNeedsBlock, withoutNeedsBlock } from '@foundry/core';
 import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@foundry/core';
+import type { EngineConfig } from './config.ts';
 import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
 import { LIMIT_TEXT, resumeRefused, type RunResult } from '@foundry/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
@@ -57,6 +58,9 @@ export interface Continuation {
 }
 
 /** The message that resumes a session. It never restates the task: the session still has all of that. */
+/** the wall-clock cap of one session: the goal's own (Budgets, ADR-0076), else Settings → sessions.attemptTimeoutMin */
+export const attemptTimeoutMs = (goal: Pick<Goal, 'budgets'>, config: Pick<EngineConfig, 'attemptTimeoutMs'>): number => (goal.budgets.attemptTimeoutMin ? goal.budgets.attemptTimeoutMin * 60_000 : config.attemptTimeoutMs);
+
 export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string; answer?: RequestAnswer } = {}): string {
   switch (reason) {
     case 'usage_limit':
@@ -195,8 +199,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const relevantContext = resume ? null : await engine.context.locate(goal, task).catch(() => null);
   const discipline = resolveDiscipline(goal, task);
   // the files the task touches decide some rules (writing for agents when AGENTS.md, CLAUDE.md or a skill is among them)
-  const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { profile: engine.workflowProfileOf(goal), taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [], discipline, files: task.relevantFiles });
-  const mandated = await engine.skillsFor(goal).hints.mandatedFor('worker', { profile: engine.workflowProfileOf(goal), taskKind: task.kind, scenario: task.scenario, discipline, files: task.relevantFiles });
+  const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { packs: engine.packsFor(goal), profile: engine.workflowProfileOf(goal), taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [], discipline, files: task.relevantFiles });
+  const mandated = await engine.skillsFor(goal).hints.mandatedFor('worker', { packs: engine.packsFor(goal), profile: engine.workflowProfileOf(goal), taskKind: task.kind, scenario: task.scenario, discipline, files: task.relevantFiles });
   const brief = getBrief(store.db, goal.id)?.brief;
   const areaDescription = task.area ? (brief?.areas.find((a) => a.name === task.area)?.description ?? '') : '';
   const decisions = brief ? renderDecisions(brief) : '';
@@ -235,7 +239,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : []), ...(subjects ? subjectsAddDirs(config.dataDir, goal.id, brief) : [])]),
-      timeoutMs: config.attemptTimeoutMs,
+      timeoutMs: attemptTimeoutMs(goal, config),
       transcriptPath: attempt.transcriptPath!,
       resumeSessionId,
       env: { FOUNDRY_ATTEMPT_ID: attempt.id, FOUNDRY_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) },

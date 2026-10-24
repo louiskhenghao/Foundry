@@ -1,3 +1,5 @@
+import type { VideoPack } from '@foundry/core';
+import { fileURLToPath } from 'node:url';
 import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, assignMaterials } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
 import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
@@ -187,6 +189,8 @@ export interface CreateGoalInput {
   workflow?: Partial<GoalWorkflow>;
   /** what the goal produces; auto (default) = the Clarifier decides. Prose and media goals open in Simple mode unless mode says otherwise; cad keeps the default view. */
   nature?: GoalNature;
+  /** the video engine (pack option) of a video goal; null/absent = Settings → workflow.videoPack (ADR-0076) */
+  videoPack?: VideoPack | null;
   /** where media artifacts are copied at done; null = they stay in the goal workspace */
   outputDir?: string | null;
   /** create the goal as a Follow-up of an earlier finished goal of the same repository (see follow-up.ts) */
@@ -2124,6 +2128,16 @@ export class Engine {
     return goal.workflow.profile ?? this.config.workflowProfile;
   }
 
+  /** the video engine a goal's sessions follow: its own pick, else Settings → workflow.videoPack (ADR-0076) */
+  videoPackOf(goal: Pick<Goal, 'videoPack'>): string {
+    return goal.videoPack ?? this.config.videoPack;
+  }
+
+  /** the pack options a goal's prompts are built with: the Settings packs, the video one replaced by the goal's own engine */
+  packsFor(goal: Pick<Goal, 'videoPack'>): Record<string, string | undefined> {
+    return { design: this.config.designPack, image: this.config.imagePack, video: this.videoPackOf(goal) };
+  }
+
   lastWorkflowIn(repoPath: string): { goalId: string; title: string; createdAt: string; workflow: { profile: NonNullable<GoalWorkflow['profile']>; tdd: GoalWorkflow['tdd']; ponytail: GoalWorkflow['ponytail'] } } | null {
     const goal = listGoals(this.store.db).find((g) => g.repoPath === repoPath && !isHistory(g));
     if (!goal) return null;
@@ -2245,6 +2259,7 @@ export class Engine {
       previewRef: null,
       previewPlace: 'auto',
       effort: input.effort === undefined ? this.config.effort : input.effort,
+      videoPack: input.videoPack ?? null,
       modelPreset: presetId,
       ...(codexPreset ? { codexPreset, codexFallbacks: [...this.config.codexFallbacks], ...(input.codexModel?.trim() ? { codexModelOverride: input.codexModel.trim() } : {}) } : {}),
       modelSubstitutions: {},

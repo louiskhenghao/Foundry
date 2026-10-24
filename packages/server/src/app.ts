@@ -8,7 +8,7 @@ import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
 import { ConversationError } from '@foundry/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode, GoalNature, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode, GoalNature, VideoPack, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
@@ -35,6 +35,7 @@ const BudgetsBody = z.object({
   maxCostUsd: z.number().positive().nullable().optional(),
   maxDurationMin: z.number().positive().nullable().optional(),
   maxConcurrent: z.number().int().positive().optional(),
+  attemptTimeoutMin: z.number().int().min(5).max(240).nullable().optional(),
   attemptsPerTask: z.number().int().positive().optional(),
 });
 
@@ -67,6 +68,8 @@ const CreateGoalBody = z.object({
   mode: GoalMode.optional(),
   workflow: GoalWorkflow.partial().optional(),
   nature: GoalNature.optional(),
+  /** the video engine of a video goal (ADR-0076); absent = Settings → workflow.videoPack */
+  videoPack: VideoPack.nullable().optional(),
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
   milestonePause: z.boolean().optional(),

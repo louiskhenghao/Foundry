@@ -769,6 +769,8 @@ function normalizeGoal(g: Goal): Goal {
   g.delegation ??= { ...NO_DELEGATION };
   g.delegatedFrom ??= null;
   g.conversationCostUsd ??= 0;
+  g.videoPack ??= null;
+  if (g.budgets) g.budgets.attemptTimeoutMin ??= null;
   if (g.workflow && g.workflow.ponytail == null) g.workflow.ponytail = 'on';
   g.completion = { ...IDLE_COMPLETION, ...(g.completion ?? {}) };
   // delivery fields added after a goal was written: review rounds (ADR-0053) and reverts (ADR-0059). Readers use them

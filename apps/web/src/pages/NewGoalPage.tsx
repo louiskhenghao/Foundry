@@ -6,7 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Send, Shapes, Target, Telescope, Wallet, WandSparkles, X, type LucideIcon } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
-import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type RepoInfo } from '../api.ts';
+import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type PackGroupView, type RepoInfo } from '../api.ts';
 import { CompanionFolders } from '../components/CompanionFolders.tsx';
 import { SectionChipNav, SectionSideNav, type NavSection } from '../components/SectionNav.tsx';
 import { AttachmentInput } from '../components/Attachments.tsx';
@@ -146,6 +146,11 @@ export function NewGoalPage() {
   const [advanced, setAdvanced] = useState(false);
   const [nature, setNature] = useState<Nature>(() => ((localStorage.getItem(NATURE_KEY) as Nature | null) ?? 'auto'));
   const [outputDir, setOutputDir] = useState('');
+  // the video engine of a video goal (Beta, ADR-0076): '' = the Video skills pack Settings names
+  const [videoPack, setVideoPack] = useState('');
+  const [videoPacks, setVideoPacks] = useState<PackGroupView | null>(null);
+  const [betaMotionStudio, setBetaMotionStudio] = useState(false);
+  useEffect(() => { if (nature === 'video' && betaMotionStudio && !videoPacks) void api.packs().then((p) => setVideoPacks(p.video)).catch(() => {}); }, [nature, betaMotionStudio]);
   // interview depth, '0'–'5'; starts from Settings
   const [interviewDepth, setInterviewDepth] = useState('3');
   const [effort, setEffort] = useState('');
@@ -240,6 +245,7 @@ export function NewGoalPage() {
         const codexPresets = effectiveCodexPresets((v.values.models.codexPresets ?? {}) as Record<string, CodexModelPreset>);
         setCodexPresetInfo({ ids: Object.entries(codexPresets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.codexPresetCode, docs: v.values.models.codexPresetDocs, media: v.values.models.codexPresetMedia }, presets: codexPresets });
         const d = v.values;
+        setBetaMotionStudio(!!d.beta?.motionStudio);
         if (!changed.current.has('effort')) setEffort(d.workflow.effort ?? '');
         if (!changed.current.has('interviewDepth')) setInterviewDepth(String(d.workflow.interviewDepth ?? { never: 0, auto: 3, always: 4 }[d.workflow.interview]));
         if (!changed.current.has('mode')) setModeState(d.workflow.defaultMode);
@@ -488,6 +494,7 @@ export function NewGoalPage() {
         workflow: pace === 'fast' ? { pace, ponytail, profile } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail, profile },
         nature,
         outputDir: ARTIFACT_NATURES.includes(nature) && outputDir.trim() ? outputDir.trim() : undefined,
+        videoPack: nature === 'video' && betaMotionStudio && videoPack ? videoPack : undefined,
         interviewDepth: Number(interviewDepth),
         effort: effort || (provider === 'codex' ? null : undefined),
         modelPreset: (provider === 'codex' ? codexPreset : provider === 'agy' ? '' : modelPreset) || undefined,
@@ -612,6 +619,17 @@ export function NewGoalPage() {
               <p className="mt-2 text-xs text-bad-ink" role="status">
                 {provider === 'agy' ? 'text-to-cad is not available for Antigravity: a CAD goal would wait for it before Clarify. Run CAD goals on Claude Code or Codex.' : <>text-to-cad is not installed for this coding agent: a CAD goal waits for it before Clarify. Install it on the <Link to={`/setup?provider=${provider}`} className="underline">Setup page</Link> (3D models){cad.uv ? '' : '; uv, which runs its CAD kernel, is missing too'}.</>}
               </p>
+            )}
+            {nature === 'video' && betaMotionStudio && videoPacks && (
+              <div className="mt-3">
+                <label className="text-xs text-ink-soft">Engine — the video skill set this goal's sessions follow <span className="rounded-sm px-1 py-px text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line-strong">beta</span></label>
+                <Select aria-label="Video engine" className="mt-1 max-w-md" value={videoPack} onChange={(e) => setVideoPack(e.target.value)}>
+                  <option value="">Settings pack: {videoPacks.options.find((o) => o.id === videoPacks.chosen)?.label ?? videoPacks.chosen}</option>
+                  {videoPacks.options.filter((o) => o.id !== 'none' && o.id !== videoPacks.chosen).map((o) => (
+                    <option key={o.id} value={o.id}>{o.label}</option>
+                  ))}
+                </Select>
+              </div>
             )}
             {ARTIFACT_NATURES.includes(nature) && (
               <div className="mt-3">

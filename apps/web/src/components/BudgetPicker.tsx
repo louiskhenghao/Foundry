@@ -46,9 +46,13 @@ export function BudgetPicker({
       [k]:
         k === "maxConcurrent" || k === "attemptsPerTask"
           ? Math.max(1, Math.floor(n ?? 1))
-          : n != null && n > 0
-            ? n
-            : null
+          : k === "attemptTimeoutMin"
+            ? n != null && n > 0
+              ? Math.min(240, Math.max(5, Math.floor(n)))
+              : null
+            : n != null && n > 0
+              ? n
+              : null
     } as Budgets;
     onChange({ preset: "custom", budgets: next });
   };
@@ -95,7 +99,7 @@ export function BudgetPicker({
         })}
       </div>
       {value.preset === "custom" ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
           {costAvailable && <Field label="Max cost (USD est.)" hint="blank = no limit">
             <Input
               type="number"
@@ -136,6 +140,16 @@ export function BudgetPicker({
               onChange={(e) => setField("attemptsPerTask", e.target.value)}
             />
           </Field>
+          <Field label="Attempt timeout (min)" hint="blank = Settings">
+            <Input
+              type="number"
+              min={5}
+              max={240}
+              step={5}
+              value={b.attemptTimeoutMin ?? ""}
+              onChange={(e) => setField("attemptTimeoutMin", e.target.value)}
+            />
+          </Field>
         </div>
       ) : (
         <div className="text-xs text-ink-faint flex flex-wrap items-baseline gap-x-4 gap-y-1">
@@ -167,6 +181,12 @@ export function BudgetPicker({
             attempts/task{" "}
             <span className="mono font-semibold text-ink">{b.attemptsPerTask}</span>
           </span>
+          {b.attemptTimeoutMin != null && (
+            <span>
+              attempt timeout{" "}
+              <span className="mono font-semibold text-ink">{b.attemptTimeoutMin} min</span>
+            </span>
+          )}
           <button
             type="button"
             className="underline text-ink-soft hover:text-ink"
