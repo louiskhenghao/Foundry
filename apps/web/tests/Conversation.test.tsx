@@ -43,7 +43,11 @@ describe('ConversationThread (ADR-0073)', () => {
   test('an earlier Conversation is read, not continued; an empty one invites the first question', () => {
     const c = conversation([person('m1', 'one'), answer('m2', 'm1', 'A1')]);
     expect(renderToStaticMarkup(<ConversationThread conversation={c} live={undefined} items={[]} readOnly onAsk={noop} onStop={noop} />)).toContain('An earlier Conversation');
-    expect(renderToStaticMarkup(<ConversationThread conversation={null} live={undefined} items={[]} onAsk={noop} onStop={noop} />)).toContain('Ask anything about this goal');
+    const empty = renderToStaticMarkup(<ConversationThread conversation={null} live={undefined} items={[]} onAsk={noop} onStop={noop} />);
+    expect(empty).toContain('Ask anything about this goal');
+    // three questions to start from, sent as they stand
+    expect(empty).toContain('Where in the code did the changes land?');
+    expect(empty).toContain('Enter sends · Shift+Enter for a new line');
   });
 
   test('the live answer is read from the channel: paragraphs, the words since, the latest tool call; a new session starts it over', () => {
