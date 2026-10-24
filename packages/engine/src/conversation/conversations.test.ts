@@ -283,7 +283,7 @@ test("a question can carry pictures and files: the staged uploads are claimed in
   const spec = chatCalls(runner)[0]!;
   expect(spec.prompt).toContain('## Attached to this question');
   expect(spec.prompt).toContain(`.foundry-goal/asked/${asked.messageId}/screen.png`);
-  expect(spec.prompt).toContain('(image, 1 KB)');
+  expect(spec.prompt).toMatch(/\(image, 1 KB; id att_[a-z0-9]+\)/);
   const copied = join(conversationWorkspacePath(engine.config.dataDir, getGoal(engine.store.db, goal.id)!), '.foundry-goal', 'asked', asked.messageId, 'screen.png');
   expect(new Uint8Array(readFileSync(copied))).toEqual(bytes);
   // the goal's own attachments are untouched, and a used-up upload cannot be sent again
