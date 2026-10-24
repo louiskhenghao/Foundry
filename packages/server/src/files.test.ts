@@ -147,3 +147,49 @@ describe('a path in a merged task', () => {
     expect(landedPath('/elsewhere/tasks/t_1/public/card.svg', '/data', [goal])).toBeNull();
   });
 });
+
+import { fileResponse } from './files.ts';
+import { bodyCapMb } from './app.ts';
+
+describe('a file the browser may seek in (ADR-0076)', () => {
+  const dir = tmp();
+  const clip = join(dir, 'clip.bin');
+  writeFileSync(clip, 'abcdefghij'); // 10 bytes
+  const get = (range?: string) => fileResponse(clip, new Request('http://x/clip', { headers: range ? { range } : {} }), { 'content-type': 'video/mp4' });
+  test('no Range: the whole file, with Accept-Ranges', async () => {
+    const r = get();
+    expect(r.status).toBe(200);
+    expect(r.headers.get('accept-ranges')).toBe('bytes');
+    expect(await r.text()).toBe('abcdefghij');
+  });
+  test('a range: 206 with the bytes it names and Content-Range', async () => {
+    const r = get('bytes=2-4');
+    expect(r.status).toBe(206);
+    expect(r.headers.get('content-range')).toBe('bytes 2-4/10');
+    expect(r.headers.get('content-length')).toBe('3');
+    expect(r.headers.get('content-type')).toBe('video/mp4');
+    expect(await r.text()).toBe('cde');
+  });
+  test('an open end and a suffix: to the last byte, and the last bytes', async () => {
+    expect(await get('bytes=7-').text()).toBe('hij');
+    expect(await get('bytes=-3').text()).toBe('hij');
+    expect(get('bytes=2-99').headers.get('content-range')).toBe('bytes 2-9/10');
+  });
+  test('a range past the end: 416 with the size', () => {
+    const r = get('bytes=20-30');
+    expect(r.status).toBe(416);
+    expect(r.headers.get('content-range')).toBe('bytes */10');
+  });
+});
+
+describe('what a request may carry', () => {
+  test('an upload may hold a media attachment; a Transfer file has no cap; anything else keeps to 30 MB', () => {
+    expect(bodyCapMb('/api/goals/g_1/attachments', 'POST')).toBe(210);
+    expect(bodyCapMb('/api/goals/g_1/materials/M1', 'POST')).toBe(210);
+    expect(bodyCapMb('/api/goals/g_1/conversations', 'POST')).toBe(210);
+    expect(bodyCapMb('/api/goals/g_1/conversations/c_1', 'POST')).toBe(210);
+    expect(bodyCapMb('/api/transfer/incoming', 'POST')).toBeNull();
+    expect(bodyCapMb('/api/goals', 'POST')).toBe(30);
+    expect(bodyCapMb('/api/goals/g_1/attachments', 'GET')).toBe(30);
+  });
+});

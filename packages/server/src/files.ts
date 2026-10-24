@@ -17,6 +17,23 @@ KIND.pdf = 'pdf';
 for (const e of ['txt', 'log', 'csv', 'tsv', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'scss', 'less', 'html', 'htm', 'xml', 'yml', 'yaml', 'toml', 'ini', 'conf', 'sh', 'bash', 'zsh', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sql', 'graphql', 'gql', 'vue', 'svelte', 'astro', 'prisma', 'proto', 'lock', 'gitignore', 'dockerignore', 'editorconfig', 'mts', 'cts', 'dart', 'lua', 'r', 'scala', 'ex', 'exs', 'erl', 'hs', 'clj', 'pl', 'ps1', 'bat', 'cmd', 'nix', 'zig', 'sol', 'tf', 'hcl', 'gradle', 'properties', 'example', 'sample', 'env', 'diff', 'patch'])
   KIND[e] = 'text';
 
+/**
+ * A file the browser may seek in: a Range request gets the bytes it names (206, Content-Range), anything else the whole
+ * file with Accept-Ranges, so a long clip's progress bar works (ADR-0076).
+ */
+export function fileResponse(abs: string, req: Request, headers: Record<string, string>): Response {
+  const file = Bun.file(abs);
+  const size = file.size;
+  const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.get('range') ?? '');
+  if (m && size > 0 && (m[1] || m[2])) {
+    let start = m[1] ? Number(m[1]) : Math.max(0, size - Number(m[2]));
+    let end = m[1] && m[2] ? Math.min(Number(m[2]), size - 1) : size - 1;
+    if (start > end || start >= size) return new Response(null, { status: 416, headers: { ...headers, 'accept-ranges': 'bytes', 'content-range': `bytes */${size}` } });
+    return new Response(file.slice(start, end + 1), { status: 206, headers: { ...headers, 'accept-ranges': 'bytes', 'content-range': `bytes ${start}-${end}/${size}`, 'content-length': String(end - start + 1) } });
+  }
+  return new Response(file, { headers: { ...headers, 'accept-ranges': 'bytes' } });
+}
+
 export function fileKind(name: string): FileKind {
   const ext = extname(name).slice(1).toLowerCase();
   return KIND[ext] ?? (ext ? 'binary' : 'text');

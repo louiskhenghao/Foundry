@@ -181,7 +181,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 文本框下面：**Attach screenshots, PDFs, files or links — or drop / paste them here.** 用 **Files** 选文件，或者用 **Link** 加一个网址，然后按 **Add**。你也可以直接把截图粘贴到页面上。
 
-这个 goal 的每个会话都能读到这些附件。它们永远不会被加进你的项目。文档会在后台转成文本，转好后会显示一个小标签。之后你还可以在 goal 页面上继续添加附件。
+这个 goal 的每个会话都能读到这些附件。一个文件最大 25 MB，音频或视频文件（参考影片、音乐）最大 200 MB，一个 goal 最多 20 个附件。它们永远不会被加进你的项目。文档会在后台转成文本，转好后会显示一个小标签。之后你还可以在 goal 页面上继续添加附件。
 
 ### Reference
 
