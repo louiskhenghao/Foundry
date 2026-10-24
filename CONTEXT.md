@@ -293,6 +293,14 @@ A source the system consults to decide which parts of a repository are relevant 
 **Skill**
 A packaged instruction set a Coding agent can load (a `SKILL.md` directory). Foundry does not define skills; it sees the supported skills installed for the selected coding agent, installs curated ones from its Catalog, and tells its Roles which to use. A Skill is *unused* when no session of the last N goals invoked it: information for trimming, never an action.
 
+**Video Engine**
+The video skill set a video Goal's sessions follow: the Settings Video Pack, or the Goal's own pick (`videoPack`, chosen on the New goal form while the motion-studio Beta is on, frozen at creation like the Workflow Suite). `engine.packsFor(goal)` builds every role's prompt with it ([ADR-0076](docs/develop/adr/0076-the-motion-studio-video-engine.md)).
+_Avoid_: video pack (the Settings default; the engine is the goal's), renderer (one part of the motion-studio engine)
+
+**Bundled Skill**
+A Catalog Skill Foundry ships itself (`source: { type: 'bundled', path }`): a folder under `catalog/bundled/` of the Foundry that runs, copied into the skills folder on install, marked with repo `foundry` and the folder's content fingerprint, grouped on the Updates page as "Bundled with Foundry" and outdated when a newer Foundry ships a different folder; never a third-party credit ([ADR-0076](docs/develop/adr/0076-the-motion-studio-video-engine.md)).
+_Avoid_: built-in skill, local skill (a Linked Folder is a person's own; a bundled skill is Foundry's)
+
 **Skill Source**
 Where an installed Skill comes from and who updates it: a GitHub repository managed by Foundry, by the community `skills` CLI, or by a Claude Code plugin; a project directory; or a hand-installed copy whose origin is inferred by matching its contents against known sources. Native Codex plugin packages are managed separately from loose skills; their lifecycle belongs to the native CLI. Skills of the same Foundry-managed Source are updated together; a Skill whose bytes match an older version of its Source is *outdated*, one that matches no version is *modified*.
 
