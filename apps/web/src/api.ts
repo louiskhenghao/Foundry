@@ -241,6 +241,8 @@ export interface PacksView {
   design: PackGroupView;
   image: PackGroupView;
   video: PackGroupView;
+  /** the Figure pack (ADR-0076) */
+  figure: PackGroupView;
 }
 
 export interface LastGoalWorkflow {
@@ -523,7 +525,7 @@ export interface FileInfo {
   path: string | null;
   name: string;
   rel: string;
-  kind: 'image' | 'pdf' | 'video' | 'audio' | 'markdown' | 'json' | 'text' | 'binary';
+  kind: 'image' | 'pdf' | 'video' | 'audio' | 'markdown' | 'json' | 'html' | 'text' | 'binary';
   size: number;
   /** the path named a task worktree that is gone; this is the same file where the task's work landed */
   landed?: boolean;

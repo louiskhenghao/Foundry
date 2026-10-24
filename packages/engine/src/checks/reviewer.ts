@@ -4,11 +4,13 @@ import { join } from 'node:path';
 import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@foundry/core';
 import { jsonSchemaFor, ReviewerVerdict as ReviewerVerdictSchema, chosenStyle, getBrief } from '@foundry/core';
 import { renderStyle } from '../attempt-prompt.ts';
+import { FIGURE_REVIEW_TASK } from '../figure.ts';
+import { figureCheckLines, figureReviewSection } from './figure.ts';
 import type { Engine } from '../engine.ts';
 import { diff } from '../git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from '../guards/boundary.ts';
 import { memoryQuestion, memorySection } from '../memory/prompt.ts';
-import { reviewDiffDir } from '../workspace.ts';
+import { reviewDiffDir, screenshotsDir } from '../workspace.ts';
 import { resolveDiscipline } from '../skills/workflow.ts';
 import { skillMatches } from '../skills/usage.ts';
 import { renderSubjects, sessionDirs, subjectsAddDirs } from '../subjects.ts';
@@ -157,7 +159,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     .map((c) => (c.spec.type === 'reviewer' ? `- ${c.name}: ${c.spec.rubric}` : ''))
     .filter(Boolean)
     .join('\n');
-  const reviewerHint = await engine.skillsFor(goal).hints.sectionFor('reviewer-task', { profile: engine.workflowProfileOf(goal), scenario: task.scenario, discipline: resolveDiscipline(goal, task) });
+  const reviewerHint = await engine.skillsFor(goal).hints.sectionFor('reviewer-task', { packs: engine.packsFor(goal), profile: engine.workflowProfileOf(goal), scenario: task.scenario, discipline: resolveDiscipline(goal, task) });
   const media =
     task.scenario === 'cad'
       ? `# CAD review\nThe deliverables are the model's source in the diff and its exports and snapshots under \`artifacts/\`, which are NOT in the diff (the folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff), open the snapshots with the Read tool and compare what you see with the Brief's dimensions and features, run the task's geometry checks, and verify every listed file exists under \`artifacts/\`. A deliverable without snapshots, a missing export, or a dimension off the Brief is a BLOCKER; so is an export or snapshot committed outside \`artifacts/\` that the Brief does not ask for there, and a committed file that reaches into the coding agent's plugin folder (\`~/.claude/plugins/…\`, \`~/.codex/plugins/…\`).`
@@ -165,10 +167,14 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
       ? `# Media review\nThe artifacts themselves are the deliverable and they are NOT in the diff (the \`artifacts/\` folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff), then open each listed image under \`artifacts/\` with the Read tool — it renders images — and judge what you see against the task and rubric. An artifact listed in the manifest but missing on disk, or clearly not matching its description, is a blocker.`
       : task.scenario === 'video'
         ? `# Media review\nThe artifacts themselves are the deliverable and they are NOT in the diff (the \`artifacts/\` folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff) and verify each listed file exists under \`artifacts/\`. You cannot watch video: verify metadata with \`ffprobe\` if available, and if \`ffmpeg\` is available extract 2–3 frames (\`ffmpeg -i <file> -vf "select=gt(scene\\,0.3)" -frames:v 3 /tmp/frame%d.png\`) and view them with the Read tool. A file listed but missing, or metadata contradicting the spec (duration, resolution), is a blocker; final visual quality stays with the human.`
-        : '';
+        : task.scenario === 'figure'
+          ? figureReviewSection(FIGURE_REVIEW_TASK, figureCheckLines(engine.store.db, goal.id, task.id))
+          : '';
   const brief = getBrief(engine.store.db, goal.id)?.brief;
   const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '';
   const subjects = renderSubjects(engine.config.dataDir, goal.id, brief, 'task-reviewer', task.scenario);
+  // the Subjects' pictures live outside the worktree, and so do Foundry's screenshots of a figure task's pages (ADR-0076)
+  const reviewDirs = [...(subjects ? subjectsAddDirs(engine.config.dataDir, goal.id, brief) : []), ...(task.scenario === 'figure' ? [screenshotsDir(engine.config.dataDir, goal)] : [])];
   // what earlier reviews in this repository refused for such a change (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('review_task', memoryQuestion('review_task', { goalTitle: goal.title, taskTitle: task.title, files: task.relevantFiles }), { repoPath: goal.repoPath, goalId: goal.id, taskId: task.id, attemptId: attempt.id });
   const prompt = [
@@ -201,8 +207,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     jsonSchema: jsonSchemaFor(ReviewerVerdictSchema),
     settings: boundarySettings(engine.config.hooksDir),
     settingSources: engine.config.settingSources,
-    // the Subjects' pictures live outside the worktree
-    addDirs: subjects ? sessionDirs(subjectsAddDirs(engine.config.dataDir, goal.id, brief)) : undefined,
+    addDirs: reviewDirs.length ? sessionDirs(reviewDirs) : undefined,
     timeoutMs: 5 * 60_000,
     transcriptPath: join(engine.config.dataDir, 'transcripts', `${attempt.id}.review.jsonl`),
     label: `review ${task.title}`,
@@ -233,7 +238,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
       jsonSchema: jsonSchemaFor(ReviewerVerdictSchema),
       settings: boundarySettings(engine.config.hooksDir),
       settingSources: engine.config.settingSources,
-      addDirs: subjects ? sessionDirs(subjectsAddDirs(engine.config.dataDir, goal.id, brief)) : undefined,
+      addDirs: reviewDirs.length ? sessionDirs(reviewDirs) : undefined,
       resumeSessionId: r.sessionId,
       timeoutMs: 3 * 60_000,
       transcriptPath: join(engine.config.dataDir, 'transcripts', `${attempt.id}.review.jsonl`),

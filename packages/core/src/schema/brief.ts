@@ -231,8 +231,8 @@ const outputTaskSchema = (delegation: boolean) => z.object({
   kind: taskKindField(delegation),
   scope: z.string().nullish().describe('Conventional Commits scope (e.g. "quotes", "api", "ui"); null = use the Area slug.'),
   scenario: z
-    .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'cad', 'general'])
-    .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation/prose writing; research = investigation whose output is a cited report; image = generating or editing images; video = generating or editing video/audio; cad = 3D parts and assemblies, drawings, DXF profiles, robot description files; general = anything else.'),
+    .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'figure', 'cad', 'general'])
+    .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation/prose writing; research = investigation whose output is a cited report; image = generating or editing images; video = generating or editing video/audio; figure = an interactive isometric figure of an object or machine, one self-contained HTML page; cad = 3D parts and assemblies, drawings, DXF profiles, robot description files; general = anything else.'),
   areaKey: z.string().describe('Key of the Area this task belongs to.'),
   dependsOnKeys: z.array(z.string()),
   needs: z.array(z.string()).optional().describe('Keys of the Brief\'s `provides` (things the person will provide later) this task cannot be finished without. Leave out for most tasks.'),
@@ -279,9 +279,13 @@ export const BriefOutput = z.object({
   title: z.string().describe('One Conventional Commits header for the whole goal, e.g. "feat(site): add resort landing page". ≤ 72 chars. Used as the pull request title.'),
   understanding: z.string().describe('Your understanding of the goal in 3-8 sentences.'),
   nature: z
-    .enum(['code', 'docs', 'research', 'image', 'video', 'cad'])
+    .enum(['code', 'docs', 'research', 'image', 'video', 'figure', 'cad'])
     .default('code')
-    .describe('What the goal produces: code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio; cad = 3D parts and assemblies, drawings, robot description files. Pick the dominant one for mixed goals.'),
+    .describe('What the goal produces: code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio; figure = interactive isometric figures of everyday objects and machines, one HTML page each; cad = 3D parts and assemblies, drawings, robot description files. Pick the dominant one for mixed goals.'),
+  figurePack: z
+    .enum(['colorfigures', 'iso-glow'])
+    .nullish()
+    .describe("For nature figure only, and only when the goal's words call for one style over the other: colorfigures = colourful hand-inked figures with working buttons and a see-through; iso-glow = dark hairline drawings where whatever is live glows (devices, buildings, cities, 3D). Leave out to keep the default the prompt names."),
   areas: z
     .array(
       z.object({

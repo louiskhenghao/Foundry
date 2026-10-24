@@ -2480,6 +2480,87 @@
       ],
       "workflow": [],
       "gate": "desktopApps"
+    },
+    {
+      "id": "colorfigures",
+      "name": "colorfigures",
+      "summary": "April Zhu's Colorfigures: hand-inked, flat-coloured isometric figures of everyday objects and machines, one self-contained HTML page each — drag to turn, press the buttons, switch on See-through to watch the mechanism work with labelled parts. A snapshot bundled with Foundry (catalog/bundled/colorfigures, MIT).",
+      "why": "The Figure pack's default: a figure goal needs a drawing engine, a method and a build the worker can follow, not ad-hoc SVG. The skill researches how the real object works, checks its own shots from every side in headless Chrome and builds the page with python3; 15–30 minutes a figure.",
+      "tier": "optional",
+      "source": {
+        "type": "bundled",
+        "path": "bundled/colorfigures",
+        "docs": "https://april-zhu.com/colorfigures"
+      },
+      "roles": [
+        "worker"
+      ],
+      "invoke": "/colorfigures",
+      "tags": [
+        "figure",
+        "isometric",
+        "illustration",
+        "interactive"
+      ],
+      "aliases": [],
+      "pack": "figure",
+      "packOption": "colorfigures",
+      "scenarios": [
+        "figure"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "figure"
+          ],
+          "instruction": "Invoke it first and follow its workflow end to end: research how the real object works, model it in 3D with its engine, check your shots from every side in headless Chrome (when a Chrome is on this machine), then build the one-file page with its scripts/build.py. Pass `credit: false` to mountFigure so the page carries no footer. Save the finished page under artifacts/ as the task's `delivers` names it, and record it in the task manifest."
+        }
+      ],
+      "homepage": "https://april-zhu.com/colorfigures"
+    },
+    {
+      "id": "iso-glow",
+      "name": "iso-glow",
+      "summary": "April Zhu's iso-glow: dark hairline isometric figures where whatever is live glows in one accent colour — desk objects, devices, buildings and cities, with a light theme, a 3D mode (three.js) and a solid Lumen style; one HTML page each, about a minute a figure. A snapshot bundled with Foundry (catalog/bundled/iso-glow, MIT). A page loads a web font and, in 3D, three.js from a CDN when it is opened.",
+      "why": "The Figure pack's quick, dark style: glowing line art of objects, devices and skylines, built from a template without a browser.",
+      "tier": "optional",
+      "source": {
+        "type": "bundled",
+        "path": "bundled/iso-glow",
+        "docs": "https://isoglow.dev"
+      },
+      "roles": [
+        "worker"
+      ],
+      "invoke": "/iso-glow",
+      "tags": [
+        "figure",
+        "isometric",
+        "illustration",
+        "interactive",
+        "3d"
+      ],
+      "aliases": [],
+      "pack": "figure",
+      "packOption": "iso-glow",
+      "scenarios": [
+        "figure"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "figure"
+          ],
+          "instruction": "Follow its fast path: write fig.js from its starter, assemble the page with its one python3 command (or make the four text replacements by hand when python3 is missing), check fig.js with `node --check`, delete the template's footer, and save the finished page under artifacts/ as the task's `delivers` names it. Do not open a browser or hand the page to the person: Foundry opens it headless itself. Record the page in the task manifest."
+        }
+      ],
+      "homepage": "https://isoglow.dev"
     }
   ]
 }

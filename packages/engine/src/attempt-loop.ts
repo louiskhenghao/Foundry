@@ -17,6 +17,8 @@ import { renderUpstream } from './delegation.ts';
 import { handoffSection } from './handoff.ts';
 import { learningsForWorker } from './learnings.ts';
 import { runCommandCheck } from './checks/command.ts';
+import { runFigureCheck } from './checks/figure.ts';
+import { attemptTimeoutMs } from './figure.ts';
 import { reviewTaskDiff } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
@@ -195,8 +197,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const relevantContext = resume ? null : await engine.context.locate(goal, task).catch(() => null);
   const discipline = resolveDiscipline(goal, task);
   // the files the task touches decide some rules (writing for agents when AGENTS.md, CLAUDE.md or a skill is among them)
-  const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { profile: engine.workflowProfileOf(goal), taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [], discipline, files: task.relevantFiles });
-  const mandated = await engine.skillsFor(goal).hints.mandatedFor('worker', { profile: engine.workflowProfileOf(goal), taskKind: task.kind, scenario: task.scenario, discipline, files: task.relevantFiles });
+  const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { packs: engine.packsFor(goal), profile: engine.workflowProfileOf(goal), taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [], discipline, files: task.relevantFiles });
+  const mandated = await engine.skillsFor(goal).hints.mandatedFor('worker', { packs: engine.packsFor(goal), profile: engine.workflowProfileOf(goal), taskKind: task.kind, scenario: task.scenario, discipline, files: task.relevantFiles });
   const brief = getBrief(store.db, goal.id)?.brief;
   const areaDescription = task.area ? (brief?.areas.find((a) => a.name === task.area)?.description ?? '') : '';
   const decisions = brief ? renderDecisions(brief) : '';
@@ -235,7 +237,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : []), ...(subjects ? subjectsAddDirs(config.dataDir, goal.id, brief) : [])]),
-      timeoutMs: config.attemptTimeoutMs,
+      // a figure task's session runs a few very long turns: at least 45 minutes before a cut and resume (ADR-0076)
+      timeoutMs: attemptTimeoutMs(config, task),
       transcriptPath: attempt.transcriptPath!,
       resumeSessionId,
       env: { FOUNDRY_ATTEMPT_ID: attempt.id, FOUNDRY_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) },
@@ -332,8 +335,15 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     results.push(r);
     store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
   }
+  // a figure task's pages are opened headless by Foundry itself (ADR-0076): an objective check, like the commands
+  for (const c of checks) {
+    if (c.spec.type !== 'figure') continue;
+    const r = await runFigureCheck(engine, goal, task, attempt.id, c, cwd);
+    results.push(r);
+    store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
+  }
   bumpStat(store.db, 'attempt.cost', result.costUsd);
-  const mustCommand = checks.filter((c) => c.tier === 'must' && c.spec.type === 'command');
+  const mustCommand = checks.filter((c) => c.tier === 'must' && (c.spec.type === 'command' || c.spec.type === 'figure'));
   const objectivePassed = mustCommand.every((c) => results.find((r) => r.checkId === c.id)?.status === 'pass');
 
   let reviewerVerdict: ObservationReport['reviewerVerdict'] = null;

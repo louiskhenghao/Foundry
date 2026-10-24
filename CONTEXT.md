@@ -314,10 +314,13 @@ A Skill a Role is told to follow for a kind of work — *must* or *prefer* — b
 The nature of a Task — feature, bug, refactor, research or chore — set in the Brief. It selects the Workflow Skills the Worker is asked to follow. The kind *goal* is different: no Worker runs it; a Delegated goal does the step.
 
 **Scenario**
-The area a Task works in — frontend, backend, fullstack, data, mobile, infra, docs, research, image, video, cad or general — set in the Brief. A Goal's scenario is the one most of its Tasks share. Scenario-bound Skills (the Design Pack, presentation skills…) are shown to a session only when the scenario matches.
+The area a Task works in — frontend, backend, fullstack, data, mobile, infra, docs, research, image, video, figure, cad or general — set in the Brief. A Goal's scenario is the one most of its Tasks share. Scenario-bound Skills (the Design Pack, presentation skills…) are shown to a session only when the scenario matches.
 
 **Design Pack**
 The one design skill set the engine hands to UI work (frontend / fullstack Scenarios): ui-ux-pro-max, Anthropic's frontend-design, impeccable, bencium, garden or taste — or none. Packs are mutually exclusive: the Worker gets the chosen pack as a MUST and the Goal Reviewer its review counterpart; the others stay invisible even when installed.
+
+**Bundled Skill**
+A Skill whose author publishes it as an archive with no repository and no version, which Foundry keeps as a snapshot in its own repository (`catalog/bundled/<name>`, with the author's LICENSE and a `SOURCE.json` naming the archive, the date and the snapshot's sha256) and installs by copying into the coding agent's skills folder (a catalog source of type `bundled`). It installs offline, never changes under a running Goal, and its upstream is refreshed only by a Foundry release (`bun scripts/vendor-figure-skills.ts`); an installed copy of an older snapshot is replaced on the next install or update. The Figure Pack's two skills are the first (ADR-0076). The files are kept exactly as published; what Foundry wants different (no footer, where the page goes) is said in the Worker's prompt.
 
 **Project Skills**
 Skills matched to a repository's own stack (React, Tailwind, Supabase…) that autoskills installs into a Goal's workspace after the Brief is approved. They use the Goal's native skill location (`.claude/skills` for Claude or `.agents/skills` for Codex), have newly installed contents git-excluded while pre-existing tracked project skills are preserved, and are copied into task workspaces and listed to every Worker of that Goal. An empty repository has no stack to detect yet, so the install is retried after each Task lands until a stack manifest exists.
@@ -358,10 +361,18 @@ A program that gives a coding agent extra tools (library docs, a browser, web se
 ## Goal natures
 
 **Nature**
-What a Goal produces: *code* (software), *documents* (prose), *research* (a cited report), *image* or *video* (media files), *cad* (parts and assemblies, drawings, robot description files) — or *auto*, meaning the user did not say and the Clarifier decides. The engine is the same for every nature; the nature only changes what the Brief asks about, what acceptance looks like, and where the result ends up. Prose and media Goals open in Simple mode; a CAD Goal is code work and keeps the default view. A mixed Goal carries its dominant nature; its Tasks keep their own Scenarios.
+What a Goal produces: *code* (software), *documents* (prose), *research* (a cited report), *image* or *video* (media files), *figure* (interactive isometric figures, one web page each; beta), *cad* (parts and assemblies, drawings, robot description files) — or *auto*, meaning the user did not say and the Clarifier decides. The engine is the same for every nature; the nature only changes what the Brief asks about, what acceptance looks like, and where the result ends up. Prose and media Goals (image, video, figure) open in Simple mode; a CAD Goal is code work and keeps the default view. A mixed Goal carries its dominant nature; its Tasks keep their own Scenarios.
+
+**Figure Goal**
+A Goal of nature figure (beta, ADR-0076): interactive isometric figures of everyday objects and machines — a kettle that boils, a vending machine that drops a can — each one self-contained HTML page the viewer turns round, presses and looks inside, drawn by the Figure Pack's skill. One Task per figure (Scenario figure); the Brief settles how the real object works, the actions, the colour and whether an inside view is wanted. The page is committed in the repository (`figures/<name>.html`, its source beside it under `figures/<name>/`) with a Manifest, so a push or a pull request carries it; the Worker's own shots are Artifacts under `artifacts/`. When the Task lands Foundry opens the page itself in a headless browser (the **figure check**: a must check that fails on script errors or a page that drew nothing, and screenshots it — the see-through too — for the Task's drawer), so no reviewer is needed to see that it runs. No image model or key is involved; the cost is the worker's tokens and time (Colorfigures 15–30 minutes a figure, iso-glow about one). Pages carry no footer or credit line. On the goal page and in the file preview a page runs in a sandboxed frame, served with an opaque origin so it never acts as Foundry. Hidden while Settings → Beta → Figure goals is off; Goals made before still open.
+_Avoid_: diagram (a figure is a drawn, playable object, not a chart), illustration (an image Goal's word), colorfigure (the skill's name, not the kind of Goal)
+
+**Figure Pack**
+The figure skill set mandated to Workers on figure Tasks, chosen in Settings like the Design Pack — *Colorfigures* (hand-inked colour, working buttons, a see-through; the default), *iso-glow* (dark hairline drawings where whatever is live glows, with a 3D mode) or *none* — with one difference: a Goal may pick the other installed style on the New goal form (**Style**), and the Clarifier may do so from the Goal's words when the person left it at the default; the choice is kept on the Goal (`figurePack`), null meaning Settings'. Both skills are Bundled Skills: April Zhu's archives, snapshotted into Foundry's repository.
+
 
 **Artifact**
-A file a Goal produces outside git: a media file (an image, a video, audio) or a CAD export (STEP, STL, 3MF, GLB, DXF, a drawing PDF) with the snapshots that show it. Artifacts are generated inside the Workspace but never enter git; when the Goal finishes (and again when it finishes after a restart) they are copied to the Output Folder — or stay in the Workspace when none is set.
+A file a Goal produces outside git: a media file (an image, a video, audio), the shots a figure's Worker took of its page, or a CAD export (STEP, STL, 3MF, GLB, DXF, a drawing PDF) with the snapshots that show it. Artifacts are generated inside the Workspace but never enter git; when the Goal finishes (and again when it finishes after a restart) they are copied to the Output Folder — or stay in the Workspace when none is set.
 
 **CAD Goal**
 A Goal of nature cad: parts and assemblies, drawings, DXF profiles or robot description files, made with text-to-cad's skills (build123d and OpenCASCADE through cadgen). Code work with a geometry kernel: the Clarifier makes the manufacturing process and the key dimensions blocking questions, the planner cuts one Task per part with geometry checks first, TDD is preferred and Ponytail applies; sources are committed, exports and snapshots are Artifacts. A cad Goal waits before Clarify until text-to-cad is installed for its coding agent.
@@ -379,7 +390,7 @@ The committed record of a media or CAD Task's Artifacts: one entry per file — 
 Where a Goal's Artifacts are delivered when it finishes. Chosen by the user when the Goal is created; optional.
 
 **Image Pack / Video Pack**
-The one media skill set mandated to Workers on image / video Tasks — chosen in Settings exactly like the Design Pack, mutually exclusive, *none* allowed. Media capability always comes from skills, never from the engine itself.
+The one media skill set mandated to Workers on image / video Tasks — chosen in Settings exactly like the Design Pack, mutually exclusive, *none* allowed. Media capability always comes from skills, never from the engine itself (the Figure Pack is the third of these, with a per-Goal choice; see Goal natures).
 
 **Style Proposal**
 One visual direction for a media or UI Goal — palette, typefaces, keywords, a described feel — proposed during Clarify (2–4 of them, recommendation first) and rendered as a card the human can *see* before any expensive generation starts. The pick is a Decision, and the chosen proposal's full parameters bind every Worker and Reviewer on every Task that produces something with a look (UI, mobile, media, general) — only backend, infra, docs, data and research Tasks never see it; deviating from it is a blocker.

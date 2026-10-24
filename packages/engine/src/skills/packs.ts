@@ -36,6 +36,13 @@ export const VIDEO_PACK_OPTIONS: PackOption[] = [
   { id: 'none', label: 'None', summary: 'No video skill is mandated; video tasks rely on the worker alone.', homepage: null },
 ];
 
+/** the Figure pack (ADR-0076): which skill draws a figure goal's interactive isometric figures, one self-contained HTML page each */
+export const FIGURE_PACK_OPTIONS: PackOption[] = [
+  { id: 'colorfigures', label: 'Colorfigures', summary: "April Zhu's hand-inked, flat-coloured isometric figures of everyday objects and machines: drag to turn, press the buttons, switch on See-through to watch the mechanism work with labelled parts. The worker checks its own shots in headless Chrome and builds the page with python3; 15–30 minutes and a few hundred thousand tokens a figure.", homepage: 'https://april-zhu.com/colorfigures' },
+  { id: 'iso-glow', label: 'iso-glow', summary: "April Zhu's dark hairline isometric figures where whatever is live glows — desk objects, devices, buildings and cities, a 3D mode (three.js) and a solid Lumen style; about a minute a figure. A page loads a web font and, in 3D, three.js from a CDN when it is opened.", homepage: 'https://isoglow.dev' },
+  { id: 'none', label: 'None', summary: 'No figure skill is mandated; figure tasks rely on the worker alone.', homepage: null },
+];
+
 /** Is this entry visible given the chosen pack options? Entries without a pack always are. */
 export function packAllows(entry: Pick<CatalogEntry, 'pack' | 'packOption'>, chosen: Record<string, string | undefined>): boolean {
   if (!entry.pack) return true;

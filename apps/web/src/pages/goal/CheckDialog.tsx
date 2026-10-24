@@ -12,6 +12,7 @@ const WHAT: Record<Check['spec']['type'], string> = {
   reviewer: 'An AI reviewer reads the diff and judges it against this rubric.',
   'llm-judge': 'An AI judge answers this prompt.',
   selfcheck: 'Opens the preview in a headless browser, takes a screenshot and fails on console, page or network errors. No AI involved.',
+  figure: 'Opens each page the task delivered under artifacts/ in a headless browser, screenshots it (and its see-through) and fails on script errors or a page that drew nothing. No AI involved.',
 };
 
 /** a section's label in the dialog, in small capitals */

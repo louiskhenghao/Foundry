@@ -32,7 +32,7 @@ const fmtSize = (n: number) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024
 function Body({ info, file, stage }: { info: FileInfo; file: FileRef; stage?: boolean }) {
   const url = fileUrl(file);
   const [text, setText] = useState<string | null>(null);
-  const textual = info.kind === 'markdown' || info.kind === 'json' || info.kind === 'text';
+  const textual = info.kind === 'markdown' || info.kind === 'json' || info.kind === 'text' || info.kind === 'html';
   useEffect(() => {
     setText(null);
     if (!textual || info.size > TEXT_LIMIT) return;
@@ -52,6 +52,7 @@ function Body({ info, file, stage }: { info: FileInfo; file: FileRef; stage?: bo
   if (info.kind === 'pdf') return <iframe src={url} title={info.name} className="w-full h-[72vh] rounded-lg border border-line bg-white" />;
   if (info.kind === 'video') return <video src={url} controls className={cn('w-full rounded-lg bg-black', stage ? MEDIA_STAGE : 'max-h-[72vh]')} />;
   if (info.kind === 'audio') return <audio src={url} controls className="w-full" />;
+  if (info.kind === 'html') return <HtmlPreview url={url} name={info.name} text={info.size > TEXT_LIMIT ? '' : text} />;
   if (!textual || info.size > TEXT_LIMIT)
     return (
       <div className="flex flex-col items-center gap-3 py-10 text-sm text-ink-soft">
@@ -67,6 +68,31 @@ function Body({ info, file, stage }: { info: FileInfo; file: FileRef; stage?: bo
   if (json !== undefined) return <JsonTree value={json} />;
   if (info.kind === 'markdown') return <MarkdownPanel source={text} title={fmtSize(info.size)} local />;
   return <CodeView text={text} name={info.name} />;
+}
+
+/**
+ * A web page (a figure goal's interactive page, ADR-0076) runs here in a sandboxed frame: the server renders it only on
+ * request and with an opaque origin, so nothing in it reaches Foundry's cookies, storage or API. Its source is a click away.
+ */
+function HtmlPreview({ url, name, text }: { url: string; name: string; text: string | null }) {
+  const [source, setSource] = useState(false);
+  const rendered = `${url}&render=1`;
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center gap-3 text-xs">
+        <button type="button" className={cn('font-semibold hover:underline', source ? 'text-ink-soft' : 'text-ink')} onClick={() => setSource(false)}>
+          Page
+        </button>
+        <button type="button" className={cn('font-semibold hover:underline', source ? 'text-ink' : 'text-ink-soft')} onClick={() => setSource(true)}>
+          Source
+        </button>
+        <a href={rendered} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1 font-semibold text-work-ink hover:underline" title="The page on its own, in a new tab (still sandboxed)">
+          <ExternalLink size={12} /> Open in a new tab
+        </a>
+      </div>
+      {source ? text === null ? <Loading size="card" label="Loading the source…" /> : text ? <CodeView text={text} name={name} /> : <div className="text-xs text-ink-faint">Too large to show as source.</div> : <iframe src={rendered} title={name} sandbox="allow-scripts" className="w-full h-[72vh] rounded-lg border border-line bg-white" />}
+    </div>
+  );
 }
 
 /** Source with line numbers, coloured by language once the highlighter has loaded (plain until then, or when unknown). */

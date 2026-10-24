@@ -1126,7 +1126,7 @@
       "license": "Various",
       "url": "https://www.debian.org",
       "copyright": null,
-      "note": "git, ripgrep, curl, ca-certificates, gnupg, the base image's system and the libraries Playwright's Chromium needs come from Debian 12 (bookworm). Each package's copyright and license are in /usr/share/doc/<package>/copyright in the image."
+      "note": "git, ripgrep, curl, ca-certificates, gnupg, python3-minimal (Python, PSF-2.0: the Figure pack's skills build their page with it, ADR-0076), the base image's system and the libraries Playwright's Chromium needs come from Debian 12 (bookworm). Each package's copyright and license are in /usr/share/doc/<package>/copyright in the image."
     }
   ],
   "catalog": [
@@ -1159,6 +1159,17 @@
       "license": "MIT",
       "kinds": [
         "MCP server"
+      ],
+      "ref": null,
+      "featured": false
+    },
+    {
+      "project": "https://april-zhu.com/colorfigures",
+      "name": "Colorfigures",
+      "url": "https://april-zhu.com/colorfigures",
+      "license": "MIT",
+      "kinds": [
+        "Skills"
       ],
       "ref": null,
       "featured": false
@@ -1222,6 +1233,17 @@
       "project": "guinacio/claude-image-gen",
       "name": "guinacio/claude-image-gen",
       "url": "https://github.com/guinacio/claude-image-gen",
+      "license": "MIT",
+      "kinds": [
+        "Skills"
+      ],
+      "ref": null,
+      "featured": false
+    },
+    {
+      "project": "https://isoglow.dev",
+      "name": "iso-glow",
+      "url": "https://isoglow.dev",
       "license": "MIT",
       "kinds": [
         "Skills"

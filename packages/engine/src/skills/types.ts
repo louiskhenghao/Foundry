@@ -64,11 +64,20 @@ export const CatalogSource = z.discriminatedUnion('type', [
     /** a workflow suite of the catalog (`suites`): this entry is one of its skills and is installed with the suite (ADR-0049) */
     suite: z.string().min(1),
   }),
+  z.object({
+    type: z.literal('bundled'),
+    /**
+     * a skill Foundry ships in its own repository (ADR-0076): the folder's path relative to the catalog folder
+     * (`bundled/<name>`), copied into the skills dir on install; its SOURCE.json says where the snapshot came from
+     */
+    path: z.string().min(1),
+    docs: z.string().url().optional(),
+  }),
 ]);
 export type CatalogSource = z.infer<typeof CatalogSource>;
 
 export const TaskKindForSkill = z.enum(['feature', 'bug', 'refactor', 'research', 'chore', 'any']);
-export const SkillScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'cad', 'general']);
+export const SkillScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'figure', 'cad', 'general']);
 export type SkillScenario = z.infer<typeof SkillScenario>;
 
 /** How a role must/should use a skill inside the engine's own workflow (see ADR-0004). */

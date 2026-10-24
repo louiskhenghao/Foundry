@@ -130,8 +130,8 @@ export const TOOLS: Tool[] = [
     url: 'https://www.debian.org',
     license: 'Various',
     copyright: null,
-    installs: ['apt:git', 'apt:ripgrep', 'apt:ca-certificates', 'apt:curl', 'apt:gnupg'],
-    note: "git, ripgrep, curl, ca-certificates, gnupg, the base image's system and the libraries Playwright's Chromium needs come from Debian 12 (bookworm). Each package's copyright and license are in /usr/share/doc/<package>/copyright in the image.",
+    installs: ['apt:git', 'apt:ripgrep', 'apt:ca-certificates', 'apt:curl', 'apt:gnupg', 'apt:python3-minimal'],
+    note: "git, ripgrep, curl, ca-certificates, gnupg, python3-minimal (Python, PSF-2.0: the Figure pack's skills build their page with it, ADR-0076), the base image's system and the libraries Playwright's Chromium needs come from Debian 12 (bookworm). Each package's copyright and license are in /usr/share/doc/<package>/copyright in the image.",
   },
 ];
 

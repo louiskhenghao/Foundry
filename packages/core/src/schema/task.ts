@@ -28,11 +28,11 @@ export type TaskKind = z.infer<typeof TaskKind>;
 export const WORKER_TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'chore'] as const satisfies readonly TaskKind[];
 
 /** The area a task works in; selects scenario-specific skills (design packs for UI work, image/video packs for media, …). */
-export const TaskScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'cad', 'general']);
+export const TaskScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'figure', 'cad', 'general']);
 export type TaskScenario = z.infer<typeof TaskScenario>;
 export const TASK_SCENARIOS = TaskScenario.options;
-/** tasks whose deliverables are files under artifacts/ (a model and its snapshots, images, video): kept out of git, carried between workspaces, shown by their milestone */
-export const ARTIFACT_SCENARIOS: readonly TaskScenario[] = ['image', 'video', 'cad'];
+/** tasks whose deliverables are files under artifacts/ (a model and its snapshots, images, video, a figure's page): kept out of git, carried between workspaces, shown by their milestone */
+export const ARTIFACT_SCENARIOS: readonly TaskScenario[] = ['image', 'video', 'figure', 'cad'];
 
 export const Task = z.object({
   id: z.string(),

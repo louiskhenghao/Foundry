@@ -11,6 +11,7 @@ import type { PreviewAppStatus } from '../preview/manager.ts';
 import { metaFor, modelFor } from '../models/roles.ts';
 import { ARTIFACTS_DIR, goalWorkspacePath, isStyleSample, listArtifacts, screenshotsDir } from '../workspace.ts';
 import { runMilestoneScript, type ScriptDeps } from './milestone-script.ts';
+import { figureShots } from './figure.ts';
 
 export const WALK_MAX_BUDGET_USD = 0.5;
 const VIEWPORT = { width: 1280, height: 800 };
@@ -32,6 +33,8 @@ export const WalkPlan = z.object({ steps: z.array(WalkStep).max(16), summary: z.
 export type WalkPlan = z.infer<typeof WalkPlan>;
 
 export interface MilestoneEvidence {
+  /** a figure task's pages committed in the repository (repo-relative), opened sandboxed from the task's commit (ADR-0076) */
+  pages?: string[];
   taskId: string;
   /** file names under the goal's screenshots folder */
   video: string | null;
@@ -161,7 +164,8 @@ async function captureScripted(engine: Engine, goal: Goal, task: Task, opts: Cap
 const IMAGE = /\.(png|jpe?g|webp|gif)$/i;
 const VIDEO = /\.(mp4|webm|mov)$/i;
 /** what a milestone of files names without showing: models, and drawings (a drawing task's one PDF) */
-const NAMED = /\.(step|stp|stl|3mf|glb|dxf|pdf)$/i;
+// …and a figure's page (ADR-0076), which the card opens in a new tab, sandboxed
+const NAMED = /\.(step|stp|stl|3mf|glb|dxf|pdf|html?)$/i;
 const MAX_SHOTS = 8;
 const MAX_CLIPS = 4;
 const MAX_NAMED = 12;
@@ -274,7 +278,9 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
         .sort((a, b) => b.rank - a.rank || b.at - a.at || a.f.localeCompare(b.f));
     const images = ranked(IMAGE);
     const clips = ranked(VIDEO);
-    const named = pool.filter((x) => NAMED.test(x.f)).map((x) => x.f).sort();
+    // a figure task's working files (the un-built page, a copy of the engine) stay off the card when its Deliverables name the pages (ADR-0076)
+    const promised = task.scenario === 'figure' ? (task.delivers ?? []).filter((d) => /\.html?$/i.test(d)).map((d) => d.replace(/^artifacts\//, '')) : [];
+    const named = pool.filter((x) => NAMED.test(x.f) && (!promised.length || !/\.html?$/i.test(x.f) || promised.includes(x.f))).map((x) => x.f).sort();
     const dir = screenshotsDir(config.dataDir, goal);
     mkdirSync(dir, { recursive: true });
     const missed = { images: 0, clips: 0 };
@@ -301,6 +307,8 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
       const file = await copy(x, 'images');
       if (file) evidence.shots.push({ file, caption: x.f });
     }
+    // a figure task's pages (ADR-0076): Foundry's own shots of them, taken by the figure check, are what there is to look at
+    if (task.scenario === 'figure') for (const s of figureShots(store, goal.id, task.id)) if (!evidence.shots.some((x) => x.file === s.file)) evidence.shots.push(s);
     const tooLarge = [...images.filter((x) => x.size > MAX_IMAGE_BYTES), ...clips.slice(0, MAX_CLIPS).filter((x) => x.size > MAX_CLIP_BYTES)].map((x) => x.f);
     const shownClips: { file: string; caption: string }[] = [];
     for (const x of clips.slice(0, MAX_CLIPS).filter((c) => c.size <= MAX_CLIP_BYTES)) {
@@ -311,6 +319,9 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
     // the deliverables first (models, drawings), then what was too large to copy
     const linked = [...named, ...tooLarge];
     if (linked.length) evidence.files = linked.slice(0, MAX_NAMED);
+    // a figure task's pages live in the repository (ADR-0076): the ones its Deliverables name, as the landing left them
+    const pages = task.scenario === 'figure' ? (task.delivers ?? []).filter((d) => /\.html?$/i.test(d) && !d.startsWith('artifacts/') && existsSync(join(ws, d))) : [];
+    if (pages.length) evidence.pages = pages;
     const shown = evidence.shots.length + shownClips.length;
     const uncopied = missed.images + missed.clips;
     // what the shots and clips do not say; the files themselves are listed apart (the card links them)
@@ -324,7 +335,7 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
     if (linked.length > MAX_NAMED) notes.push(`${linked.length - MAX_NAMED} more file(s) not listed`);
     if (uncopied) notes.push(`${uncopied} file(s) could not be copied for the card`);
     evidence.summary = notes.map((n) => `${n[0]!.toUpperCase()}${n.slice(1)}.`).join(' ');
-    if (shown || linked.length) {
+    if (shown || linked.length || pages.length) {
       evidence.status = 'pass';
     } else {
       evidence.status = 'fail';
@@ -334,7 +345,9 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
         ? "the task's files could not be copied for the card"
         : task.scenario === 'cad'
           ? 'the task left no snapshots or exports under artifacts/: there is nothing to look at'
-          : 'the task left no images or video under artifacts/';
+          : task.scenario === 'figure'
+            ? 'the task left no page under artifacts/: there is nothing to look at'
+            : 'the task left no images or video under artifacts/';
     }
   } catch (err) {
     // the code, not the message: a file system error names absolute paths, and this text reaches the notification channels

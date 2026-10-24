@@ -83,11 +83,12 @@ Pick what the goal produces. If you are not sure, leave it on **Auto**.
 | **Research** | An investigation ending in a report with sources. |
 | **Images** | Posters, logos, illustrations. |
 | **Video** | Generated video or narrated presentations. |
+| **Figures** | Interactive isometric figures of objects and machines, one web page each. Beta: shown while Settings → Beta → Figure goals is on; see [Figure goals](./figures.md). |
 | **CAD** | 3D parts and assemblies (STEP, and STL, 3MF or GLB on request), engineering drawings, DXF cut profiles, URDF/SRDF/SDF robot files. Needs text-to-cad, installed on the Setup page. |
 
-Picking **Documents**, **Research**, **Images** or **Video** switches the view to **Simple**. Picking **Images** or **Video** also ticks **Fast mode**, unless you already changed it yourself. **CAD** keeps your defaults: it is code work with a geometry kernel, so the Brief's checks matter; its TDD mandate is *preferred* (the geometry checks are written before the model) and Ponytail applies.
+Picking **Documents**, **Research**, **Images**, **Video** or **Figures** switches the view to **Simple**. Picking **Images**, **Video** or **Figures** also ticks **Fast mode**, unless you already changed it yourself. **Figures** adds a **Style** row: the default from Settings, or one of the two figure skills. **CAD** keeps your defaults: it is code work with a geometry kernel, so the Brief's checks matter; its TDD mandate is *preferred* (the geometry checks are written before the model) and Ponytail applies.
 
-For **Images**, **Video** and **CAD** a field appears: **Output folder**. When the goal finishes, the finished files are copied there. Press **Choose…** to pick a folder. It is optional; without it the files stay in the progress folder. Image goals also need an image key, see [Costs and usage](./costs-and-usage.md#image-goals-need-an-image-key).
+For **Images**, **Video**, **Figures** and **CAD** a field appears: **Output folder**. When the goal finishes, the finished files are copied there. Press **Choose…** to pick a folder. It is optional; without it the files stay in the progress folder. Image goals also need an image key, see [Costs and usage](./costs-and-usage.md#image-goals-need-an-image-key).
 
 A **CAD** goal needs the text-to-cad plugin for the coding agent you picked. The tile says when it is missing; the goal still saves, and waits on its page, with an **Install text-to-cad** button, until the plugin is in (the Setup page has the same install, with uv and slicer detection). Without the plugin, **Auto** never judges a goal to be CAD: it is treated as code work.
 

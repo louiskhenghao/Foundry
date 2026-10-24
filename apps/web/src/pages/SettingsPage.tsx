@@ -564,6 +564,17 @@ export function SettingsPage() {
             <DesignPacks key={`${modelProvider}:video`} provider={modelProvider} compact pack="video" />
             <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on video tasks (scenario `video`).</p>
           </div>
+          {view?.values.beta.figure && (
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-bold text-ink">Figure skills</span>
+                <span className="rounded-sm bg-sunken px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line">beta</span>
+                <span className="ml-auto flex items-center gap-1.5">{aside('workflow.figurePack')}</span>
+              </div>
+              <DesignPacks key={`${modelProvider}:figure`} provider={modelProvider} compact pack="figure" />
+              <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on figure tasks (scenario `figure`); a goal may pick the other installed style on the New goal form. Both skills are bundled with Foundry: installing copies the snapshot, nothing is downloaded. Colorfigures builds its page with python3 and checks its own shots in a Chrome on this computer; Foundry's own render check needs Playwright's Chromium (Preview &amp; self-check).</p>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -771,6 +782,7 @@ export function SettingsPage() {
       <Card id="beta" title={<SettingsTitle id="beta">Beta<HelpLink to="settings#beta" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
         <p className="mb-3 text-xs text-ink-faint">Features on trial: each one stays off until you switch it on, while it settles.</p>
         {bool('beta.conversation', 'Conversation on the goal page', "A bubble at the bottom right of a goal's page (and of its Brief page) opens a Conversation: a read-only Explainer, on the preset's Conversation model, answers your questions about the goal's code and Foundry's records of it, and never changes anything. Its answers cost the goal, outside its budget. Off: no bubble and no Conversation tab.")}
+        {bool('beta.figure', 'Figure goals', "A kind of goal of its own: interactive isometric figures of everyday objects and machines, one web page each, drawn by the Figure pack (Colorfigures or iso-glow, bundled with Foundry) and opened headless by Foundry when a task lands. On: Figures is among the kinds of goal, Figure skills sits under Skills, the CLI takes --nature figure and the doctor checks the tools. Off: none of that shows; figure goals made before still open.")}
       </Card>
 
       <Card id="engine" title={<SettingsTitle id="engine">Engine (install)<HelpLink to="settings#engine-install" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">

@@ -35,6 +35,10 @@ export function sourceOf(row: InstalledSkill, paths: SkillsPaths): SourceKey | n
     const repo = row.plugin.marketplaceRepo;
     return { id: `plugin:${row.plugin.id}`, kind: 'plugin', label: repo ?? row.plugin.id, manager: 'plugin', repo, url: repo ? `https://github.com/${repo}` : null, homepage: repo ? `https://github.com/${repo}` : null };
   }
+  // a skill Foundry ships in its own repository (ADR-0076): nothing upstream to compare with; a Foundry update refreshes the copy
+  if (row.managedBy === 'foundry' && row.marker?.repo.startsWith('bundled:')) {
+    return { id: `foundry:${row.marker.repo}`, kind: 'local', label: `${row.name} (bundled with Foundry)`, manager: 'foundry', repo: null, url: null, homepage: null };
+  }
   if (row.managedBy === 'foundry' && row.marker) {
     return { id: `foundry:${row.marker.repo}`, kind: 'github', label: row.marker.repo, manager: 'foundry', repo: row.marker.repo, url: row.marker.url ?? `https://github.com/${row.marker.repo}`, homepage: `https://github.com/${row.marker.repo}` };
   }

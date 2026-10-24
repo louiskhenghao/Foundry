@@ -1,0 +1,12 @@
+{
+  "name": "colorfigures",
+  "author": "April Zhu",
+  "homepage": "https://april-zhu.com/colorfigures",
+  "license": "MIT",
+  "archive": "https://april-zhu.com/colorfigures/colorfigures.tar.gz",
+  "fetchedAt": "2026-10-24",
+  "files": 8,
+  "bytes": 217316,
+  "sha256": "9d1e7c139e604450c439107e90e5ff396146c1d5a355a545ff01496be067e4f3",
+  "note": "A snapshot of the skill as its author publishes it, kept in Foundry so it installs offline and does not change under a goal; refresh with bun scripts/vendor-figure-skills.ts. The files are unmodified."
+}
