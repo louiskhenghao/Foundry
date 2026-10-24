@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { BriefOutput, BriefSkeleton, PlanOutput } from '@foundry/core';
-import { INTERVIEW_MAX_ROUNDS, getBrief, getGoal, listTasks, noteQuestion, renderDecisions } from '@foundry/core';
+import { INTERVIEW_MAX_ROUNDS, getBrief, getGoal, listChecks, listTasks, noteQuestion, renderDecisions } from '@foundry/core';
+import { FIGURE_CHECK_NAME } from './checks/figure.ts';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { defaultConfig } from './config.ts';
 import { Engine } from './engine.ts';
@@ -37,7 +38,7 @@ afterEach(async () => {
  */
 class StructuredRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
-  classifyAs: 'code' | 'docs' | 'research' | 'image' | 'video' | 'cad' = 'code';
+  classifyAs: 'code' | 'docs' | 'research' | 'image' | 'video' | 'figure' | 'cad' = 'code';
   private mainCalls = 0;
   constructor(private answers: (spec: RunSpec, n: number) => unknown) {}
   active() {
@@ -727,4 +728,65 @@ test('a style the interview already settled starts answered on the Brief; withou
   const style = (out: BriefOutput) => toBrief(goal, out, []).questions.find((q) => q.kind === 'style')!;
   expect(style({ ...briefWith([task('T1', 'A1', 'build page')], []), styleOptions: styles })).toMatchObject({ answer: 'Warm kopitiam', applied: true, options: ['Warm kopitiam', 'Minimal café'] });
   expect(style({ ...briefWith([task('T1', 'A1', 'build page')], []), styleOptions: styles.map(({ chosen: _c, ...s }) => s) })).toMatchObject({ answer: null, applied: false });
+});
+
+describe('figure goals (ADR-0076)', () => {
+  const figureBrief = (figurePack?: 'colorfigures' | 'iso-glow'): BriefOutput => ({ ...briefWith([{ ...task('T1', 'A1', 'draw the kettle'), scenario: 'figure' as const, delivers: ['artifacts/kettle.html'] }], [check('C1', 'T1')]), nature: 'figure' as const, ...(figurePack ? { figurePack } : {}) });
+  const withBeta = () => defaultConfig(ROOT, { dataDir, claudeHome: join(dataDir, 'claude-home'), alwaysReviewTasks: false, betaFigure: true, log: () => {} });
+
+  test('with the beta on, an auto goal classified as a figure gets the figure sections, and its figure task lands with the render check', async () => {
+    const runner = new StructuredRunner(() => figureBrief());
+    runner.classifyAs = 'figure';
+    const engine = track(new Engine(withBeta(), runner));
+    const goal = await engine.createGoal({ prompt: 'a kettle that boils and clicks off, as a colorfigure', repoPath: repo });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    const g = getGoal(engine.store.db, goal.id)!;
+    expect(g.nature).toBe('figure');
+    const clarify = runner.calls.find((c) => c.label?.startsWith('clarify'))!;
+    expect(clarify.prompt).toContain('# Nature: figure');
+    // no figure skill is installed in this fake home: the Clarifier is told, and asked not to pick a style
+    expect(clarify.prompt).toContain('No figure skill is installed');
+    expect(clarify.prompt).not.toContain('no image-generation backend');
+    await engine.approveBrief(goal.id);
+    const t = listTasks(engine.store.db, goal.id).find((x) => x.title === 'draw the kettle')!;
+    expect(t.scenario).toBe('figure');
+    expect(t.tdd).toBe('off');
+    const checks = listChecks(engine.store.db, goal.id).filter((c) => c.taskId === t.id);
+    expect(checks.map((c) => [c.name, c.spec.type, c.tier])).toEqual(expect.arrayContaining([['Delivers artifacts/kettle.html', 'command', 'must'], [FIGURE_CHECK_NAME, 'figure', 'must']]));
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+
+  test("the Clarifier's style verdict sets the goal's Figure pack when the person chose none and that style is installed", async () => {
+    mkdirSync(join(dataDir, 'claude-home', 'skills', 'iso-glow'), { recursive: true });
+    writeFileSync(join(dataDir, 'claude-home', 'skills', 'iso-glow', 'SKILL.md'), '---\nname: iso-glow\ndescription: glow\n---\n');
+    const runner = new StructuredRunner(() => figureBrief('iso-glow'));
+    const engine = track(new Engine(withBeta(), runner));
+    const goal = await engine.createGoal({ prompt: 'a dark glowing skyline', repoPath: repo, nature: 'figure' });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    // a goal made as a figure is a media goal from the start: fast, and in the plain-language view
+    expect(getGoal(engine.store.db, goal.id)!.workflow.pace).toBe('fast');
+    expect(getGoal(engine.store.db, goal.id)!.mode).toBe('simple');
+    const clarify = runner.calls.find((c) => c.label?.startsWith('clarify'))!;
+    // Settings' default (Colorfigures) is not installed here, so the installed style is the one in use
+    expect(clarify.prompt).toContain('The figure skill in use is iso-glow');
+    expect(getGoal(engine.store.db, goal.id)!.figurePack).toBe('iso-glow');
+    const set = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.figure_pack_set');
+    expect(set.map((e) => (e.payload as { figurePack: string }).figurePack)).toEqual(['iso-glow']);
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+
+  test('with the beta off, a figure verdict is image work and a figure goal cannot be made', async () => {
+    const runner = new StructuredRunner(() => ({ ...briefWith([{ ...task('T1', 'A1', 'render posters'), scenario: 'image' as const }], [check('C1', 'T1')]), nature: 'image' as const }));
+    runner.classifyAs = 'figure';
+    const engine = track(new Engine(cfg(), runner));
+    await expect(engine.createGoal({ prompt: 'a kettle', repoPath: repo, nature: 'figure' })).rejects.toThrow(/beta/);
+    const goal = await engine.createGoal({ prompt: 'a kettle as a figure', repoPath: repo });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    expect(getGoal(engine.store.db, goal.id)!.nature).toBe('image');
+    expect(runner.calls.find((c) => c.label?.startsWith('clarify'))!.prompt).toContain('# Nature: image');
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
 });

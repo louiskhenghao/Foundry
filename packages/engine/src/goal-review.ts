@@ -4,6 +4,7 @@ import type { Check, CheckResult, Goal } from '@foundry/core';
 import { jsonSchemaFor, IdPrefix, chosenStyle, getBrief, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { renderStyle, styleApplies } from './attempt-prompt.ts';
+import { FIGURE_REVIEW_GOAL } from './figure.ts';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
@@ -140,13 +141,15 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   const lines = d.split('\n').length;
   const small = lines <= engine.config.smallGoalLines;
   const reviewer = modelFor(engine.config, goal, small ? 'taskReviewer' : 'goalReviewer');
-  const reviewerHint = small ? null : await engine.skillsFor(goal).hints.sectionFor('reviewer-goal', { profile: engine.workflowProfileOf(goal), scenario, discipline: resolveDiscipline(goal, null) });
+  const reviewerHint = small ? null : await engine.skillsFor(goal).hints.sectionFor('reviewer-goal', { packs: engine.packsFor(goal), profile: engine.workflowProfileOf(goal), scenario, discipline: resolveDiscipline(goal, null) });
   const media =
     scenario === 'cad'
       ? `# CAD review\nThis goal's deliverables are model sources in the diff and exports and snapshots under \`artifacts/\` — those are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk, open the snapshots with the Read tool and compare them with the Brief's dimensions and features, and run the goal's geometry checks. A deliverable without snapshots, a missing export, or a dimension off the Brief is a BLOCKER; so is an export or snapshot committed outside \`artifacts/\` that the Brief does not ask for there, and a committed file that reaches into the coding agent's plugin folder.`
       : scenario === 'image' || scenario === 'video'
       ? `# Media review\nThis goal's deliverables are media files under \`artifacts/\` — they are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk${scenario === 'image' ? ' and open the images with the Read tool (it renders them) to judge them against the checks' : '; verify video metadata with ffprobe when available (you cannot watch video — final visual quality stays with the human)'}.`
-      : '';
+      : scenario === 'figure'
+        ? FIGURE_REVIEW_GOAL
+        : '';
   // what earlier goal reviews in this repository found (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('review_goal', memoryQuestion('review_goal', { goalTitle: goal.title }), { repoPath: goal.repoPath, goalId: goal.id });
   const prompt = [

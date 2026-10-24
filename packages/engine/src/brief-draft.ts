@@ -148,7 +148,7 @@ async function draftSession(engine: Engine, goal: Goal, brief: Brief, req: Draft
   say(req.mode === 'revise' ? '— revision requested: syncing the workspace, then the Clarifier re-reads the Brief and the repository…' : '— draft requested: syncing the workspace, then a read-only session explores the repository…');
   const ws = await engine.ensureSyncedWorkspace(goal);
   const overview = await engine.context.overview(ws).catch(() => null);
-  const hint = await engine.skillsFor(goal).hints.sectionFor('clarifier', { profile: engine.workflowProfileOf(goal), scenario: natureScenario(goal.nature) });
+  const hint = await engine.skillsFor(goal).hints.sectionFor('clarifier', { packs: engine.packsFor(goal), profile: engine.workflowProfileOf(goal), scenario: natureScenario(goal.nature) });
   const attachments = [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n');
   const outputSchema = req.mode === 'area' ? AreaDraftOutput : req.mode === 'revise' ? ReviseTurnOutput : TaskDraftOutput;
   const schema = jsonSchemaFor(outputSchema);
