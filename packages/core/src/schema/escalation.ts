@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { Attachment } from './attachment.ts';
 import { FeedbackPlan } from './feedback.ts';
 
 /** Closed enum. Nothing else ever asks the human. */
@@ -12,6 +13,8 @@ export const EscalationTrigger = z.enum([
   'milestone',
   /** a delivery stopped (failing checks it cannot fix, a rejected push, …): the reason and what to do about it */
   'delivery_failed',
+  /** a Request (ADR-0074): a task needs something only the person can give — a material promised in the Brief, a private asset, a key, a decision */
+  'needs_input',
 ]);
 export type EscalationTrigger = z.infer<typeof EscalationTrigger>;
 
@@ -34,6 +37,10 @@ export const EscalationAction = z.enum([
   'retry_delivery',
   /** delivery failed: the human handled it; record it as delivered (merged when GitHub says so) */
   'mark_delivered',
+  /** needs_input: here it is — words, files and links; the task goes on with them */
+  'provide',
+  /** needs_input: there is no such thing; the task goes on with a stand-in (the words say what) */
+  'proceed_without',
 ]);
 export type EscalationAction = z.infer<typeof EscalationAction>;
 
@@ -45,6 +52,8 @@ export const EscalationAnswer = z.object({
   newMaxDurationMin: z.number().positive().optional(),
   feedback: z.string().optional(),
   plan: FeedbackPlan.optional(),
+  /** needs_input: the files and links given with the answer, as staged uploads; the engine makes them attachments of the goal marked with the Request */
+  attachments: z.array(Attachment).optional(),
 });
 export type EscalationAnswer = z.infer<typeof EscalationAnswer>;
 
@@ -89,4 +98,5 @@ export const ACTIONS_BY_TRIGGER: Record<EscalationTrigger, EscalationAction[]> =
   permission_denial: ['retry_with_hint', 'skip_task', 'abort_goal'],
   milestone: ['continue', 'feedback'],
   delivery_failed: ['retry_delivery', 'mark_delivered'],
+  needs_input: ['provide', 'proceed_without', 'skip_task'],
 };

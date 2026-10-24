@@ -68,6 +68,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     error: z.string().nullable(),
   }),
   ev('goal.attachment_removed', { attachmentId: z.string() }),
+  /** a material the person promised in the Brief arrived (or was waived: there is none, the tasks go on with a stand-in) — ADR-0074 */
+  ev('goal.material_received', { key: z.string(), attachmentIds: z.array(z.string()).default([]), note: z.string().nullable().default(null), by: z.string().nullable().default(null), waived: z.boolean().default(false) }),
   ev('goal.attachment_converted', { attachmentId: z.string(), markdown: AttachmentMarkdown }),
   /** tombstone: read models for the goal are dropped; the log keeps its history */
   ev('goal.deleted', { title: z.string(), deletedBranch: z.string().nullable(), reason: z.string() }),

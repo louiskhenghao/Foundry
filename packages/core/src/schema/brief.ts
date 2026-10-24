@@ -86,6 +86,8 @@ export const BriefTask = z.object({
   /** inherit the goal's TDD discipline, or off for this task (docs/infra tasks are set off automatically) */
   tdd: z.enum(['inherit', 'off']).default('inherit'),
   dependsOnKeys: z.array(z.string()).default([]),
+  /** the Brief materials (`provides[].key`) this task needs (ADR-0074) */
+  needs: z.array(z.string()).optional(),
   parallelizable: z.boolean().default(true),
   relevantFiles: z.array(z.string()).default([]),
   /** Deliverables: files the task leaves for the tasks after it (repo-relative, or under artifacts/); checked when it lands, listed to its dependents */
@@ -143,6 +145,27 @@ export const BriefStyleOption = z.object({
 });
 export type BriefStyleOption = z.infer<typeof BriefStyleOption>;
 
+/**
+ * Something the person said during Clarify they would provide later (ADR-0074): what it is, which tasks need it, the
+ * mode the person chose on the Brief page — `wait` (the task does not start before it arrives; Foundry raises a
+ * Request when the task is ready) or `placeholder` (the worker builds with a stand-in and a swap-in task follows) —
+ * and whether it has arrived.
+ */
+export const BriefProvide = z.object({
+  key: z.string(),
+  what: z.string(),
+  /** task keys that need it, from the plan */
+  neededBy: z.array(z.string()).default([]),
+  mode: z.enum(['wait', 'placeholder']).default('wait'),
+  status: z.enum(['waiting', 'received', 'waived']).default('waiting'),
+  receivedAt: z.string().nullable().default(null),
+  /** the goal attachments that delivered it */
+  attachmentIds: z.array(z.string()).default([]),
+  /** the person's words when they gave it, or why there is none */
+  note: z.string().nullable().default(null),
+});
+export type BriefProvide = z.infer<typeof BriefProvide>;
+
 export const Brief = z.object({
   goalId: z.string(),
   /** Conventional Commit header summarising the whole goal; becomes the PR title. Empty = derive from the goal title. */
@@ -150,6 +173,8 @@ export const Brief = z.object({
   understanding: z.string(),
   areas: z.array(BriefArea).default([]),
   assumptions: z.array(BriefAssumption),
+  /** what the person will provide later (ADR-0074); absent on Briefs from before */
+  provides: z.array(BriefProvide).optional(),
   checks: z.array(BriefCheck),
   tasks: z.array(BriefTask),
   costEstimateUsd: z.number().nonnegative(),
@@ -187,6 +212,7 @@ const outputTaskSchema = (delegation: boolean) => z.object({
     .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation/prose writing; research = investigation whose output is a cited report; image = generating or editing images; video = generating or editing video/audio; cad = 3D parts and assemblies, drawings, DXF profiles, robot description files; general = anything else.'),
   areaKey: z.string().describe('Key of the Area this task belongs to.'),
   dependsOnKeys: z.array(z.string()),
+  needs: z.array(z.string()).optional().describe('Keys of the Brief\'s `provides` (things the person will provide later) this task cannot be finished without. Leave out for most tasks.'),
   parallelizable: z.boolean(),
   relevantFiles: z.array(z.string()).describe('Repo-relative paths the worker should start from.'),
   delivers: z
@@ -245,6 +271,16 @@ export const BriefOutput = z.object({
     .min(1)
     .describe('The parts of the product this goal covers: one Area per user-facing role/app the goal names, plus a "shared" Area for groundwork they all need. A small goal has exactly one Area. Every Area must get at least one task.'),
   assumptions: z.array(z.string()).describe('Assumptions you are proceeding on. Each can be overridden by the user.'),
+  provides: z
+    .array(
+      z.object({
+        key: z.string().describe('Short unique key, e.g. M1'),
+        what: z.string().describe('What the person said they would provide later, as they would name it: "the realistic 3D car models (GLB), one per car", "the final logo files", "the API key for Stripe".'),
+        mode: z.enum(['wait', 'placeholder']).default('wait').describe('wait = the tasks that need it do not start before it arrives (Foundry asks the person when they are ready); placeholder = those tasks build with a stand-in and a swap-in task follows when it arrives. Your recommendation; the person decides on the Brief page.'),
+      }),
+    )
+    .optional()
+    .describe('Things the person said they will PROVIDE LATER (assets, files, keys, decisions they still have to make) that the work cannot finish without. Only what they said; never invent a need. Usually empty.'),
   tasks: z.array(OutputTask).min(1),
   checks: z.array(OutputCheck).min(1),
   costEstimateUsd: z.number(),
