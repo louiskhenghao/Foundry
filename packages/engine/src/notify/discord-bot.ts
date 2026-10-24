@@ -58,10 +58,10 @@ export interface DiscordBotOptions {
 }
 
 /** a modal's id: what its words answer */
-const modalId = (t: TextTarget) => (t.kind === 'answer' ? `a:${t.goalId}:${t.round}:${t.index}` : t.kind === 'note' ? `n:${t.goalId}:${t.round}` : `${t.kind === 'hint' ? 'h' : 'f'}:${t.escId}`);
+const modalId = (t: TextTarget) => (t.kind === 'answer' ? `a:${t.goalId}:${t.round}:${t.index}` : t.kind === 'note' ? `n:${t.goalId}:${t.round}` : `${t.kind === 'hint' ? 'h' : t.kind === 'provide' ? 'p' : 'f'}:${t.escId}`);
 export function parseModalId(id: string): TextTarget | null {
   const p = id.split(':');
-  if ((p[0] === 'h' || p[0] === 'f') && p.length === 2 && p[1]) return { kind: p[0] === 'h' ? 'hint' : 'feedback', escId: p[1] };
+  if ((p[0] === 'h' || p[0] === 'f' || p[0] === 'p') && p.length === 2 && p[1]) return { kind: p[0] === 'h' ? 'hint' : p[0] === 'p' ? 'provide' : 'feedback', escId: p[1] };
   if (p[0] === 'a' && p.length === 4 && p[1] && /^\d+$/.test(p[2]!) && /^\d+$/.test(p[3]!)) return { kind: 'answer', goalId: p[1], round: Number(p[2]), index: Number(p[3]) };
   if (p[0] === 'n' && p.length === 3 && p[1] && /^\d+$/.test(p[2]!)) return { kind: 'note', goalId: p[1], round: Number(p[2]) };
   return null;
@@ -336,7 +336,9 @@ export class DiscordBot extends ChatBot<DiscordState> {
           ? ['Give feedback', 'What should change?', 'Foundry says what it makes of it before anything happens.']
           : t.kind === 'note'
             ? [`Round ${t.round}: your note`, 'Your note', 'What the questions missed or got wrong. Sent with your answers; it becomes a Decision.']
-            : [`Q${t.index + 1}: your answer`, 'Your answer', question ?? ''];
+            : t.kind === 'provide'
+              ? ['Answer the request', 'What you can give, in words', 'The task goes on with your words; files come through the web.']
+              : [`Q${t.index + 1}: your answer`, 'Your answer', question ?? ''];
     return {
       custom_id: modalId(t),
       title: clip(title, 45),

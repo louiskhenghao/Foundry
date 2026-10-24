@@ -738,6 +738,7 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
   return [
     `# Goal from the user\n${goal.prompt}`,
     c.decisions ? `${c.decisions}\nThese are settled: plan with them.` : '',
+    skeleton.provides?.length ? `# Materials the person will provide later\n${skeleton.provides.map((p) => `- ${p.key}: ${p.what} (${p.mode === 'placeholder' ? 'the tasks build with a placeholder first' : 'the tasks that need it wait for it'})`).join('\n')}\nA task that cannot be finished without one of them lists its key in \`needs\`; keep such tasks few and late, so the rest of the goal is not held up.` : '',
     answers.length ? `# The human's answers in the interview (settled)\n${answers.map(({ question, answer }) => `- ${question.text}\n  A: ${answer}`).join('\n')}` : '',
     c.previous,
     renderReferences(goal),
@@ -807,9 +808,11 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     understanding: o.understanding,
     areas: o.areas.map((a) => ({ key: a.key, name: a.name, slug: a.slug, description: a.description ?? '' })),
     assumptions: o.assumptions.map((text) => ({ id: newId('as'), text, accepted: true, applied: false })),
+    // what the person said they would provide later (ADR-0074); which tasks need it comes from the tasks' own `needs`
+    provides: (o.provides ?? []).map((p) => ({ key: p.key, what: p.what, neededBy: o.tasks.filter((t) => (t.needs ?? []).includes(p.key)).map((t) => t.key), mode: p.mode ?? ('wait' as const), status: 'waiting' as const, receivedAt: null, attachmentIds: [], note: null })),
     checks: o.checks.map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey ?? null, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey ?? null) })),
     // a `goal` task where the goal allows no delegation (a model that ignored the schema) is an ordinary task
-    tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind === 'goal' && !goal.delegation.allow ? 'feature' : (t.kind ?? 'feature'), scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], budgetUsd: t.kind === 'goal' ? (t.budgetUsd ?? null) : null, repo: t.kind === 'goal' && goal.delegation.allow ? (t.repo ?? null) : null, milestone: t.milestone ?? null, milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null, difficulty: t.difficulty ?? 'standard' })),
+    tasks: o.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, needs: (t.needs ?? []).filter((k) => (o.provides ?? []).some((p) => p.key === k)), kind: t.kind === 'goal' && !goal.delegation.allow ? 'feature' : (t.kind ?? 'feature'), scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys, parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], budgetUsd: t.kind === 'goal' ? (t.budgetUsd ?? null) : null, repo: t.kind === 'goal' && goal.delegation.allow ? (t.repo ?? null) : null, milestone: t.milestone ?? null, milestoneScript: t.milestone ? (t.milestoneScript ?? null) : null, difficulty: t.difficulty ?? 'standard' })),
     costEstimateUsd: o.costEstimateUsd,
     run: o.run ?? null,
     apps: o.apps ?? null,

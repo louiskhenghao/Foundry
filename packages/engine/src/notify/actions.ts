@@ -23,7 +23,7 @@ export type Target =
   | { kind: 'usage'; provider: AgentProvider };
 
 /** what words sent in reply mean */
-export type TextTarget = { kind: 'hint'; escId: string } | { kind: 'feedback'; escId: string } | { kind: 'answer'; goalId: string; round: number; index: number } | { kind: 'note'; goalId: string; round: number };
+export type TextTarget = { kind: 'hint'; escId: string } | { kind: 'feedback'; escId: string } | { kind: 'provide'; escId: string } | { kind: 'answer'; goalId: string; round: number; index: number } | { kind: 'note'; goalId: string; round: number };
 
 export function targetKey(t: Target): string {
   switch (t.kind) {
@@ -149,6 +149,9 @@ export function escalationKeyboard(esc: Escalation): Keyboard {
       return [[btn('▶️ Continue', e('c')), btn('💬 Give feedback…', e('f'))]];
     case 'delivery_failed':
       return [[btn('🔁 Retry delivery', e('D')), btn('✅ Mark as delivered…', e('m'))]];
+    case 'needs_input':
+      // the words of a reply are the answer; files come through the web
+      return [[btn('⏭ Continue without it', e('n')), btn('⏭ Skip task', e('s'))]];
     case 'brief_question':
       return [];
   }
@@ -267,6 +270,7 @@ const ESC_CODES: Record<string, { action: EscalationAction; done: string; toast:
   c: { action: 'continue', done: 'Continued', toast: () => 'Continuing with the remaining tasks.' },
   D: { action: 'retry_delivery', done: 'Delivery retried', toast: () => 'The delivery runs again.' },
   M: { action: 'mark_delivered', done: 'Marked as delivered', toast: () => 'Recorded as delivered.' },
+  n: { action: 'proceed_without', done: 'Continued without it', toast: () => 'The task goes on without it.' },
 };
 /** a confirming press, offered only after the press that asks */
 const CONFIRMS: Record<string, string> = { X: 'x', M: 'm' };
@@ -450,6 +454,7 @@ export function textTargetOf(host: ActionHost, t: Target): TextTarget | null {
       const esc = host.escalation(t.id);
       if (!esc) return null;
       if (esc.trigger === 'milestone') return { kind: 'feedback', escId: esc.id };
+      if (esc.trigger === 'needs_input') return { kind: 'provide', escId: esc.id };
       return ACTIONS_BY_TRIGGER[esc.trigger].includes('retry_with_hint') ? { kind: 'hint', escId: esc.id } : null;
     }
     default:
@@ -469,6 +474,18 @@ export async function reply(host: ActionHost, target: TextTarget, text: string, 
   const words = text.trim();
   if (!words) return { toast: 'An empty reply changes nothing.' };
   switch (target.kind) {
+    case 'provide': {
+      // words in reply to a Request (ADR-0074): the answer itself; files come through the web
+      const esc = host.escalation(target.escId);
+      if (!esc || esc.state !== 'open') return { toast: esc ? `Already ${esc.state}: the words were not used.` : 'This item is gone.', alert: true };
+      try {
+        await host.answerEscalation(esc.id, { action: 'provide', hint: words });
+      } catch (err) {
+        return { toast: clip(`Not done: ${errText(err)}`, 200), alert: true };
+      }
+      host.note(esc.goalId, `answered a request ${fromVia(via)}`);
+      return { toast: 'Passed on to the task: it goes on with your answer.', update: [{ target: { kind: 'esc', id: esc.id }, buttons: statusRow('✓ Answered') }] };
+    }
     case 'hint': {
       const esc = host.escalation(target.escId);
       if (!esc || esc.state !== 'open') return { toast: esc ? `Already ${esc.state}: the hint was not used.` : 'This item is gone.', alert: true };

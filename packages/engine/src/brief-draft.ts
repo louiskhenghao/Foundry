@@ -328,7 +328,16 @@ export function toRevisedBrief(current: Brief, out: RevisionOutput, decided: Bri
     checks: out.checks
       .filter((c) => !c.taskKey || taskKeys.has(c.taskKey))
       .map((c) => ({ key: c.key, name: c.name, tier: c.tier, taskKey: c.taskKey ?? null, areaKey: c.taskKey ? null : area(c.areaKey), spec: materializeCheck(c, c.taskKey ?? null) })),
-    tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], milestone: t.milestone === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestone ?? null) : t.milestone, milestoneScript: t.milestoneScript === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestoneScript ?? null) : t.milestoneScript, difficulty: t.difficulty ?? 'standard' })),
+    tasks: out.tasks.map((t) => ({ key: t.key, title: t.title, spec: t.spec, needs: (t.needs ?? []).filter((k) => (out.provides ?? []).some((p) => p.key === k) || (current.provides ?? []).some((p) => p.key === k)), kind: t.kind ?? 'feature', scope: t.scope ?? null, scenario: t.scenario ?? 'general', areaKey: area(t.areaKey), tdd: 'inherit', dependsOnKeys: t.dependsOnKeys.filter((k) => taskKeys.has(k) && k !== t.key), parallelizable: t.parallelizable, relevantFiles: t.relevantFiles, delivers: t.delivers ?? [], milestone: t.milestone === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestone ?? null) : t.milestone, milestoneScript: t.milestoneScript === undefined ? (current.tasks.find((c) => c.key === t.key)?.milestoneScript ?? null) : t.milestoneScript, difficulty: t.difficulty ?? 'standard' })),
+    // materials keep what already arrived; a revision renames or adds, and drops only ones still waiting (ADR-0074)
+    provides: [
+      ...(out.provides ?? []).map((p) => {
+        const prev = (current.provides ?? []).find((x) => x.key === p.key);
+        const neededBy = out.tasks.filter((t) => (t.needs ?? []).includes(p.key)).map((t) => t.key);
+        return prev ? { ...prev, what: p.what, neededBy, mode: prev.status === 'waiting' ? (p.mode ?? prev.mode) : prev.mode } : { key: p.key, what: p.what, neededBy, mode: p.mode ?? ('wait' as const), status: 'waiting' as const, receivedAt: null, attachmentIds: [], note: null };
+      }),
+      ...(current.provides ?? []).filter((x) => x.status !== 'waiting' && !(out.provides ?? []).some((p) => p.key === x.key)),
+    ],
     costEstimateUsd: out.costEstimateUsd,
     run: out.run ?? current.run,
     apps: out.apps ?? current.apps,
