@@ -1,5 +1,4 @@
 import type { VideoPack } from '@foundry/core';
-import { fileURLToPath } from 'node:url';
 import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, assignMaterials } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
 import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
@@ -148,15 +147,8 @@ import { DESKTOP_APPS_PATTERNS, SLICER_APP_PATTERNS, SLICER_HEADLESS_PATTERNS } 
 import { pluginServerPrefix } from './mcp/servers.ts';
 import { serverBaseArgs } from './skills/installer.ts';
 import { MOTION_STUDIO, exportHouseStyle, motionStudioCheck } from './motion-studio.ts';
+import { playwrightEnv } from './playwright-dir.ts';
 
-/** where the Playwright package the engine imports lives, handed to sessions as FOUNDRY_PLAYWRIGHT; null when it cannot be resolved */
-const PLAYWRIGHT_PACKAGE_DIR: string | null = (() => {
-  try {
-    return dirname(fileURLToPath(import.meta.resolve('playwright/package.json')));
-  } catch {
-    return null;
-  }
-})();
 
 export interface CreateGoalInput {
   provider?: AgentProvider;
@@ -653,7 +645,7 @@ export class Engine {
       CADGEN_TELEMETRY: '0',
       CADGEN_UPDATE_CHECK: '0',
       // the Playwright the engine ships, for a session that renders through a headless Chromium (the motion-studio renderer, ADR-0076)
-      ...(PLAYWRIGHT_PACKAGE_DIR ? { FOUNDRY_PLAYWRIGHT: PLAYWRIGHT_PACKAGE_DIR } : {}),
+      ...playwrightEnv(),
       // Settings → Safety → Desktop apps & printers: off = the boundary hook refuses the openers, the slicers' windows and the gated skills
       ...(this.config.desktopApps ? {} : this.desktopGateEnv()),
     };

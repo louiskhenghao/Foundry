@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import type { Check, CheckResult } from '@foundry/core';
 import { IdPrefix, newId } from '@foundry/core';
 import { truncateOutput } from '../distill/truncate.ts';
+import { playwrightEnv } from '../playwright-dir.ts';
 import { runInGroup } from '../proc.ts';
 import { NO_BROWSER, scriptPorts, writeWrapper } from './milestone-script.ts';
 
@@ -27,7 +28,8 @@ export async function runCommandCheck(check: Check, ctx: CommandCheckContext): P
   try {
     // its own process group, killed whole: a test runner's dev server must not keep the check open after it ends
     const ports = spec.ports ? await scriptPorts() : {};
-    const env = { ...process.env, ...ports, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
+    // the engine's Playwright, as the sessions get it: a check that renders a film runs the worker's own script
+    const env = { ...process.env, ...playwrightEnv(), ...ports, CI: '1', FORCE_COLOR: '0', NO_COLOR: '1' };
     const cmd = wrapper ? `${spec.cmd} --config '${wrapper.name}'` : spec.cmd;
     const run = () => runInGroup(['sh', '-lc', cmd], { cwd, env, timeoutMs: spec.timeoutMs, killLeftovers: true });
     let r = await run();
