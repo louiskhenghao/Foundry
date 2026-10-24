@@ -129,3 +129,49 @@ describe('a git source pinned to a tag', () => {
     expect(readFileSync(skill, 'utf8')).not.toContain('newer');
   });
 });
+
+describe('a git source pinned to a commit', () => {
+  test('installs that commit, fetching it by id when the default branch does not reach it, and an update keeps it there', async () => {
+    const up = join(fake.home, 'upstream-commit');
+    mkdirSync(join(up, 'skills', 'fix'), { recursive: true });
+    writeFileSync(join(up, 'skills', 'fix', 'SKILL.md'), skillMd('fix', 'first'));
+    const g = (args: string) => Bun.$`sh -c ${`cd ${up} && git -c user.name=t -c user.email=t@t ${args}`}`.quiet();
+    await g('init -q -b main');
+    await g('add -A');
+    await g('commit -q -m one');
+    // the pinned commit sits on a side branch: a shallow clone of main never has it
+    await g('checkout -q -b side');
+    writeFileSync(join(up, 'skills', 'fix', 'SKILL.md'), skillMd('fix', 'pinned'));
+    await g('commit -q -am side');
+    const sha = (await Bun.$`sh -c ${`cd ${up} && git rev-parse HEAD`}`.quiet()).text().trim();
+    await g('checkout -q main');
+    writeFileSync(join(up, 'skills', 'fix', 'SKILL.md'), skillMd('fix', 'newer'));
+    await g('commit -q -am two');
+    const catalogPath = writeCatalog(join(fake.home, 'catalog-commit'), [{ id: 'fix', name: 'fix', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'acme/commit', url: `file://${up}`, ref: sha, path: 'skills/fix' } }]);
+    const m = new SkillsManager({ claudeHome: fake.claudeHome, dataDir: fake.dataDir, catalogPath, which: () => null });
+    expect((await m.install('fix')).ok).toBe(true);
+    const skill = join(fake.paths.skillsDir, 'fix', 'SKILL.md');
+    expect(readFileSync(skill, 'utf8')).toContain('pinned');
+    expect(JSON.parse(readFileSync(join(fake.paths.skillsDir, 'fix', '.foundry.json'), 'utf8'))).toMatchObject({ ref: sha, commit: sha });
+    // the refresh fetches and resets the cache to the commit, not to main that moved on
+    const u = await m.update('fix');
+    expect(u.unchanged).toEqual(['fix']);
+    expect(readFileSync(skill, 'utf8')).toContain('pinned');
+    expect(readFileSync(skill, 'utf8')).not.toContain('newer');
+  });
+
+  test('a commit the repository does not have fails the install and leaves no cache behind', async () => {
+    const up = join(fake.home, 'upstream-nocommit');
+    mkdirSync(join(up, 'skills', 'nofix'), { recursive: true });
+    writeFileSync(join(up, 'skills', 'nofix', 'SKILL.md'), skillMd('nofix'));
+    const g = (args: string) => Bun.$`sh -c ${`cd ${up} && git -c user.name=t -c user.email=t@t ${args}`}`.quiet();
+    await g('init -q -b main');
+    await g('add -A');
+    await g('commit -q -m one');
+    const catalogPath = writeCatalog(join(fake.home, 'catalog-commit-bad'), [{ id: 'nofix', name: 'nofix', summary: '', why: '', tier: 'recommended', source: { type: 'git', repo: 'acme/nocommit', url: `file://${up}`, ref: 'f'.repeat(40), path: 'skills/nofix' } }]);
+    const m = new SkillsManager({ claudeHome: fake.claudeHome, dataDir: fake.dataDir, catalogPath, which: () => null });
+    await expect(m.install('nofix')).rejects.toThrow('commit fffffff is not in acme/nocommit');
+    expect(existsSync(join(fake.paths.cacheDir, 'acme', 'nocommit'))).toBe(false);
+    expect(existsSync(join(fake.paths.skillsDir, 'nofix'))).toBe(false);
+  });
+});
