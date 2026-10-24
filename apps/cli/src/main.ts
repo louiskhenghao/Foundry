@@ -755,6 +755,8 @@ async function ask(goalId: string, text: string, fresh: boolean): Promise<void> 
         const p = msg.event.payload;
         if (streamed) process.stdout.write('\n');
         else if (p.text && p.status !== 'done') console.log(p.text);
+        // what it proposed (ADR-0075): applied on the goal page
+        if (p.proposals?.length) console.log(`\nProposed (apply on the goal page, Conversation tab):\n${p.proposals.map((x: { id: string; type: string; title: string }) => `  - ${x.id} · ${x.type} · ${x.title}`).join('\n')}`);
         finish(summary(p));
         ws.close();
       }
