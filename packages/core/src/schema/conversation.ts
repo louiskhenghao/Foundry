@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Attachment } from './attachment.ts';
+import { Proposal } from './proposal.ts';
 
 /**
  * A Conversation (ADR-0073): the person's running exchange with the goal's coding agent about the goal, on its page. A
@@ -31,6 +32,8 @@ export const ConversationMessage = z.object({
   durationMs: z.number().nonnegative().default(0),
   /** what the person attached to a question (pictures, files, links), kept under the goal's attachments folder; none on the Explainer's */
   attachments: z.array(Attachment).default([]),
+  /** what the Explainer proposed with its answer (ADR-0075): a task, a decision, a note, a follow-up, a hand-over; applied by the person */
+  proposals: z.array(Proposal).optional(),
 });
 export type ConversationMessage = z.infer<typeof ConversationMessage>;
 

@@ -1,5 +1,5 @@
 import type { Attachment } from '@foundry/core/browser';
-import { CONVERSATION_ATTACHMENTS_MAX, attachmentKindLabel } from '@foundry/core/browser';
+import { CONVERSATION_ATTACHMENTS_MAX, attachmentKindLabel, withoutProposalBlocks } from '@foundry/core/browser';
 import { LoaderCircle, Paperclip, SendHorizontal, Square } from 'lucide-react';
 import { type ClipboardEvent, type DragEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import { api } from '../../api.ts';
@@ -9,6 +9,7 @@ import { Button, cn, fmtUsd } from '../../ui.tsx';
 import { clock } from '../../time.ts';
 import { AttachmentList, previews } from '../Attachments.tsx';
 import { Markdown } from '../Markdown.tsx';
+import { ProposalCard } from './ProposalCard.tsx';
 
 /** the first string in a tool call's input whose key matches, for inputs named differently by each coding agent */
 const field = (input: Record<string, unknown>, re: RegExp) => Object.entries(input).find(([k, v]) => re.test(k) && typeof v === 'string' && v)?.[1] as string | undefined;
@@ -78,7 +79,9 @@ export function liveAnswer(items: StreamItem[]): { text: string; activity: strin
       activity = null;
     } else if (ev.kind === 'tool_use') activity = describeActivity(ev);
   }
-  return { text: [...blocks, delta].filter((t) => t.trim()).join('\n\n'), activity, started: true };
+  const text = [...blocks, delta].filter((t) => t.trim()).join('\n\n');
+  // a proposal block being written is not words for the person: the card comes with the finished answer
+  return { text: withoutProposalBlocks(text).replace(/```foundry-proposal[\s\S]*$/, '').trimEnd(), activity, started: true };
 }
 
 /** how an answer ended, when not as it should */
@@ -227,8 +230,16 @@ export function ConversationThread({ conversation, live, items, readOnly = false
           ) : (
             <div key={m.id} className="flex flex-col items-start gap-1">
               <div className={cn('max-w-full rounded-xl rounded-bl-sm px-3.5 py-2.5 text-ink ring-1 ring-inset', prose, m.status === 'failed' ? 'bg-bad/5 ring-bad/40' : 'bg-sunken ring-line')}>
-                {m.text.trim() ? <Markdown source={m.text} /> : <span className="text-ink-faint">{m.status === 'stopped' ? 'Stopped before it said anything.' : 'No answer came.'}</span>}
+                {m.text.trim() ? <Markdown source={withoutProposalBlocks(m.text) || m.text} /> : <span className="text-ink-faint">{m.status === 'stopped' ? 'Stopped before it said anything.' : 'No answer came.'}</span>}
               </div>
+              {/* what it proposed: cards the person applies (ADR-0075) */}
+              {(m.proposals?.length ?? 0) > 0 && conversation && (
+                <div className="flex w-full max-w-full flex-col gap-2 pl-1">
+                  {m.proposals!.map((p) => (
+                    <ProposalCard key={p.id} goalId={conversation.goalId} conversationId={conversation.id} proposal={p} compact={compact} />
+                  ))}
+                </div>
+              )}
               <div className="text-[11px] text-ink-faint">
                 {clock(m.at)}
                 {m.model ? ` · ${m.model.replace(/^claude-/, '')}` : ''}

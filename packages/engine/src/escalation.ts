@@ -89,6 +89,10 @@ async function applyAnswer(engine: Engine, id: string, answer: EscalationAnswer,
     const left = await takeBackStuck(engine, getGoal(store.db, esc.goalId)!, stuck);
     if (left) throw new Error(left);
   }
+  // what the person gave is taken in before the answer is recorded: a file that cannot be taken leaves the Request open,
+  // not answered with nothing done (ADR-0074)
+  const need = needsOf(esc);
+  const given = answer.action === 'provide' || answer.action === 'proceed_without' ? (answer.attachments ?? []).map((a) => engine.addAttachment(esc.goalId, a, { requestId: esc.id, materialKey: need?.materialKey ?? null })) : [];
   store.append({ type: 'escalation.answered', goalId: esc.goalId, payload: { escalationId: id, answer, by: by ?? null } });
 
   const goal = getGoal(store.db, esc.goalId)!;
@@ -122,8 +126,6 @@ async function applyAnswer(engine: Engine, id: string, answer: EscalationAnswer,
     case 'proceed_without': {
       // a Request (ADR-0074): what the person gave becomes attachments of the goal marked with it; the task goes on — a
       // worker's session resumes with the answer (scheduler), a material Foundry asked for is recorded as arrived
-      const need = needsOf(esc);
-      const given = (answer.attachments ?? []).map((a) => engine.addAttachment(goal.id, a, { requestId: esc.id, materialKey: need?.materialKey ?? null }));
       const words = answer.hint?.trim() || null;
       if (need?.materialKey) markMaterial(engine, goal, need.materialKey, { attachmentIds: given.map((a) => a.id), note: words, by: by ?? null, waived: answer.action === 'proceed_without' });
       if (task) {
