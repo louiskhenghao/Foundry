@@ -176,6 +176,8 @@ switch (cmd) {
       },
       modelPreset: opt('--models'),
       nature: opt('--nature'),
+      // the Figure pack a figure goal follows instead of Settings' default (ADR-0076, beta)
+      figurePack: opt('--figure-pack'),
       workflow: opt('--pace') || opt('--suite') ? { ...(opt('--pace') ? { pace: opt('--pace') } : {}), ...(opt('--suite') ? { profile: opt('--suite') } : {}) } : undefined,
       interview: opt('--interview'),
       effort: effort === 'default' ? null : effort,
