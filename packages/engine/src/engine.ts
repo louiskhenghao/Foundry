@@ -1,4 +1,4 @@
-import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow } from '@foundry/core';
+import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, assignMaterials } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
 import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
 import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
@@ -2678,8 +2678,12 @@ export class Engine {
     const now = new Date().toISOString();
     const idByKey = new Map<string, string>();
     for (const t of brief.tasks) idByKey.set(t.key, newId(IdPrefix.task));
-    // which tasks need each material (ADR-0074), from the tasks' own `needs`
-    brief.provides = (brief.provides ?? []).map((p) => ({ ...p, neededBy: brief.tasks.filter((t) => (t.needs ?? []).includes(p.key)).map((t) => t.key) }));
+    // which tasks need each material (ADR-0074): the tasks' own `needs`, or their words, or all of them
+    if (brief.provides?.length) {
+      const assigned = assignMaterials(brief.tasks, brief.provides);
+      brief.tasks = assigned.tasks;
+      brief.provides = assigned.provides;
+    }
     this.store.append({ type: 'brief.approved', goalId, payload: { brief, by: by ?? null } });
     for (const t of brief.tasks) {
       const area = brief.areas.find((a) => a.key === t.areaKey) ?? null;

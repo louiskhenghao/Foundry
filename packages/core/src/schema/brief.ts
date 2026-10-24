@@ -166,6 +166,29 @@ export const BriefProvide = z.object({
 });
 export type BriefProvide = z.infer<typeof BriefProvide>;
 
+/**
+ * Which tasks need each material: the tasks that name its key in `needs`; when none does (the planner left it out), the
+ * tasks whose title or spec mention a word of what the material is — and failing that every task, since a wait is what
+ * the person asked for. Returns the tasks with their `needs` filled in and the materials with `neededBy`.
+ */
+export function assignMaterials<T extends { key: string; title: string; spec: string; needs?: string[] }>(tasks: T[], provides: BriefProvide[]): { tasks: T[]; provides: BriefProvide[] } {
+  const keys = new Set(provides.map((p) => p.key));
+  const needs = new Map(tasks.map((t) => [t.key, (t.needs ?? []).filter((k) => keys.has(k))]));
+  const words = (s: string) => new Set((s.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) ?? []).filter((w) => !STOP.has(w)));
+  for (const p of provides) {
+    if (tasks.some((t) => needs.get(t.key)!.includes(p.key))) continue;
+    const wanted = words(p.what);
+    const matching = tasks.filter((t) => [...words(`${t.title} ${t.spec}`)].some((w) => wanted.has(w) || [...wanted].some((x) => x.length >= 5 && (w.startsWith(x) || x.startsWith(w)))));
+    for (const t of matching.length ? matching : tasks) needs.get(t.key)!.push(p.key);
+  }
+  return {
+    tasks: tasks.map((t) => ({ ...t, needs: needs.get(t.key)! })),
+    provides: provides.map((p) => ({ ...p, neededBy: tasks.filter((t) => needs.get(t.key)!.includes(p.key)).map((t) => t.key) })),
+  };
+}
+/** words of a material's description that say nothing about which task needs it */
+const STOP = new Set(['the', 'this', 'that', 'with', 'from', 'files', 'file', 'three', 'four', 'five', 'later', 'real', 'final', 'our', 'their', 'into', 'for', 'and']);
+
 export const Brief = z.object({
   goalId: z.string(),
   /** Conventional Commit header summarising the whole goal; becomes the PR title. Empty = derive from the goal title. */
