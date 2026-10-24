@@ -264,7 +264,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       raiseEscalation(engine, { goal, task, trigger: 'retries_exhausted', message: `Task "${task.title}" used ${attemptsSoFar} attempts without passing its Must checks.`, payload: { attempts: attemptsSoFar } });
       return;
     }
-    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: resume ? `resuming attempt ${resume.attempt.index} after ${cutBy === 'usage_limit' ? 'the usage limit' : 'the engine restart'}` : `attempt ${attemptsSoFar + 1}` } });
+    store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'ready', to: 'running', reason: resume ? `resuming attempt ${resume.attempt.index} after ${cutBy === 'usage_limit' ? 'the usage limit' : cutBy === 'needs_input' ? 'the person answered its request' : 'the engine restart'}` : `attempt ${attemptsSoFar + 1}` } });
 
     // a task in its own worktree first catches up with what other tasks landed on the goal branch (not while another
     // task's merge holds the goal workspace: the catch-up before its landing brings that)
@@ -275,11 +275,13 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     if (fresh.state !== 'running' || lost()) return; // cancelled / aborted / unstuck meanwhile
     store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'attempt finished' } });
     // the worker stopped to ask the person for something (ADR-0074): the task waits for the answer, and the session
-    // resumes with it through the start path above
-    if (outcome.needs) {
-      raiseEscalation(engine, { goal, task: getTask(store.db, task.id)!, attemptId: outcome.attempt.id, trigger: 'needs_input', message: outcome.needs.what, payload: { kind: 'needs_input', source: 'worker', materialKey: null, ...outcome.needs } });
-      return;
-    }
+    // resumes with it through the start path above — after the first segment, and after any continuation
+    const asked = (o: typeof outcome): boolean => {
+      if (!o.needs) return false;
+      raiseEscalation(engine, { goal, task: getTask(store.db, task.id)!, attemptId: o.attempt.id, trigger: 'needs_input', message: o.needs.what, payload: { kind: 'needs_input', source: 'worker', materialKey: null, ...o.needs } });
+      return true;
+    };
+    if (asked(outcome)) return;
     // Continuations: while the session was cut or is making progress, resume it rather than paying for a fresh one
     let prevFailed: number | null = null;
     while (!outcome.passed) {
@@ -302,6 +304,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       fresh = getTask(store.db, task.id)!;
       if (fresh.state !== 'running' || lost()) return;
       store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'running', to: 'observing', reason: 'continuation finished' } });
+      if (asked(outcome)) return;
     }
 
     if (outcome.passed) {

@@ -146,3 +146,25 @@ describe('a goal asks for what only the person can give (ADR-0074)', () => {
 });
 
 const getEscalationState = (engine: Engine, id: string) => listEscalations(engine.store.db).find((e) => e.id === id)?.state;
+
+test('a request block written in a continuation (the checks failed, the session went on) raises the Request too, instead of another retry', async () => {
+  // the first segment finishes without the file (its check fails); the checks-failed continuation stops to ask; the answer's session finishes
+  const runner = new Worker((spec): Turn => (spec.prompt.includes('proceed without it') || spec.prompt.includes('answered your request') ? { write: { 'done.txt': 'ok' } } : spec.resumeSessionId ? { finalText: `I cannot finish without it.\n\n${NEEDS}` } : { write: { 'shell.txt': 'the shell' }, finalText: 'Built the shell; the file is still missing.' }));
+  const engine = track(new Engine(cfg(), runner));
+  const goal = await engine.createGoal({ prompt: 'a car showroom', repoPath: repo, brief: brief([task('T1', 'build the showroom')], [check('C1', 'T1', 'done.txt')]) });
+  await waitFor(() => listEscalations(engine.store.db, { goalId: goal.id, openOnly: true }).some((e) => e.trigger === 'needs_input'), 30_000);
+  const [t1] = listTasks(engine.store.db, goal.id);
+  expect(t1!.state).toBe('blocked');
+  const [a] = listAttempts(engine.store.db, t1!.id);
+  expect([a!.state, a!.resultSubtype]).toEqual(['interrupted', 'needs_input']);
+  // one attempt, two sessions of it so far: the first segment and the continuation that asked
+  expect(listAttempts(engine.store.db, t1!.id)).toHaveLength(1);
+  expect(runner.calls.filter((c) => c.label?.startsWith('attempt'))).toHaveLength(2);
+  const esc = listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })[0]!;
+  await engine.answerEscalation(esc.id, { action: 'proceed_without', hint: 'there is none; use a placeholder' }, 'ann');
+  await waitFor(() => ['done', 'over_delivered'].includes(getGoal(engine.store.db, goal.id)!.state), 60_000);
+  const last = runner.calls.filter((c) => c.label?.startsWith('attempt')).at(-1)!;
+  expect(last.resumeSessionId).toBe('s1');
+  expect(last.prompt).toContain('proceed without it');
+  expect(last.prompt).toContain('there is none; use a placeholder');
+}, 120_000);

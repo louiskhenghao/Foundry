@@ -29,7 +29,7 @@ what was promised, and an answer that carries files and goes back into the same 
   the worker finds itself and says so. One request per segment.
 - **Materials promised in the Brief.** The Clarifier records what the person said they would provide later as
   `provides` on the Brief: a key, what it is, which tasks need it, and a mode the person chooses on the Brief page —
-  **wait** (default) or **placeholder**. At approval each task that needs a material carries its key. In *wait* mode,
+  **wait** (default) or **placeholder**. At approval each task that needs a material carries its key: the tasks that named it in `needs`, or — when the planner left it out — the tasks whose title or spec mention a word of what the material is, and failing that every task, since a wait is what the person asked for (`assignMaterials`). In *wait* mode,
   when such a task becomes ready, **Foundry raises the Request itself**, from the Brief's words, without spending a
   worker session; the task starts when the material arrives. In *placeholder* mode the worker is told to build with a
   stand-in and keep the swap trivial; when the material arrives Foundry adds a swap-in task (`origin:
