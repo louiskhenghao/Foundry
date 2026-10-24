@@ -170,6 +170,7 @@ function sourceLine(c: CatalogEntryStatus): string {
   if (s.type === 'plugin') return `plugin ${s.plugin} from the ${s.marketplaceId} marketplace (${s.marketplace}${s.ref ? ` @ ${s.ref}` : ''})`;
   if (s.type === 'cli') return `command-line tool \`${s.detect}\`${s.skill ? ' with a skill folder of the same name' : ''}`;
   if (s.type === 'suite') return `the ${s.suite} workflow suite — a Foundry-managed copy of its pinned plugin, without its hooks`;
+  if (s.type === 'bundled') return `bundled with Foundry (catalog/${s.path}): a snapshot of the author's archive, installed by copying it`;
   return `installed by hand (${s.detectDir}/)`;
 }
 

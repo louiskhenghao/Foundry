@@ -7,12 +7,12 @@ import { KeyMissing } from './KeyMissing.tsx';
 import { Button, CopyButton, choiceClass, cn } from '../ui.tsx';
 
 /**
- * One mutually exclusive skill pack (design / image / video): pick an option (Settings
+ * One mutually exclusive skill pack (design / image / video / figure): pick an option (Settings
  * `workflow.<pack>Pack`), see its install state, install it in one click. Used by Setup and Settings.
  * An install streams its log right under the card and the button stays "Installing…" until the
  * entries actually report installed (the API only *starts* the install).
  */
-export function DesignPacks({ onInstallStarted, compact, pack = 'design', provider }: { provider?: AgentProvider; onInstallStarted?: (option: string) => void; compact?: boolean; pack?: 'design' | 'image' | 'video' }) {
+export function DesignPacks({ onInstallStarted, compact, pack = 'design', provider }: { provider?: AgentProvider; onInstallStarted?: (option: string) => void; compact?: boolean; pack?: 'design' | 'image' | 'video' | 'figure' }) {
   const api = apiForProvider(provider);
   const [packs, setPacks] = useState<PacksView | null>(null);
   const [busy, setBusy] = useState<string | null>(null);

@@ -3,12 +3,12 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openFile, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, FIGURE_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openFile, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
 import { ConversationError } from '@foundry/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode, GoalNature, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
@@ -67,6 +67,8 @@ const CreateGoalBody = z.object({
   mode: GoalMode.optional(),
   workflow: GoalWorkflow.partial().optional(),
   nature: GoalNature.optional(),
+  /** the Figure pack this goal follows when it should differ from Settings' (ADR-0076) */
+  figurePack: FigurePack.nullable().optional(),
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
   milestonePause: z.boolean().optional(),
@@ -584,10 +586,14 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.get('/api/files', async (c) => {
     const { source, name } = await locate((k) => c.req.query(k));
-    const type = servedType(name);
+    // a web page rendered on request (a figure goal's page, ADR-0076): it runs, but in a sandbox with an opaque origin,
+    // never as this site — no cookies, storage or API of Foundry's; without `render` it is plain text like any source file
+    const render = c.req.query('render') === '1' && fileKind(name) === 'html';
+    const type = render ? 'text/html; charset=utf-8' : servedType(name);
     const headers: Record<string, string> = { 'content-type': type, 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' };
     // opened on its own the file never runs as this site (an SVG's scripts, say); PDFs keep the browser's viewer
-    if (type !== 'application/pdf') headers['content-security-policy'] = 'sandbox';
+    if (render) headers['content-security-policy'] = 'sandbox allow-scripts';
+    else if (type !== 'application/pdf') headers['content-security-policy'] = 'sandbox';
     if (c.req.query('download') === '1') headers['content-disposition'] = `attachment; filename="${encodeURIComponent(name)}"`;
     if (source.kind === 'folder') return new Response(Bun.file(source.abs), { headers });
     // a blob of the task's commit, streamed as bytes (images and PDFs included)
@@ -639,7 +645,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const run = goal.completion.artifactsRun;
     if (!existsSync(p) && run?.status === 'ok' && run.dest && run.files.includes(rel)) p = join(run.dest, rel);
     if (!existsSync(p)) throw new HttpError(404, { error: 'artifact not found' });
-    return new Response(Bun.file(p), { headers: { 'cache-control': 'private, max-age=60' } });
+    // a figure's page (ADR-0076) runs in the browser, but never as Foundry: the sandbox directive gives it an opaque
+    // origin, with none of this origin's cookies, storage or API; every other kind of artifact is served as before
+    const page = /\.html?$/i.test(rel);
+    return new Response(Bun.file(p), { headers: { 'cache-control': 'private, max-age=60', ...(page ? { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': 'sandbox allow-scripts', 'x-content-type-options': 'nosniff' } : {}) } });
   });
   // ---- the user guide, bundled with the install: docs/guide/*.md (+ .zh.md) and its screenshots ----
   const guideDir = join(engine.config.rootDir, 'docs', 'guide');
@@ -1602,6 +1611,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       design: view('design', DESIGN_PACK_OPTIONS, engine.config.designPack),
       image: view('image', IMAGE_PACK_OPTIONS, engine.config.imagePack),
       video: view('video', VIDEO_PACK_OPTIONS, engine.config.videoPack),
+      figure: view('figure', FIGURE_PACK_OPTIONS, engine.config.figurePack),
     });
   });
   app.post('/api/skills/install-pack', async (c) => {

@@ -9,7 +9,7 @@ import { Button, Field, Input, Select, chipClass, cn, code } from '../../ui.tsx'
  * block. Presentational only — each panel keeps its own state, settings keys and API calls.
  */
 
-export const NATURE_HINT: Record<ModelNature, string> = { code: 'software and CAD goals, and goals not yet classified', docs: 'documents and cited research reports', media: 'image and video goals' };
+export const NATURE_HINT: Record<ModelNature, string> = { code: 'software and CAD goals, and goals not yet classified', docs: 'documents and cited research reports', media: 'image, video and figure goals' };
 
 /** each goal type's icon and category colour, as the New goal page draws its kinds of goal: code blue, documents green, images magenta */
 const NATURE_STYLE: Record<ModelNature, { Icon: LucideIcon; ink: string; dot: string }> = {

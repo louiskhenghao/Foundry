@@ -147,3 +147,13 @@ describe('a path in a merged task', () => {
     expect(landedPath('/elsewhere/tasks/t_1/public/card.svg', '/data', [goal])).toBeNull();
   });
 });
+
+describe('web pages (ADR-0076)', () => {
+  test('html is a kind of its own, served as plain text unless the route renders it on request', () => {
+    expect(fileKind('kettle.html')).toBe('html');
+    expect(fileKind('Page.HTM')).toBe('html');
+    expect(servedType('kettle.html')).toBe('text/plain; charset=utf-8');
+    expect(fileKind('core.js')).toBe('text');
+    expect(fileKind('shot.png')).toBe('image');
+  });
+});

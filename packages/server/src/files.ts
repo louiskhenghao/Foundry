@@ -4,7 +4,7 @@ import type { Goal, Task } from '@foundry/core';
 import { attachmentsDir, goalWorkspacePath, internalWorkspaceDir, legacyWorkspaceRoot, screenshotsDir } from '@foundry/engine';
 
 /** What the preview dialog does with a file: picked from the extension, never from the content. */
-export type FileKind = 'image' | 'pdf' | 'video' | 'audio' | 'markdown' | 'json' | 'text' | 'binary';
+export type FileKind = 'image' | 'pdf' | 'video' | 'audio' | 'markdown' | 'json' | 'html' | 'text' | 'binary';
 
 const KIND: Record<string, FileKind> = {};
 for (const e of ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'svg', 'ico']) KIND[e] = 'image';
@@ -13,8 +13,10 @@ for (const e of ['mp3', 'wav', 'm4a', 'ogg', 'oga', 'flac', 'aac']) KIND[e] = 'a
 for (const e of ['md', 'markdown', 'mdx']) KIND[e] = 'markdown';
 for (const e of ['json', 'jsonl', 'geojson', 'webmanifest']) KIND[e] = 'json';
 KIND.pdf = 'pdf';
+// a web page: shown as its source, or rendered in a sandbox when asked (a figure goal's page, ADR-0076)
+for (const e of ['html', 'htm']) KIND[e] = 'html';
 // source and plain text; anything unknown is shown as text only when it has no extension (Dockerfile, Makefile…)
-for (const e of ['txt', 'log', 'csv', 'tsv', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'scss', 'less', 'html', 'htm', 'xml', 'yml', 'yaml', 'toml', 'ini', 'conf', 'sh', 'bash', 'zsh', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sql', 'graphql', 'gql', 'vue', 'svelte', 'astro', 'prisma', 'proto', 'lock', 'gitignore', 'dockerignore', 'editorconfig', 'mts', 'cts', 'dart', 'lua', 'r', 'scala', 'ex', 'exs', 'erl', 'hs', 'clj', 'pl', 'ps1', 'bat', 'cmd', 'nix', 'zig', 'sol', 'tf', 'hcl', 'gradle', 'properties', 'example', 'sample', 'env', 'diff', 'patch'])
+for (const e of ['txt', 'log', 'csv', 'tsv', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'scss', 'less', 'xml', 'yml', 'yaml', 'toml', 'ini', 'conf', 'sh', 'bash', 'zsh', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sql', 'graphql', 'gql', 'vue', 'svelte', 'astro', 'prisma', 'proto', 'lock', 'gitignore', 'dockerignore', 'editorconfig', 'mts', 'cts', 'dart', 'lua', 'r', 'scala', 'ex', 'exs', 'erl', 'hs', 'clj', 'pl', 'ps1', 'bat', 'cmd', 'nix', 'zig', 'sol', 'tf', 'hcl', 'gradle', 'properties', 'example', 'sample', 'env', 'diff', 'patch'])
   KIND[e] = 'text';
 
 export function fileKind(name: string): FileKind {
