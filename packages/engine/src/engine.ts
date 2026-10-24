@@ -148,6 +148,15 @@ import { DESKTOP_APPS_PATTERNS, SLICER_APP_PATTERNS, SLICER_HEADLESS_PATTERNS } 
 import { pluginServerPrefix } from './mcp/servers.ts';
 import { serverBaseArgs } from './skills/installer.ts';
 
+/** where the Playwright package the engine imports lives, handed to sessions as FOUNDRY_PLAYWRIGHT; null when it cannot be resolved */
+const PLAYWRIGHT_PACKAGE_DIR: string | null = (() => {
+  try {
+    return dirname(fileURLToPath(import.meta.resolve('playwright/package.json')));
+  } catch {
+    return null;
+  }
+})();
+
 export interface CreateGoalInput {
   provider?: AgentProvider;
   codexModel?: string;
@@ -642,6 +651,8 @@ export class Engine {
       // text-to-cad's cadgen: no usage stats and no update check from Foundry's own processes (the person's setting stays theirs)
       CADGEN_TELEMETRY: '0',
       CADGEN_UPDATE_CHECK: '0',
+      // the Playwright the engine ships, for a session that renders through a headless Chromium (the motion-studio renderer, ADR-0076)
+      ...(PLAYWRIGHT_PACKAGE_DIR ? { FOUNDRY_PLAYWRIGHT: PLAYWRIGHT_PACKAGE_DIR } : {}),
       // Settings → Safety → Desktop apps & printers: off = the boundary hook refuses the openers, the slicers' windows and the gated skills
       ...(this.config.desktopApps ? {} : this.desktopGateEnv()),
     };
