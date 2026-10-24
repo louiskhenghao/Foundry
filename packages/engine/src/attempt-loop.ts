@@ -78,7 +78,7 @@ Fix them; everything else you did is kept. Do not start over. When done, reply w
     case 'needs_input': {
       const a = ctx.answer;
       const head = a?.proceedWithout
-        ? 'The person has no such thing: proceed without it — use a placeholder or a substitute, keep the swap easy, and say so in your summary.'
+        ? 'The person decided: there is no such thing, and you are to PROCEED WITHOUT IT. Where the task\'s words forbid a stand-in, this decision overrides them: use a placeholder or a substitute, keep the swap easy, finish the task, and say in your summary what stands in for it.'
         : 'The person answered your request.';
       const words = a?.words?.trim() ? `\n\nTheir words:\n${a.words.trim()}` : '';
       const files = a?.files.length ? `\n\nWhat they gave, read it from these paths:\n${a.files.map((f) => `- ${f.path} (${f.name})`).join('\n')}` : '';
