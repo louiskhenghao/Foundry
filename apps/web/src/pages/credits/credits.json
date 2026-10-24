@@ -1230,6 +1230,17 @@
       "featured": false
     },
     {
+      "project": "nateherkai/hyperframes-student-kit",
+      "name": "Herk Edit Kit (hyperframes-student-kit)",
+      "url": "https://github.com/nateherkai/hyperframes-student-kit",
+      "license": "MIT, Apache-2.0 and the kit's use permission",
+      "kinds": [
+        "Skills"
+      ],
+      "ref": "10511e5af86fc47756ea89803b397422e2d89284",
+      "featured": false
+    },
+    {
       "project": "Leonxlnx/taste-skill",
       "name": "Leonxlnx/taste-skill",
       "url": "https://github.com/Leonxlnx/taste-skill",
@@ -1281,17 +1292,6 @@
       "kinds": [
         "Skills",
         "MCP server"
-      ],
-      "ref": null,
-      "featured": false
-    },
-    {
-      "project": "nateherkai/hyperframes-student-kit",
-      "name": "nateherkai/hyperframes-student-kit",
-      "url": "https://github.com/nateherkai/hyperframes-student-kit",
-      "license": "MIT",
-      "kinds": [
-        "Skills"
       ],
       "ref": null,
       "featured": false

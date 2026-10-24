@@ -1787,6 +1787,7 @@
       "source": {
         "type": "git",
         "repo": "nateherkai/hyperframes-student-kit",
+        "ref": "10511e5af86fc47756ea89803b397422e2d89284",
         "path": ".claude/skills/hyperframes"
       },
       "roles": [
@@ -1814,6 +1815,7 @@
       "source": {
         "type": "git",
         "repo": "nateherkai/hyperframes-student-kit",
+        "ref": "10511e5af86fc47756ea89803b397422e2d89284",
         "path": ".claude/skills/make-a-video"
       },
       "roles": [
@@ -1837,7 +1839,7 @@
           "scenarios": [
             "video"
           ],
-          "instruction": "Build videos through the Hyperframes pipeline: follow the skill to scaffold the project in this workspace (npm install; needs Node 20+, FFmpeg, Chrome), author compositions, then render the final files into artifacts/ and record parameters in the task manifest."
+          "instruction": "Build videos through the Hyperframes pipeline: follow the skill to scaffold the project in this workspace (npm install; needs Node 22+, FFmpeg, Chrome), author compositions, then render the final files into artifacts/ and record parameters in the task manifest."
         }
       ]
     },
@@ -1851,6 +1853,7 @@
       "source": {
         "type": "git",
         "repo": "nateherkai/hyperframes-student-kit",
+        "ref": "10511e5af86fc47756ea89803b397422e2d89284",
         "path": ".claude/skills/gsap"
       },
       "roles": [
@@ -1869,16 +1872,17 @@
       "workflow": []
     },
     {
-      "id": "hyperframes-short-form-video",
-      "name": "short-form-video",
-      "summary": "Short-form (vertical/social) video conventions on the same pipeline.",
-      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips. Requires a scaffolded Hyperframes student-kit project, including its root scripts/docs; copying this skill alone does not install those project dependencies.",
+      "id": "hyperframes-cli",
+      "name": "hyperframes-cli",
+      "summary": "The hyperframes CLI: init, lint, preview, render, transcribe, tts, doctor.",
+      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips.",
       "tier": "optional",
       "bundle": "hyperframes",
       "source": {
         "type": "git",
         "repo": "nateherkai/hyperframes-student-kit",
-        "path": ".claude/skills/short-form-video"
+        "ref": "10511e5af86fc47756ea89803b397422e2d89284",
+        "path": ".claude/skills/hyperframes-cli"
       },
       "roles": [
         "worker"
@@ -1893,7 +1897,137 @@
       "scenarios": [
         "video"
       ],
-      "workflow": []
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "video"
+          ],
+          "instruction": "Scaffold, lint, preview and render through the hyperframes CLI (npx hyperframes …) as this skill describes; run hyperframes doctor when the environment misbehaves."
+        }
+      ]
+    },
+    {
+      "id": "hyperframes-motion-showreel",
+      "name": "motion-showreel",
+      "summary": "10–30 s motion-design showreels and brand reels: one motif through labeled craft chapters, cuts on a 120–130 BPM grid, a persistent HUD, a flurry and a held lockup.",
+      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips.",
+      "tier": "optional",
+      "bundle": "hyperframes",
+      "source": {
+        "type": "git",
+        "repo": "nateherkai/hyperframes-student-kit",
+        "ref": "10511e5af86fc47756ea89803b397422e2d89284",
+        "path": ".claude/skills/motion-showreel"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "video",
+        "motion"
+      ],
+      "aliases": [],
+      "pack": "video",
+      "packOption": "hyperframes",
+      "scenarios": [
+        "video"
+      ],
+      "requiresEnv": [
+        "KIE_API_KEY"
+      ],
+      "envFor": "generated music, lookdev stills and video through kie.mjs; a licensed track and your own hero still work without it",
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "video"
+          ],
+          "instruction": "For a showreel, sizzle or brand reel cut to music, follow this skill: study the reference, write BRAND.md and STORYBOARD.md, measure the music grid, then build and cut on the beat. Its scripts (analyze-reference, music-grid, splice-music, mix, sfx) live in the installed skill folder: run them with node from there, not from a kit root."
+        }
+      ]
+    },
+    {
+      "id": "hyperframes-short-form-edit",
+      "name": "short-form-edit",
+      "summary": "Talking-head footage into a reel, Short or short ad: curiosity-led opening, story-driven cuts, transcript-synced graphics, captions, music and SFX.",
+      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips.",
+      "tier": "optional",
+      "bundle": "hyperframes",
+      "source": {
+        "type": "git",
+        "repo": "nateherkai/hyperframes-student-kit",
+        "ref": "10511e5af86fc47756ea89803b397422e2d89284",
+        "path": ".claude/skills/short-form-edit"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "video",
+        "motion"
+      ],
+      "aliases": [
+        "short-form-video"
+      ],
+      "pack": "video",
+      "packOption": "hyperframes",
+      "scenarios": [
+        "video"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "video"
+          ],
+          "instruction": "When the task turns recorded footage into a reel, Short or short advertisement, follow this skill and run its validate-plan and validate-footage scripts before rendering; the legacy short-form-video scaffold is retired."
+        }
+      ]
+    },
+    {
+      "id": "hyperframes-video-beats",
+      "name": "hyperframes-video-beats",
+      "summary": "Motion-graphic beats for long-form talking-head videos: lower thirds, paper takeovers, transcript-synced callouts, pacing coverage.",
+      "why": "The hyperframes video pack: motion-graphics editing/rendering (HTML+GSAP → real video) — the deliberate alternative to API text-to-video for demos, lessons and brand clips.",
+      "tier": "optional",
+      "bundle": "hyperframes",
+      "source": {
+        "type": "git",
+        "repo": "nateherkai/hyperframes-student-kit",
+        "ref": "10511e5af86fc47756ea89803b397422e2d89284",
+        "path": ".claude/skills/hyperframes-video-beats"
+      },
+      "roles": [
+        "worker"
+      ],
+      "tags": [
+        "video",
+        "motion"
+      ],
+      "aliases": [],
+      "pack": "video",
+      "packOption": "hyperframes",
+      "scenarios": [
+        "video"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "prefer",
+          "when": "any",
+          "scenarios": [
+            "video"
+          ],
+          "instruction": "When adding or improving overlay beats in an existing HyperFrames project, plan them on the transcript with this skill and validate the beats before rendering."
+        }
+      ]
     },
     {
       "id": "reverse-engineer-anything",
