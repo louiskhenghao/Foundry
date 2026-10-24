@@ -253,6 +253,14 @@ export class SkillsUpdateChecker {
       return { ...base, status: current ? 'up-to-date' : 'outdated', actions: current ? [] : ['update'] };
     }
 
+    // a skill Foundry ships itself (ADR-0076): current when it equals the folder of the Foundry that runs now
+    if (key.kind === 'bundled') {
+      const entry = catalog.entries.find((e) => e.id === row.marker?.catalogId);
+      const src = entry?.source.type === 'bundled' ? join(this.paths.bundledRoot, entry.source.path) : null;
+      const current = !!src && existsSync(src) && dirFingerprint(localDirOf(row)) === dirFingerprint(src);
+      return { ...base, status: current ? 'up-to-date' : 'outdated', actions: current ? [] : ['update'] };
+    }
+
     // upstream dir to compare against: cache clone path, else the candidate's own dir (marketplace clone / ~/.agents)
     let upstreamDir: string | null = null;
     let rel = pathInRepo;

@@ -4,6 +4,7 @@ import { basename, join, relative, resolve, sep } from 'node:path';
 import { exec } from '../git/git.ts';
 import { pluginInstallCommand, type PluginSource } from './catalog.ts';
 import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
+import { BUNDLED_REPO, dirFingerprint } from './sources.ts';
 import { trashSkill } from './trash.ts';
 import { installSuite } from './suites.ts';
 import { FoundryMarker, type CatalogEntry, type InstallResult } from './types.ts';
@@ -191,6 +192,7 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
     const r = await installSuite(suite, ctx, { refresh: opts.refresh });
     return { ok: true, id: entry.id, name: entry.name, path: r.path, commit: r.commit, manual: null, error: null };
   }
+  if (entry.source.type === 'bundled') return installBundled(entry, entry.source, ctx, opts);
   if (entry.source.type !== 'git') {
     return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual: { command: entry.source.install, docs: entry.source.docs ?? null }, error: 'manual installation required' };
   }
@@ -227,7 +229,44 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
   return { ok: true, id: entry.id, name: entry.name, path: dest, commit, manual: null, error: null };
 }
 
-/** Re-install from a refreshed cache. Returns from/to commits. */
+/**
+ * A skill Foundry ships itself (ADR-0076): copied from catalog/bundled/<path> of the Foundry that runs. The marker's
+ * `commit` is the folder's content fingerprint, so an update after a Foundry release copies the newer folder.
+ */
+async function installBundled(entry: CatalogEntry, source: Extract<CatalogEntry['source'], { type: 'bundled' }>, ctx: InstallContext, opts: { force?: boolean; refresh?: boolean }): Promise<InstallResult> {
+  const srcDir = join(ctx.paths.bundledRoot, source.path);
+  if (!existsSync(join(srcDir, 'SKILL.md'))) throw new InstallError(`${entry.name} is not bundled with this Foundry (${source.path})`, 'not-found');
+  const dest = join(ctx.paths.skillsDir, entry.name);
+  const existing = existsSync(dest) || isSymlink(dest);
+  const fingerprint = dirFingerprint(srcDir);
+  if (existing) {
+    const marker = readMarker(dest);
+    if (marker?.catalogId !== entry.id && !opts.force) {
+      throw new InstallError(`${entry.name} already exists in ${ctx.paths.skillsDir} and was not installed by foundry`, 'conflict', { name: entry.name, path: dest, managed: marker ? 'foundry' : 'other' });
+    }
+    if (marker?.catalogId === entry.id && !opts.force && !opts.refresh) {
+      return { ok: true, id: entry.id, name: entry.name, path: dest, commit: marker.commit, manual: null, error: null };
+    }
+  }
+  const prev = existing ? readMarker(dest) : null;
+  if (existing) trashSkill(entry.name, ctx.paths, opts.force ? 'replaced by forced install' : 'replaced by update');
+  mkdirSync(ctx.paths.skillsDir, { recursive: true });
+  cpSync(srcDir, dest, { recursive: true, dereference: true });
+  const marker: FoundryMarker = {
+    catalogId: entry.id,
+    repo: BUNDLED_REPO,
+    ref: null,
+    commit: fingerprint,
+    path: source.path,
+    installedAt: prev?.installedAt ?? new Date().toISOString(),
+    updatedAt: prev ? new Date().toISOString() : undefined,
+  };
+  writeFileSync(join(dest, MARKER_FILE), JSON.stringify(marker, null, 2));
+  ctx.log?.(`[skills] installed ${entry.name}, bundled with Foundry (${source.path})`);
+  return { ok: true, id: entry.id, name: entry.name, path: dest, commit: fingerprint, manual: null, error: null };
+}
+
+/** Re-install from a refreshed cache (or the bundled folder). Returns from/to commits. */
 export async function updateEntry(entry: CatalogEntry, ctx: InstallContext): Promise<{ name: string; from: string | null; to: string | null; changed: boolean }> {
   const dest = join(ctx.paths.skillsDir, entry.name);
   const from = readMarker(dest)?.commit ?? null;

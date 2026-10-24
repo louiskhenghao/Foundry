@@ -20,6 +20,9 @@ export interface SourceKey {
   homepage: string | null;
 }
 
+/** what a marker's `repo` says for a skill Foundry ships itself (ADR-0076): no repository to compare against, Foundry's own folder is */
+export const BUNDLED_REPO = 'foundry';
+
 /** Resolve the source of a scanner row from its provenance metadata; null = hand-installed (needs matching). */
 export function sourceOf(row: InstalledSkill, paths: SkillsPaths): SourceKey | null {
   if (row.scope === 'project') {
@@ -34,6 +37,9 @@ export function sourceOf(row: InstalledSkill, paths: SkillsPaths): SourceKey | n
   if (row.scope === 'plugin' && row.plugin) {
     const repo = row.plugin.marketplaceRepo;
     return { id: `plugin:${row.plugin.id}`, kind: 'plugin', label: repo ?? row.plugin.id, manager: 'plugin', repo, url: repo ? `https://github.com/${repo}` : null, homepage: repo ? `https://github.com/${repo}` : null };
+  }
+  if (row.managedBy === 'foundry' && row.marker?.repo === BUNDLED_REPO) {
+    return { id: 'foundry:bundled', kind: 'bundled', label: 'Bundled with Foundry', manager: 'foundry', repo: null, url: null, homepage: null };
   }
   if (row.managedBy === 'foundry' && row.marker) {
     return { id: `foundry:${row.marker.repo}`, kind: 'github', label: row.marker.repo, manager: 'foundry', repo: row.marker.repo, url: row.marker.url ?? `https://github.com/${row.marker.repo}`, homepage: `https://github.com/${row.marker.repo}` };

@@ -55,6 +55,8 @@ export interface SkillsManagerOptions {
   releases?: ReleaseCheckerOptions;
   /** chosen option per mutually exclusive pack, e.g. { design: 'ui-ux-pro-max' } */
   packs?: () => Record<string, string | undefined>;
+  /** the Foundry checkout whose catalog/bundled/ holds the skills it ships itself; default: the one this engine runs from */
+  bundledRoot?: string;
   /** Settings switches gated entries need (Safety → Desktop apps & printers) */
   gates?: () => Record<string, boolean>;
   /** receives every updater run (the engine appends it as a `skills.update_run` event) */
@@ -103,7 +105,7 @@ export class SkillsManager {
   private serverMemo = new Map<string, { at: number; value: PluginMcpServer | null }>();
 
   constructor(private opts: SkillsManagerOptions) {
-    this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}), ...(opts.suitesDir ? { suitesDir: opts.suitesDir } : {}) };
+    this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome, opts.bundledRoot), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}), ...(opts.suitesDir ? { suitesDir: opts.suitesDir } : {}) };
     this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs, gates: opts.gates, provider: opts.provider });
     this.checker = new SkillsUpdateChecker(this.paths, { log: opts.log, ...(opts.updates ?? {}) });
     this.releaseChecker = new SuiteReleaseChecker(this.paths, { log: opts.log, ...(opts.releases ?? {}) });

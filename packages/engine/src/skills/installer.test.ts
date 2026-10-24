@@ -201,3 +201,51 @@ describe('a git source pinned to a commit', () => {
     expect(existsSync(join(fake.paths.skillsDir, 'nofix'))).toBe(false);
   });
 });
+
+describe('a skill bundled with Foundry (ADR-0076)', () => {
+  const root = join(fake.home, 'foundry-root');
+  const src = join(root, 'catalog', 'bundled', 'studio');
+  const catalog = () => writeCatalog(join(fake.home, 'catalog-bundled'), [{ id: 'studio', name: 'studio', summary: '', why: '', tier: 'optional', source: { type: 'bundled', path: 'catalog/bundled/studio' } }]);
+  const manager = () => new SkillsManager({ claudeHome: fake.claudeHome, dataDir: fake.dataDir, catalogPath: catalog(), bundledRoot: root, which: () => null });
+
+  test('installs by copying the folder Foundry ships, with a marker that names no repository', async () => {
+    mkdirSync(join(src, 'scripts'), { recursive: true });
+    writeFileSync(join(src, 'SKILL.md'), skillMd('studio', 'render films'));
+    writeFileSync(join(src, 'scripts', 'render.mjs'), 'export const fps = 60;\n');
+    const m = manager();
+    const r = await m.install('studio');
+    expect(r.ok).toBe(true);
+    expect(r.commit).toMatch(/^[0-9a-f]{40}$/);
+    const dir = join(fake.paths.skillsDir, 'studio');
+    expect(readFileSync(join(dir, 'scripts', 'render.mjs'), 'utf8')).toContain('fps = 60');
+    expect(JSON.parse(readFileSync(join(dir, '.foundry.json'), 'utf8'))).toMatchObject({ catalogId: 'studio', repo: 'foundry', ref: null, commit: r.commit, path: 'catalog/bundled/studio' });
+    const st = (await m.status()).find((s) => s.entry.id === 'studio')!;
+    expect(st.status).toBe('installed');
+    expect(st.detail).toContain('bundled with Foundry');
+    // the Updates page: one source for everything bundled, current while the folder is the one Foundry ships
+    const rep = await m.updates({ refresh: false });
+    const bundled = rep.sources.find((s) => s.id === 'foundry:bundled')!;
+    expect(bundled.kind).toBe('bundled');
+    expect(bundled.skills.map((s) => [s.name, s.status])).toEqual([['studio', 'up-to-date']]);
+    expect(bundled.updater.kind).toBe('foundry');
+  });
+
+  test('a newer Foundry ships a newer folder: outdated, and an update copies it', async () => {
+    writeFileSync(join(src, 'scripts', 'render.mjs'), 'export const fps = 60;\nexport const sub = 4;\n');
+    const m = manager();
+    const rep = await m.updates({ refresh: true });
+    const row = rep.sources.find((s) => s.id === 'foundry:bundled')!.skills[0]!;
+    expect(row.status).toBe('outdated');
+    expect(row.actions).toContain('update');
+    const u = await m.update('studio');
+    expect(u.updated.map((x) => x.name)).toEqual(['studio']);
+    expect(readFileSync(join(fake.paths.skillsDir, 'studio', 'scripts', 'render.mjs'), 'utf8')).toContain('sub = 4');
+    expect((await m.update('studio')).unchanged).toEqual(['studio']);
+  });
+
+  test('a folder this Foundry does not ship fails the install', async () => {
+    const catalogPath = writeCatalog(join(fake.home, 'catalog-bundled-missing'), [{ id: 'ghost', name: 'ghost', summary: '', why: '', tier: 'optional', source: { type: 'bundled', path: 'catalog/bundled/ghost' } }]);
+    const m = new SkillsManager({ claudeHome: fake.claudeHome, dataDir: fake.dataDir, catalogPath, bundledRoot: root, which: () => null });
+    await expect(m.install('ghost')).rejects.toThrow('is not bundled with this Foundry');
+  });
+});

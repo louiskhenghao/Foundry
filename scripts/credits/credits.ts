@@ -136,6 +136,7 @@ export function catalogProjects(root = ROOT): Map<string, { kinds: Set<Kind>; re
     projects.set(project, p);
   };
   for (const e of skills.entries) {
+    if (e.source.type === 'bundled') continue; // Foundry's own skill folders (ADR-0076): nothing to credit
     const ref = e.source.type === 'suite' ? skills.suites.find((x) => x.id === e.source.suite)?.ref : e.source.ref;
     add(catalogProject(e, skills.suites), e.source.type === 'cli' ? 'Tool' : 'Skills', ref);
   }

@@ -61,6 +61,11 @@ export const CatalogSource = z.discriminatedUnion('type', [
     warmup: z.object({ mcpServer: z.string().min(1), args: z.array(z.string()).min(1), note: z.string().min(1) }).optional(),
   }),
   z.object({
+    type: z.literal('bundled'),
+    /** a skill folder inside the Foundry repository (catalog/bundled/<name>), copied as it is and versioned with Foundry itself (ADR-0076) */
+    path: z.string().min(1),
+  }),
+  z.object({
     type: z.literal('suite'),
     /** a workflow suite of the catalog (`suites`): this entry is one of its skills and is installed with the suite (ADR-0049) */
     suite: z.string().min(1),
@@ -303,7 +308,7 @@ export type SessionView = z.infer<typeof SessionView>;
 
 // ---------- sources & updates ----------
 
-export const SkillSourceKind = z.enum(['github', 'plugin', 'suite', 'project', 'local', 'unknown']);
+export const SkillSourceKind = z.enum(['github', 'plugin', 'suite', 'bundled', 'project', 'local', 'unknown']);
 export type SkillSourceKind = z.infer<typeof SkillSourceKind>;
 /** who installed / who updates */
 export const SkillManager = z.enum(['foundry', 'agents-cli', 'plugin', 'hand', 'project']);

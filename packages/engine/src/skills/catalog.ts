@@ -90,6 +90,11 @@ function statusOf(entry: CatalogEntry, scan: ScanResult, paths: SkillsPaths, whi
       if (user) return { entry, status: 'installed-unmanaged', installedInvoke, commit: null, detail: `present in ${paths.skillsDir} (${user.managedBy ?? 'hand-installed'})`, manual };
       return { entry, status: 'missing', installedInvoke: null, commit: null, detail: 'plugin not installed', manual };
     }
+    if (entry.source.type === 'bundled') {
+      if (user?.marker?.catalogId === entry.id) return { entry, status: 'installed', installedInvoke, commit: user.marker.commit, detail: `bundled with Foundry (${entry.source.path})`, manual: null };
+      if (user) return { entry, status: 'installed-unmanaged', installedInvoke, commit: null, detail: `present in ${paths.skillsDir} (${user.managedBy ?? 'hand-installed'})`, manual: null };
+      return { entry, status: 'missing', installedInvoke: null, commit: null, detail: 'not installed; bundled with Foundry, one click copies it', manual: null };
+    }
     if (user?.marker?.catalogId === entry.id) return { entry, status: 'installed', installedInvoke, commit: user.marker.commit, detail: `installed by Foundry from ${user.marker.repo}${user.marker.commit ? ' @ ' + user.marker.commit.slice(0, 7) : ''}`, manual: null };
     // the plugin's copy is the one sessions invoke: a loose folder of the same name beside it is not what satisfies the entry
     if (plugin) return { entry, status: 'installed-via-plugin', installedInvoke, commit: null, detail: `provided by plugin ${plugin.plugin?.id}`, manual: null };
