@@ -147,6 +147,7 @@ import { workerTools } from './guards/boundary.ts';
 import { DESKTOP_APPS_PATTERNS, SLICER_APP_PATTERNS, SLICER_HEADLESS_PATTERNS } from './guards/patterns.ts';
 import { pluginServerPrefix } from './mcp/servers.ts';
 import { serverBaseArgs } from './skills/installer.ts';
+import { motionStudioCheck } from './motion-studio.ts';
 
 /** where the Playwright package the engine imports lives, handed to sessions as FOUNDRY_PLAYWRIGHT; null when it cannot be resolved */
 const PLAYWRIGHT_PACKAGE_DIR: string | null = (() => {
@@ -2510,7 +2511,9 @@ export class Engine {
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
     const rea = await this.reaEnginesCheck(provider);
     const cad = await this.cadToolsCheck(provider);
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
+    // the motion-studio engine's tools (ADR-0076), only while its Beta is on
+    const motion = this.config.betaMotionStudio ? await this.playwrightStatus().then((pw) => motionStudioCheck({ ffmpeg: Bun.which('ffmpeg'), ffprobe: Bun.which('ffprobe'), browser: pw.browser, browserDetail: pw.detail, platform: process.platform })) : null;
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
   }
 
   /**
