@@ -13,6 +13,7 @@ import type { BriefOutput, BriefSkeleton } from '../packages/core/src/index.ts';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '../packages/runner/src/index.ts';
 import { defaultConfig } from '../packages/engine/src/config.ts';
 import { Engine } from '../packages/engine/src/engine.ts';
+import { getBrief, newId, upsertBrief } from '../packages/core/src/index.ts';
 import { startServer } from '../packages/server/src/index.ts';
 
 const ROOT = resolve(import.meta.dir, '..');
@@ -527,6 +528,27 @@ export async function seedImportedGoal(engine: Engine, like: string): Promise<st
  * person asked and the Explainer's answers, as the events the engine would have appended; the answers' cost is booked
  * on the goal as a real one would be. The person's name is left out, as without Access.
  */
+/**
+ * Materials the person promised in the Brief (ADR-0074), for the guide's pictures: on the Brief awaiting approval two
+ * of them still to give (and a mode to choose), on the finished goal one that came as a link.
+ */
+function seedMaterials(engine: Engine, goalId: string, how: 'waiting' | 'received'): void {
+  const b = getBrief(engine.store.db, goalId);
+  if (!b) return;
+  if (how === 'waiting') {
+    const provides = [
+      { key: 'M1', what: 'the studio logo as SVG and the team photos', neededBy: b.brief.tasks.slice(0, 1).map((t) => t.key), mode: 'wait' as const, status: 'waiting' as const, receivedAt: null, attachmentIds: [], note: null },
+      { key: 'M2', what: 'the trailer video (MP4, under 20 MB)', neededBy: b.brief.tasks.slice(1, 2).map((t) => t.key), mode: 'placeholder' as const, status: 'waiting' as const, receivedAt: null, attachmentIds: [], note: null },
+    ];
+    upsertBrief(engine.store.db, { ...b.brief, provides, tasks: b.brief.tasks.map((t, i) => (i === 0 ? { ...t, needs: ['M1'] } : i === 1 ? { ...t, needs: ['M2'] } : t)) }, b.approved, b.skeleton);
+    return;
+  }
+  const attachment = { id: newId('attachment'), kind: 'link' as const, name: 'Newsletter copy and the sign-up thank-you text (shared doc)', mime: null, size: null, path: null, url: 'https://example.com/studio-news/signup-copy', note: null, addedAt: new Date().toISOString(), markdown: null, requestId: null, materialKey: 'M1' };
+  upsertBrief(engine.store.db, { ...b.brief, provides: [{ key: 'M1', what: 'the newsletter copy and the thank-you text', neededBy: b.brief.tasks.slice(1, 2).map((t) => t.key), mode: 'wait' as const, status: 'waiting' as const, receivedAt: null, attachmentIds: [], note: null }] }, b.approved, b.skeleton);
+  engine.store.append({ type: 'goal.attachment_added', goalId, payload: { attachment } } as never);
+  engine.store.append({ type: 'goal.material_received', goalId, payload: { key: 'M1', attachmentIds: [attachment.id], note: 'final wording, signed off', by: null, waived: false } } as never);
+}
+
 export async function seedConversation(engine: Engine, goalId: string): Promise<string> {
   const { newId } = await import('../packages/core/src/index.ts');
   const conversationId = newId('conversation');
@@ -620,6 +642,7 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
   await waitFor(() => ['done', 'over_delivered'].includes(state(done.id)));
   await recordMergedDelivery(engine, done.id);
   recordCompletionExtras(engine, done.id);
+  seedMaterials(engine, done.id, 'received');
   const interview = await engine.createGoal({ prompt: 'Add a dark mode toggle to the settings page', repoPath: repo, interview: 'always', workflow: { pace: 'fast' } });
   const brief = await engine.createGoal({ prompt: 'A landing page for our game studio', title: 'Studio landing page', provider: 'codex', repoPath: repo, interview: 'never', workflow: { pace: 'fast' } });
   // caught while its planner works: the Brief page shows the Clarifier's skeleton meanwhile
@@ -646,6 +669,7 @@ export async function startDemo(): Promise<{ url: string; goals: Record<string, 
 
   await waitFor(() => getGoal(engine.store.db, interview.id)!.interview?.status === 'awaiting_answers');
   await waitFor(() => state(brief.id) === 'awaiting_brief_approval');
+  seedMaterials(engine, brief.id, 'waiting');
   await waitFor(() => !!getBrief(engine.store.db, planning.id)?.skeleton && state(planning.id) === 'clarifying');
   await waitFor(() => state(milestone.id) === 'awaiting_feedback');
   await waitFor(() => listEscalations(engine.store.db, { goalId: blocked.id, openOnly: true }).length > 0);
