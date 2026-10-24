@@ -7,7 +7,7 @@ import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, FIGURE_PACK_OPTIONS,
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
-import { ConversationError } from '@foundry/engine';
+import { AdjustError, ConversationError } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles, deliveredFile } from './files.ts';
@@ -841,6 +841,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       goal,
       paths: { repo: goal.repoPath, workspace: existsSync(ws) ? ws : null },
       budget: budgetStatus(goal),
+      // Adjust the result (ADR-0077): whether the person can ask for one now, and the Adjustments made
+      adjust: engine.adjustView(goal),
       // live: a slot held / a session alive, so the drawer can tell stuck from busy; waiting: why a ready task is not running
       tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0, usage: taskUsage(listAttempts(db, t.id)), live: engine.taskLiveness(t.id), ...readyView(t), ...delegatedView(t) })),
       attempts: listAttemptsByGoal(db, id),
@@ -947,6 +949,18 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       return c.json(engine.conversations.ask(goal.id, body.text, { by: c.get('person')?.name ?? null, conversationId: body.conversationId ?? null, fresh: body.fresh, attachments: body.attachments }), 202);
     } catch (e) {
       if (e instanceof ConversationError) throw new HttpError(e.status, { error: e.message });
+      throw e;
+    }
+  });
+  // Adjust the result (ADR-0077): the person's words on a finished goal's result, with staged uploads; the goal runs again
+  app.post('/api/goals/:id/adjust', async (c) => {
+    const goal = goalOr404(c);
+    const body = z.object({ text: z.string(), attachments: z.array(Attachment).optional() }).parse(await c.req.json());
+    try {
+      return c.json({ adjustment: await engine.adjust(goal.id, body.text, { by: c.get('person')?.name ?? null, attachments: body.attachments }) }, 202);
+    } catch (e) {
+      if (e instanceof AdjustError) throw new HttpError(e.status, { error: e.message });
+      if (e instanceof AttachmentError) return attachmentError(e);
       throw e;
     }
   });
