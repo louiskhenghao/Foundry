@@ -5,7 +5,7 @@
 import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import type { Attachment, Goal } from '@foundry/core';
-import { ATTACHMENT_LIMITS, IdPrefix, attachmentKindLabel, newId } from '@foundry/core';
+import { ATTACHMENT_LIMITS, attachmentMaxBytes, IdPrefix, attachmentKindLabel, newId } from '@foundry/core';
 
 export class AttachmentError extends Error {
   constructor(
@@ -31,7 +31,7 @@ export function safeName(name: string): string {
 
 /** Write uploaded bytes to staging and return the Attachment record (path points into _staging). */
 export function stageFile(dataDir: string, file: { name: string; mime: string | null; bytes: Uint8Array }, opts: { maxBytes?: number } = {}): Attachment {
-  const max = opts.maxBytes ?? ATTACHMENT_LIMITS.maxFileBytes;
+  const max = opts.maxBytes ?? attachmentMaxBytes(file);
   if (file.bytes.byteLength > max) throw new AttachmentError(`file is ${(file.bytes.byteLength / 1048576).toFixed(1)} MB; the limit is ${(max / 1048576).toFixed(0)} MB`, 'too-large');
   const id = newId(IdPrefix.attachment);
   const name = safeName(file.name);

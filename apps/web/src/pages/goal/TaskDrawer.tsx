@@ -1,4 +1,4 @@
-import type { Attempt, CheckResult, Task, TaskState } from '@foundry/core/browser';
+import type { Attempt, CheckResult, Task, TaskState, VerdictScores } from '@foundry/core/browser';
 import { reportsDollars } from '@foundry/core/browser';
 import { Ban, Check, Clock, CornerDownRight, Eye, GitMerge, Hand, Play, RotateCcw, Square, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -10,6 +10,7 @@ import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { taskMark } from '../../components/progress.tsx';
 import { TaskTags } from '../../components/TaskTags.tsx';
+import { ScoreRow } from '../../components/ScoreRow.tsx';
 import { Badge, Button, ConfirmDialog, ago, chipClass, choiceClass, cn, fmtUsd, stateLabel } from '../../ui.tsx';
 import { areaStyle } from '../brief/shared.ts';
 import { CHECK_RESULT, CheckSquare } from './CompletionCard.tsx';
@@ -56,6 +57,10 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   const results: CheckResult[] = a ? d.checkResults.filter((r) => r.attemptId === a.id) : [];
   const checks = d.checks.filter((c) => c.taskId === task.id);
   const obs = a ? (d.events.find((e) => e.type === 'observation.reported' && (e.payload as any).report.attemptId === a.id)?.payload as any)?.report : null;
+  // the task reviewer's scores on the rubric's axes (ADR-0076), and the attempt before's to show the move
+  const scoresOf = (attemptId: string): VerdictScores | null => ((d.events.find((e) => e.type === 'review.task.finished' && (e.payload as any).attemptId === attemptId)?.payload as any)?.verdict?.scores as VerdictScores | undefined) ?? null;
+  const scores = a ? scoresOf(a.id) : null;
+  const prevScores = a ? (attempts.slice(0, Math.max(0, attempts.indexOf(a))).map((x) => scoresOf(x.id)).filter(Boolean).at(-1) ?? null) : null;
   const openEsc = d.escalations.filter((e) => e.state === 'open' && e.taskId === task.id);
   const concluded = (id: string) => (d.events.find((e) => e.type === 'attempt.concluded' && (e.payload as any).attemptId === id)?.payload as { state?: string; reason?: string } | undefined) ?? null;
   const lastState = [...d.events].reverse().find((e) => e.type === 'task.state_changed' && (e.payload as any).taskId === task.id)?.payload as { to?: string; reason?: string } | undefined;
@@ -166,6 +171,12 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           {revised && <div className="text-xs text-work-ink" title="A delegated goal landed before this task started; the planner read what it delivered and touched the spec up">Touched up after a step landed: {revised.reason}</div>}
           {task.summary && <MarkdownPanel title="what it delivered" source={task.summary} maxHeight={260} actions={openFull(`What it delivered · ${task.title}`, task.summary)} />}
           {task.hint && <MarkdownPanel title="human hint" source={task.hint} local maxHeight={160} actions={openFull(`Human hint · ${task.title}`, task.hint)} />}
+          {scores && (
+            <section>
+              <h3 className={cn(LABEL, 'mb-2')}>Review scores</h3>
+              <ScoreRow scores={scores} prev={prevScores} />
+            </section>
+          )}
           <section>
             <h3 className={cn(LABEL, 'mb-2')}>Checks</h3>
             {checks.length === 0 && <div className="text-xs text-ink-faint">none (goal-level only)</div>}

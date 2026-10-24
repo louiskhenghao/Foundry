@@ -2,7 +2,7 @@ import { metaFor, modelFor } from '../models/roles.ts';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@foundry/core';
-import { jsonSchemaFor, ReviewerVerdict as ReviewerVerdictSchema, chosenStyle, getBrief } from '@foundry/core';
+import { jsonSchemaFor, ReviewerVerdict as ReviewerVerdictSchema, VERDICT_AXES, chosenStyle, getBrief } from '@foundry/core';
 import { renderStyle } from '../attempt-prompt.ts';
 import type { Engine } from '../engine.ts';
 import { diff } from '../git/git.ts';
@@ -221,7 +221,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
   if (!parsed.success && r.sessionId) {
     // one nudge in the same session: "stop reading, answer now"
     const again = await engine.runner.run({
-      prompt: 'Stop exploring. Reply now with ONLY the JSON verdict matching the schema (pass, blockers, notes). If you are unsure, pass with a note.',
+      prompt: 'Stop exploring. Reply now with ONLY the JSON verdict matching the schema (pass, blockers, notes, and scores when the rubric scores axes). If you are unsure, pass with a note.',
       cwd,
       model: modelFor(engine.config, goal, 'taskReviewer').model,
       meta: metaFor(goal.id, modelFor(engine.config, goal, 'taskReviewer')),
@@ -252,6 +252,13 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     return null;
   }
   return parsed.data;
+}
+
+/** the summary a verdict leaves on its check result: the blockers or the pass, then the scores when the rubric scored axes */
+export function verdictSummary(v: ReviewerVerdict): string {
+  const head = v.pass ? 'Reviewer: no blockers.' : v.blockers.join('\n');
+  const scored = v.scores ? VERDICT_AXES.filter((a) => v.scores![a] != null) : [];
+  return scored.length ? `${head}\nScores: ${scored.map((a) => `${a} ${v.scores![a]}`).join(' · ')}` : head;
 }
 
 export function tryJson(s: string | null): unknown {

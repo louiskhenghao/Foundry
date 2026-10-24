@@ -11,6 +11,13 @@ import { HelpLink } from '../HelpPage.tsx';
 
 const KIND_LABEL: Record<FeedbackPlan['kind'], string> = { hint: 'Hint for the remaining tasks', fix: 'Fix tasks (then a second look here)', decision: 'Decision (every later task follows it)' };
 const IMAGE = /\.(png|jpe?g|webp|gif|svg)$/i;
+const VIDEO = /\.(mp4|webm|mov|m4v)$/i;
+/** the cover of a clip: a poster.png (or .jpg) in its folder, else a picture named like it (ADR-0076) */
+const posterFor = (clip: string, files: string[]): string | null => {
+  const dir = clip.includes('/') ? clip.slice(0, clip.lastIndexOf('/') + 1) : '';
+  const base = clip.replace(/\.[^.]+$/, '');
+  return files.find((f) => f === `${dir}poster.png` || f === `${dir}poster.jpg` || f === `${base}.png` || f === `${base}.jpg`) ?? null;
+};
 /** a label in small capitals over a row of pictures */
 const LABEL = 'mb-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint';
 
@@ -175,16 +182,22 @@ export function ArtifactsStrip({ goalId, files, shown }: { goalId: string; files
   const [viewing, setViewing] = useState<number | null>(null);
   const rest = shown ? files.filter((f) => !shown.has(f)) : files;
   if (!rest.length) return null;
-  // the pictures open large, one after another; other files open (or download) in a tab of their own
-  const pictures = rest.slice(0, 12).filter((f) => IMAGE.test(f));
+  // the pictures and clips open large, one after another; other files open (or download) in a tab of their own
+  const media = rest.slice(0, 12).filter((f) => IMAGE.test(f) || VIDEO.test(f));
   return (
     <div>
       <div className={LABEL}>{shown ? 'Other artifacts' : 'Artifacts'} ({rest.length})</div>
       <div className="flex gap-2 flex-wrap items-end">
         {rest.slice(0, 12).map((f) =>
           IMAGE.test(f) ? (
-            <button key={f} type="button" onClick={() => setViewing(pictures.indexOf(f))} title={f}>
+            <button key={f} type="button" onClick={() => setViewing(media.indexOf(f))} title={f}>
               <img src={api.artifactUrl(goalId, f)} alt={f} loading="lazy" decoding="async" className="h-24 w-24 object-cover rounded-md border border-line-strong hover:border-ink-faint" />
+            </button>
+          ) : VIDEO.test(f) ? (
+            // a clip: its poster as the tile, the play glyph says it moves; it plays large in the lightbox
+            <button key={f} type="button" onClick={() => setViewing(media.indexOf(f))} title={f} className="relative h-24 w-40 overflow-hidden rounded-md border border-line-strong bg-black hover:border-ink-faint">
+              {posterFor(f, files) ? <img src={api.artifactUrl(goalId, posterFor(f, files)!)} alt="" loading="lazy" decoding="async" className="h-full w-full object-cover opacity-90" /> : <span className="absolute inset-x-1 bottom-1 mono truncate text-[10px] text-white/80">{f.split('/').pop()}</span>}
+              <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center text-2xl text-white drop-shadow">▶</span>
             </button>
           ) : (
             <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="mono inline-flex items-center max-sm:min-h-8 text-[11px] text-ink-soft hover:text-ink hover:underline">
@@ -193,8 +206,8 @@ export function ArtifactsStrip({ goalId, files, shown }: { goalId: string; files
           ),
         )}
       </div>
-      {viewing !== null && pictures[viewing] && (
-        <MediaLightbox items={pictures.map((f) => ({ kind: 'image' as const, src: api.artifactUrl(goalId, f), caption: f, link: { href: api.artifactUrl(goalId, f), label: 'open the file' } }))} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} title={shown ? 'Other artifacts' : 'Artifacts'} />
+      {viewing !== null && media[viewing] && (
+        <MediaLightbox items={media.map((f) => ({ kind: VIDEO.test(f) ? ('video' as const) : ('image' as const), src: api.artifactUrl(goalId, f), caption: f, link: { href: api.artifactUrl(goalId, f), label: 'open the file' } }))} index={viewing} onIndex={setViewing} onClose={() => setViewing(null)} title={shown ? 'Other artifacts' : 'Artifacts'} />
       )}
     </div>
   );

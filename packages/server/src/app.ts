@@ -10,7 +10,7 @@ import { delegationNeedsHuman } from '@foundry/engine';
 import { ConversationError } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode, GoalNature, VideoPack, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
-import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
+import { FileRefused, type FileSource, commitTree, fileKind, fileResponse, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
 import { copyTheme, deleteTheme, importTheme, renameTheme, themeFileText, listThemes, prepareThemesDir, themesDir } from './themes.ts';
 import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
@@ -141,11 +141,14 @@ export function extraHosts(engine: Engine): string[] {
 export const UNKNOWN_HOST = (host: string | null) =>
   `Foundry does not answer to the name "${host}". If that name is this computer, add it to FOUNDRY_ALLOWED_HOSTS (comma-separated) or set it as Settings → Notifications → Link base URL.`;
 
-/** what any request but a Transfer file may carry (attachments are capped at 25 MB in their route) */
+/** what any request may carry: a Transfer file has no cap, an upload may hold a 200 MB reference film or track (ADR-0076), anything else keeps to 30 MB */
 export const MAX_BODY_MB = 30;
-const tooLarge = (req: Request) => {
+export const MAX_UPLOAD_BODY_MB = 210;
+const UPLOAD_PATH = /^\/api\/goals\/[^/]+\/(attachments|materials\/[^/]+|conversations(\/[^/]+)?)$/;
+export const bodyCapMb = (path: string, method: string): number | null => (path === '/api/transfer/incoming' ? null : method === 'POST' && UPLOAD_PATH.test(path) ? MAX_UPLOAD_BODY_MB : MAX_BODY_MB);
+const tooLarge = (req: Request, capMb: number) => {
   const length = req.headers.get('content-length');
-  if (length != null) return Number(length) > MAX_BODY_MB * 1024 * 1024;
+  if (length != null) return Number(length) > capMb * 1024 * 1024;
   return !!req.body && req.headers.get('transfer-encoding') === 'chunked';
 };
 
@@ -205,8 +208,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.use('/api/*', async (c, next) => {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) && crossSite(c.req.raw)) return c.json({ error: 'refused: a request from another site' }, 403);
-    // only a Transfer file may be large; every other request keeps to what an attachment may weigh
-    if (c.req.path !== '/api/transfer/incoming' && tooLarge(c.req.raw)) return c.json({ error: `a request may carry at most ${MAX_BODY_MB} MB` }, 413);
+    // only a Transfer file may be large; an upload may carry a media attachment; every other request keeps to 30 MB
+    const cap = bodyCapMb(c.req.path, c.req.method);
+    if (cap != null && tooLarge(c.req.raw, cap)) return c.json({ error: `a request may carry at most ${cap} MB` }, 413);
     await next();
   });
   const db = engine.store.db;
@@ -630,7 +634,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const p = join(screenshotsDir(engine.config.dataDir, goal), file);
     if (!existsSync(p)) throw new HttpError(404, { error: 'screenshot not found' });
     const type = SCREENSHOT_TYPES[ext];
-    return new Response(Bun.file(p), { headers: { 'content-type': type!, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' } });
+    return fileResponse(p, c.req.raw, { 'content-type': type!, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' });
   });
   app.get('/api/goals/:id/artifacts', (c) => c.json({ files: listArtifacts(goalWorkspacePath(engine.config.dataDir, goalOr404(c))) }));
   app.get('/api/goals/:id/artifacts/*', (c) => {
@@ -642,7 +646,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const run = goal.completion.artifactsRun;
     if (!existsSync(p) && run?.status === 'ok' && run.dest && run.files.includes(rel)) p = join(run.dest, rel);
     if (!existsSync(p)) throw new HttpError(404, { error: 'artifact not found' });
-    return new Response(Bun.file(p), { headers: { 'cache-control': 'private, max-age=60' } });
+    return fileResponse(p, c.req.raw, { 'cache-control': 'private, max-age=60' });
   });
   // ---- the user guide, bundled with the install: docs/guide/*.md (+ .zh.md) and its screenshots ----
   const guideDir = join(engine.config.rootDir, 'docs', 'guide');
@@ -695,13 +699,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const abs = attachmentAbsPath(engine.config.dataDir, goal.id, att);
     if (!abs) throw new HttpError(404, { error: 'attachment file is missing on disk' });
     const inline = c.req.query('download') !== '1';
-    return new Response(Bun.file(abs), {
-      headers: {
-        'content-type': att.mime ?? 'application/octet-stream',
-        'content-disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(att.name)}`,
-        'cache-control': 'private, max-age=3600',
-        'x-content-type-options': 'nosniff',
-      },
+    return fileResponse(abs, c.req.raw, {
+      'content-type': att.mime ?? 'application/octet-stream',
+      'content-disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(att.name)}`,
+      'cache-control': 'private, max-age=3600',
+      'x-content-type-options': 'nosniff',
     });
   });
 

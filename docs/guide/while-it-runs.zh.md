@@ -278,7 +278,7 @@ goal 暂停时，它的状态牌显示 **awaiting feedback**，Inbox 显示 **Ha
   - 应用没有响应，或者只显示错误页面时，Foundry 会用这个应用的 mock 命令、带着假数据再录一遍：**How to run it** 里的 **Mock command**，或者应用 `package.json` 里的 `dev:mock`、`start:mock` 或 `mock` 脚本。这时摘要以 *With mock data* 开头，里程碑显示 **unverified · fake data**：不算已展示。负责没有脚本的里程碑界面的 worker，在应用需要后端、Docker 或密钥才能运行时，会被要求加上这样一个脚本。
 - 预览，已经在启动，带 **Open preview**。
 - **What the self-check saw**：自检开着时的最新截图。
-- **Artifacts**：媒体类和 CAD 类 goal 目前产出的图片和文件（CAD goal 的导出件，以及展示它们的快照）。文件型里程碑的卡片上方已经展示了这个任务的文件，所以这里改为 **Other artifacts**：只列出上面没有展示的、这个 goal 的其它文件。
+- **Artifacts**：媒体类和 CAD 类 goal 目前产出的图片和文件（CAD goal 的导出件，以及展示它们的快照）。图片点开放大；视频显示它的封面（旁边的 `poster.png`），点开就地播放，进度条可以拖。文件型里程碑的卡片上方已经展示了这个任务的文件，所以这里改为 **Other artifacts**：只列出上面没有展示的、这个 goal 的其它文件。
 - 目前的代码在 **Diff** 标签上；文件夹在 **Open ▾** 里。
 
 然后要么按 **Continue**，要么写下你看到的，按 **Turn into a plan**。具体怎么运作，一步步写在 [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md#里程碑可以看了)。
