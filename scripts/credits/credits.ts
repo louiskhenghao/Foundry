@@ -136,7 +136,8 @@ export function catalogProjects(root = ROOT): Map<string, { kinds: Set<Kind>; re
     projects.set(project, p);
   };
   for (const e of skills.entries) {
-    if (e.source.type === 'bundled') continue; // Foundry's own skill folders (ADR-0077): nothing to credit
+    // a bundled skill with a home page is a snapshot of someone's work (the Figure pack, ADR-0076) and is credited; one without is Foundry's own (motion-studio, ADR-0077)
+    if (e.source.type === 'bundled' && !e.homepage) continue;
     const ref = e.source.type === 'suite' ? skills.suites.find((x) => x.id === e.source.suite)?.ref : e.source.ref;
     add(catalogProject(e, skills.suites), e.source.type === 'cli' ? 'Tool' : 'Skills', ref);
   }

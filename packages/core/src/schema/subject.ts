@@ -4,7 +4,7 @@ import { z } from 'zod';
 export const SUBJECT_LIMITS = { subjects: 4, pictures: 8, pictureBytes: 5 * 1024 * 1024 } as const;
 
 /** the task scenarios whose work has a look a Subject can be seen in; backend, infra, docs, data and research never see Subjects */
-const SUBJECT_SCENARIOS: ReadonlySet<string> = new Set(['frontend', 'fullstack', 'mobile', 'image', 'video', 'cad', 'general']);
+const SUBJECT_SCENARIOS: ReadonlySet<string> = new Set(['frontend', 'fullstack', 'mobile', 'image', 'video', 'figure', 'cad', 'general']);
 export const subjectsApply = (scenario: string): boolean => SUBJECT_SCENARIOS.has(scenario);
 
 /**

@@ -27,7 +27,7 @@ export interface SectionOpts {
   files?: string[];
   /** the goal's workflow suite (ADR-0049); default: the Settings default */
   profile?: WorkflowProfile;
-  /** the pack options to build with, a goal's own video engine among them (ADR-0077); default: the Settings packs */
+  /** the goal's own pack choices, laid over Settings': a goal's Figure pack (ADR-0076), a video goal's engine (ADR-0077) */
   packs?: Record<string, string | undefined>;
 }
 
@@ -65,14 +65,14 @@ export class SkillsHints {
   async sectionFor(role: SkillRole, opts: SectionOpts = {}): Promise<string | null> {
     const s = await this.statuses();
     if (!s) return null;
-    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, files: opts.files, profile: opts.profile ?? this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: opts.packs ?? this.packs(), gates: this.opts.gates?.(), provider: this.opts.provider });
+    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, files: opts.files, profile: opts.profile ?? this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: { ...this.packs(), ...(opts.packs ?? {}) }, gates: this.opts.gates?.(), provider: this.opts.provider });
   }
   /** Skills this role MUST invoke for this task kind / scenario (for the reviewer's note). */
   async mandatedFor(role: SkillRole, opts: SectionOpts = {}): Promise<MandatedSkill[]> {
     const s = await this.statuses();
     const profile = opts.profile ?? this.opts.profile?.() ?? 'mattpocock';
     if (!s || profile === 'plain') return [];
-    return mandatedSkillsFor({ role, taskKind: opts.taskKind, scenario: opts.scenario, discipline: opts.discipline, files: opts.files, profile, statuses: s, packs: opts.packs ?? this.packs(), gates: this.opts.gates?.() });
+    return mandatedSkillsFor({ role, taskKind: opts.taskKind, scenario: opts.scenario, discipline: opts.discipline, files: opts.files, profile, statuses: s, packs: { ...this.packs(), ...(opts.packs ?? {}) }, gates: this.opts.gates?.() });
   }
   /** how an installed catalog entry is invoked on this machine (the plugin copy first), or null when it is not installed */
   async invokeFor(name: string): Promise<string | null> {

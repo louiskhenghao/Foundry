@@ -1,6 +1,6 @@
 import type { AgentProvider } from '@foundry/core';
 import { homedir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join } from 'node:path';
 
 /** The single place that knows how the host lays out Claude Code skills/plugins. */
 export interface SkillsPaths {
@@ -25,14 +25,10 @@ export interface SkillsPaths {
   suitesDir: string;
   /** Codex only: Claude Code's skills folder, to keep shared skills Claude links to from being removed under it */
   claudeSkillsDir?: string;
-  /** the Foundry checkout (or image) whose catalog/bundled/ holds the skills Foundry ships itself (ADR-0077) */
-  bundledRoot: string;
 }
 
-/** the repository root this engine runs from: packages/engine/src/skills → four levels up */
-export const FOUNDRY_ROOT = resolve(import.meta.dir, '..', '..', '..', '..');
 
-export function skillsPaths(claudeHome: string, dataDir: string, provider: AgentProvider = 'claude', sharedHome?: string, bundledRoot: string = FOUNDRY_ROOT): SkillsPaths {
+export function skillsPaths(claudeHome: string, dataDir: string, provider: AgentProvider = 'claude', sharedHome?: string): SkillsPaths {
   const home = sharedHome ?? (provider !== 'claude' ? homedir() : dirname(claudeHome));
   return {
     provider,
@@ -49,7 +45,6 @@ export function skillsPaths(claudeHome: string, dataDir: string, provider: Agent
     releasesFile: join(dataDir, 'skills-releases.json'),
     marketplacesFile: join(claudeHome, 'plugins', 'known_marketplaces.json'),
     suitesDir: join(dataDir, 'suites'),
-    bundledRoot,
   };
 }
 

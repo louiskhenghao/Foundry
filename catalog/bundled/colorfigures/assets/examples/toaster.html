@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Toaster</title></head><body>
+<script src="core.js"></script>
+<script>
+/* Toaster — port of Colorfigures 2.0 kids/toaster.js to the 1.0 engine with the free camera.
+   x = depth 70, y = width 120, z = height 80. The lit front (x = W) carries a see-through panel showing the slice,
+   the heating wires, the spring, the bimetal strip and the latch; lever + shade dial sit to its right (low y). */
+const W = 70, D = 120, H = 80;
+const OUT = rrUV(0, 0, D, H, 12);                              // body profile in (y, z), swept along x
+const SHADES = [
+  { name:'light',  col:'#dcae62' },
+  { name:'golden', col:'#bf7f37' },
+  { name:'dark',   col:'#7d4a22' },
+];
+const RAW = '#f2dfab', BURNT = '#3a2417';
+const BEND_MS = [2000, 2700, 3400];                            // time for the strip to bend all the way, per shade
+const WARM = 900;                                              // the wires heat up before the strip starts to move
+const STEPS = [
+  'Push the lever down. The wires get hot and glow.',
+  'The metal strip warms up and starts to bend.',
+  'It bends far enough to unlock the spring. POP!',
+];
+const SLOTS = [18, 42];
+const DY = D - 100, DZ = H - 61, DR = 5;                       // shade dial centre (y, z) and radius
+const BEZ = '#d9dddd', CREAM = '#fff4d6', RECESS = '#2b2523';
+const LEVM = { l:'#77716b', m:'#46413c', d:'#2a2724' }, KNOBM = { l:'#fff4d6', m:'#e6dcbd', d:'#bfb390' };
+
+/* ---------- the front panel: a local (u right, v down) frame on the plane x = W + dx, as in the 2.0 figure ---------- */
+const FL = (u, v, dx = .3) => [W + dx, D - u, H - v];
+const txB = (x,y,z,str,size,col=INK,weight=700) => `<text transform="${txM(P(x,y,z), Dv(0,1,0), Dv(0,0,-1))}" font-size="${size}" fill="${col}" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-weight="${weight}" letter-spacing=".04em">${str}</text>`;   // text on the back face, read from behind
+const loc = (pts, dx) => pts.map(([u, v]) => FL(u, v, dx));
+const lrr = (u, v, w, h, r = 0, dx = .3) => loc(r > 0 ? rrUV(u, v, u + w, v + h, Math.min(r, w/2, h/2), 4) : rectUV(u, v, u + w, v + h), dx);
+const lcirc = (cu, cv, r, dx = .3, n = 14) => loc(ellUV(cu, cv, r, r, n), dx);
+const lline = (pts, dx = .3) => pd(loc(pts, dx), false);
+const mw = w => `style="stroke-width:${w.toFixed(2)}"`;      // a stroke in model units (not rescaled by inkScale)
+const angS = s => (-60 + 60*s) * Math.PI / 180;
+
+const hex2 = c => [1,3,5].map(i => parseInt(c.slice(i, i+2), 16));
+const tmix = (a, b, k) => mix(a, b, Math.max(0, Math.min(1, k)));
+const toastCol = st => st.brown <= 1 ? tmix(RAW, SHADES[st.shade].col, st.brown) : tmix(SHADES[st.shade].col, BURNT, (st.brown - 1) / .3);
+const zig = (u0, u1, v, a, n) => { const o = [[u0, v]]; for (let i = 1; i <= n; i++) o.push([u0 + (u1-u0)*i/n, v + (i % 2 ? -a : a) * (i === n ? 0 : 1)]); return o; };
+const WIRES = [38, 47, 56].map(v => zig(15, 55, v, 2.2, 18));
+
+// what is seen through the panel: drawn flat just behind the glass, clipped to the opening
+function inside(st){
+  const bv = 39 + 24*st.pos, h = st.heat, b = st.bend, col = toastCol(st), dx = .32;
+  let s = fill(pd(lrr(12, 8, 74, 62, 0, dx)), '#ff5a1f', `opacity="${(h*.22).toFixed(3)}"`);
+  // spring: from the top bracket down to the carriage
+  const n = 9, sp2 = Array.from({length:n+1}, (_, i) => [61 + (i && i < n ? (i % 2 ? -2.4 : 2.4) : 0), 10 + (bv - 10)*i/n]);
+  s += shape(lrr(57, 8, 8, 2.5, 0, dx), BEZ, .7);
+  s += `<path d="${lline(sp2, dx)}" fill="none" stroke="#cfd6d8" ${mw(1)} stroke-linejoin="round"/>`;
+  // the slice standing on the carriage, then the carriage bar
+  if (st.bread) s += shape(lrr(19, bv - 30, 33, 30, 4, dx), col, 1)
+    + fill(pd(lrr(22, bv - 27, 27, 24, 3, dx)), '#ffffff', `opacity="${(.18*(1 - Math.min(1, st.brown))).toFixed(3)}"`);
+  s += shape(lrr(14, bv, 59, 3, 1, dx), BEZ, .8);
+  // heating wires in front of the slice: dull, then glowing orange-red
+  s += fill(pd(lcirc(14.5, 47, 1.3, dx)), '#cfd6d8') + fill(pd(lcirc(55.5, 47, 1.3, dx)), '#cfd6d8');
+  const wd = WIRES.map(w => lline(w, dx)).join('');
+  s += `<path d="${wd}" fill="none" stroke="#7d7169" ${mw(1.1)} stroke-linejoin="round" stroke-linecap="round"/>`;
+  if (h > .01) s += `<path d="${wd}" fill="none" stroke="#ff8a3d" ${mw(4.5)} opacity="${(h*.7).toFixed(3)}" filter="url(#tsSoft)" stroke-linejoin="round" stroke-linecap="round"/>`
+    + `<path d="${wd}" fill="none" stroke="#ff4d1a" ${mw(1.3)} opacity="${h.toFixed(3)}" stroke-linejoin="round" stroke-linecap="round"/>`;
+  // bimetal strip, hanging from a bracket: copper (grows more when hot) on the left, steel on the right, so it bends right
+  const tip = [66 + 8.6*b, 57.5 - 1.6*b], ctl = [66 + .4*b, 49];
+  const strip = du => Array.from({length:13}, (_, i) => { const t = i/12, a = [66 + du, 36], c = [ctl[0] + du, ctl[1]], e = [tip[0] + du, tip[1]];
+    return [0, 1].map(j => (1-t)*(1-t)*a[j] + 2*(1-t)*t*c[j] + t*t*e[j]); });
+  s += shape(lrr(62.5, 32.5, 8, 3.5, 1, dx), BEZ, .7);
+  s += `<path d="${lline(strip(-.85), dx)}" fill="none" stroke="${tmix('#e0773a', '#ff4d1a', h)}" ${mw(1.7)} stroke-linecap="round"/>`;
+  s += `<path d="${lline(strip(.85), dx)}" fill="none" stroke="#c3cacc" ${mw(1.7)} stroke-linecap="round"/>`;
+  s += ink(lline(strip(0), dx), .5);
+  // latch: pivots at its foot; its lip holds the carriage down until the strip pushes the arm away
+  const la = 38*st.latch*Math.PI/180, ca = Math.cos(la), sa = Math.sin(la);
+  const rot = ([u, v]) => [77 + (u-77)*ca - (v-68)*sa, 68 + (u-77)*sa + (v-68)*ca];
+  s += shape(loc([[75.5,68],[75.5,55],[78.5,55],[78.5,62.6],[69,62.6],[69,59.4],[75.5,59.4]].map(rot), dx), '#f2c230', .7);
+  s += shape(lcirc(77, 68, 1.5, dx), '#cfd6d8', .5);
+  return s;
+}
+
+/* ---------- one bread slice standing in a slot: thin along x (x0..x1), a convex profile in (y, z) above the top ---------- */
+function hull2(pts){ const h = hull(pts.map(([y, z]) => [y, -z])); return h.map(([y, z]) => [y, -z]); }
+function slice(x0, x1, top, crumb){
+  const crust = mix(crumb, '#5a2c0e', .42), crustTop = mix(crumb, '#5a2c0e', .3);
+  const arc = (cy, cz, r, a0, a1, n = 6) => Array.from({length:n+1}, (_, i) => { const a = (a0 + (a1-a0)*i/n)*Math.PI/180; return [cy + r*Math.cos(a), cz + r*Math.sin(a)]; });
+  const y0 = 27, y1 = 93, sh = 9;
+  // up the side, round shoulder, gentle dome ~4 above the shoulders, shoulder, down; kept convex and above the top
+  const raw = [[y0, H], ...arc(y0 + sh, top - sh, sh, 180, 90), ...arc((y0+y1)/2, top - 36, 40, 116, 64, 10),
+    ...arc(y1 - sh, top - sh, sh, 90, 0), [y1, H]].map(([y, z]) => [y, Math.max(H, z)]);
+  const prof = hull2(raw);
+  const A = on(PX(x0), prof), B = on(PX(x1), prof), CM = { l:crustTop, m:crust, d:mix(crust, '#000000', .25) };
+  let s = loft(A, B, n => toneI(n, CM));
+  // the big face toward the viewer: crust rim, crumb inset, a few pores
+  const fx = vis([1,0,0]) ? x1 : vis([-1,0,0]) ? x0 : null;
+  if (fx != null){
+    const o = fx === x1 ? .05 : -.05, face = on(PX(fx), prof);
+    s += shape(face, crust, .9);
+    const cy = (y0+y1)/2, cz = (H + top)/2 + 4;
+    s += fill(pd(prof.map(([y, z]) => [fx + o, cy + (y - cy)*.86, Math.max(H + .6, cz + (z - cz)*.86)])), mix(crumb, '#ffffff', .32));
+    let pr = '';
+    for (const [y, dz] of [[40,6],[52,11],[63,5],[73,9],[47,15],[66,14],[57,3],[80,6]]){ const z = top - 6 - dz;
+      if (z > H + 1.5) pr += pd([[fx+2*o,y-.9,z-.6],[fx+2*o,y+.9,z-.6],[fx+2*o,y+.9,z+.6],[fx+2*o,y-.9,z+.6]]); }
+    if (pr) s += fill(pr, mix(crumb, '#5a2c0e', .22));
+  }
+  return s + hullInk([...A, ...B], 1.4);
+}
+
+/* ---------- pills in two columns either side of the toaster (from the washer), so leaders never cross ---------- */
+function callouts(items){
+  const pts = []; for (const x of [0, W]) for (const y of [0, D]) for (const z of [0, H + 24]) pts.push(P(x, y, z));
+  const xmin = Math.min(...pts.map(p => p[0])), xmax = Math.max(...pts.map(p => p[0])), cx = (xmin + xmax)/2;
+  // on a phone (LBL_U = drawing units per screen px) each label is a numbered badge and the names go in a legend under the figure
+  const k = INK_K, u = window.LBL_U ? LBL_U() : 0, fs = u ? 10*u : 8.6*k, hgt = u ? 17*u : fs*1.8, gap = hgt + (u ? 3*u : 3*k);
+  const Lc = [], Rc = [];
+  const svgEl = document.getElementById('fig'), vb = svgEl.viewBox.baseVal, btn = document.getElementById('btns');
+  const wMax = u ? hgt*1.3 + 12*k : Math.max(...items.map(it => it.text.length))*fs*.62 + fs*1.5 + 12*k;
+  const roomL = xmin - vb.x >= wMax, roomR = vb.x + vb.width - xmax >= wMax;
+  for (const it of items){ const [X, Y] = P(...it.at); ((X < cx && roomL) || !roomR ? Lc : Rc).push({ ...it, X, Y }); }
+  let s = '';
+  const top = { [-1]: fs, [1]: fs };
+  if (btn && svgEl.getScreenCTM()){ const r = btn.getBoundingClientRect(), q = new DOMPoint(r.right, r.bottom + 50).matrixTransform(svgEl.getScreenCTM().inverse());
+    if (q.y > 0) top[-1] = q.y + hgt; }
+  for (const [col, side] of [[Lc, -1], [Rc, 1]]){
+    col.sort((a, b) => a.Y - b.Y);
+    let y = -1e9; for (const c of col){ c.py = Math.max(c.Y, y + gap, top[side]); y = c.py; }
+    const shift = col.length ? Math.max(0, col.reduce((a, c) => a + c.py - c.Y, 0) / col.length) : 0;
+    const room = col.length ? col[0].py - top[side] : 0; for (const c of col) c.py -= Math.min(shift, room);
+    for (const c of col){
+      c.n = ((window.__ln || (window.__ln = {}))[c.text] || (__ln[c.text] = Object.keys(__ln).length + 1)); const w = u ? hgt*(c.n > 9 ? 1.3 : 1) : c.text.length*fs*.62 + fs*1.5;
+      let px = side < 0 ? xmin - 10*k - w/2 : xmax + 10*k + w/2; px = Math.max(vb.x + w/2 + 2*k, Math.min(vb.x + vb.width - w/2 - 2*k, px));
+      const ex = px - side*w/2;
+      s += `<g class="tag${c.on ? ' on' : ''}" data-n="${c.n}" data-t="${c.text}"><path d="M${f(c.X)} ${f(c.Y)}L${f(ex + side*-4*k)} ${f(c.py)}L${f(ex)} ${f(c.py)}" fill="none" stroke="${INK}" stroke-width="1"/>`
+        + `<circle cx="${f(c.X)}" cy="${f(c.Y)}" r="${f(1.4*k)}" fill="${INK}"/>`
+        + `<rect x="${f(px - w/2)}" y="${f(c.py - hgt/2)}" width="${f(w)}" height="${f(hgt)}" rx="${f(hgt/2)}" fill="${c.on ? 'var(--accent,#f4b829)' : '#fff4d6'}" stroke="${INK}" stroke-width="1.2"/>`
+        + `<text x="${f(c.px != null ? c.px : px)}" y="${f(c.py + fs*.36)}" font-size="${f(fs)}" text-anchor="middle" font-family="ui-monospace,Menlo,monospace" font-weight="800" letter-spacing=".04em" fill="${INK}">${u ? c.n : c.text}</text></g>`;
+    }
+  }
+  return s;
+}
+
+/* ---------- scene ---------- */
+function scene(st, m){
+  const FRONT = facing([1,0,0]), BACK = facing([-1,0,0]), LEFT = facing([0,1,0]);
+  const front = tone([1,0,0], m);
+  let s = `<defs><filter id="tsSoft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="${(1.4*INK_K).toFixed(2)}"/></filter></defs>`;
+  s += castShadow([...on(PX(0), OUT), ...on(PX(W), OUT)]);
+
+  // things on the front: the lever knob (follows the carriage) and the shade dial
+  const lz = H - (14 + 30*st.pos);
+  const lever = act('lever', box(W - 1, D - 106, lz - 3, W + 8, D - 93, lz + 3, LEVM, toneI, 1.1));
+  const a = angS(st.shade);
+  let dial = cylX(W, W + 3, DY, DZ, DR, KNOBM, toneI, 1.1, 24);
+  if (FRONT) dial += ink(pd([[W + 3.05, DY, DZ], [W + 3.05, DY - DR*.8*Math.sin(a), DZ + DR*.8*Math.cos(a)]], false), 1.1);
+  const mounted = byDepth([
+    { at: [W + 3.5, D - 99.5, lz], svg: lever },
+    { at: [W + 1.5, DY, DZ], svg: act('dial', dial) } ]);
+
+  // ---- the body ----
+  let body = '';
+  if (FRONT){
+    body += fill(pd(on(PX(W), OUT)), front);
+    // bezel, the see-through panel, the control strip
+    body += shape(lrr(91, 5, 18, 68, 4), CREAM, .9);
+    body += shape(lrr(98.5, 10, 3, 40, 1.5, .33), RECESS, .7);
+    body += act('lever', fill(pd(lrr(91, 5, 18, 48, 4, .36)), 'transparent'));
+    // shade dots around the dial, the lit one shows the setting
+    for (const k of [0, 1, 2]){ const g = angS(k);
+      body += shape(lcirc(100 + 7.4*Math.sin(g), 61 - 7.4*Math.cos(g), 1.3, .34), k === st.shade ? '#ff8a2e' : '#c9c1b2', .5); }
+    body += tx(W + .35, D - 100, H - 71.6, 'SHADE', 2.8, INK, 800);
+  }
+  if (BACK){ const tb = tone([-1,0,0], m);
+    body += fill(pd(on(PX(0), OUT)), tb);
+    // rating label and the cord's strain relief on the back
+    body += shape(on(PX(-.2), rrUV(30, 22, 62, 38, 2)), '#f3f0e6', .9);
+    body += txB(-.3, 46, 32.4, '230V~ 900W', 2.6, INK, 800) + txB(-.3, 46, 26.6, 'MOD. TOASTY 2', 2.2, INK, 700); }
+  body += extrude(OUT, 0, W, m);
+  if (LEFT){
+    // shaded side: decal + vents
+    const sm = tone([0,1,0], m);
+    body += shape(on(PY(D + .2), rrUV(15, H - 38, 55, H - 16, 6)), mix(sm, '#ffffff', .22), 1);
+    body += txY(35, D + .3, H - 30.5, 'TOASTY', 7, mix(sm, '#000000', .45), 800);
+    let v = ''; for (let k = 50; k <= 66; k += 4) v += pd([[18, D + .2, H - k], [52, D + .2, H - k]], false);
+    body += `<path d="${v}" fill="none" stroke="${INK}" stroke-width="1.2" opacity=".7"/>`;
+  }
+  // top: the two slots and their heat glow
+  for (const x of SLOTS){ const sl = on(PZ(H + .05), rrUV(x, 20, x + 8, 100, 3, 4));
+    body += shape(sl, RECESS, 1.1) + fill(pd(sl), '#ff6a2a', `opacity="${(st.heat*.75).toFixed(3)}"`); }
+  if (FRONT) body += ink(pd(on(PX(W), OUT)), 2.2);
+  if (BACK) body += ink(pd(on(PX(0), OUT)), 2.2);
+  body += hullInk([...on(PX(0), OUT), ...on(PX(W), OUT)], 2.8);
+
+  // bread on top (up = 20 units showing); always above the top face, so it goes after the body
+  let bread = '';
+  if (st.bread){ const top = H + 3 + 20*(1 - st.pos), col = toastCol(st);
+    bread = act('bread', byDepth(SLOTS.map(x => ({ at: [x + 4, D/2, H + 8], svg: slice(x + 1.5, x + 6.5, top, col) })))); }
+
+  // mains cord: out of the back low down, onto the floor and away behind the toaster
+  const cordPts = [[-1, 98, 9], [-4, 98.5, 6], [-6, 99.5, 2], [-9, 101.5, 1], [-18, 104, 1], [-28, 103, 1.2], [-36, 99, 1.4]];
+  const cd = pd(cordPts, false);
+  const cord = cylX(-3, 0, 98, 9, 2.4, LEVM, toneI, 1, 16)
+    + `<path d="${cd}" fill="none" stroke="${INK}" ${mw(3.4)} stroke-linecap="round" stroke-linejoin="round"/>`
+    + `<path d="${cd}" fill="none" stroke="${LEVM.m}" ${mw(2)} stroke-linecap="round" stroke-linejoin="round"/>`
+    + box(-41, 96, 0, -35.5, 102, 4.6, LEVM, toneI, 1);
+  const k = ease(st.xr || 0);
+  if (k > 0) body = xrGhost(body, '', k, OUT, 0, W, m) + `<g opacity="${f(k)}">${toastMech(st, k)}</g>`;   // inside parts over the ghost
+  s += FRONT ? cord + body + mounted : mounted + body + cord;
+  s += bread;
+  // labels for the parts seen through the panel
+  if (k > .6) s += MECH_LABELS;
+  else s += callouts([
+    ...(FRONT ? [{ at: [W + 8, D - 99.5, H - (14 + 30*st.pos)], text: 'LEVER', on: st.pos > .5 }, { at: [W + 3, DY, DZ + DR], text: 'SHADE DIAL', on: false }] : []),
+    { at: [SLOTS[1] + 4, 60, H], text: 'SLOTS', on: st.heat > .05 } ]);
+  return s;
+}
+
+
+
+/* ---------- see-through: inside a toaster ----------
+   Each slot is lined on both sides by a mica card wound with nichrome wire (the heating elements); the bread rides on a
+   carriage that the lever pushes down against a spring; a crumb tray slides in underneath. */
+/* ---------- see-through: how a real pop-up toaster works ----------
+   Parts (each held by another; the current and the pop each have a real path):
+   HEAT    three mica cards wound with nichrome wire (outer, middle shared by both slots, outer) . card rails at the top .
+           wire bread guards each side of each slot
+   POP     guide rod . carriage block riding it . a bread rack under each slot on a crossbar . lever arm out through the
+           front . extension spring up to the top bracket . switch contacts the carriage closes at the bottom .
+           latch lever on its pivot with the hook over the carriage . bimetal strip (copper + steel) on its bracket by the
+           outer card, whose tip pushes the latch's top . shade link from the dial shaft to the strip's bracket
+   POWER   cord grommet . terminal block . live wire along the floor to the contacts . bus from the contacts to each card
+   BASE    crumb tray */
+const MICA = { l:'#f3ead2', m:'#e2d6b6', d:'#bdb08c' }, TCOP = { l:'#f0b07a', m:'#d08a52', d:'#9a5a2c' }, TGM = { l:'#7c8389', m:'#5c6369', d:'#3b4146' };
+const CARDS = [17, 34, 51], CY0 = 22, CY1 = 98, CZ0 = 14, CZ1 = 74;
+const GROD = [60, 16], SX = 56, LP = [24, 50];                     // guide rod (x, y); strip/latch plane; latch pivot (y, z)
+const tBoxOf = pts => [[0,1,2].map(i => Math.min(...pts.map(p => p[i])) - 1), [0,1,2].map(i => Math.max(...pts.map(p => p[i])) + 1)];
+const tWire = (pts, col, w = .5) => { const d = pd(pts, false), [a, b] = [P(...pts[0]), P(...pts[pts.length - 1])];
+  return { box: tBoxOf(pts), svg: `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${f(2*w + 1)}" stroke-linejoin="round" stroke-linecap="round"/><path d="${d}" fill="none" stroke="${col}" stroke-width="${f(2*w)}" stroke-linejoin="round" stroke-linecap="round"/>`
+    + [a, b].map(([X, Y]) => `<circle cx="${f(X)}" cy="${f(Y)}" r="1.2" fill="${INK}"/>`).join('') }; };
+let MECH_LABELS = '';
+function toastMech(st, k){
+  const h = st.heat, parts = [], put = (b, svg) => parts.push({ box: b, svg }), down = st.pos;
+  const bx = (x0, y0, z0, x1, y1, z1, m, w = .8) => put([[x0, y0, z0], [x1, y1, z1]], box(x0, y0, z0, x1, y1, z1, m, toneI, w));
+  const lz = H - (14 + 30*down), rack = lz - 25;                     // carriage height (same as the lever outside), bread rack
+  const live = st.phase === 'toast', hot = c => h > .05 ? mix('#7d7169', c, h) : '#7d7169';
+  // ---- heating: three mica cards with nichrome zigzags, held by two rails at the top
+  for (const xc of CARDS){
+    let c = shape(on(PX(xc), rectUV(CY0, CZ0, CY1, CZ1)), MICA.m, .8), wd = '';
+    for (let z = CZ0 + 6; z <= CZ1 - 6; z += 8) wd += pd(on(PX(xc + .12), zig(CY0 + 2, CY1 - 2, z, 1.6, 22)), false) + pd(on(PX(xc - .12), zig(CY0 + 2, CY1 - 2, z, 1.6, 22)), false);
+    c += `<path d="${wd}" fill="none" stroke="${hot('#ff4d1a')}" style="stroke-width:.7" stroke-linejoin="round"/>`;
+    if (h > .05) c += `<path d="${wd}" fill="none" stroke="#ff8a3d" style="stroke-width:2.4" opacity="${f(.5*h)}" stroke-linejoin="round" filter="url(#tsSoft)"/>`;
+    put([[xc - .3, CY0, CZ0], [xc + .3, CY1, CZ1]], c);
+  }
+  for (const y of [CY0 - 1.5, CY1 + 1.5]) put([[CARDS[0] - 1, y - .8, CZ1 - .2], [CARDS[2] + 1, y + .8, CZ1 + 1.4]], box(CARDS[0] - 1, y - .8, CZ1, CARDS[2] + 1, y + .8, CZ1 + 1.4, TGM, toneI, .6));
+  // bread guards: thin wires each side of each slot, standing on the crumb tray's frame
+  for (const x of SLOTS) for (const xg of [x + 1, x + 7]) for (const y of [30, 50, 70, 90])
+    put([[xg - .4, y - .4, CZ0], [xg + .4, y + .4, CZ1]], rod([xg, y, CZ0], [xg, y, CZ1], .3, METAL, toneI, .3));
+  // ---- the bread, standing on its rack inside the slot (above the top the scene draws it as before)
+  if (st.bread){ const col = toastCol(st), cm = { l: col, m: mix(col, '#000000', .12), d: mix(col, '#000000', .3) };
+    for (const x of SLOTS) put([[x + 1.5, 26, rack + 1], [x + 6.5, 94, H]], box(x + 1.5, 26, rack + 1, x + 6.5, 94, H, cm, toneI, .9)); }
+  // ---- pop-up: racks on a crossbar, carriage block on the guide rod, lever arm, spring, contacts
+  for (const x of SLOTS) bx(x + 1, 20, rack - .6, x + 7, 100, rack + .6, METAL, .6);
+  put([[SLOTS[0] + 1, 17, rack - .7], [GROD[0], 19, rack + .7]], rod([SLOTS[0] + 1, 18, rack], [SX, 18, rack], .7, METAL, toneI, .6));
+  put([[GROD[0] - .8, GROD[1] - .8, 6], [GROD[0] + .8, GROD[1] + .8, CZ1 + 2]], rod([GROD[0], GROD[1], 6], [GROD[0], GROD[1], CZ1 + 2], .8, METAL, toneI, .6));
+  bx(SX, 12, lz - 4, 64, 20, lz + 4, TGM, .8);
+  bx(64, 15, lz - 1.5, W, 21, lz + 1.5, TGM, .6);                                                     // lever arm out through the front slot
+  bx(GROD[0] - 4, 10, CZ1 + 2, GROD[0] + 4, 22, CZ1 + 4, TGM, .6);                                     // top bracket
+  { const sp = [], n = 18, z0 = lz + 4, z1 = CZ1 + 2; for (let i = 0; i <= n; i++) sp.push([GROD[0] + (i && i < n ? (i % 2 ? 1.6 : -1.6) : 0), GROD[1] + 2.4, z0 + (z1 - z0)*i/n]);
+    put([[GROD[0] - 2, GROD[1] + 1.5, z0], [GROD[0] + 2, GROD[1] + 3.3, z1]], `<path d="${pd(sp, false)}" fill="none" stroke="${INK}" stroke-width="1.6" stroke-linejoin="round"/><path d="${pd(sp, false)}" fill="none" stroke="#cfd6d8" stroke-width=".7" stroke-linejoin="round"/>`); }
+  const press = down > .9 ? 1 : 0;
+  put([[GROD[0] - 2, 8, 27], [GROD[0] + 2, 22, 31]], box(GROD[0] - 2, 8, 27, GROD[0] + 2, 22, 27.6, TCOP, toneI, .5)
+    + box(GROD[0] - 2, 8, 30 - 1.8*press, GROD[0] + 2, 22, 30.6 - 1.8*press, TCOP, toneI, .5) + box(GROD[0] - 2, 8, 25, GROD[0] + 2, 10, 31, matOf('#e8e4da'), toneI, .5));
+  // ---- latch lever: pivot in the middle, hook below it over the carriage, top pushed by the strip
+  const la = -.42*st.latch, rot = ([y, z]) => [LP[0] + (y - LP[0])*Math.cos(la) - (z - LP[1])*Math.sin(la), LP[1] + (y - LP[0])*Math.sin(la) + (z - LP[1])*Math.cos(la)];
+  const lat = [[23, 58], [25, 58], [25, 42], [23, 42], [23, 41], [18.5, 41], [18.5, 39.6], [23, 39.6], [23, 58]].map(rot);
+  put([[SX - .5, 17, 38], [SX + .5, 28, 59]], shape(lat.map(([y, z]) => [SX, y, z]), '#f2c230', .7) + shape(on(PX(SX + .1), ellUV(LP[0], LP[1], 1.3, 1.3, 12)), METAL.l, .5));
+  // ---- bimetal strip on its bracket by the outer card; copper side heats more, so it bends toward the latch
+  const b = st.bend, br = [33, 74], tip = [33 - 7.5*b, 58.5 + .5*b], ctl = [33 - 1.5*b, 66];
+  const strip = du => Array.from({length:13}, (_, i) => { const t = i/12; return [SX, (1-t)*(1-t)*br[0] + 2*(1-t)*t*ctl[0] + t*t*tip[0] + du, (1-t)*(1-t)*br[1] + 2*(1-t)*t*ctl[1] + t*t*tip[1]]; });
+  put([[SX - .6, 24, 56], [SX + .6, 36, 76]], box(SX - .6, 31, 74, SX + .6, 36, 77, TGM, toneI, .5)
+    + `<path d="${pd(strip(.5), false)}" fill="none" stroke="${mix('#e0773a', '#ff4d1a', h)}" stroke-width="1.6" stroke-linecap="round"/>`
+    + `<path d="${pd(strip(-.5), false)}" fill="none" stroke="#c3cacc" stroke-width="1.6" stroke-linecap="round"/>` + ink(pd(strip(0), false), .4));
+  // shade link: from the dial's shaft behind the front to the strip's bracket (the dial sets the gap the strip must close)
+  put([[SX + 2, DY - 1, DZ - 1], [W, DY + 1, DZ + 1]], rod([W, DY, DZ], [SX + 2, DY, DZ], .7, METAL, toneI, .5));
+  put([[SX + 1, DY - 1, DZ - 1], [SX + 3, 29, DZ + 4]], rod([SX + 2, DY, DZ], [SX + 2, 28, DZ + 3], .6, TGM, toneI, .5));          // crank on the dial shaft
+  put([[SX + 1, 27, DZ + 3], [SX + 3, 32, 75]], rod([SX + 2, 28, DZ + 3], [SX + 2, 28, 72.5], .5, METAL, toneI, .5) + rod([SX + 2, 28, 72.5], [SX + .6, 31.5, 74.5], .5, METAL, toneI, .5));   // push rod up to the strip's bracket
+  // ---- power: grommet, terminal block, live wire along the floor to the contacts, bus from the contacts to the cards
+  bx(2, 94, 5, 9, 102, 12, matOf('#e8e4da'), .6);
+  parts.push(tWire([[9, 98, 8], [12, 112, 5], [GROD[0] + 2, 112, 5], [GROD[0] + 2, 22, 5], [GROD[0] + 2, 21, 27]], live ? '#ff6a2a' : '#8a3a24'));
+  parts.push(tWire([[GROD[0] - 2, 9, 30], [54, 9, 22], [54, 20, 12], [CARDS[0], 20, 12]], live ? '#ff6a2a' : '#3a3632'));
+  for (const xc of CARDS) parts.push(tWire([[xc, 20, 12], [xc, CY0, CZ0]], live ? '#ff6a2a' : '#3a3632', .4));
+  // crumb tray
+  bx(6, 12, 2, 64, 108, 4, matOf('#c9cfd2'), .9);
+  const sb = byDepth(parts);
+  MECH_LABELS = k <= .6 ? '' : xrCallouts([
+    { at: [CARDS[0], 40, 60], text: 'HEATING ELEMENTS', on: h > .05 },
+    { at: [SLOTS[1] + 4, 100, rack], text: 'BREAD RACK', on: down > .5 },
+    { at: [64, 12, lz + 4], text: 'CARRIAGE', on: down > .5 },
+    { at: [GROD[0], GROD[1] + 3, (lz + CZ1)/2], text: 'SPRING', on: st.phase === 'pop' },
+    { at: [SX, 18.5, 40], text: 'LATCH', on: st.latch > .05 },
+    { at: [SX, 33 - 4*b, 66], text: 'BIMETAL STRIP', on: live && b > .02 },
+    { at: [GROD[0] + 2, 22, 30], text: 'SWITCH CONTACTS', on: live },
+    { at: [(W + SX)/2, DY, DZ], text: 'SHADE LINK', on: false },
+    { at: [35, 110, 3], text: 'CRUMB TRAY', on: false } ], [0, W + 8, 0, D, 0, H + 20]);
+  return sb;
+}
+const toastCaption = st => st.phase === 'toast' ? (st.bend > .3
+    ? 'The bimetal strip by the element is hot: its copper side grows more than its steel side, so it bends toward the latch. The shade dial set how far it must bend.'
+    : 'Lever down: the carriage presses the switch contacts shut and the latch hooks over it. Current runs through the nichrome wire on all three mica cards, which glow and toast both faces.')
+  : st.phase === 'pop' ? 'POP: the strip pushes the latch’s top, its hook swings off the carriage, the spring yanks the carriage up and the contacts open.'
+  : 'Inside: three mica cards wound with nichrome wire, a carriage on a guide rod with its spring, switch contacts, and a bimetal strip that trips the latch.';
+
+/* ---------- behaviour (one state object, one clock) ---------- */
+let ui, loopOn = false;
+function stepSim(st, now, dt){
+  if (st.phase === 'toast'){
+    const el = now - st.t0, T = BEND_MS[st.shade];
+    st.pos = Math.min(1, el / 220);
+    st.heat = Math.min(1, el / 700);
+    st.bend = Math.max(0, Math.min(1, (el - WARM) / T));
+    st.brown = Math.min(1.3, st.brown + dt / (WARM + T));
+    if (el > WARM && st.said < 1){ st.said = 1; say(1); }
+    if (st.bend >= 1) release(st);
+  } else if (st.phase === 'pop'){
+    const c1 = 1.9, c3 = c1 + 1;
+    st.latch = Math.min(1, (now - st.t0) / 110);
+    if (now - st.t0 > 90){ const kk = Math.min(1, (now - st.t0 - 90) / 510);   // the latch lets go, then the spring fires
+      st.pos = 1 - (1 + c3*(kk-1)**3 + c1*(kk-1)**2); }
+    st.heat = Math.max(0, st.heat - dt / 900);
+    if (now - st.t0 > 600){ st.pos = 0; st.phase = 'cool'; }
+  } else {
+    // cooling: the strip slowly straightens and the latch springs back
+    st.heat = Math.max(0, st.heat - dt / 900);
+    st.bend = Math.max(0, st.bend - dt / 1600);
+    if (st.bend < .75) st.latch = Math.max(0, st.latch - dt / 250);
+    if (st.phase === 'cool' && !st.heat && !st.bend && !st.latch) st.phase = 'idle';
+  }
+}
+function runLoop(){
+  if (loopOn) return; loopOn = true;
+  let last = performance.now();
+  ui.animate(() => { const st = ui.st, now = performance.now(), dt = Math.min(100, now - last); last = now;
+    stepSim(st, now, dt);
+    const busy = st.phase !== 'idle' || st.heat > 0 || st.bend > 0 || st.latch > 0;
+    if (!busy) loopOn = false;
+    return busy; });
+}
+function say(i){ if (ui && STEPS[i]) ui.flash(STEPS[i], 2400); }
+function lever(st){
+  if (st.phase === 'toast') return release(st);                // pushing it again stops early
+  if (st.phase === 'pop') return;
+  if (!st.bread) return ui.flash('fresh bread is coming — one moment');
+  if (st.bend > .3) return ui.flash('wait — the strip is still cooling down');
+  st.phase = 'toast'; st.t0 = performance.now(); st.said = 0; st.latch = 0; say(0); runLoop();
+}
+function release(st){
+  if (st.phase !== 'toast') return;
+  st.phase = 'pop'; st.t0 = performance.now();
+  if (st.bend >= 1) say(2);
+  runLoop();
+}
+function setShade(st, k){
+  if (st.phase !== 'idle' && st.phase !== 'cool') return ui.flash('the shade is set before toasting');
+  st.shade = k;
+}
+function take(st){
+  if (st.bread && st.phase === 'idle' && st.brown < .1) return lever(st);   // untoasted bread: push it down to toast
+  if (!st.bread) return ui.flash('fresh bread is coming — one moment');
+  if (st.phase === 'toast' || st.phase === 'pop') return ui.flash('still toasting — wait for the pop');
+  if (st.brown < .1) return;
+  st.bread = false;
+  setTimeout(() => { st.bread = true; st.brown = 0; ui.render(); }, 900);
+}
+
+ui = mountFigure({
+  fig:'04', turn:'full', title:'Toaster', hint:'Push the lever (space) · shade dial (D) · click the toast to take it (T)',
+  idea:'A metal strip inside bends as it gets hot, and when it bends far enough it lets the toast pop up.',
+  size:[W + 8, D, H + 24], center:[W/2 + 4, D/2], palette:'mint',
+  // pos: 0 = carriage up, 1 = pushed down. heat 0..1, bend 0..1 (strip), latch 0..1 (0 holds, 1 let go), brown 0..1.3
+  state:{ phase:'idle', t0:0, pos:0, heat:0, bend:0, latch:0, brown:0, shade:1, bread:true, said:-1 },
+  scene,
+  readout: st => {
+    const sh = SHADES[st.shade].name;
+    return st.phase === 'toast' ? (st.bend > 0 ? `toasting · strip bent ${Math.round(st.bend*100)}%` : 'toasting · wires heating up')
+      : !st.bread ? 'yum! fresh bread coming…'
+      : st.brown > 1.05 ? 'oops, burnt! · click it to take'
+      : st.brown > .1 ? `pop! ${st.brown > .9 ? sh : 'lightly'} toasted · click it to take`
+      : `ready · shade: ${sh} · push the lever`;
+  },
+  buttons:[
+    { label:'Choose shade', choices: st => SHADES.map((s, k) => ({ label:s.name, current: st.shade === k,
+        disabled: st.phase === 'toast' || st.phase === 'pop', why:'the shade is set before toasting',
+        onClick:(st) => setShade(st, k) })) },
+    { label:'Push the lever', onClick:(st) => lever(st) },
+    { label:'Take the toast', onClick:(st) => take(st) },
+  ],
+  acts:{ lever:(st) => lever(st), dial:(st) => setShade(st, (st.shade + 1) % 3), bread:(st) => take(st) },
+  params:(st, q) => {
+    if (q.has('shade')) st.shade = Math.max(0, Math.min(2, +q.get('shade') | 0));
+    for (const k of ['pos', 'heat', 'bend', 'latch', 'brown']) if (q.has(k)) st[k] = +q.get(k);
+    if (q.get('bread') === '0') st.bread = false;
+  },
+});
+addEventListener('keydown', e => {
+  if (/input|textarea|button/i.test(e.target.tagName)) return;
+  const k = e.key.toLowerCase(), st = ui.st;
+  if (k === ' ' || k === 'enter') lever(st); else if (k === 'd') setShade(st, (st.shade + 1) % 3); else if (k === 't') take(st); else return;
+  e.preventDefault(); ui.render();
+});
+xrMount(() => ui, toastCaption);
+</script></body></html>

@@ -17,9 +17,9 @@ export const questionFilesDir = (messageId: string) => `${RECORDS_DIR}/asked/${m
 export function attachedLines(m: Pick<ConversationMessage, 'id' | 'attachments'>): string[] {
   return (m.attachments ?? []).map((a) => {
     const rendition = a.markdown?.status === 'ready' ? ` — a markdown rendition beside it: \`${questionFilesDir(m.id)}/${a.kind === 'link' ? 'snapshot.md' : `${a.name}.md`}\`` : '';
-    if (a.kind === 'link') return `- link ${a.url}${a.note ? ` (${a.note})` : ''}${rendition}`;
+    if (a.kind === 'link') return `- link ${a.url} (id ${a.id})${a.note ? ` (${a.note})` : ''}${rendition}`;
     const size = a.size != null ? `, ${a.size >= 1_048_576 ? `${(a.size / 1_048_576).toFixed(1)} MB` : `${Math.max(1, Math.round(a.size / 1024))} KB`}` : '';
-    return `- \`${questionFilesDir(m.id)}/${a.name}\` (${attachmentKindLabel(a)}${size})${a.note ? ` — ${a.note}` : ''}${rendition}`;
+    return `- \`${questionFilesDir(m.id)}/${a.name}\` (${attachmentKindLabel(a)}${size}; id ${a.id})${a.note ? ` — ${a.note}` : ''}${rendition}`;
   });
 }
 
@@ -31,7 +31,7 @@ const attachedSection = (m: Pick<ConversationMessage, 'id' | 'attachments'>): st
 
 /** how the records folder is introduced, once per session */
 const recordsSection = () =>
-  `- Foundry's records of the goal: \`${RECORDS_DIR}/\` in this folder, written for you and refreshed before every answer. Its README.md lists them: goal.md, brief.md (what was understood and planned, the person's Decisions), tasks/<id>.md (each task's spec, attempts, reports and review), timeline.md, escalations.md, review.md, delivery.md, attachments.md, learnings.md and transcripts/ (what each session said and did, in short). Grep them like code; read a task's file and its transcript before you say why something was done.`;
+  `- Foundry's records of the goal: \`${RECORDS_DIR}/\` in this folder, written for you and refreshed before every answer. Its README.md lists them: goal.md, brief.md (what was understood and planned, the person's Decisions), tasks/<id>.md (each task's spec, attempts, reports and review), timeline.md, escalations.md, materials.md (what the person promised to provide, with keys, and the open Requests, with ids), review.md, delivery.md, attachments.md, learnings.md and transcripts/ (what each session said and did, in short). Grep them like code; read a task's file and its transcript before you say why something was done.`;
 
 export function openingPrompt(i: { goal: Goal; summary: string; place: ConversationPlace; question: string; /** the question itself, for what is attached to it */ asked?: Pick<ConversationMessage, 'id' | 'attachments'>; history: string | null; memoryBank: string | null }): string {
   return [

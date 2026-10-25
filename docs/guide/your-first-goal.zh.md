@@ -85,11 +85,12 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 | **Research** | 一次调查，最后给出一份带来源的报告。 |
 | **Images** | 海报、logo、插画。 |
 | **Video** | 生成的视频或带旁白的演示。 |
+| **Figures** | 物件与机器的可交互等轴测图，每张一个网页。Beta：Settings → Beta → Figure goals 打开后才显示；见 [Figure goal](./figures.zh.md)。 |
 | **CAD** | 3D 零件和装配体（STEP，按需也出 STL、3MF 或 GLB）、工程图、DXF 切割轮廓、URDF/SRDF/SDF 机器人文件。需要 text-to-cad，在 Setup 页安装。 |
 
-选 **Documents**、**Research**、**Images** 或 **Video** 会把视图切到 **Simple**。选 **Images** 或 **Video** 还会勾上 **Fast mode**，除非你已经自己改过它。**CAD** 保留你的默认值：它是带几何内核的代码工作，所以 Brief 的检查很要紧；它的 TDD 要求是 *preferred*（几何检查写在模型之前），Ponytail 也适用。
+选 **Documents**、**Research**、**Images**、**Video** 或 **Figures** 会把视图切到 **Simple**。选 **Images**、**Video** 或 **Figures** 还会勾上 **Fast mode**，除非你已经自己改过它。**Figures** 会多出一行 **Style**：Settings 里的默认风格，或两个 figure 技能之一。**CAD** 保留你的默认值：它是带几何内核的代码工作，所以 Brief 的检查很要紧；它的 TDD 要求是 *preferred*（几何检查写在模型之前），Ponytail 也适用。
 
-选 **Images**、**Video** 和 **CAD** 时会多出一个字段：**Output folder**。goal 完成后，做好的文件会复制到那里。按 **Choose…** 选一个文件夹。这是可选的；不选的话文件就留在进度文件夹里。图片类 goal 还需要图片 key，见 [费用与用量](./costs-and-usage.zh.md#图片类-goal-需要图片-key)。
+选 **Images**、**Video**、**Figures** 和 **CAD** 时会多出一个字段：**Output folder**。goal 完成后，做好的文件会复制到那里。按 **Choose…** 选一个文件夹。这是可选的；不选的话文件就留在进度文件夹里。图片类 goal 还需要图片 key，见 [费用与用量](./costs-and-usage.zh.md#图片类-goal-需要图片-key)。
 
 **CAD** goal 需要你所选编码智能体的 text-to-cad 插件。插件缺失时，这一项上会写明；goal 照样保存，然后在它的页面上等着，带一个 **Install text-to-cad** 按钮，直到插件装好（Setup 页有同样的安装，还会检测 uv 和切片软件）。没有插件时，**Auto** 从不把 goal 判定为 CAD：它会被当作代码工作。
 

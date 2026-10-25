@@ -55,8 +55,6 @@ export interface SkillsManagerOptions {
   releases?: ReleaseCheckerOptions;
   /** chosen option per mutually exclusive pack, e.g. { design: 'ui-ux-pro-max' } */
   packs?: () => Record<string, string | undefined>;
-  /** the Foundry checkout whose catalog/bundled/ holds the skills it ships itself; default: the one this engine runs from */
-  bundledRoot?: string;
   /** Settings switches gated entries need (Safety → Desktop apps & printers) */
   gates?: () => Record<string, boolean>;
   /** receives every updater run (the engine appends it as a `skills.update_run` event) */
@@ -105,7 +103,7 @@ export class SkillsManager {
   private serverMemo = new Map<string, { at: number; value: PluginMcpServer | null }>();
 
   constructor(private opts: SkillsManagerOptions) {
-    this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome, opts.bundledRoot), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}), ...(opts.suitesDir ? { suitesDir: opts.suitesDir } : {}) };
+    this.paths = { ...skillsPaths(opts.claudeHome, opts.dataDir, opts.provider, opts.sharedHome), ...(opts.claudeSkillsDir ? { claudeSkillsDir: opts.claudeSkillsDir } : {}), ...(opts.suitesDir ? { suitesDir: opts.suitesDir } : {}) };
     this.hints = new SkillsHints(() => this.status(), { enabled: opts.hintsEnabled, profile: opts.workflowProfile, packs: opts.packs, gates: opts.gates, provider: opts.provider });
     this.checker = new SkillsUpdateChecker(this.paths, { log: opts.log, ...(opts.updates ?? {}) });
     this.releaseChecker = new SuiteReleaseChecker(this.paths, { log: opts.log, ...(opts.releases ?? {}) });
@@ -282,11 +280,11 @@ export class SkillsManager {
       // a linked folder that holds an entry's name belongs to where it links (ADR-0069): it is never taken over
       const scan = this.scan();
       const linkedTo = (name: string) => scan.installed.find((r) => r.scope === 'user' && r.name === name && r.managedBy === 'symlink')?.symlink?.target ?? null;
-      const ictx ={ paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine, suites: this.catalog().suites };
+      const ictx ={ paths: this.paths, catalogDir: dirname(this.opts.catalogPath), log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine, suites: this.catalog().suites };
       // a plugin bundle shares one install: the first member installs it, the others ride along; a plugin already on disk
       // (installed by hand, or a second run) still gets its servers allowed and its runtime warmed up afterwards
       const plugins = new Map<string, { ok: boolean; detail: string; src: PluginSource }>();
-      for (const s of statuses.filter((x) => pick(x.entry) && (x.entry.source.type === 'git' || x.entry.source.type === 'plugin' || x.entry.source.type === 'suite'))) {
+      for (const s of statuses.filter((x) => pick(x.entry) && (x.entry.source.type === 'git' || x.entry.source.type === 'plugin' || x.entry.source.type === 'suite' || x.entry.source.type === 'bundled'))) {
         try {
           if (s.entry.source.type === 'plugin') {
             const pid = pluginId(s.entry.source);
@@ -304,15 +302,15 @@ export class SkillsManager {
           }
           if (s.status === 'installed-via-plugin') results.push({ id: s.entry.id, name: s.entry.name, action: 'plugin', detail: s.detail });
           else if (s.status === 'installed') {
-            const u = await updateEntry(s.entry, { paths: this.paths, log: this.opts.log, suites: this.catalog().suites });
+            const u = await updateEntry(s.entry, { paths: this.paths, catalogDir: dirname(this.opts.catalogPath), log: this.opts.log, suites: this.catalog().suites });
             results.push({ id: s.entry.id, name: s.entry.name, action: u.changed ? 'updated' : 'kept', detail: u.changed ? `${u.from?.slice(0, 7)} → ${u.to?.slice(0, 7)}` : `at ${u.to?.slice(0, 7)}` });
           } else if (s.status === 'installed-unmanaged' && linkedTo(s.entry.name)) {
             results.push({ id: s.entry.id, name: s.entry.name, action: 'kept', detail: `a folder linked to ${linkedTo(s.entry.name)} holds this name; kept where it links` });
           } else if (s.status === 'installed-unmanaged') {
-            const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log, suites: this.catalog().suites }, { force: true, refresh: true });
+            const r = await installEntry(s.entry, { paths: this.paths, catalogDir: dirname(this.opts.catalogPath), log: this.opts.log, suites: this.catalog().suites }, { force: true, refresh: true });
             results.push({ id: s.entry.id, name: s.entry.name, action: 'adopted', detail: `loose copy replaced @ ${r.commit?.slice(0, 7)} (old copy in trash)` });
           } else {
-            const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log, suites: this.catalog().suites }, { refresh: true });
+            const r = await installEntry(s.entry, { paths: this.paths, catalogDir: dirname(this.opts.catalogPath), log: this.opts.log, suites: this.catalog().suites }, { refresh: true });
             results.push({ id: s.entry.id, name: s.entry.name, action: r.ok ? 'installed' : 'failed', detail: r.ok ? `@ ${r.commit?.slice(0, 7)}` : (r.error ?? 'failed') });
           }
         } catch (e) {
@@ -442,7 +440,7 @@ export class SkillsManager {
               changed.push({ name: e.name, from: null, to: null });
               continue;
             }
-            const u = await updateEntry(e, { paths: this.paths, log: this.opts.log });
+            const u = await updateEntry(e, { paths: this.paths, catalogDir: dirname(this.opts.catalogPath), log: this.opts.log });
             line(u.changed ? `✓ ${e.name}: ${u.from?.slice(0, 7) ?? '?'} → ${u.to?.slice(0, 7) ?? '?'}` : `= ${e.name}: already at ${to}`);
             if (u.changed) changed.push({ name: u.name, from: u.from, to: u.to });
           }
@@ -479,7 +477,7 @@ export class SkillsManager {
     const { r, src } = await this.serial(async () => {
       const entry = findEntry(this.catalog(), idOrName);
       if (!entry) throw new InstallError(`${idOrName} is not in the catalog`, 'not-found');
-      const r = await installEntry(entry, { paths: this.paths, log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine: opts.onLine, suites: this.catalog().suites }, opts);
+      const r = await installEntry(entry, { paths: this.paths, catalogDir: dirname(this.opts.catalogPath), log: this.opts.log, claudeBin: this.opts.claudeBin, codexBin: this.opts.codexBin, spawn: this.opts.updater?.spawn ?? spawnStreaming, onLine: opts.onLine, suites: this.catalog().suites }, opts);
       return { r, src: r.ok && entry.source.type === 'plugin' ? entry.source : null };
     });
     // outside the queue: a warm-up can download for minutes
@@ -542,7 +540,7 @@ export class SkillsManager {
         }
         onLine?.(`installing ${s.entry.name}…`);
         try {
-          const r = await installEntry(s.entry, { paths: this.paths, log: this.opts.log, onLine, suites: this.catalog().suites });
+          const r = await installEntry(s.entry, { paths: this.paths, catalogDir: dirname(this.opts.catalogPath), log: this.opts.log, onLine, suites: this.catalog().suites });
           onLine?.(r.ok ? `✔ ${r.name}${r.commit ? ` @ ${r.commit.slice(0, 7)}` : ''}` : r.manual ? `→ ${r.name}: run this yourself: ${r.manual.command}` : `✘ ${r.name}: ${r.error}`);
           results.push(r);
         } catch (err) {
@@ -648,7 +646,7 @@ export class SkillsManager {
           continue;
         }
         try {
-          const u = await updateEntry(entry, { paths: this.paths, log: this.opts.log, suites: this.catalog().suites });
+          const u = await updateEntry(entry, { paths: this.paths, catalogDir: dirname(this.opts.catalogPath), log: this.opts.log, suites: this.catalog().suites });
           if (u.changed) out.updated.push({ name: u.name, from: u.from, to: u.to });
           else out.unchanged.push(u.name);
         } catch (err) {

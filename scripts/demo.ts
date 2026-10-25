@@ -553,11 +553,11 @@ export async function seedConversation(engine: Engine, goalId: string): Promise<
   const { newId } = await import('../packages/core/src/index.ts');
   const conversationId = newId('conversation');
   const append = (type: string, payload: Record<string, unknown>) => engine.store.append({ type, goalId, payload } as never);
-  const turn = (question: string, answer: string, costUsd: number, durationMs: number) => {
+  const turn = (question: string, answer: string, costUsd: number, durationMs: number, proposals: unknown[] = []) => {
     const askedId = newId('message');
     append('conversation.asked', { conversationId, messageId: askedId, text: question, by: null });
     append('goal.cost_added', { costUsd, source: 'conversation' });
-    append('conversation.answered', { conversationId, messageId: newId('message'), askedId, text: answer, status: 'done', reason: null, costUsd, costAvailable: true, model: 'claude-sonnet-4-5', sessionId: 'demo-conversation', durationMs });
+    append('conversation.answered', { conversationId, messageId: newId('message'), askedId, text: answer, status: 'done', reason: null, costUsd, costAvailable: true, model: 'claude-sonnet-4-5', sessionId: 'demo-conversation', durationMs, proposals });
   };
   append('conversation.started', { conversationId, by: null });
   turn(
@@ -578,6 +578,14 @@ export async function seedConversation(engine: Engine, goalId: string): Promise<
     'No. Each of the four tasks passed on its first attempt and its review; the goal review passed as well, over-delivered, because the stretch check *lint is clean* passed too. The goal never waited for you: it raised no escalation.',
     0.12,
     18_000,
+  );
+  // a change asked for: the Explainer proposes, the person applies (ADR-0075)
+  turn(
+    'Next I want a confirmation email after sign-up. Can you set that up?',
+    'That is a goal of its own rather than a task of this one: the goal is over and delivered, and sending mail needs a provider, a key and a template. I propose a Follow-up with what it needs spelled out.',
+    0.09,
+    14_000,
+    [{ id: newId('proposal'), type: 'follow-up', title: 'Confirmation email after sign-up', summary: 'A Follow-up goal that sends a confirmation email when an address is stored, with the provider and template to decide on.', followUp: { prompt: 'After the newsletter sign-up stores an address, send a confirmation email: pick a transactional mail provider (Resend or Postmark), keep its key in the environment, add a plain-text template with the studio name, and cover the send with a test that does not call the provider.' }, applied: null }],
   );
   return conversationId;
 }

@@ -18,6 +18,7 @@ import {
   renderDecisions,
   IDLE_COMPLETION,
   MEDIA_NATURES,
+  FigurePack,
   depthOfMode,
   EventStore,
   IdPrefix,
@@ -66,6 +67,9 @@ import { runInvestigation } from './investigation.ts';
 import { needsInvestigation } from './references.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
 import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
+import { FIGURE_CHECK_NAME } from './checks/figure.ts';
+import type { DoctorCheck } from './skills/types.ts';
+import { isFigureStyle, type FigureInfo } from './figure.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { skillUsage } from './skills/usage.ts';
@@ -193,6 +197,8 @@ export interface CreateGoalInput {
   nature?: GoalNature;
   /** the video engine (pack option) of a video goal; null/absent = Settings → workflow.videoPack (ADR-0077) */
   videoPack?: VideoPack | null;
+  /** the Figure pack this goal's figure tasks follow when it should differ from Settings' (ADR-0076); null or absent = Settings' default, or what the Clarifier reads from the goal's words */
+  figurePack?: FigurePack | null;
   /** where media artifacts are copied at done; null = they stay in the goal workspace */
   outputDir?: string | null;
   /** create the goal as a Follow-up of an earlier finished goal of the same repository (see follow-up.ts) */
@@ -492,7 +498,7 @@ export class Engine {
         const { [id]: _, ...rest } = config.suiteReleases ?? {};
         this.updateSettings({ workflow: { suiteReleases: ref ? { ...rest, [id]: ref } : rest } });
       },
-      packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack }),
+      packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack, figure: config.figurePack }),
       // a plugin that ships MCP servers (text-to-cad's `cad`) is allowed for sessions as soon as it is installed, under the prefix this coding agent gives it
       onPluginServers: (prefixes) => {
         if (provider !== 'agy') for (const p of prefixes) this.mcpFor(provider).allow(p, true);
@@ -750,6 +756,27 @@ export class Engine {
   /** can media sessions actually generate images here (key present in the env sessions inherit)? */
   imageGenAvailable(): boolean {
     return !!(process.env.OPENAI_API_KEY || this.config.openaiApiKey || process.env.GEMINI_API_KEY || this.config.geminiApiKey);
+  }
+
+  /** can figure goals be made and run here: the beta switch (ADR-0076) */
+  figureAvailable(): boolean {
+    return this.config.betaFigure;
+  }
+
+  /** the goal's own pack choices laid over Settings' (its Figure pack, ADR-0076; its video engine, ADR-0077): what its sessions' skill sections are filtered by */
+  packsFor(goal: Pick<Goal, 'figurePack' | 'videoPack'>): Record<string, string | undefined> {
+    return { ...(goal.figurePack ? { figure: goal.figurePack } : {}), ...(goal.videoPack ? { video: goal.videoPack } : {}) };
+  }
+
+  /**
+   * The figure skills for a goal (ADR-0076): the pack it follows (its own choice, else Settings') and which of the pack's
+   * styles are installed for its coding agent; null while figure goals are off.
+   */
+  async figureInfo(goal: Goal): Promise<FigureInfo | null> {
+    if (!this.config.betaFigure) return null;
+    const statuses = await this.skillsFor(goal).status().catch(() => []);
+    const installed = [...new Set(statuses.filter((s) => s.entry.pack === 'figure' && SATISFIED.includes(s.status)).map((s) => s.entry.packOption).filter(isFigureStyle))];
+    return { pack: (goal.figurePack ?? this.config.figurePack) as FigurePack, installed };
   }
 
   private buildContext(): ContextProvider {
@@ -2156,10 +2183,6 @@ export class Engine {
     return goal.videoPack ?? this.config.videoPack;
   }
 
-  /** the pack options a goal's prompts are built with: the Settings packs, the video one replaced by the goal's own engine */
-  packsFor(goal: Pick<Goal, 'videoPack'>): Record<string, string | undefined> {
-    return { design: this.config.designPack, image: this.config.imagePack, video: this.videoPackOf(goal) };
-  }
 
   lastWorkflowIn(repoPath: string): { goalId: string; title: string; createdAt: string; workflow: { profile: NonNullable<GoalWorkflow['profile']>; tdd: GoalWorkflow['tdd']; ponytail: GoalWorkflow['ponytail'] } } | null {
     const goal = listGoals(this.store.db).find((g) => g.repoPath === repoPath && !isHistory(g));
@@ -2240,6 +2263,8 @@ export class Engine {
     if (baseBranch === 'HEAD') throw new Error('repository is in detached HEAD state; pass --base <branch>');
     const now = new Date().toISOString();
     const nature: GoalNature = input.nature ?? 'auto';
+    // figure goals are a beta feature (ADR-0076): off, the nature is refused rather than quietly run as another kind
+    if ((nature === 'figure' || input.figurePack) && !this.config.betaFigure) throw new Error('Figure goals are a beta feature: turn on Settings → Beta → Figure goals first');
     let codexPreset: CodexModelPreset | undefined;
     const presetId = input.modelPreset ?? (provider === 'codex' && nature !== 'auto' ? this.config.codexNaturePreset[natureKey(nature)] : null);
     if (provider === 'codex') {
@@ -2303,6 +2328,7 @@ export class Engine {
       budgetPreset: input.budgetPreset ?? (motion ? 'thorough' : 'custom'),
       mode,
       nature,
+      figurePack: input.figurePack ?? null,
       outputDir: input.outputDir ?? null,
       workflow: (() => {
         // media goals default to fast: their deliverables are judged by the human's eye, not by $5 review sessions
@@ -2531,7 +2557,25 @@ export class Engine {
     // the motion-studio engine's tools (ADR-0077), only while its Beta is on
     const motion = this.config.betaMotionStudio ? await this.playwrightStatus().then((pw) => motionStudioCheck({ ffmpeg: Bun.which('ffmpeg'), ffprobe: Bun.which('ffprobe'), browser: pw.browser, browserDetail: pw.detail, platform: process.platform })) : null;
     if (motion?.ok) this.wakeMotionStudioGoals();
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(await this.figureToolsCheck()), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
+  }
+
+  /**
+   * The tools figure goals need on this computer (ADR-0076), only while the beta is on and a Figure pack is chosen:
+   * Playwright's Chromium for Foundry's own render check of every page; python3, which Colorfigures' build step and
+   * iso-glow's fast path run; and a Chrome on PATH for Colorfigures' own shots from every side (it skips them without).
+   */
+  private async figureToolsCheck(): Promise<DoctorCheck[]> {
+    if (!this.config.betaFigure || this.config.figurePack === 'none') return [];
+    const warn = (id: string, label: string, ok: boolean, detail: string, fix: DoctorCheck['fix'] = null): DoctorCheck => ({ id, label, ok, severity: 'warn', detail, fix: ok ? null : fix });
+    const pw = await playwrightStatus();
+    const python = Bun.which('python3');
+    const chrome = Bun.which('google-chrome') ?? Bun.which('google-chrome-stable') ?? Bun.which('chromium') ?? Bun.which('chromium-browser') ?? (existsSync('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome') ? '/Applications/Google Chrome.app' : null);
+    return [
+      warn('figure-chromium', 'Figure goals: Chromium for the render check', pw.browser, pw.browser ? pw.detail : `${pw.detail} — Foundry opens each delivered figure page headless; without Chromium the figure check fails every figure task`, { url: '/settings#preview' }),
+      warn('figure-python', 'Figure goals: python3', !!python, python ? python : "python3 is not on PATH — Colorfigures builds its one-file page with it (iso-glow can make its four text replacements by hand); install Python 3 or let the worker say so", { url: 'https://www.python.org/downloads/' }),
+      ...(this.config.figurePack === 'colorfigures' ? [warn('figure-chrome', 'Figure goals: a Chrome for Colorfigures', !!chrome, chrome ? chrome : "no google-chrome or chromium on PATH (and no Google Chrome app) — Colorfigures checks its own shots from every side in headless Chrome and skips them without one; Foundry's render check still runs", { url: 'https://www.google.com/chrome/' })] : []),
+    ];
   }
 
   /**
@@ -2579,6 +2623,13 @@ export class Engine {
    * a material of the Brief; ADR-0074). One that answers nothing, added while the goal runs, is announced to the tasks
    * not yet started (a running attempt learns of it at its next continuation).
    */
+  /** staged uploads moved under this goal's attachments folder (a question's files, ADR-0073), no longer staged */
+  claimUploads(goalId: string, atts: Attachment[], existingCount: number): Attachment[] {
+    const claimed = claimStaged(this.config.dataDir, goalId, atts.map((a) => this.latestStaged(a)), existingCount);
+    for (const a of atts) this.staged.delete(a.id);
+    return claimed;
+  }
+
   addAttachment(goalId: string, att: Attachment, marks: { requestId?: string | null; materialKey?: string | null } = {}): Attachment {
     const goal = this.mustGoal(goalId);
     const [first] = claimStaged(this.config.dataDir, goalId, [this.latestStaged(att)], goal.attachments.length);
@@ -2746,7 +2797,7 @@ export class Engine {
         scenario: t.scenario ?? 'general',
         area: area?.name ?? null,
         // docs, infra, research and media work gets no TDD mandate regardless of the goal's discipline
-        tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
+        tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video', 'figure'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
         delivers: cleanDeliverables(t.delivers),
@@ -2787,6 +2838,11 @@ export class Engine {
         for (const path of task.delivers ?? []) {
           if (brief.checks.some((c) => c.taskKey === t.key && c.spec.type === 'command' && c.spec.cmd === deliversCheckSpec(path).cmd)) continue;
           const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: deliversCheckName(path), tier: 'must', spec: deliversCheckSpec(path) };
+          this.store.append({ type: 'check.created', goalId, payload: { check } });
+        }
+        // a figure task's pages are opened headless by Foundry itself when the task lands (ADR-0076): its one must check beyond the files existing
+        if (task.scenario === 'figure') {
+          const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: FIGURE_CHECK_NAME, tier: 'must', spec: { type: 'figure' } };
           this.store.append({ type: 'check.created', goalId, payload: { check } });
         }
       }

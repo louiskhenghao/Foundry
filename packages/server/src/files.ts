@@ -4,7 +4,7 @@ import type { Goal, Task } from '@foundry/core';
 import { attachmentsDir, goalWorkspacePath, internalWorkspaceDir, legacyWorkspaceRoot, screenshotsDir } from '@foundry/engine';
 
 /** What the preview dialog does with a file: picked from the extension, never from the content. */
-export type FileKind = 'image' | 'pdf' | 'video' | 'audio' | 'markdown' | 'json' | 'text' | 'binary';
+export type FileKind = 'image' | 'pdf' | 'video' | 'audio' | 'markdown' | 'json' | 'html' | 'text' | 'binary';
 
 const KIND: Record<string, FileKind> = {};
 for (const e of ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'bmp', 'svg', 'ico']) KIND[e] = 'image';
@@ -13,8 +13,10 @@ for (const e of ['mp3', 'wav', 'm4a', 'ogg', 'oga', 'flac', 'aac']) KIND[e] = 'a
 for (const e of ['md', 'markdown', 'mdx']) KIND[e] = 'markdown';
 for (const e of ['json', 'jsonl', 'geojson', 'webmanifest']) KIND[e] = 'json';
 KIND.pdf = 'pdf';
+// a web page: shown as its source, or rendered in a sandbox when asked (a figure goal's page, ADR-0076)
+for (const e of ['html', 'htm']) KIND[e] = 'html';
 // source and plain text; anything unknown is shown as text only when it has no extension (Dockerfile, Makefile…)
-for (const e of ['txt', 'log', 'csv', 'tsv', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'scss', 'less', 'html', 'htm', 'xml', 'yml', 'yaml', 'toml', 'ini', 'conf', 'sh', 'bash', 'zsh', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sql', 'graphql', 'gql', 'vue', 'svelte', 'astro', 'prisma', 'proto', 'lock', 'gitignore', 'dockerignore', 'editorconfig', 'mts', 'cts', 'dart', 'lua', 'r', 'scala', 'ex', 'exs', 'erl', 'hs', 'clj', 'pl', 'ps1', 'bat', 'cmd', 'nix', 'zig', 'sol', 'tf', 'hcl', 'gradle', 'properties', 'example', 'sample', 'env', 'diff', 'patch'])
+for (const e of ['txt', 'log', 'csv', 'tsv', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'cjs', 'css', 'scss', 'less', 'xml', 'yml', 'yaml', 'toml', 'ini', 'conf', 'sh', 'bash', 'zsh', 'py', 'rb', 'go', 'rs', 'java', 'kt', 'swift', 'c', 'h', 'cpp', 'hpp', 'cs', 'php', 'sql', 'graphql', 'gql', 'vue', 'svelte', 'astro', 'prisma', 'proto', 'lock', 'gitignore', 'dockerignore', 'editorconfig', 'mts', 'cts', 'dart', 'lua', 'r', 'scala', 'ex', 'exs', 'erl', 'hs', 'clj', 'pl', 'ps1', 'bat', 'cmd', 'nix', 'zig', 'sol', 'tf', 'hcl', 'gradle', 'properties', 'example', 'sample', 'env', 'diff', 'patch'])
   KIND[e] = 'text';
 
 /**
@@ -232,14 +234,42 @@ export async function taskMadeFiles(dataDir: string, goal: Goal, task: Task, att
   const from = attempts.length ? Date.parse(attempts[0]!.startedAt) : NaN;
   const last = attempts.at(-1);
   const to = last?.endedAt ? Date.parse(last.endedAt) + 60_000 : finished(task) ? Date.parse(task.updatedAt) + 60_000 : Date.now();
-  const inWindow = Number.isNaN(from) || !existsSync(artifactsDir) ? [] : walkFiles(artifactsDir).filter((p) => {
-    const m = statSync(p).mtimeMs;
-    return m >= from && m <= to;
-  });
+  // the goal's folder is gone (tidied up after a merge): the copies its delivery made stand in, as the artifacts route serves them
+  const delivered = !existsSync(artifactsDir) && finished(task) ? deliveredArtifacts(goal) : [];
+  const inWindow = delivered.length
+    ? delivered
+    : Number.isNaN(from) || !existsSync(artifactsDir)
+      ? []
+      : walkFiles(artifactsDir).filter((p) => {
+          const m = statSync(p).mtimeMs;
+          return m >= from && m <= to;
+        });
   // tasks that ran side by side share a window: when the task's plan names some of these files, those are its own
-  const plan = [task.spec ?? '', ...(task.relevantFiles ?? [])].join('\n');
+  const plan = [task.spec ?? '', ...(task.relevantFiles ?? []), ...(task.delivers ?? [])].join('\n');
   const named = inWindow.filter((p) => plan.includes(basename(p)));
   return { rels, artifacts: named.length ? named : inWindow };
+}
+
+/** the files a goal's delivery copied to its Output folder, as they are there now; only those the delivery recorded */
+export function deliveredArtifacts(goal: Goal): string[] {
+  const run = goal.completion?.artifactsRun;
+  if (run?.status !== 'ok' || !run.dest) return [];
+  return run.files.map((f) => join(run.dest, f)).filter((p) => existsSync(p));
+}
+
+/** an absolute path that is one of a goal's delivered copies (and nothing else in the Output folder), with its size; null otherwise */
+export function deliveredFile(path: string, goals: Goal[]): { goal: Goal; rel: string; abs: string; size: number } | null {
+  for (const goal of goals) {
+    const run = goal.completion?.artifactsRun;
+    if (run?.status !== 'ok' || !run.dest) continue;
+    const rel = run.files.find((f) => join(run.dest, f) === path);
+    if (!rel) continue;
+    try {
+      const st = statSync(path);
+      if (st.isFile()) return { goal, rel, abs: path, size: st.size };
+    } catch {}
+  }
+  return null;
 }
 
 function walkFiles(dir: string): string[] {

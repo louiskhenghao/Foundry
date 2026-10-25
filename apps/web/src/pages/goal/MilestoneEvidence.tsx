@@ -7,6 +7,8 @@ import { Button, Card, Modal, ago, cn } from '../../ui.tsx';
 
 type Item = { file: string; caption: string };
 export type Evidence = {
+  /** a figure task's pages committed in the repository (repo-relative), opened sandboxed from the task's commit (ADR-0076) */
+  pages?: string[];
   taskId: string;
   video: string | null;
   shots: Item[];
@@ -125,6 +127,16 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
           {evidence.files!.map((f) => (
             <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 max-sm:min-h-8 font-semibold text-work-ink hover:underline mono" title={`${f}: opens or downloads in a new tab`}>
               <FileDown size={11} /> {f}
+            </a>
+          ))}
+        </div>
+      )}
+      {taskId && (evidence.pages ?? []).length > 0 && (
+        // a figure task's pages, committed in the repository: each runs in a new tab, sandboxed, from the task's commit (ADR-0076)
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+          {evidence.pages!.map((f) => (
+            <a key={f} href={`${fileUrl({ goal: goalId, task: taskId, rel: f })}&render=1`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 max-sm:min-h-8 font-semibold text-work-ink hover:underline mono" title={`${f}: the page, running in a new tab (sandboxed)`}>
+              <ExternalLink size={11} /> {f}
             </a>
           ))}
         </div>

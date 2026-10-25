@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, symlinkSync, utimesSync, writeFil
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exec } from '@foundry/engine';
-import { FileRefused, commitTree, fileKind, goalFileSource, landedPath, parseNameStatus, parsePorcelain, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
+import { FileRefused, commitTree, deliveredArtifacts, deliveredFile, fileKind, goalFileSource, landedPath, parseNameStatus, parsePorcelain, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
 
 const tmp = () => realpathSync(mkdtempSync(join(tmpdir(), 'files-')));
 const refused = (fn: () => unknown) => {
@@ -191,5 +191,38 @@ describe('what a request may carry', () => {
     expect(bodyCapMb('/api/transfer/incoming', 'POST')).toBeNull();
     expect(bodyCapMb('/api/goals', 'POST')).toBe(30);
     expect(bodyCapMb('/api/goals/g_1/attachments', 'GET')).toBe(30);
+  });
+});
+
+describe('web pages (ADR-0076)', () => {
+  test('html is a kind of its own, served as plain text unless the route renders it on request', () => {
+    expect(fileKind('kettle.html')).toBe('html');
+    expect(fileKind('Page.HTM')).toBe('html');
+    expect(servedType('kettle.html')).toBe('text/plain; charset=utf-8');
+    expect(fileKind('core.js')).toBe('text');
+    expect(fileKind('shot.png')).toBe('image');
+  });
+});
+
+describe("a goal's delivered copies (ADR-0076)", () => {
+  test("stand in for a finished task's artifacts once the goal's folder is gone, and only the recorded files are reachable by path", async () => {
+    const out = tmp();
+    writeFileSync(join(out, 'toaster.html'), 'page');
+    writeFileSync(join(out, 'core.js'), 'engine');
+    writeFileSync(join(out, 'notes.txt'), 'the person\'s own');
+    const goal = { id: 'g1', workspaceDir: join(tmp(), 'gone'), repoPath: tmp(), completion: { artifactsRun: { status: 'ok', files: ['toaster.html', 'core.js', 'missing.png'], dest: out } } } as never;
+    expect(deliveredArtifacts(goal).map((p) => p.split('/').pop())).toEqual(['toaster.html', 'core.js']);
+    expect(deliveredFile(join(out, 'toaster.html'), [goal])).toMatchObject({ rel: 'toaster.html', size: 4 });
+    expect(deliveredFile(join(out, 'notes.txt'), [goal])).toBeNull();
+    expect(deliveredFile(join(out, 'missing.png'), [goal])).toBeNull();
+    const exec = async () => ({ code: 1, stdout: '' });
+    // the task's plan names the page: that one is its own; a task naming nothing gets every copy
+    const task = { id: 't1', state: 'done', worktreePath: null, commitRef: null, baseRef: null, updatedAt: new Date().toISOString(), relevantFiles: [], spec: 'draw it', delivers: ['artifacts/toaster.html'] } as never;
+    expect((await taskMadeFiles('/data', goal, task, [], exec)).artifacts.map((p) => p.split('/').pop())).toEqual(['toaster.html']);
+    const vague = { ...(task as object), delivers: [] } as never;
+    expect((await taskMadeFiles('/data', goal, vague, [], exec)).artifacts.map((p) => p.split('/').pop())).toEqual(['toaster.html', 'core.js']);
+    // a running task never reads the Output folder
+    const running = { ...(task as object), state: 'running' } as never;
+    expect((await taskMadeFiles('/data', goal, running, [], exec)).artifacts).toEqual([]);
   });
 });

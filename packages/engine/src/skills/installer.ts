@@ -1,10 +1,10 @@
 import type { AgentProvider } from '@foundry/core';
 import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, join, relative, resolve, sep } from 'node:path';
+import { createHash } from 'node:crypto';
 import { exec } from '../git/git.ts';
 import { pluginInstallCommand, type PluginSource } from './catalog.ts';
 import { LEGACY_MARKER_FILE, MARKER_FILE, type SkillsPaths } from './paths.ts';
-import { BUNDLED_REPO, dirFingerprint } from './sources.ts';
 import { trashSkill } from './trash.ts';
 import { installSuite } from './suites.ts';
 import { FoundryMarker, type CatalogEntry, type InstallResult } from './types.ts';
@@ -182,8 +182,73 @@ export async function warmupPlugin(src: PluginSource, installPath: string, ctx: 
   }
 }
 
+/** files that are not the skill's own: the snapshot record and Foundry's install marker */
+const NOT_THE_SKILL = new Set(['SOURCE.json', MARKER_FILE, LEGACY_MARKER_FILE]);
+
+/** a skill folder's snapshot identity: sha256 over its files' paths and bytes in path order, SOURCE.json and the marker left out (the vendoring script writes the same value into SOURCE.json) */
+export function hashSkillFolder(dir: string): string {
+  const h = createHash('sha256');
+  for (const f of [...new Bun.Glob('**/*').scanSync({ cwd: dir, dot: false, onlyFiles: true })].filter((f) => !NOT_THE_SKILL.has(f)).sort()) h.update(f).update('\0').update(readFileSync(join(dir, f))).update('\0');
+  return h.digest('hex');
+}
+
+/** the snapshot a bundled skill folder is: the sha256 its SOURCE.json records, else the folder's own hash; null when the folder cannot be read */
+export function bundledVersion(dir: string): string | null {
+  try {
+    const src = JSON.parse(readFileSync(join(dir, 'SOURCE.json'), 'utf8')) as { sha256?: unknown };
+    if (typeof src.sha256 === 'string' && src.sha256) return src.sha256;
+  } catch {}
+  try {
+    return hashSkillFolder(dir);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A skill Foundry ships in its own repository (catalog/bundled/<name>, ADR-0076): installed by copying the folder into
+ * the skills dir, under a marker that names the bundled path and the snapshot (SOURCE.json's sha256). A copy of an older
+ * snapshot is replaced when the entry is installed again, so a Foundry update that refreshed the snapshot reaches the
+ * skills dir with the next install or update.
+ */
+export async function installBundled(entry: CatalogEntry, ctx: InstallContext, opts: { force?: boolean; refresh?: boolean } = {}): Promise<InstallResult> {
+  if (entry.source.type !== 'bundled') throw new InstallError('not a bundled entry', 'manual');
+  if (!ctx.catalogDir) throw new InstallError(`no catalog folder to copy ${entry.name} from`, 'not-found');
+  const base = resolve(ctx.catalogDir);
+  const srcDir = resolve(base, entry.source.path);
+  if (!srcDir.startsWith(base + sep) || !existsSync(join(srcDir, 'SKILL.md'))) throw new InstallError(`SKILL.md for ${entry.name} not found in the bundled folder ${entry.source.path}`, 'not-found');
+  const commit = bundledVersion(srcDir);
+  const dest = join(ctx.paths.skillsDir, entry.name);
+  const existing = existsSync(dest) || isSymlink(dest);
+  const prev = existing ? readMarker(dest) : null;
+  if (existing) {
+    if (prev?.catalogId !== entry.id && !opts.force) {
+      throw new InstallError(`${entry.name} already exists in ${ctx.paths.skillsDir} and was not installed by foundry`, 'conflict', { name: entry.name, path: dest, managed: prev ? 'foundry' : 'other' });
+    }
+    if (prev?.catalogId === entry.id && !opts.force && prev.commit === commit) {
+      return { ok: true, id: entry.id, name: entry.name, path: dest, commit: prev.commit, manual: null, error: null };
+    }
+    trashSkill(entry.name, ctx.paths, opts.force ? 'replaced by forced install' : 'replaced by update');
+  }
+  mkdirSync(ctx.paths.skillsDir, { recursive: true });
+  cpSync(srcDir, dest, { recursive: true, dereference: true });
+  const marker: FoundryMarker = {
+    catalogId: entry.id,
+    repo: `bundled:${entry.source.path}`,
+    ref: null,
+    commit,
+    path: entry.source.path,
+    installedAt: prev?.installedAt ?? new Date().toISOString(),
+    updatedAt: prev ? new Date().toISOString() : undefined,
+  };
+  writeFileSync(join(dest, MARKER_FILE), JSON.stringify(marker, null, 2));
+  ctx.log?.(`[skills] installed ${entry.name} from Foundry's bundled copy${commit ? ' @ ' + commit.slice(0, 7) : ''}`);
+  return { ok: true, id: entry.id, name: entry.name, path: dest, commit, manual: null, error: null };
+}
+
 export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opts: { force?: boolean; refresh?: boolean } = {}): Promise<InstallResult> {
   if (entry.source.type === 'plugin') return installPlugin(entry, ctx);
+  if (entry.source.type === 'bundled') return installBundled(entry, ctx, opts);
   if (entry.source.type === 'suite') {
     // the whole suite installs once; every member entry reports the same copy (ADR-0049)
     const id = entry.source.suite;
@@ -192,7 +257,6 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
     const r = await installSuite(suite, ctx, { refresh: opts.refresh });
     return { ok: true, id: entry.id, name: entry.name, path: r.path, commit: r.commit, manual: null, error: null };
   }
-  if (entry.source.type === 'bundled') return installBundled(entry, entry.source, ctx, opts);
   if (entry.source.type !== 'git') {
     return { ok: false, id: entry.id, name: entry.name, path: null, commit: null, manual: { command: entry.source.install, docs: entry.source.docs ?? null }, error: 'manual installation required' };
   }
@@ -229,44 +293,7 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
   return { ok: true, id: entry.id, name: entry.name, path: dest, commit, manual: null, error: null };
 }
 
-/**
- * A skill Foundry ships itself (ADR-0077): copied from catalog/bundled/<path> of the Foundry that runs. The marker's
- * `commit` is the folder's content fingerprint, so an update after a Foundry release copies the newer folder.
- */
-async function installBundled(entry: CatalogEntry, source: Extract<CatalogEntry['source'], { type: 'bundled' }>, ctx: InstallContext, opts: { force?: boolean; refresh?: boolean }): Promise<InstallResult> {
-  const srcDir = join(ctx.paths.bundledRoot, source.path);
-  if (!existsSync(join(srcDir, 'SKILL.md'))) throw new InstallError(`${entry.name} is not bundled with this Foundry (${source.path})`, 'not-found');
-  const dest = join(ctx.paths.skillsDir, entry.name);
-  const existing = existsSync(dest) || isSymlink(dest);
-  const fingerprint = dirFingerprint(srcDir);
-  if (existing) {
-    const marker = readMarker(dest);
-    if (marker?.catalogId !== entry.id && !opts.force) {
-      throw new InstallError(`${entry.name} already exists in ${ctx.paths.skillsDir} and was not installed by foundry`, 'conflict', { name: entry.name, path: dest, managed: marker ? 'foundry' : 'other' });
-    }
-    if (marker?.catalogId === entry.id && !opts.force && !opts.refresh) {
-      return { ok: true, id: entry.id, name: entry.name, path: dest, commit: marker.commit, manual: null, error: null };
-    }
-  }
-  const prev = existing ? readMarker(dest) : null;
-  if (existing) trashSkill(entry.name, ctx.paths, opts.force ? 'replaced by forced install' : 'replaced by update');
-  mkdirSync(ctx.paths.skillsDir, { recursive: true });
-  cpSync(srcDir, dest, { recursive: true, dereference: true });
-  const marker: FoundryMarker = {
-    catalogId: entry.id,
-    repo: BUNDLED_REPO,
-    ref: null,
-    commit: fingerprint,
-    path: source.path,
-    installedAt: prev?.installedAt ?? new Date().toISOString(),
-    updatedAt: prev ? new Date().toISOString() : undefined,
-  };
-  writeFileSync(join(dest, MARKER_FILE), JSON.stringify(marker, null, 2));
-  ctx.log?.(`[skills] installed ${entry.name}, bundled with Foundry (${source.path})`);
-  return { ok: true, id: entry.id, name: entry.name, path: dest, commit: fingerprint, manual: null, error: null };
-}
-
-/** Re-install from a refreshed cache (or the bundled folder). Returns from/to commits. */
+/** Re-install from a refreshed cache (or Foundry's bundled folder). Returns from/to commits. */
 export async function updateEntry(entry: CatalogEntry, ctx: InstallContext): Promise<{ name: string; from: string | null; to: string | null; changed: boolean }> {
   const dest = join(ctx.paths.skillsDir, entry.name);
   const from = readMarker(dest)?.commit ?? null;

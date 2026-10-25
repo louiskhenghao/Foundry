@@ -36,11 +36,13 @@ FROM base AS runtime
 ARG CLAUDE_CODE_VERSION
 ARG CODEX_VERSION
 # gh: the engine's only remote arm (push / PR / merge). uv: optional markitdown installs from the Setup page.
+# python3: the Figure pack's skills build their one-file page with it (Colorfigures' scripts/build.py, iso-glow's fast
+# path), ADR-0076 — a plain interpreter, no packages; uv's private Python stays uv's.
 RUN mkdir -p -m 755 /etc/apt/keyrings \
  && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
  && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
- && apt-get update && apt-get install -y --no-install-recommends gh \
+ && apt-get update && apt-get install -y --no-install-recommends gh python3-minimal \
  && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # graphify: the context provider that hands sessions only the relevant files/symbols (the catalog's one `required` tool).
@@ -90,6 +92,10 @@ COPY docs ./docs
 # so a user who only pulled the image can get the compose file: docker run --rm <image> cat /app/docker-compose.yml
 COPY docker-compose.yml ./docker-compose.yml
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# google-chrome / chromium on PATH for the skills a worker runs (Colorfigures' own shots, ADR-0076): a shim that starts the
+# Chromium Playwright downloaded for the engine (Settings → Preview & self-check) with the flags a root-less container needs
+COPY docker-google-chrome.sh /usr/local/bin/google-chrome
+RUN chmod 755 /usr/local/bin/google-chrome && ln -s /usr/local/bin/google-chrome /usr/local/bin/chromium
 COPY --from=build /app/apps/web/dist ./apps/web/dist
 
 # everything Claude Code keeps (login, sessions, skills) lives in one mounted directory

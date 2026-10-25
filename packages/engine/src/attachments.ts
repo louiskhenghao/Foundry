@@ -2,7 +2,7 @@
  * Goal attachments: files live under <dataDir>/attachments/<goalId>/<attId>/<name>; uploads are staged under
  * attachments/_staging/<attId>/ until the goal exists. Nothing here ever deletes user bytes — removal moves to _trash.
  */
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
 import type { Attachment, Goal } from '@foundry/core';
 import { ATTACHMENT_LIMITS, attachmentMaxBytes, IdPrefix, attachmentKindLabel, newId } from '@foundry/core';
@@ -39,6 +39,25 @@ export function stageFile(dataDir: string, file: { name: string; mime: string | 
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, name), file.bytes);
   return { id, kind: 'file', name, mime: file.mime || null, size: file.bytes.byteLength, path: relative(dataDir, join(dir, name)), url: null, note: null, addedAt: new Date().toISOString(), markdown: null };
+}
+
+/**
+ * A copy of an attachment under a new id of its own in this goal's folder: a Conversation's file handed to a Request
+ * (ADR-0075) is owned twice, and the Conversation keeps its copy where it was. A link has no file; its record is copied.
+ */
+export function copyAttachment(dataDir: string, goalId: string, a: Attachment): Attachment {
+  const id = newId(IdPrefix.attachment);
+  const dir = join(attachmentsDir(dataDir, goalId), id);
+  const bring = (rel: string): string => {
+    const src = resolve(dataDir, rel);
+    if (!existsSync(src)) throw new AttachmentError(`attachment ${a.id} (${a.name}) is no longer available — attach it again`, 'not-found');
+    mkdirSync(dir, { recursive: true });
+    copyFileSync(src, join(dir, basename(src)));
+    return relative(dataDir, join(dir, basename(src)));
+  };
+  const path = a.kind === 'link' || !a.path ? null : bring(a.path);
+  const markdown = a.markdown?.path ? (existsSync(resolve(dataDir, a.markdown.path)) ? { ...a.markdown, path: bring(a.markdown.path) } : { ...a.markdown, path: null }) : (a.markdown ?? null);
+  return { ...a, id, path, markdown, addedAt: new Date().toISOString() };
 }
 
 export function linkAttachment(url: string, opts: { name?: string; note?: string | null } = {}): Attachment {

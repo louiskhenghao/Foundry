@@ -1,12 +1,12 @@
 import { AGENT_PROVIDERS, PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment, WorkflowProfile } from '@foundry/core/browser';
-import { ARTIFACT_NATURES, BUDGET_PRESETS } from '@foundry/core/browser';
+import { ARTIFACT_NATURES, BUDGET_PRESETS, MEDIA_NATURES } from '@foundry/core/browser';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Send, Shapes, Target, Telescope, Wallet, WandSparkles, X, type LucideIcon } from 'lucide-react';
+import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Lamp, Send, Shapes, Target, Telescope, Wallet, WandSparkles, X, type LucideIcon } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
-import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type PackGroupView, type RepoInfo } from '../api.ts';
+import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type PackGroupView, type PacksView, type RepoInfo } from '../api.ts';
 import { CompanionFolders } from '../components/CompanionFolders.tsx';
 import { SectionChipNav, SectionSideNav, type NavSection } from '../components/SectionNav.tsx';
 import { AttachmentInput } from '../components/Attachments.tsx';
@@ -28,7 +28,7 @@ const DELIVERY_KEY = 'foundry.delivery';
 const BUDGET_KEY = 'foundry.budget';
 const NATURE_KEY = 'foundry.nature';
 
-type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video' | 'cad';
+type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video' | 'figure' | 'cad';
 /**
  * The kinds of goal, each with an icon in a category colour of its own (ADR-0067) so they tell apart at a glance. Auto is
  * no kind (the system decides), so its icon stays in ink.
@@ -40,6 +40,8 @@ const NATURES: { id: Nature; label: string; text: string; Icon: LucideIcon; ink:
   { id: 'research', label: 'Research', text: 'An investigation ending in a cited report.', Icon: Telescope, ink: code(2).ink },
   { id: 'image', label: 'Images', text: 'Posters, logos, illustrations.', Icon: ImageIcon, ink: code(6).ink },
   { id: 'video', label: 'Video', text: 'Generated video or narrated presentations.', Icon: Clapperboard, ink: code(4).ink },
+  // beta (ADR-0076): shown only while Settings → Beta → Figure goals is on
+  { id: 'figure', label: 'Figures', text: 'Interactive isometric figures of objects and machines, one web page each.', Icon: Lamp, ink: code(3).ink },
   { id: 'cad', label: 'CAD', text: '3D parts and assemblies (STEP), drawings, DXF profiles, robot files.', Icon: Box, ink: code(5).ink },
 ];
 /** the browser remembers the finer delivery options; mode and unit always start from Settings → New goal defaults */
@@ -145,6 +147,11 @@ export function NewGoalPage() {
   const [auto, setAuto] = useState(false);
   const [advanced, setAdvanced] = useState(false);
   const [nature, setNature] = useState<Nature>(() => ((localStorage.getItem(NATURE_KEY) as Nature | null) ?? 'auto'));
+  // figure goals are a beta feature (ADR-0076): the kind shows while the switch is on; a remembered figure kind falls back to auto when it is off
+  const [betaFigure, setBetaFigure] = useState(false);
+  /** the Figure pack this goal follows; '' = Settings' default (the Clarifier may pick the other installed style from the goal's words) */
+  const [figurePack, setFigurePack] = useState<'' | 'colorfigures' | 'iso-glow'>('');
+  const [figurePacks, setFigurePacks] = useState<PacksView['figure'] | null>(null);
   const [outputDir, setOutputDir] = useState('');
   // the video engine of a video goal (Beta, ADR-0077): '' = the Video skills pack Settings names
   const [videoPack, setVideoPack] = useState('');
@@ -155,6 +162,12 @@ export function NewGoalPage() {
   const [interviewDepth, setInterviewDepth] = useState('3');
   const [effort, setEffort] = useState('');
   const [provider, setProvider] = useState<AgentProvider>(initialProvider ?? 'claude');
+  // the Figure pack's install state for this coding agent, read when the Figure kind is picked (ADR-0076)
+  useEffect(() => {
+    if (nature !== 'figure') return;
+    setFigurePacks(null);
+    void apiForProvider(provider).packs().then((p) => setFigurePacks(p.figure)).catch(() => {});
+  }, [nature, provider]);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountsInfo | null>(null);
   const [codexModel, setCodexModel] = useState('codex-default');
@@ -251,8 +264,10 @@ export function NewGoalPage() {
         if (!changed.current.has('mode')) setModeState(d.workflow.defaultMode);
         changeWorkflow({ type: 'settings', values: { profile: d.workflow.profile ?? 'mattpocock', tdd: d.workflow.tdd, ponytail: d.workflow.ponytail ?? 'on' } });
         basePace.current = d.workflow.defaultPace;
+        setBetaFigure(!!d.beta?.figure);
+        if (!d.beta?.figure && nature === 'figure') setNature('auto');
         // media goals default to fast on top of the Settings pace, as when the goal type is picked by hand
-        if (!paceTouched.current) setPace(nature === 'image' || nature === 'video' ? 'fast' : d.workflow.defaultPace);
+        if (!paceTouched.current) setPace(MEDIA_NATURES.includes(nature) ? 'fast' : d.workflow.defaultPace);
         setDefaultRemote(d.delivery.defaultRemote);
         setDelivery((cur) => ({ ...cur, ...(changed.current.has('deliveryMode') ? {} : { mode: d.delivery.defaultMode }), ...(changed.current.has('deliveryUnit') ? {} : { unit: d.delivery.defaultUnit }) }));
       })
@@ -493,6 +508,7 @@ export function NewGoalPage() {
         // fast: let the engine default the TDD mandate off instead of pinning it here
         workflow: pace === 'fast' ? { pace, ponytail, profile } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail, profile },
         nature,
+        figurePack: nature === 'figure' && figurePack ? figurePack : undefined,
         outputDir: ARTIFACT_NATURES.includes(nature) && outputDir.trim() ? outputDir.trim() : undefined,
         videoPack: nature === 'video' && betaMotionStudio && videoPack ? videoPack : undefined,
         interviewDepth: Number(interviewDepth),
@@ -592,7 +608,7 @@ export function NewGoalPage() {
           </Card>
           <Card id={SECTIONS.kind.id} className={SEC} title={withHelp('kind', 'What kind of goal is this?', 'your-first-goal#what-kind-of-goal-is-this')}>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {NATURES.map((n) => (
+              {NATURES.filter((n) => n.id !== 'figure' || betaFigure).map((n) => (
                 <button
                   key={n.id}
                   type="button"
@@ -601,7 +617,7 @@ export function NewGoalPage() {
                     // anyone-facing default: prose/media goals open in the plain-language view (cad is code work and keeps the default)
                     if (n.id !== 'code' && n.id !== 'auto' && n.id !== 'cad') setMode('simple');
                     // media deliverables are judged by eye — default to fast (no engine AI reviews) unless the human chose a pace
-                    if (!paceTouched.current) setPace(n.id === 'image' || n.id === 'video' ? 'fast' : basePace.current);
+                    if (!paceTouched.current) setPace(MEDIA_NATURES.includes(n.id) ? 'fast' : basePace.current);
                   }}
                   // a stretched button centres its content; flex-col keeps short cards aligned with tall ones
                   className={cn('flex flex-col text-left rounded-lg border p-2.5', choiceClass(nature === n.id))}
@@ -629,6 +645,27 @@ export function NewGoalPage() {
                     <option key={o.id} value={o.id}>{o.label}</option>
                   ))}
                 </Select>
+              </div>
+            )}
+            {nature === 'figure' && (
+              <div className="mt-3">
+                <label className="text-xs text-ink-soft">Style — the figure skill that draws this goal's figures (Settings → Skills → Figure skills sets the default)</label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-1">
+                  {[
+                    { id: '' as const, label: `Default${figurePacks ? ` · ${figurePacks.options.find((o) => o.id === figurePacks.chosen)?.label ?? figurePacks.chosen}` : ''}`, summary: "Settings' Figure pack. The Clarifier may pick the other installed style when your words clearly ask for its look.", ok: true },
+                    ...(figurePacks?.options ?? [])
+                      .filter((o) => o.id === 'colorfigures' || o.id === 'iso-glow')
+                      .map((o) => ({ id: o.id as 'colorfigures' | 'iso-glow', label: o.label, summary: o.summary, ok: o.entries.length > 0 && o.entries.every((e) => e.status.startsWith('installed')) })),
+                  ].map((o) => (
+                    <button key={o.id} type="button" disabled={!o.ok} title={o.ok ? undefined : 'Not installed for this coding agent: Settings → Skills → Figure skills'} onClick={() => setFigurePack(o.id)} className={cn('flex flex-col text-left rounded-lg border p-2.5 disabled:opacity-50', choiceClass(figurePack === o.id))}>
+                      <div className="text-sm font-bold text-ink">
+                        {o.label}
+                        {o.ok ? '' : <span className="ml-1.5 text-xs font-normal text-ink-faint">not installed</span>}
+                      </div>
+                      <div className="text-xs text-ink-faint mt-1 leading-snug line-clamp-3">{o.summary}</div>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
             {ARTIFACT_NATURES.includes(nature) && (

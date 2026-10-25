@@ -3,14 +3,14 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } fr
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
-import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openFile, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
+import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, FIGURE_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openFile, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
 import { ConversationError } from '@foundry/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, GoalIssue, GoalMode, GoalNature, VideoPack, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, VideoPack, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
-import { FileRefused, type FileSource, commitTree, fileKind, fileResponse, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles } from './files.ts';
+import { FileRefused, type FileSource, commitTree, fileKind, fileResponse, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles, deliveredFile } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
 import { copyTheme, deleteTheme, importTheme, renameTheme, themeFileText, listThemes, prepareThemesDir, themesDir } from './themes.ts';
 import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
@@ -70,6 +70,8 @@ const CreateGoalBody = z.object({
   nature: GoalNature.optional(),
   /** the video engine of a video goal (ADR-0077); absent = Settings → workflow.videoPack */
   videoPack: VideoPack.nullable().optional(),
+  /** the Figure pack this goal follows when it should differ from Settings' (ADR-0076) */
+  figurePack: FigurePack.nullable().optional(),
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
   milestonePause: z.boolean().optional(),
@@ -570,6 +572,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       return { source, name: rel.split('/').pop()!, rel, note: source.kind === 'commit' ? 'commit' : null };
     }
     const path = q('path') ?? '';
+    // a copy a goal's delivery made in its Output folder (the goal's own folder may be gone): only the files it recorded
+    const delivered = path ? deliveredFile(path, listGoals(db)) : null;
+    if (delivered) return { source: { kind: 'folder', abs: delivered.abs, size: delivered.size }, name: delivered.rel.split('/').pop()!, rel: `artifacts/${delivered.rel}`, note: null };
     const landed = path ? landedPath(path, dataDir, listGoals(db)) : null;
     if (existsSync(landed ?? path)) {
       try {
@@ -591,10 +596,14 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.get('/api/files', async (c) => {
     const { source, name } = await locate((k) => c.req.query(k));
-    const type = servedType(name);
+    // a web page rendered on request (a figure goal's page, ADR-0076): it runs, but in a sandbox with an opaque origin,
+    // never as this site — no cookies, storage or API of Foundry's; without `render` it is plain text like any source file
+    const render = c.req.query('render') === '1' && fileKind(name) === 'html';
+    const type = render ? 'text/html; charset=utf-8' : servedType(name);
     const headers: Record<string, string> = { 'content-type': type, 'cache-control': 'private, no-store', 'x-content-type-options': 'nosniff' };
     // opened on its own the file never runs as this site (an SVG's scripts, say); PDFs keep the browser's viewer
-    if (type !== 'application/pdf') headers['content-security-policy'] = 'sandbox';
+    if (render) headers['content-security-policy'] = 'sandbox allow-scripts';
+    else if (type !== 'application/pdf') headers['content-security-policy'] = 'sandbox';
     if (c.req.query('download') === '1') headers['content-disposition'] = `attachment; filename="${encodeURIComponent(name)}"`;
     if (source.kind === 'folder') return new Response(Bun.file(source.abs), { headers });
     // a blob of the task's commit, streamed as bytes (images and PDFs included)
@@ -617,7 +626,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       if (source) files.push({ name: rel.split('/').pop()!, rel, kind: fileKind(rel), size: source.size, open: open(rel) });
     }
     const ws = goalWorkspacePath(dataDir, goal);
-    for (const abs of made.artifacts) files.push({ name: abs.split('/').pop()!, rel: abs.slice(ws.length + 1), kind: fileKind(abs), size: statSync(abs).size, open: { path: abs } });
+    const dest = goal.completion.artifactsRun?.status === 'ok' ? goal.completion.artifactsRun.dest : null;
+    // a delivered copy (the goal's folder gone) is listed under its artifacts/ name, as it was in the folder
+    for (const abs of made.artifacts) files.push({ name: abs.split('/').pop()!, rel: abs.startsWith(ws + '/') ? abs.slice(ws.length + 1) : dest && abs.startsWith(dest + '/') ? `artifacts/${abs.slice(dest.length + 1)}` : abs, kind: fileKind(abs), size: statSync(abs).size, open: { path: abs } });
     const relevant = [];
     for (const rel of task.relevantFiles) relevant.push({ rel, open: (await taskFileSource(dataDir, goal, task, rel, exec, tree)) ? open(rel) : null });
     const delivers = [];
@@ -646,7 +657,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const run = goal.completion.artifactsRun;
     if (!existsSync(p) && run?.status === 'ok' && run.dest && run.files.includes(rel)) p = join(run.dest, rel);
     if (!existsSync(p)) throw new HttpError(404, { error: 'artifact not found' });
-    return fileResponse(p, c.req.raw, { 'cache-control': 'private, max-age=60' });
+    // a figure's page (ADR-0076) runs in the browser, but never as Foundry: the sandbox directive gives it an opaque
+    // origin, with none of this origin's cookies, storage or API; every other kind of artifact is served as before,
+    // and a clip can be seeked in (Range, ADR-0077)
+    const page = /\.html?$/i.test(rel);
+    return fileResponse(p, c.req.raw, { 'cache-control': 'private, max-age=60', ...(page ? { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': 'sandbox allow-scripts', 'x-content-type-options': 'nosniff' } : {}) });
   });
   // ---- the user guide, bundled with the install: docs/guide/*.md (+ .zh.md) and its screenshots ----
   const guideDir = join(engine.config.rootDir, 'docs', 'guide');
@@ -936,6 +951,16 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const body = z.object({ text: z.string(), conversationId: z.string().nullable().optional(), fresh: z.boolean().optional(), attachments: z.array(Attachment).optional() }).parse(await c.req.json());
     try {
       return c.json(engine.conversations.ask(goal.id, body.text, { by: c.get('person')?.name ?? null, conversationId: body.conversationId ?? null, fresh: body.fresh, attachments: body.attachments }), 202);
+    } catch (e) {
+      if (e instanceof ConversationError) throw new HttpError(e.status, { error: e.message });
+      throw e;
+    }
+  });
+  // the person applies what the Explainer proposed (ADR-0075)
+  app.post('/api/goals/:id/conversations/:cid/proposals/:pid/apply', async (c) => {
+    const goal = goalOr404(c);
+    try {
+      return c.json({ result: await engine.conversations.apply(goal.id, c.req.param('cid'), c.req.param('pid'), c.get('person')?.name ?? null) });
     } catch (e) {
       if (e instanceof ConversationError) throw new HttpError(e.status, { error: e.message });
       throw e;
@@ -1610,6 +1635,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       image: view('image', IMAGE_PACK_OPTIONS, engine.config.imagePack),
       // the motion-studio engine is offered while its Beta is on (ADR-0077)
       video: view('video', engine.config.betaMotionStudio ? VIDEO_PACK_OPTIONS : VIDEO_PACK_OPTIONS.filter((o) => o.id !== 'motion-studio'), engine.config.videoPack),
+      figure: view('figure', FIGURE_PACK_OPTIONS, engine.config.figurePack),
     });
   });
   app.post('/api/skills/install-pack', async (c) => {

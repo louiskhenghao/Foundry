@@ -115,6 +115,8 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
     }
     case 'memory.retained':
       return { text: p.error ? `Memory could not write the ${p.source}: ${p.error}` : `Memory: wrote the ${p.source}${p.count > 1 ? ` (${p.count})` : ''}`, tone: p.error ? 'warn' : 'muted' };
+    case 'conversation.proposal_applied':
+      return { text: `Applied from the Conversation${p.by ? ` by ${p.by}` : ''}: ${String(p.result).slice(0, 120)}`, tone: 'ok' };
     case 'conversation.started':
       return { text: `Conversation started${p.by ? ` by ${p.by}` : ''}`, tone: 'muted' };
     case 'conversation.asked':

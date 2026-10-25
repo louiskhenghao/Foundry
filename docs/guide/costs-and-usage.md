@@ -92,3 +92,5 @@ Goals count by when they were created, sessions by when they ran. The retry rate
 ## Image goals need an image key
 
 The configured image skills use a separate media-service API key: an OpenAI-compatible key, or a Gemini key. This key does not enable Codex API-key inference or replace ChatGPT sign-in. Add it in **Settings → Tools & keys**; it applies to the next session, no restart. Without a key, image tasks produce hand-drawn SVG or HTML renders of much lower quality — the Brief tells you so before you approve.
+
+[Figure goals](./figures.md) (beta) need no key: a figure is drawn by a skill, so it costs the worker's tokens and time alone — a Colorfigures figure 15–30 minutes and a few hundred thousand tokens, an iso-glow figure about a minute.

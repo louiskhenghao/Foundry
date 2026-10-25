@@ -328,6 +328,15 @@ export function writeGoalRecords(engine: Engine, goal: Goal, root: string): stri
     return lines.join('\n');
   });
   write('attachments.md', () => renderAttachments(goal, engine.config.dataDir) || '# Attachments from the user\nNone.');
+  write('materials.md', () => {
+    const provides = getBrief(db, goal.id)?.brief.provides ?? [];
+    const open = listEscalations(db, { goalId: goal.id, openOnly: true }).filter((e) => e.trigger === 'needs_input');
+    if (!provides.length && !open.length) return '# What the person will provide, and what the goal asks for\nNothing: no promised material, no open Request.';
+    const lines = ['# What the person will provide, and what the goal asks for'];
+    if (provides.length) lines.push('## Materials promised in the Brief (key · what · mode · status)', ...provides.map((p) => `- \`${p.key}\` · ${p.what} · ${p.mode} · **${p.status}**${p.neededBy.length ? ` · needed by ${p.neededBy.join(', ')}` : ''}${p.attachmentIds.length ? ` · attachments ${p.attachmentIds.join(', ')}` : ''}${p.note ? ` · "${p.note}"` : ''}`));
+    if (open.length) lines.push('## Open Requests (id · what)', ...open.map((e) => `- \`${e.id}\` · ${(e.payload as { what?: string }).what ?? e.message}${(e.payload as { materialKey?: string }).materialKey ? ` · for material ${(e.payload as { materialKey?: string }).materialKey}` : ''}${e.taskId ? ` · task ${e.taskId}` : ''}`));
+    return lines.join('\n');
+  });
   write('learnings.md', () => learningsContext(engine, goal) || '# What Foundry learned about this repository\nNothing recorded yet.');
   // the transcripts: rendered once per session, again only when it wrote more
   for (const f of transcriptFiles(engine, goal, attempts)) {

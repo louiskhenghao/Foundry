@@ -7,6 +7,7 @@ import { InterviewQuestion } from './schema/interview.ts';
 import { Learning } from './schema/learnings.ts';
 import { Schedule } from './schema/schedule.ts';
 import { AnswerStatus } from './schema/conversation.ts';
+import { Proposal } from './schema/proposal.ts';
 import { DeployProvider, SmokeScript } from './schema/deploy.ts';
 import {
   Attempt,
@@ -28,6 +29,7 @@ import {
   EscalationAnswer,
   Goal,
   GoalNature,
+  FigurePack,
   GoalState,
   PreviewPlace,
   ObservationReport,
@@ -148,6 +150,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     taskId: z.string(),
     video: z.string().nullable(),
     shots: z.array(z.object({ file: z.string(), caption: z.string() })),
+    /** a figure task's pages committed in the repository (repo-relative), opened sandboxed from the task's commit (ADR-0076) */
+    pages: z.array(z.string()).optional(),
     summary: z.string(),
     error: z.string().nullable(),
     app: z.string().nullable().optional(),
@@ -171,6 +175,10 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),
   /** the goal's nature was settled (user chose it at creation, or the Clarifier decided for an `auto` goal) */
   ev('goal.nature_set', { nature: GoalNature, reason: z.string() }),
+  /** the goal's Figure pack was settled for it (the Clarifier read the style from the goal's words, ADR-0076); Settings' default applies while unset */
+  ev('goal.figure_pack_set', { figurePack: FigurePack, reason: z.string() }),
+  /** a figure task's pages were opened headless by Foundry (ADR-0076): per page its screenshot(s) in the goal's screenshots folder and what went wrong */
+  ev('figure.checked', { taskId: z.string(), attemptId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), pages: z.array(z.object({ file: z.string(), screenshot: z.string().nullable(), inside: z.string().nullable(), errors: z.array(z.string()) })), summary: z.string() }),
   /** media artifacts were copied from the goal workspace to the goal's output folder at done; `startedAt`: when the copy
    * began (a file written after it may not be what the folder received), and `startedAfter` the id of the goal's last
    * state change then (a run again after it is delivered again); `copies`: each copy's identity in the output folder as
@@ -244,7 +252,9 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** a Conversation on the goal's page (ADR-0073): one started, a question of the person's, and the Explainer's answer to one (its text as far as it got, how it ended, what it cost; the session the next turn resumes) */
   ev('conversation.started', { conversationId: z.string(), by: z.string().nullable().default(null) }),
   ev('conversation.asked', { conversationId: z.string(), messageId: z.string(), text: z.string(), by: z.string().nullable().default(null), attachments: z.array(Attachment).optional() }),
-  ev('conversation.answered', { conversationId: z.string(), messageId: z.string(), askedId: z.string(), text: z.string(), status: AnswerStatus, reason: z.string().nullable().default(null), costUsd: z.number().nonnegative(), costAvailable: z.boolean().default(true), model: z.string().nullable().default(null), sessionId: z.string().nullable().default(null), durationMs: z.number().nonnegative().default(0) }),
+  ev('conversation.answered', { conversationId: z.string(), messageId: z.string(), askedId: z.string(), text: z.string(), status: AnswerStatus, reason: z.string().nullable().default(null), costUsd: z.number().nonnegative(), costAvailable: z.boolean().default(true), model: z.string().nullable().default(null), sessionId: z.string().nullable().default(null), durationMs: z.number().nonnegative().default(0) , proposals: z.array(Proposal).optional() }),
+  /** the person applied what the Explainer proposed (ADR-0075) */
+  ev('conversation.proposal_applied', { conversationId: z.string(), messageId: z.string(), proposalId: z.string(), by: z.string().nullable().default(null), result: z.string() }),
 
   ev('task.created', { task: Task }),
   ev('task.state_changed', { taskId: z.string(), from: TaskState, to: TaskState, reason: z.string() }),

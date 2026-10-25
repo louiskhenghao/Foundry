@@ -248,6 +248,7 @@ flowchart LR
 |---|---|
 | `/api/goals`, `/api/goals/:id/...` | create, read, follow-up draft and link (`/follow-up-draft`, `/follows`), brief edit/draft/approve, style samples, reclarify, interview answer, feedback classify, cancel/restart/delete, diff, deliver and delivery plan, preview, self-check, attachments, screenshots, artifacts, workspace, open-in-editor, manual resolve (`/tasks/:taskId/resolve/*`) |
 | `/api/goals/:id/materials/:key` | a material the person promised in the Brief arrives: staged uploads and links with a word, or `waived` (there is none); its Requests are answered and their tasks go on ([ADR-0074](adr/0074-a-goal-asks-for-what-only-the-person-can-give.md)) |
+| `.../conversations/:cid/proposals/:pid/apply` | the person applies what the Explainer proposed (ADR-0075): a task, a decision, a note, a follow-up (the New goal form's path comes back) or a hand-over; once |
 | `/api/goals/:id/conversations`, `.../conversations/ask`, `.../conversations/:cid/stop` | the goal's Conversations with what is being answered; a question, with staged uploads as its attachments, kept at once and answered in the background (`202`) on the `conversation-<conversationId>` channel; Stop. A question's attachments are served by `/api/goals/:id/attachments/:attId` like the goal's own ([ADR-0073](adr/0073-a-conversation-about-a-goal.md)) |
 | `/api/escalations` | list, `:id/suggest`, `:id/answer` |
 | `/api/stream/:id/history` | decoded transcript tail for a live channel (the Live log after a page refresh) |
@@ -305,7 +306,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Tick and per-state dispatch | `engine/src/engine.ts` (`tick`, `runTick`) |
 | Scheduling, parallelism, file-overlap waits | `engine/src/scheduler.ts`, `engine/src/catchup.ts` |
 | Attempt loop, Continuations, Observation Report | `engine/src/attempt-loop.ts`, `engine/src/attempt-prompt.ts` |
-| Command checks, Task reviewer, baseline, Self-check | `engine/src/checks/{command,reviewer,baseline,selfcheck}.ts` |
+| Command checks, Task reviewer, baseline, Self-check, the figure check (a figure task's pages opened headless, ADR-0076) | `engine/src/checks/{command,reviewer,baseline,selfcheck,figure}.ts` |
 | Clarify, Interview, Brief output schema | `engine/src/clarify.ts`, `core/src/schema/{brief,interview}.ts` |
 | Draft / Revise on the Brief page | `engine/src/brief-draft.ts`, `core/src/machine/brief-decisions.ts` |
 | Brief coverage (every Area has a task) | `core/src/machine/brief-coverage.ts` |
@@ -349,6 +350,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Chat Answers (Telegram buttons and replies by long polling; Discord buttons and forms by a bot on the gateway) | `engine/src/notify/{actions,chat-bot,telegram-bot,discord-bot,host}.ts` |
 | Learnings: written when a goal ends, given to Clarify and attempts, edited on the Learnings page | `engine/src/learnings.ts`, `core/src/schema/learnings.ts`, `apps/web/src/pages/LearningsPage.tsx` |
 | Memory (ADR-0072): a folder's bank on a Hindsight server, written when the goal's events say so, asked before each stage; the Hindsight card, the folder switch, the goal page's Remembered panel | `engine/src/memory/*`, `core/src/schema/settings.ts` (`memory`), `apps/web/src/pages/skills/McpPanel.tsx` (`HindsightCard`), `apps/web/src/pages/goal/OverviewTab.tsx` (`Remembered`) |
+| Proposals (ADR-0075): the Explainer's `foundry-proposal` block parsed on the answer, the cards, Apply per kind | `core/src/schema/proposal.ts`, `engine/src/conversation/proposals.ts`, `apps/web/src/components/conversation/ProposalCard.tsx` |
 | Conversation (ADR-0073): the Explainer's questions and answers on the goal page, its worktree and records, the read-only shell, the bubble and the tab, `foundry ask` | `engine/src/conversation/*`, `roles/explainer.md`, `core/src/schema/conversation.ts`, `runner/hooks/readonly-bash.ts`, `apps/web/src/components/conversation/*`, `apps/web/src/pages/goal/ConversationTab.tsx`, `apps/cli/src/main.ts` (`ask`) |
 | Schedules: the cadence, the firing, the engine's approval of a run's Brief, the page | `core/src/schema/schedule.ts`, `core/src/machine/schedule.ts`, `engine/src/schedules.ts`, `apps/web/src/pages/SchedulesPage.tsx`, `apps/web/src/components/ScheduleDialog.tsx` |
 | Self-update, Update Check, Drain | `engine/src/update/updater.ts`, `Engine.beginUpdateDrain` |

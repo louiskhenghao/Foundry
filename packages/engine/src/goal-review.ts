@@ -4,6 +4,8 @@ import type { Check, CheckResult, Goal } from '@foundry/core';
 import { jsonSchemaFor, IdPrefix, chosenStyle, getBrief, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { renderStyle, styleApplies } from './attempt-prompt.ts';
+import { FIGURE_REVIEW_GOAL } from './figure.ts';
+import { figureCheckLines, figureReviewSection } from './checks/figure.ts';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
@@ -18,7 +20,7 @@ import { createFixTasks, genericFixSpec } from './fix-tasks.ts';
 import { diff } from './git/git.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { memoryQuestion, memorySection } from './memory/prompt.ts';
-import { goalWorkspacePath, reviewDiffDir } from './workspace.ts';
+import { goalWorkspacePath, reviewDiffDir, screenshotsDir } from './workspace.ts';
 import { latestLikeness } from './likeness.ts';
 import { likenessLines, renderSubjects, sessionDirs, subjectsAddDirs } from './subjects.ts';
 
@@ -146,7 +148,9 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
       ? `# CAD review\nThis goal's deliverables are model sources in the diff and exports and snapshots under \`artifacts/\` — those are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk, open the snapshots with the Read tool and compare them with the Brief's dimensions and features, and run the goal's geometry checks. A deliverable without snapshots, a missing export, or a dimension off the Brief is a BLOCKER; so is an export or snapshot committed outside \`artifacts/\` that the Brief does not ask for there, and a committed file that reaches into the coding agent's plugin folder.`
       : scenario === 'image' || scenario === 'video'
       ? `# Media review\nThis goal's deliverables are media files under \`artifacts/\` — they are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk${scenario === 'image' ? ' and open the images with the Read tool (it renders them) to judge them against the checks' : '; verify video metadata with ffprobe when available (you cannot watch video — final visual quality stays with the human)'}.`
-      : '';
+      : scenario === 'figure'
+        ? figureReviewSection(FIGURE_REVIEW_GOAL, figureCheckLines(engine.store.db, goal.id))
+        : '';
   // what earlier goal reviews in this repository found (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('review_goal', memoryQuestion('review_goal', { goalTitle: goal.title }), { repoPath: goal.repoPath, goalId: goal.id });
   const prompt = [
@@ -186,7 +190,8 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     jsonSchema: jsonSchemaFor(GoalReviewOutput),
     settings: boundarySettings(engine.config.hooksDir),
     settingSources: engine.config.settingSources,
-    addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(engine.config.dataDir, goal.id)] : []), ...subjectsAddDirs(engine.config.dataDir, goal.id, brief)]),
+    // a figure goal's reviewer may open Foundry's screenshots of the pages (ADR-0076)
+    addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(engine.config.dataDir, goal.id)] : []), ...subjectsAddDirs(engine.config.dataDir, goal.id, brief), ...(scenario === 'figure' ? [screenshotsDir(engine.config.dataDir, goal)] : [])]),
     transcriptPath,
   };
   const handle = await engine.runner.run({ ...base, prompt, maxTurns: 80, maxBudgetUsd: cap, appendSystemPromptFile: engine.roles.path('reviewer-goal'), timeoutMs: 30 * 60_000, label: `goal review ${goal.title}` });

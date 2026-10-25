@@ -18,6 +18,8 @@ import { renderUpstream } from './delegation.ts';
 import { handoffSection } from './handoff.ts';
 import { learningsForWorker } from './learnings.ts';
 import { runCommandCheck } from './checks/command.ts';
+import { runFigureCheck } from './checks/figure.ts';
+import { attemptTimeoutMs } from './figure.ts';
 import { verdictSummary, reviewTaskDiff } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
@@ -58,8 +60,8 @@ export interface Continuation {
 }
 
 /** The message that resumes a session. It never restates the task: the session still has all of that. */
-/** the wall-clock cap of one session: the goal's own (Budgets, ADR-0077), else Settings → sessions.attemptTimeoutMin */
-export const attemptTimeoutMs = (goal: Pick<Goal, 'budgets'>, config: Pick<EngineConfig, 'attemptTimeoutMs'>): number => (goal.budgets.attemptTimeoutMin ? goal.budgets.attemptTimeoutMin * 60_000 : config.attemptTimeoutMs);
+/** the wall-clock cap of one session before any per-task floor: the goal's own (Budgets, ADR-0077), else Settings → sessions.attemptTimeoutMin */
+export const goalSessionTimeoutMs = (goal: Pick<Goal, 'budgets'>, config: Pick<EngineConfig, 'attemptTimeoutMs'>): number => (goal.budgets.attemptTimeoutMin ? goal.budgets.attemptTimeoutMin * 60_000 : config.attemptTimeoutMs);
 
 export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string; answer?: RequestAnswer } = {}): string {
   switch (reason) {
@@ -239,7 +241,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : []), ...(subjects ? subjectsAddDirs(config.dataDir, goal.id, brief) : [])]),
-      timeoutMs: attemptTimeoutMs(goal, config),
+      // the session's cap: the goal's own (Budgets, ADR-0077), else Settings'; a figure task gets at least 45 minutes (ADR-0076)
+      timeoutMs: attemptTimeoutMs({ ...config, attemptTimeoutMs: goalSessionTimeoutMs(goal, config) }, task),
       transcriptPath: attempt.transcriptPath!,
       resumeSessionId,
       env: { FOUNDRY_ATTEMPT_ID: attempt.id, FOUNDRY_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) },
@@ -336,8 +339,15 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     results.push(r);
     store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
   }
+  // a figure task's pages are opened headless by Foundry itself (ADR-0076): an objective check, like the commands
+  for (const c of checks) {
+    if (c.spec.type !== 'figure') continue;
+    const r = await runFigureCheck(engine, goal, task, attempt.id, c, cwd);
+    results.push(r);
+    store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
+  }
   bumpStat(store.db, 'attempt.cost', result.costUsd);
-  const mustCommand = checks.filter((c) => c.tier === 'must' && c.spec.type === 'command');
+  const mustCommand = checks.filter((c) => c.tier === 'must' && (c.spec.type === 'command' || c.spec.type === 'figure'));
   const objectivePassed = mustCommand.every((c) => results.find((r) => r.checkId === c.id)?.status === 'pass');
 
   let reviewerVerdict: ObservationReport['reviewerVerdict'] = null;

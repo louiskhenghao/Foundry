@@ -1,0 +1,975 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Claw machine</title></head><body>
+<script src="core.js"></script>
+<script>
+/* Real process (each step is where every token / prize is afterwards):
+   1. Insert coin: the top token leaves the stack on the control ledge and drops into the coin slot -> the coin box;
+      the display shows CREDIT 1.
+   2. The game starts: credit -> 0, TIME 20 counts down on the display.
+   3. Steer: the joystick tilts; the bridge runs along the two rails (forward/back), the carriage along the bridge (left/right).
+   4. Drop (or time runs out): the claw lowers on its cable and opens, stops on a prize or the floor, closes,
+      lifts and carries back to its home above the prize chute, then opens. A centred grip holds; an off-centre
+      grip slips and the prize falls back onto the pile on the way.
+   5. A held prize falls down the chute, through the base, into the pickup bay behind the clear flap.
+   6. Take the prize: the flap tips open and the prize comes out. */
+
+/* ---------- geometry (x = depth toward viewer-right, y = width toward viewer-left, z = up) ---------- */
+const W = 80, D = 86;                         // cabinet depth, width
+const HB = 80, HG = 150, HR = 155, HC = 184;  // base top (prize floor), glass top, roof top, marquee top
+const LX = 14, LZ0 = 70, LZ1 = 80;            // control ledge: sticks out LX, from LZ0 to LZ1
+const CHX = W - 26, CHY = 26, CHT = HB + 24;  // prize chute: x CHX..W, y 0..CHY, acrylic walls up to CHT
+const HOME = [W - 13, 13];                    // claw rests above the chute
+const ZTOP = 122;                             // claw hub height when up
+const BAY = [4, 10, 34, 34];                  // pickup bay on the base front: y0,z0,y1,z1
+const BAY_X = W - 16;                         // back of the bay
+const DISP = [42, 36, 78, 52];                // display on the base front
+const JOY = [W + 7, 66], BTN = [W + 7, 42], SLOT = [W + 7, 22], STACK = [W + 7, 9];
+const BASE = rrUV(0, 0, D, HB, 4);
+const CREST = rrUV(3, HR, D - 3, HC, 7);
+const STEP = 6, SPEED = 28, GAME_T = 20;
+const COINM = { l:'#f0d27a', m:'#d2ad4a', d:'#9a7a2a' };
+const REDM = matOf('#e2483d');
+const STEELM = { l:'#b4bcbf', m:'#848d91', d:'#555d61' };   // the claw: darker than the pale plushies it grips
+const ACRYL = '#cfe9f0';
+const DROP_PH = ['lower', 'close', 'lift', 'carry', 'release', 'back'];
+
+/* ---------- prizes ---------- */
+const PCOLS = ['#e2473a','#3e86d9','#f2c230','#38a565','#8c4bd1','#f08a2b','#5cc0e8','#d94f86'];
+const BEARC = ['#c98a52','#f3efe4','#f3a6bb','#9a7a5a'];
+function layout(){
+  let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const out = [], xs = [9, 24.5, 40, 55.5, 71], ys = [9, 26, 43, 60, 77];
+  const kinds = PLUSH_KINDS;
+  let i = 0;
+  for (const x of xs) for (const y of ys){
+    if (x > W - 34 && y < 34) continue;                 // keep clear of the chute
+    const kind = kinds[i % kinds.length];
+    const col = PLUSH[kind][i % PLUSH[kind].length];
+    out.push({ id:i, kind, col, r:7, x: x + (rnd() - .5) * 2.4, y: y + (rnd() - .5) * 2.4, z: HB + 7, layer:0 });
+    i++;
+  }
+  // a second layer resting in the gaps
+  for (const [x, y] of [[16.75,17.5],[32.25,51.5],[16.75,68.5],[47.75,68.5],[63.25,51.5],[32.25,34.5]]){
+    const kind = kinds[(i + 2) % kinds.length];
+    const col = PLUSH[kind][(i + 1) % PLUSH[kind].length];
+    out.push({ id:i, kind, col, r:6.5, x, y, z: HB + 6.5 + 8, layer:1 }); i++;
+  }
+  return out;
+}
+
+/* ---------- small drawing helpers ---------- */
+const circ = (X, Y, r, c, extra = '') => `<circle cx="${f(X)}" cy="${f(Y)}" r="${f(r)}" fill="${c}" ${extra}/>`;
+const circInk = (X, Y, r, w) => `<circle cx="${f(X)}" cy="${f(Y)}" r="${f(r)}" fill="none" stroke="${INK}" stroke-width="${w}"/>`;
+// a round plush prize ("mochi" style: the sphere is the toy), drawn facing the viewer: matte fabric, a sewn seam,
+// and its own ears and face per kind
+const PLUSH = {
+  bear:    ['#c98a52', '#9a7a5a', '#f3efe4', '#e8b07a'],
+  bunny:   ['#f6f1e8', '#f3c6d3', '#e9e4f5'],
+  cat:     ['#f0a35a', '#b9b3ac', '#f3efe4', '#3a3632'],
+  duck:    ['#f6d04a'],
+  frog:    ['#7cc46a', '#a6d36a'],
+  penguin: ['#3d4a6b'],
+  pig:     ['#f4a6b4'],
+};
+const PLUSH_KINDS = ['bear', 'bunny', 'cat', 'duck', 'frog', 'penguin', 'pig', 'bear', 'bunny', 'cat'];
+const plushTop = { bunny: 1.75, cat: 1.3, bear: 1.2, pig: 1.15, frog: 1.25 };
+function orb(p, spot){
+  const [X, Y] = P(p.x, p.y, p.z), R = p.r * 1.2247, m = matOf(p.col), k = p.kind;
+  const lt = mix(p.col, '#ffffff', .4), dk = mix(p.col, '#000000', .3), BLUSH = '#f2849a';
+  const eye = (x, y, r = R * .085) => circ(x, y, r, INK) + circ(x + r * .35, y - r * .35, r * .32, '#ffffff');
+  const blush = () => `<ellipse cx="${f(X - R * .5)}" cy="${f(Y + R * .14)}" rx="${f(R * .14)}" ry="${f(R * .08)}" fill="${BLUSH}" opacity=".55"/>`
+    + `<ellipse cx="${f(X + R * .56)}" cy="${f(Y + R * .14)}" rx="${f(R * .14)}" ry="${f(R * .08)}" fill="${BLUSH}" opacity=".55"/>`;
+  const path = (d, fill, w = .9) => `<path d="${d}" fill="${fill}" stroke="${INK}" stroke-width="${w}" stroke-linejoin="round"/>`;
+  let s = '';
+  // ---- ears and other bits behind the head
+  if (k === 'bear' || k === 'pig'){ for (const sg of [-1, 1]){ const ex = X + sg * R * .62, ey = Y - R * .66, er = R * (k === 'pig' ? .26 : .3);
+      s += k === 'pig' ? path(`M${f(ex - er)} ${f(ey + er * .6)}L${f(ex + sg * er * .2)} ${f(ey - er)}L${f(ex + er)} ${f(ey + er * .6)}Z`, dk)
+        : circ(ex, ey, er, m.m) + circ(ex + er * .08, ey + er * .05, er * .55, lt) + circInk(ex, ey, er, .9); } }
+  if (k === 'cat'){ for (const sg of [-1, 1]){ const bx = X + sg * R * .55, by = Y - R * .62;
+      s += path(`M${f(bx - R * .26)} ${f(by + R * .12)}L${f(bx + sg * R * .08)} ${f(by - R * .42)}L${f(bx + R * .26)} ${f(by + R * .12)}Z`, m.m)
+        + `<path d="M${f(bx - R * .12)} ${f(by + R * .04)}L${f(bx + sg * R * .05)} ${f(by - R * .24)}L${f(bx + R * .12)} ${f(by + R * .04)}Z" fill="${BLUSH}" opacity=".7"/>`; } }
+  if (k === 'bunny'){ for (const sg of [-1, 1]){ const ex = X + sg * R * .32, ey = Y - R * 1.15, tilt = sg * 10;
+      s += `<g transform="rotate(${tilt} ${f(ex)} ${f(ey + R * .45)})"><ellipse cx="${f(ex)}" cy="${f(ey)}" rx="${f(R * .2)}" ry="${f(R * .55)}" fill="${m.m}" stroke="${INK}" stroke-width=".9"/>`
+        + `<ellipse cx="${f(ex)}" cy="${f(ey + R * .04)}" rx="${f(R * .09)}" ry="${f(R * .38)}" fill="${BLUSH}" opacity=".6"/></g>`; } }
+  if (k === 'frog'){ for (const sg of [-1, 1]){ const ex = X + sg * R * .42, ey = Y - R * .78, er = R * .28;
+      s += circ(ex, ey, er, m.m) + circInk(ex, ey, er, .9) + circ(ex, ey + er * .05, er * .62, '#ffffff') + eye(ex, ey + er * .1, er * .3); } }
+  if (k === 'duck') s += `<path d="M${f(X - R * .05)} ${f(Y - R * .95)}q${f(R * .12)} ${f(-R * .28)} ${f(R * .26)} ${f(-R * .1)}M${f(X + R * .06)} ${f(Y - R * .97)}q${f(R * .2)} ${f(-R * .2)} ${f(R * .3)} ${f(.02 * R)}" fill="none" stroke="${INK}" stroke-width=".9" stroke-linecap="round"/>`;
+  // ---- the head: matte fabric (no gloss), a soft lit side, a sewn seam over the crown
+  s += circ(X, Y, R, m.m) + circ(X + .1 * R, Y - .12 * R, .84 * R, p.col);
+  if (k === 'penguin') s += `<ellipse cx="${f(X + R * .05)}" cy="${f(Y + R * .14)}" rx="${f(R * .66)}" ry="${f(R * .6)}" fill="#fbf7ea"/>`;
+  s += `<path d="M${f(X - R * .02)} ${f(Y - R * .98)}Q${f(X + R * .3)} ${f(Y - R * .3)} ${f(X + R * .06)} ${f(Y - R * .62)}" fill="none" stroke="${dk}" stroke-width=".5" stroke-dasharray="1.2 1.1" opacity=".7"/>`;
+  // ---- faces
+  const ey = Y - R * .06, exL = X - R * .3, exR = X + R * .36;
+  if (k === 'bear'){
+    s += `<ellipse cx="${f(X + R * .04)}" cy="${f(Y + R * .3)}" rx="${f(R * .34)}" ry="${f(R * .24)}" fill="${lt}" stroke="${INK}" stroke-width=".6"/>`;
+    s += circ(X + R * .04, Y + R * .22, R * .1, INK) + eye(exL, ey) + eye(exR, ey);
+  } else if (k === 'bunny' || k === 'cat'){
+    s += eye(exL, ey) + eye(exR, ey) + blush();
+    s += `<path d="M${f(X + R * .0)} ${f(Y + R * .14)}l${f(R * .05)} ${f(R * .06)}l${f(R * .05)} ${f(-R * .06)}Z" fill="${BLUSH}" stroke="${INK}" stroke-width=".4"/>`;
+    s += `<path d="M${f(X - R * .04)} ${f(Y + R * .26)}q${f(R * .09)} ${f(R * .08)} ${f(R * .09)} 0q0 ${f(R * .08)} ${f(R * .09)} 0" fill="none" stroke="${INK}" stroke-width=".6" stroke-linecap="round"/>`;
+    if (k === 'cat') for (const sg of [-1, 1]) for (const dy of [-.03, .07])
+      s += `<path d="M${f(X + sg * R * .3 + R * .05)} ${f(Y + R * (.2 + dy))}l${f(sg * R * .34)} ${f(R * dy * 1.5)}" stroke="${INK}" stroke-width=".45" stroke-linecap="round"/>`;
+  } else if (k === 'duck'){
+    s += eye(exL, ey) + eye(exR, ey) + blush();
+    s += `<ellipse cx="${f(X + R * .04)}" cy="${f(Y + R * .24)}" rx="${f(R * .3)}" ry="${f(R * .13)}" fill="#f08a2b" stroke="${INK}" stroke-width=".7"/>`
+      + `<path d="M${f(X - R * .2)} ${f(Y + R * .24)}H${f(X + R * .28)}" stroke="${INK}" stroke-width=".45"/>`;
+  } else if (k === 'frog'){
+    s += blush() + `<path d="M${f(X - R * .38)} ${f(Y + R * .14)}Q${f(X + R * .04)} ${f(Y + R * .5)} ${f(X + R * .46)} ${f(Y + R * .14)}" fill="none" stroke="${INK}" stroke-width=".8" stroke-linecap="round"/>`;
+  } else if (k === 'penguin'){
+    s += eye(exL, ey, R * .08) + eye(exR, ey, R * .08) + blush();
+    s += path(`M${f(X - R * .08)} ${f(Y + R * .1)}L${f(X + R * .2)} ${f(Y + R * .1)}L${f(X + R * .06)} ${f(Y + R * .3)}Z`, '#f08a2b', .6);
+  } else if (k === 'pig'){
+    s += eye(exL, ey - R * .04) + eye(exR, ey - R * .04) + blush();
+    s += `<ellipse cx="${f(X + R * .04)}" cy="${f(Y + R * .24)}" rx="${f(R * .24)}" ry="${f(R * .16)}" fill="${lt}" stroke="${INK}" stroke-width=".7"/>`
+      + circ(X - R * .05, Y + R * .24, R * .045, dk) + circ(X + R * .13, Y + R * .24, R * .045, dk);
+  }
+  if (spot) s += spot;
+  s += `<ellipse cx="${f(X + R * .36)}" cy="${f(Y - R * .44)}" rx="${f(R * .26)}" ry="${f(R * .16)}" fill="#ffffff" opacity=".18"/>`;   // soft, not glossy
+  s += circInk(X, Y, R, 1.1);
+  return s;
+}
+// a prize's bounds (ears stick out above the head)
+const ballB = p => { const r = p.r, t = plushTop[p.kind] || 1; return [[p.x - r * 1.05, p.y - r * 1.05, p.z - p.r], [p.x + r * 1.05, p.y + r * 1.05, p.z + r * t]]; };
+
+/* ---------- the claw ---------- */
+const FING = [45, 165, 285].map(a => a * Math.PI / 180);       // one finger points toward the viewer
+function clawParts(cl){
+  const parts = [], { x, y, z, o } = cl;
+  const tipR = 1.5 + 8.5 * o, elR = 6.5 + 4.5 * o, tz = z - 13 + 2 * o;
+  for (const a of FING){
+    const u = [Math.cos(a), Math.sin(a)];
+    const K = [x + 3 * u[0], y + 3 * u[1], z + .5], E = [x + elR * u[0], y + elR * u[1], z - 6], T = [x + tipR * u[0], y + tipR * u[1], tz];
+    const svg = rod(K, E, 1.35, STEELM, toneI, 1.1) + rod(E, T, 1.2, STEELM, toneI, 1.1);
+    const fp = [K, E, T], lo = k => Math.min(...fp.map(p => p[k])) - 1.4, hi = k => Math.max(...fp.map(p => p[k])) + 1.4;
+    parts.push({ at:[x + 6 * u[0], y + 6 * u[1], z - 13], box:[[lo(0), lo(1), lo(2)], [hi(0), hi(1), hi(2)]], svg });
+  }
+  // cable from the carriage + the hub
+  const cab = pd([[x, y, z + 5], [x, y, 136]], false);
+  let hub = `<path d="${cab}" fill="none" stroke="${INK}" stroke-width="1.7" stroke-linecap="round"/><path d="${cab}" fill="none" stroke="${METAL.m}" stroke-width=".6"/>`;
+  hub += cyl(x, y, z, z + 5, 3.6, STEELM, toneI, 1.1, 18);
+  hub += cyl(x, y, z + 5, z + 6.2, 1.6, DARK, toneI, .8, 12);
+  parts.push({ at:[x, y, z + 3], box:[[x - 3.6, y - 3.6, z], [x + 3.6, y + 3.6, 136]], svg: hub });
+  return parts;
+}
+
+/* ---------- state ---------- */
+function fresh(){
+  return { tokens:10, credit:0, won:0, phase:'idle', pt:0, time:0,
+    claw:{ x:HOME[0], y:HOME[1], z:ZTOP, o:0 }, drop:null, held:null,
+    prizes:layout(), falls:[], bayIn:[], bay:[], flap:0, flapT:0, take:null, coin:null,
+    tilt:[0, 0], tiltDir:[0, 0], tiltHold:0, step:null, btn:0, msg:null, msgT:0, t:0 };
+}
+const st = Object.assign({ pal:'blush' }, fresh());
+const keys = {};
+
+/* ---------- scene ---------- */
+const ellZ = (x, y, z, r, n = 18) => on(PZ(z), ellUV(x, y, r, r, n));
+// screen-space convex clip of a set of 3D points (follows the camera)
+const clipHull = (pts3, inner) => { const id = 'k' + (++_clipN); return `<clipPath id="${id}"><path d="${sp(hull(pts3.map(p => P(...p))))}"/></clipPath><g clip-path="url(#${id})">${inner}</g>`; };
+// the four walls of the glass section: x = 0 and y = 0 are printed panels, x = W and y = D are glass
+const WALLS = [
+  { n:[-1,0,0], glass:false, pts:[[0,0,HB],[0,D,HB],[0,D,HG],[0,0,HG]] },
+  { n:[0,-1,0], glass:false, pts:[[0,0,HB],[W,0,HB],[W,0,HG],[0,0,HG]] },
+  { n:[1,0,0],  glass:true,  pts:[[W,0,HB],[W,D,HB],[W,D,HG],[W,0,HG]] },
+  { n:[0,1,0],  glass:true,  pts:[[0,D,HB],[W,D,HB],[W,D,HG],[0,D,HG]] },
+];
+function glassTintWall(n, k){
+  let s = '';
+  if (n[0] === 1){
+    s += fill(pd(on(PX(W), rectUV(0, HB, D, HG))), ACRYL, `opacity="${.14 * k}"`);
+    s += fill(pd(on(PX(W), [[30,HB+4],[37,HB+4],[60,HG-4],[53,HG-4]])), '#ffffff', `opacity="${.3 * k}"`);
+    s += fill(pd(on(PX(W), [[41,HB+4],[44,HB+4],[67,HG-4],[64,HG-4]])), '#ffffff', `opacity="${.3 * k}"`);
+  } else {
+    s += fill(pd(on(PY(D), rectUV(0, HB, W, HG))), ACRYL, `opacity="${.2 * k}"`);
+    s += fill(pd(on(PY(D), [[22,HB+4],[29,HB+4],[47,HG-4],[40,HG-4]])), '#ffffff', `opacity="${.28 * k}"`);
+  }
+  return s;
+}
+function glassBox(m){
+  const cl = st.claw;
+  let s = '';
+  // far walls: the printed panels show their inside, far glass only a faint tint
+  const backC = mix(m.l, '#ffffff', .55), rightC = mix(m.m, '#ffffff', .45);
+  for (const w of WALLS) if (!vis(w.n)){
+    if (w.glass) s += glassTintWall(w.n, .5);
+    else {
+      s += fill(pd(w.pts), w.n[0] ? backC : rightC);
+      // a light strip under the roof on the back wall: the light inside the cabinet
+      if (w.n[0]) s += shape([[.2, 8, HG - 9],[.2, D - 8, HG - 9],[.2, D - 8, HG - 5],[.2, 8, HG - 5]], '#fffbea', .8);
+    }
+  }
+  if (!vis([-1,0,0]) && !vis([0,-1,0])) s += line([[0,0,HB],[0,0,HG]], .8);
+  s += fill(pd([[0,0,HB],[W,0,HB],[W,D,HB],[0,D,HB]]), mix(m.d, '#ffffff', .62));
+  // claw's shadow straight down from the lamp, on the floor
+  s += fill(pd(ellZ(cl.x, cl.y, HB + .1, 5)), '#1c2948', 'opacity=".16"');
+
+  const parts = [];
+  // chute: hole + far acrylic walls + whatever is falling inside it, then the near acrylic walls as their own parts
+  let ch = shape([[CHX,0,HB+.1],[W,0,HB+.1],[W,CHY,HB+.1],[CHX,CHY,HB+.1]], '#2b2522', 1);
+  if (vis([1,0,0])) ch += fill(pd([[CHX,0,HB+.1],[CHX,CHY,HB+.1],[CHX+3,CHY,HB-3],[CHX+3,0,HB-3]]), '#4a403a');
+  if (vis([0,-1,0])) ch += fill(pd([[CHX,CHY,HB+.1],[W,CHY,HB+.1],[W,CHY-3,HB-3],[CHX,CHY-3,HB-3]]), '#4a403a');
+  const wx = [[CHX,CHY,CHT],[CHX,0,CHT],[CHX,0,HB],[CHX,CHY,HB]], wy = [[CHX,CHY,HB],[W,CHY,HB],[W,CHY,CHT],[CHX,CHY,CHT]];
+  const wallX = () => fill(pd(wx), ACRYL, 'opacity=".42"') + ink(pd([[CHX,0,CHT],[CHX,CHY,CHT],[CHX,CHY,HB]], false), 1);
+  const wallY = () => fill(pd(wy), ACRYL, 'opacity=".38"') + fill(pd([[CHX+5,CHY,HB+3],[CHX+9,CHY,HB+3],[CHX+16,CHY,CHT-3],[CHX+12,CHY,CHT-3]]), '#ffffff', 'opacity=".4"')
+    + ink(pd(wy), 1.1) + line([[CHX,CHY,CHT],[W,CHY,CHT]], 1.4);
+  const nearX = vis([-1,0,0]), nearY = vis([0,1,0]);
+  if (!nearX) ch += wallX();
+  if (!nearY) ch += wallY();
+  const col = [[CHX,0,HB],[W,0,HB],[W,CHY,HB],[CHX,CHY,HB],[CHX,CHY,HG],[CHX,0,HG],[W,0,HG],[W,CHY,HG]];
+  const colHull = hull(col.map(p => P(...p)));
+  let inChute = '';
+  for (const fl of st.falls) if (fl.mode === 'chute' && fl.delay <= 0) inChute += orb({ ...fl.p, x:fl.x, y:fl.y, z:fl.z });
+  if (inChute) ch += `<clipPath id="cChute"><path d="${sp(colHull)}"/></clipPath><g clip-path="url(#cChute)">${inChute}</g>`;
+  // the chute is one block in the corner: hole + far walls + what falls inside, then its near walls
+  const chuteSvg = ch + (nearX ? wallX() : '') + (nearY ? wallY() : '');
+  const CHB = [[CHX, 0, HB - 3], [W, CHY, CHT]];
+
+  // the pile
+  const aim = st.phase === 'play' || st.phase === 'ready';
+  for (const p of st.prizes){
+    let spot = '';
+    const d = Math.hypot(p.x - cl.x, p.y - cl.y);
+    if (d < p.r * .92){
+      const zs = p.z + Math.sqrt(p.r * p.r - d * d);
+      const [X, Y] = P(p.x, p.y, p.z);
+      spot = `<clipPath id="sp${p.id}"><circle cx="${f(X)}" cy="${f(Y)}" r="${f(p.r * 1.2247)}"/></clipPath>` +
+             `<g clip-path="url(#sp${p.id})">${fill(pd(ellZ(cl.x, cl.y, zs, 2.6, 14)), '#1c2948', `opacity="${aim ? .28 : .16}"`)}</g>`;
+    }
+    parts.push({ at:[p.x, p.y, p.z], sb: ballB(p), svg: orb(p, spot) });
+  }
+  for (const fl of st.falls) if (fl.mode === 'floor' && fl.delay <= 0){ const q = { ...fl.p, x:fl.x, y:fl.y, z:fl.z }; parts.push({ at:[fl.x, fl.y, fl.z], sb: ballB(q), svg: orb(q) }); }
+  if (st.held){ const p = st.held.p; parts.push({ at:[p.x, p.y, p.z], sb: ballB(p), svg: orb(p) }); }
+  for (const c of clawParts(cl)) parts.push({ ...c, sb: c.box });
+  // prizes and claw sort among themselves by centre (touching spheres); the chute block then goes in right after the
+  // last part that lies wholly behind it (every prize is wholly on one side of it, so this is exact)
+  const order = parts.filter(Boolean).sort((p, q) => sepOrder(p, q) || depthOf(p.at || boxMid(p.box)) - depthOf(q.at || boxMid(q.box)));
+  const behind = q => { const b = q.sb; if (!b) return depthOf(q.at) < depthOf(boxMid(CHB));
+    for (let k = 0; k < 3; k++){ if (b[1][k] <= CHB[0][k] + 1e-6) return CAM_V[k] >= 0; if (CHB[1][k] <= b[0][k] + 1e-6) return CAM_V[k] < 0; }
+    return depthOf(q.at || boxMid(b)) < depthOf(boxMid(CHB)); };
+  let cut = -1; order.forEach((q, i) => { if (behind(q)) cut = i; });
+  s += order.slice(0, cut + 1).map(q => q.svg).join('') + chuteSvg + order.slice(cut + 1).map(q => q.svg).join('');
+
+  // gantry (above everything else inside): two rails run front to back between the end walls, each hung from the
+  // roof frame by a bracket at either end; the bridge rides on them, the carriage hangs under the bridge
+  const gp = [];
+  for (const [y0, y1] of [[3, 6], [D - 6, D - 3]]){
+    gp.push({ box:[[0, y0, 141], [W, y1, 144]], svg: box(0, y0, 141, W, y1, 144, DARK, toneI, .9) });
+    for (const [x0, x1] of [[0, 4], [W - 4, W]])
+      gp.push({ box:[[x0, y0, 144], [x1, y1, HG]], svg: box(x0, y0, 144, x1, y1, HG, DARK, toneI, .8) });
+  }
+  gp.push({ box:[[cl.x - 5, cl.y - 4, 136], [cl.x + 5, cl.y + 4, 144]], svg: box(cl.x - 5, cl.y - 4, 136, cl.x + 5, cl.y + 4, 144, METAL, toneI, 1) });   // y ±4: clears the rails at the edge
+  gp.push({ box:[[cl.x - 3, 2, 144], [cl.x + 3, D - 2, 147.5]], svg: box(cl.x - 3, 2, 144, cl.x + 3, D - 2, 147.5, matOf('#7d8689'), toneI, 1) });
+  s += byDepth(gp);
+
+  // near walls: the printed panels show their outside and hide what is behind them
+  let near = '';
+  for (const w of WALLS) if (vis(w.n) && !w.glass) near += shape(w.pts, tone(w.n, m), 1.1);
+  if (vis([-1,0,0]) && vis([0,-1,0])) near += line([[0,0,HB],[0,0,HG]], 1.1);
+  s += near;
+  const out = clipHull([[0,0,HB],[W,0,HB],[W,D,HB],[0,D,HB],[0,0,HG],[W,0,HG],[W,D,HG],[0,D,HG]], s);
+  // near glass, then the corner posts that frame it (far posts first, behind the glass)
+  let tint = '';
+  for (const w of WALLS) if (vis(w.n) && w.glass) tint += glassTintWall(w.n, 1);
+  const posts = [[0, D - 3, 0, D], [W - 3, 0, W, 3], [W - 3, D - 3, W, D]].map(([x0, y0, x1, y1]) =>
+    ({ at:[(x0 + x1) / 2, (y0 + y1) / 2, (HB + HG) / 2], svg: box(x0, y0, HB, x1, y1, HG, m, tone, x0 && y0 ? 1.1 : 1) }));
+  const mid = depthOf([W / 2, D / 2, (HB + HG) / 2]);
+  const farP = posts.filter(q => depthOf(q.at) < mid - 1), nearP = posts.filter(q => depthOf(q.at) >= mid - 1);
+  return byDepth(farP) + out + `<g pointer-events="none">${tint}</g>` + byDepth(nearP);
+}
+
+function roofTop(m){
+  let s = '';
+  // the window's inner rim (the roof is HR - HG thick): the far rim walls show through the acrylic
+  const x0 = 12, x1 = W - 5, y0 = 5, y1 = D - 5;
+  for (const [n, q] of [[[1,0,0], [[x0,y0,HG],[x0,y1,HG],[x0,y1,HR],[x0,y0,HR]]], [[-1,0,0], [[x1,y0,HG],[x1,y1,HG],[x1,y1,HR],[x1,y0,HR]]],
+                        [[0,1,0], [[x0,y0,HG],[x1,y0,HG],[x1,y0,HR],[x0,y0,HR]]], [[0,-1,0], [[x0,y1,HG],[x1,y1,HG],[x1,y1,HR],[x0,y1,HR]]]])
+    if (vis(n)) s += shape(q, tone(n, m), .8);
+  s += fill(pd(on(PZ(HR - 1), rectUV(12, 5, W - 5, D - 5))), ACRYL, 'opacity=".22"');
+  s += fill(pd(on(PZ(HR - 1), [[20,10],[26,10],[26,D-10],[20,D-10]].map(([u,v]) => [u + (v - 10) * .25, v]))), '#ffffff', 'opacity=".3"');
+  return `<g pointer-events="none">${s}</g>`;
+}
+
+function roof(m){
+  let s = '';
+  for (const [n, q] of [[[1,0,0], on(PX(W), rectUV(0, HG, D, HR))], [[0,1,0], on(PY(D), rectUV(0, HG, W, HR))],
+                        [[-1,0,0], on(PX(0), rectUV(0, HG, D, HR))], [[0,-1,0], on(PY(0), rectUV(0, HG, W, HR))]])
+    if (vis(n)) s += shape(q, tone(n, m), 1.1);
+  const top = on(PZ(HR), rectUV(0, 0, W, D)), hole = on(PZ(HR), rectUV(12, 5, W - 5, D - 5));
+  s += `<path d="${pd(top)}${pd(hole)}" fill="${tone([0,0,1], m)}" fill-rule="evenodd"/>` + ink(pd(hole), 1.3);
+  return s;
+}
+
+function marquee(m){
+  let s = extrude(CREST, 0, 10, m);
+  if (!vis([1,0,0])){                                    // from behind: the plain back of the sign
+    s += shape(on(PX(0), CREST), tone([-1,0,0], m), 1.6);
+    s += hullInk([...on(PX(0), CREST), ...on(PX(10), CREST)], 2.4);
+    return s;
+  }
+  s += shape(on(PX(10), CREST), tone([1,0,0], m), 1.6);
+  s += shape(on(PX(10.3), rrUV(9, HR + 4.5, D - 9, HC - 4.5, 4)), '#fff4d6', 1.3);
+  s += tx(10.4, D / 2, HR + 10.2, 'LUCKY CLAW', 10, '#e2483d', 800);
+  // bulbs round the sign: chase while a game runs, all lit when idle
+  const bulbs = [];
+  for (let i = 0; i < 8; i++) bulbs.push([12 + i * (D - 24) / 7, HC - 2.4]);
+  bulbs.push([6, (HR + HC) / 2]);
+  for (let i = 7; i >= 0; i--) bulbs.push([12 + i * (D - 24) / 7, HR + 2.3]);
+  bulbs.push([D - 6, (HR + HC) / 2]);
+  const chase = st.phase !== 'idle', k = Math.floor(st.t * 8);
+  bulbs.forEach(([y, z], i) => {
+    const lit = chase ? (i + k) % 3 === 0 : true;
+    s += shape(on(PX(10.4), ellUV(y, z, 1.6, 1.6, 12)), lit ? '#ffe066' : '#e3d6b4', .8);
+    if (lit) s += fill(pd(on(PX(10.5), ellUV(y + .5, z + .5, .6, .6, 8))), '#ffffff');
+  });
+  s += hullInk([...on(PX(0), CREST), ...on(PX(10), CREST)], 2.4);
+  return s;
+}
+
+function displayLines(){
+  if (st.msgT > 0 && st.msg) return st.msg;
+  if (st.phase === 'ready') return ['CREDIT', String(st.credit)];
+  if (st.phase === 'play') return [st.credit ? `TIME  CR${st.credit}` : 'TIME', String(Math.ceil(st.time)).padStart(2, '0')];
+  if (DROP_PH.includes(st.phase)) return ['GOOD', 'LUCK'];
+  return st.credit ? ['CREDIT', String(st.credit)] : ['INSERT', 'COIN'];
+}
+
+const DOOR_MAT = { l:'#55504a', m:'#3d3935', d:'#272421' };
+function flapSvg(){
+  const th = ease(st.flap) * 78 * Math.PI / 180;
+  const y0 = BAY[0] + 1, y1 = BAY[2] - 1, len = BAY[3] - BAY[1] - 1.5, t = 1.6, hx = W - .4, hz = BAY[1];
+  const up = [Math.sin(th), 0, Math.cos(th)], out = [Math.cos(th), 0, -Math.sin(th)];
+  const Q = (a, w, y) => [hx + a * up[0] - w * out[0], y, hz + a * up[2] - w * out[2]];
+  const faces = [
+    { n: out, p: [Q(0,0,y0),Q(0,0,y1),Q(len,0,y1),Q(len,0,y0)], clear:true },
+    { n: up,  p: [Q(len,0,y0),Q(len,0,y1),Q(len,t,y1),Q(len,t,y0)] },
+    { n: [0,1,0], p: [Q(0,0,y1),Q(len,0,y1),Q(len,t,y1),Q(0,t,y1)] },
+    { n: [0,-1,0], p: [Q(0,0,y0),Q(len,0,y0),Q(len,t,y0),Q(0,t,y0)] },
+    { n: out.map(v => -v), p: [Q(0,t,y0),Q(0,t,y1),Q(len,t,y1),Q(len,t,y0)], clear:true },   // inner face: shows when the flap tips open
+  ];
+  let s = '';
+  for (const fc of faces) if (vis(fc.n))
+    s += fc.clear ? fill(pd(fc.p), DOOR_MAT.m, 'fill-opacity=".3"') + ink(pd(fc.p), 1.1) : shape(fc.p, tone(fc.n, DOOR_MAT), 1);
+  s += fill(pd([Q(len*.2,-.1,y0+5),Q(len*.2,-.1,y0+10),Q(len*.85,-.1,y0+21),Q(len*.85,-.1,y0+16)]), '#ffffff', 'opacity=".3"');
+  const yc = (y0 + y1) / 2;
+  s += shape([Q(len-3,-.1,yc-8),Q(len-3,-.1,yc+8),Q(len-1.3,-.1,yc+8),Q(len-1.3,-.1,yc-8)], DOOR_MAT.d, .8);
+  s += ink(pd([[hx, y0 - .5, hz], [hx, y1 + .5, hz]], false), 1.6);
+  return s;
+}
+const BAY_SLOTS = [[W - 8, 19], [W - 9.5, 10.5], [W - 9.5, 27.5]];
+const baySpot = i => { const [x, y] = BAY_SLOTS[i % 3]; return [x, y, BAY[1] + 7 + Math.floor(i / 3) * 6]; };
+
+function base(m){
+  let s = '';
+  const bayR = rectUV(BAY[0], BAY[1], BAY[2], BAY[3]);
+  const sm = tone([0,1,0], m), tc = sm === m.l ? m.m : mix(sm, '#000000', .25);
+  if (!vis([1,0,0])){                                    // seen from behind: plain back panel, no front details
+    s += extrude(BASE, 0, W, m);
+    s += shape(on(PX(0), BASE), tone([-1,0,0], m), 0);
+    if (vis([-1,0,0])){                                  // the back: a locked service door and vent louvres
+      const bk = tone([-1,0,0], m), B = PX(-.2);
+      s += shape(on(B, rrUV(16, 8, D - 16, 56, 3)), mix(bk, '#000000', .07), 1.1);
+      s += shape(on(PX(-.3), ellUV(D - 22, 32, 1.6, 1.6, 12)), METAL.l, .8) + line([[-.4, D - 22, 31.2], [-.4, D - 22, 32.8]], .7);
+      for (let i = 0; i < 4; i++) s += shape(on(B, rrUV(24, 61 + i * 4, D - 24, 63 + i * 4, .8)), mix(bk, '#000000', .45), .6);
+    }
+    if (vis([0,1,0])){
+      s += shape(on(PY(D + .2), rrUV(12, 16, W - 12, 60, 6)), mix(sm, '#ffffff', .16), 1.2);
+      s += txY(W / 2, D + .3, 33, 'PRIZES', 11, tc, 800);
+    }
+    s += ink(pd(on(PX(0), BASE)), 2);
+    return s;
+  }
+  // pickup bay cavity and what is in it
+  let cav = shape(on(PX(BAY_X), bayR), m.d, 0);
+  const sideY = vis([0,1,0]) ? BAY[0] : BAY[2];          // the cavity's side wall that faces the viewer
+  cav += face(pd([[BAY_X,sideY,BAY[1]],[W,sideY,BAY[1]],[W,sideY,BAY[3]],[BAY_X,sideY,BAY[3]]]), mix(m.d, '#000000', .25));
+  cav += face(pd([[BAY_X,BAY[0],BAY[1]],[W,BAY[0],BAY[1]],[W,BAY[2],BAY[1]],[BAY_X,BAY[2],BAY[1]]]), mix(m.d, '#ffffff', .14));
+  const inBay = [];
+  st.bay.forEach((p, i) => { if (st.take) return; const [x, y, z] = baySpot(i); inBay.push({ at:[x, y, z], svg: orb({ ...p, x, y, z }) }); });
+  for (const b of st.bayIn) if (b.t >= 0) inBay.push({ at:[b.x, b.y, b.z], svg: orb({ ...b.p, x:b.x, y:b.y, z:b.z }) });
+  cav += byDepth(inBay);
+  s += act('take', clipTo(on(PX(W), bayR), fill(pd(on(PX(W), bayR)), 'transparent') + cav));
+  // front face with the bay hole
+  s += `<path d="${pd(on(PX(W), BASE))}${pd(on(PX(W), bayR))}" fill="${tone([1,0,0], m)}" fill-rule="evenodd"/>`;
+  s += ink(pd(on(PX(W), bayR)), 1.6);
+  // (the flap is drawn by scene(), after the cabinet's silhouette ink: open, it sticks out past the outline)
+  // display
+  const F = PX(W + .3);
+  s += shape(on(F, rrUV(DISP[0], DISP[1], DISP[2], DISP[3], 2.5)), '#1d2a26', 1.3);
+  const [l1, l2] = displayLines(), cy = (DISP[0] + DISP[2]) / 2;
+  s += tx(W + .4, cy, DISP[1] + 10.4, l1, 3.9, '#8af0ae', 700);
+  s += tx(W + .4, cy, DISP[1] + 2.6, l2, 6.2, '#8af0ae', 800);
+  // coin box door (where the tokens end up) with its lock
+  s += shape(on(F, rrUV(46, 12, 74, 30, 2)), mix(tone([1,0,0], m), '#000000', .07), 1.1);
+  s += shape(on(PX(W + .4), ellUV(69, 21, 1.6, 1.6, 12)), METAL.l, .8) + line([[W + .5, 69, 20.2], [W + .5, 69, 21.8]], .7);
+  // body + side decal
+  s += extrude(BASE, 0, W, m);
+  if (vis([0,1,0])){
+    s += shape(on(PY(D + .2), rrUV(12, 16, W - 12, 60, 6)), mix(sm, '#ffffff', .16), 1.2);
+    s += txY(W / 2, D + .3, 33, 'PRIZES', 11, tc, 800);
+  }
+  s += ink(pd(on(PX(W), BASE)), 2);
+  return s;
+}
+
+function coinDisc(x, y, z, r = 3){
+  const A = ellZ(x, y, z, r, 18), B = ellZ(x, y, z + 1, r, 18);
+  return loft(A, B, n => toneI(n, COINM)) + fill(pd(B), COINM.l) + ink(sp(hull([...A, ...B].map(p => P(...p)))), .7);
+}
+function coinStanding(x, y, z){
+  const A = on(PY(y - .6), ellUV(x, z, 2.8, 2.8, 16)), B = on(PY(y + .6), ellUV(x, z, 2.8, 2.8, 16));
+  const yc = vis([0,1,0]) ? y + .6 : y - .6, cap = vis([0,1,0]) ? B : A;
+  return loft(A, B, n => toneI(n, COINM)) + fill(pd(cap), COINM.l) + ink(pd(cap), .8) + ink(pd(on(PY(yc + Math.sign(yc - y) * .05), ellUV(x, z, 1.7, 1.7, 12))), .5);
+}
+
+function ledge(m){
+  let s = box(W, 1, LZ0, W + LX, D - 1, LZ1, m, tone, 1.1);
+  s += shape(on(PZ(LZ1 + .05), rrUV(W + 1.6, 3.5, W + LX - 1.6, D - 3.5, 2)), '#fbf7ea', 1);
+  if (vis([1,0,0])) s += shape(on(PX(W + LX + .1), rectUV(4, LZ0 + 3.6, D - 4, LZ0 + 6.4)), mix(m.l, '#ffffff', .3), .8);
+  // the ledge's silhouette, under the things that stand on it (it used to cut across the token stack from behind)
+  s += hullInk([...on(PX(W), rectUV(1, LZ0, D - 1, LZ1)), ...on(PX(W + LX), rectUV(1, LZ0, D - 1, LZ1))], 2.2);
+  const Z = LZ1 + .1;
+  const parts = [];
+  // token stack
+  let stack = '';
+  for (let i = 0; i < st.tokens; i++) stack += coinDisc(STACK[0], STACK[1], Z + i * 1.15);
+  if (!st.tokens) stack += fill(pd(ellZ(STACK[0], STACK[1], Z, 3)), '#e9e3d3') + ink(pd(ellZ(STACK[0], STACK[1], Z, 3)), .5);
+  parts.push({ at:[STACK[0], STACK[1], Z], box:[[STACK[0] - 3, STACK[1] - 3, Z], [STACK[0] + 3, STACK[1] + 3, Z + 12]], svg: act('coin', stack) });
+  // coin slot plate
+  let slot = shape(on(PZ(Z), rrUV(SLOT[0] - 4.5, SLOT[1] - 4.5, SLOT[0] + 4.5, SLOT[1] + 4.5, 1.5)), METAL.l, 1);
+  slot += shape(on(PZ(Z + .05), rectUV(SLOT[0] - 3.5, SLOT[1] - .6, SLOT[0] + 3.5, SLOT[1] + .6)), '#26231f', .5);
+  parts.push({ at:[SLOT[0], SLOT[1], Z - 1], box:[[SLOT[0] - 4.5, SLOT[1] - 4.5, Z], [SLOT[0] + 4.5, SLOT[1] + 4.5, Z + .1]], svg: act('coin', slot) });
+  // drop button: bezel + big red cap that sinks when pressed
+  const down = st.btn > 0, bh = down ? 1.2 : 3.4;
+  let b = fill(pd(ellZ(BTN[0], BTN[1], Z, 7.2, 28)), METAL.m) + ink(pd(ellZ(BTN[0], BTN[1], Z, 7.2, 28)), 1);
+  b += cyl(BTN[0], BTN[1], Z, Z + bh, 5.6, REDM, toneI, 1.2, 28);
+  b += fill(pd(ellZ(BTN[0] + 1.6, BTN[1] - 1.2, Z + bh + .05, 2, 12)), mix(REDM.l, '#ffffff', .35));
+  parts.push({ at:[BTN[0], BTN[1], Z], box:[[BTN[0] - 7.2, BTN[1] - 7.2, Z], [BTN[0] + 7.2, BTN[1] + 7.2, Z + 3.5]], svg: act('drop', b) });
+  // joystick: base, shaft, ball; tilts the way it is pushed
+  const [jx, jy] = JOY, [tx0, ty0] = st.tilt;
+  let j = '';
+  for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+    const c = [jx + dx * 6.2, jy + dy * 6.2], q = [-dy, dx];
+    j += fill(pd([[c[0] + dx * 1.6, c[1] + dy * 1.6, Z], [c[0] + q[0] * 1.3, c[1] + q[1] * 1.3, Z], [c[0] - q[0] * 1.3, c[1] - q[1] * 1.3, Z]]), '#b8b1a0');
+  }
+  j += cyl(jx, jy, Z, Z + 1.6, 4, DARK, toneI, 1, 20);
+  const top = [jx + tx0 * 4.2, jy + ty0 * 4.2, Z + 12.5];
+  j += rod([jx, jy, Z + 1.6], top, .85, METAL, toneI, .9);
+  const [bx, by] = P(...top), br = 3.4 * 1.2247;
+  j += circ(bx, by, br, DARK.m) + circ(bx + br * .14, by - br * .16, br * .78, DARK.l) + `<ellipse cx="${f(bx + br * .36)}" cy="${f(by - br * .42)}" rx="${f(br * .22)}" ry="${f(br * .14)}" fill="#ffffff" opacity=".55"/>` + circInk(bx, by, br, 1.1);
+  // invisible push zones round the stick
+  const zones = [[1,0],[0,1],[-1,0],[0,-1]].map(([dx, dy]) => {
+    const a0 = Math.atan2(dy, dx) - Math.PI / 4, pts = [[jx, jy, Z + 6]];
+    for (let i = 0; i <= 6; i++){ const a = a0 + i / 6 * Math.PI / 2; pts.push([jx + 10 * Math.cos(a), jy + 10 * Math.sin(a), Z + 6]); }
+    return `<path d="${pd(pts)}" fill="transparent" data-act="stick" data-dx="${dx}" data-dy="${dy}"/>`;
+  }).join('');
+  parts.push({ at:[jx, jy, Z], box:[[jx - 7.8, jy - 7.8, Z], [jx + 7.8, jy + 7.8, Z + 16]], svg: j + zones });
+  // a token on its way into the slot
+  if (st.coin != null){
+    const k = st.coin;
+    let cx = SLOT[0], cy, cz;
+    if (k < .6){ const q = ease(k / .6); cy = STACK[1] + (SLOT[1] - STACK[1]) * q; cz = Z + st.tokens * 1.15 + 4 + (Z + 8 - (Z + st.tokens * 1.15 + 4)) * q + 7 * Math.sin(Math.PI * q); }
+    else { cy = SLOT[1]; cz = Z + 8 - 13 * ((k - .6) / .4) ** 1.6; }
+    let c = coinStanding(cx, cy, cz);
+    if (cz - 2.8 < Z) c = clipTo([[SLOT[0] - 3.5, SLOT[1], Z], [SLOT[0] + 3.5, SLOT[1], Z], [SLOT[0] + 3.5, SLOT[1], Z + 30], [SLOT[0] - 3.5, SLOT[1], Z + 30]], c);
+    parts.push({ at:[cx, cy, Z + 9], svg: c });
+  }
+  s += byDepth(parts);
+  return s;
+}
+
+function scene(st, m){
+  let s = '';
+  s += castShadow([...on(PX(0), BASE), ...on(PX(W + LX), rectUV(1, 0, D - 1, LZ1)),
+    [0,0,HR],[W,0,HR],[W,D,HR],[0,D,HR], ...on(PX(0), CREST), ...on(PX(10), CREST)]);
+  // everything on the front (ledge, prizes being taken out) lies beyond the plane x = W:
+  // in front of the cabinet when the front faces the viewer, hidden behind it otherwise
+  let front = '';
+  // prizes being taken out of the bay come toward the viewer, in front of the base
+  if (st.take){
+    const k = ease(Math.min(1, st.take.t));
+    st.take.ps.forEach((p, i) => { const [x, y, z] = baySpot(i);
+      front += `<g opacity="${f(1 - Math.max(0, (st.take.t - .55) / .45))}">${orb({ ...p, x: x + 22 * k, y, z: z + 16 * k })}</g>`; });
+  }
+  front += ledge(m);
+  const frontVis = vis([1,0,0]);
+  if (!frontVis) s += act('take', flapSvg()) + front;
+  s += base(m);
+  s += glassBox(m);
+  s += roofTop(m);
+  s += roof(m);
+  // cabinet silhouette (base + glass section + roof), before the parts that stand in front of it
+  s += hullInk([...on(PX(0), BASE), ...on(PX(W), BASE), [0,0,HR],[W,0,HR],[W,D,HR],[0,D,HR]], 2.8);
+  if (frontVis) s += act('take', flapSvg());
+  s += marquee(m);
+  if (frontVis) s += front;
+  return s;
+}
+
+/* ---------- behaviour ---------- */
+let ui, looping = false;
+function kick(){
+  if (looping) return; looping = true;
+  ui.animate(dt => { update(dt); const more = active(); if (!more) looping = false; return more; });
+}
+const anyKey = () => keys.ArrowUp || keys.ArrowDown || keys.ArrowLeft || keys.ArrowRight;
+const active = () => st.phase !== 'idle' || st.coin != null || st.falls.length || st.bayIn.length || st.take || st.flap !== st.flapT
+  || st.btn > 0 || st.msgT > 0 || st.tiltHold > 0 || anyKey() || Math.abs(st.tilt[0]) + Math.abs(st.tilt[1]) > .01 || st.step || st.credit > 0 && st.phase === 'idle';
+const say = (l1, l2, t = 2.4) => { st.msg = [l1, l2]; st.msgT = t; };
+const clampX = x => Math.max(10, Math.min(W - 10, x)), clampY = y => Math.max(10, Math.min(D - 10, y));
+
+function findSpot(x, y, r){
+  const ok = (a, b) => a >= 2 + r && a <= W - 2 - r && b >= 2 + r && b <= D - 2 - r && !(a > W - 34 && b < 34)
+    && st.prizes.every(q => Math.hypot(q.x - a, q.y - b) >= q.r + r - 1)
+    && st.falls.every(fl => Math.hypot(fl.tx - a, fl.ty - b) >= fl.p.r + r - 1);
+  for (let rad = 0; rad <= 40; rad += 2.5)
+    for (let i = 0; i < 16; i++){ const a = x + rad * Math.cos(i / 16 * 2 * Math.PI), b = y + rad * Math.sin(i / 16 * 2 * Math.PI); if (ok(a, b)) return [a, b, HB + r, 0]; }
+  return [clampX(Math.min(x, W - 36)), y, HB + r + 8, 1];
+}
+function removePrize(p){
+  st.prizes = st.prizes.filter(q => q !== p);
+  if (p.layer !== 0) return;
+  // a prize resting on it rolls down into the gap
+  const top = st.prizes.find(q => q.layer === 1 && Math.hypot(q.x - p.x, q.y - p.y) < 13);
+  if (!top) return;
+  st.prizes = st.prizes.filter(q => q !== top);
+  st.falls.push({ p:{ ...top, layer:0 }, x:top.x, y:top.y, z:top.z, vz:0, tx:p.x, ty:p.y, tz:HB + top.r, mode:'floor', delay:.7 });
+}
+const overHole = (x, y) => x > CHX + 2 && y < CHY - 2;
+function dropHeld(){
+  const h = st.held; if (!h) return;
+  const p = h.p; st.held = null;
+  if (overHole(p.x, p.y)){ st.falls.push({ p, x:p.x, y:p.y, z:p.z, vz:0, tx:p.x, ty:p.y, tz:-99, mode:'chute', delay:0 }); say('YOU WIN', 'TAKE IT', 3.2); return true; }
+  const [tx, ty, tz, layer] = findSpot(p.x, p.y, p.r);
+  p.layer = layer;
+  st.falls.push({ p, x:p.x, y:p.y, z:p.z, vz:0, tx, ty, tz, mode:'floor', delay:0 });
+  return false;
+}
+
+function startDrop(){
+  const cl = st.claw;
+  st.phase = 'lower'; st.pt = 0; st.step = null;
+  const near = st.prizes.map(p => ({ p, d: Math.hypot(p.x - cl.x, p.y - cl.y) }));
+  const under = near.filter(o => o.d < 9).sort((a, b) => b.p.z - a.p.z)[0];
+  const side = near.filter(o => o.d < 11.5).sort((a, b) => b.p.z - a.p.z)[0];
+  let tips = HB + 2.5;
+  if (cl.x > CHX - 6 && cl.y < CHY + 6) tips = CHT + 3;           // the claw stops at the chute's rim
+  else if (under) tips = under.p.z - 2.5;
+  else if (side) tips = side.p.z + 3.5;
+  st.drop = { stop: Math.min(ZTOP, tips + 13 - 2), c: under && tips === under.p.z - 2.5 ? under.p : null, d: under ? under.d : 99 };
+}
+
+function update(dt){
+  st.t += dt;
+  if (st.btn > 0) st.btn -= dt;
+  if (st.msgT > 0) st.msgT -= dt;
+  if (st.tiltHold > 0) st.tiltHold -= dt;
+  const cl = st.claw, dr = st.drop;
+
+  // token into the slot -> credit
+  if (st.coin != null){ st.coin += dt / .75; if (st.coin >= 1){ st.coin = null; st.credit++; } }
+  if (st.phase === 'idle' && st.credit > 0 && st.msgT <= 0 && st.coin == null){ st.phase = 'ready'; st.pt = 0; }
+
+  // joystick: buttons push it for a moment, arrow keys hold it
+  let dir = [0, 0];
+  const kx = (keys.ArrowDown ? 1 : 0) - (keys.ArrowUp ? 1 : 0), ky = (keys.ArrowLeft ? 1 : 0) - (keys.ArrowRight ? 1 : 0);
+  if (st.step) dir = st.step.dir; else if (kx || ky) dir = [kx, ky]; else if (st.tiltHold > 0) dir = st.tiltDir;
+  const lk = Math.min(1, dt * 16);
+  st.tilt = [st.tilt[0] + (dir[0] - st.tilt[0]) * lk, st.tilt[1] + (dir[1] - st.tilt[1]) * lk];
+  if (!(dir[0] || dir[1]) && Math.abs(st.tilt[0]) + Math.abs(st.tilt[1]) < .01) st.tilt = [0, 0];
+
+  st.pt += dt;
+  switch (st.phase){
+    case 'ready':
+      if (st.pt >= .9){ st.credit--; st.phase = 'play'; st.pt = 0; st.time = GAME_T; }
+      break;
+    case 'play': {
+      if (st.step){
+        const mv = Math.min(st.step.rem, SPEED * dt);
+        cl.x = clampX(cl.x + st.step.dir[0] * mv); cl.y = clampY(cl.y + st.step.dir[1] * mv);
+        st.step.rem -= mv; if (st.step.rem <= 1e-6) st.step = null;
+      } else if (kx || ky){
+        const n = Math.hypot(kx, ky);
+        cl.x = clampX(cl.x + kx / n * SPEED * dt); cl.y = clampY(cl.y + ky / n * SPEED * dt);
+      }
+      st.time -= dt;
+      if (st.time <= 0){ st.time = 0; startDrop(); }
+      break;
+    }
+    case 'lower':
+      cl.o = Math.min(1, st.pt / .35);
+      cl.z = Math.max(dr.stop, cl.z - 42 * dt);
+      if (cl.z <= dr.stop && st.pt > .35){
+        st.phase = 'close'; st.pt = 0;
+        const p = dr.c;
+        if (p && dr.d < 9){ dr.grip = dr.d < 4.5 ? 'hold' : 'slip'; dr.oEnd = Math.max(0, (p.r * (dr.grip === 'hold' ? .72 : .98) - 1.5) / 8.5); dr.px = p.x; dr.py = p.y; }
+        else { dr.grip = 'miss'; dr.oEnd = 0; }
+      }
+      break;
+    case 'close': {
+      const k = Math.min(1, st.pt / .5);
+      cl.o = 1 + (dr.oEnd - 1) * ease(k);
+      if (dr.grip === 'hold'){ const p = dr.c; p.x = dr.px + (cl.x - dr.px) * .7 * ease(k); p.y = dr.py + (cl.y - dr.py) * .7 * ease(k); }
+      if (k >= 1){
+        if (dr.grip !== 'miss'){
+          const p = dr.c; removePrize(p);
+          st.held = { p, ox: p.x - cl.x, oy: p.y - cl.y, oz: p.z - cl.z };
+          dr.slipT = dr.grip === 'slip' ? .35 + 2.4 * (9 - dr.d) / 4.5 : 1e9;
+        }
+        st.phase = 'lift'; st.pt = 0; dr.z0 = cl.z;
+      }
+      break;
+    }
+    case 'lift': case 'carry': {
+      if (st.phase === 'lift'){
+        const k = Math.min(1, st.pt / 1.1); cl.z = dr.z0 + (ZTOP - dr.z0) * ease(k);
+        if (k >= 1){ st.phase = 'carry'; st.pt = 0; dr.x0 = cl.x; dr.y0 = cl.y; dr.dur = Math.max(.5, Math.hypot(HOME[0] - cl.x, HOME[1] - cl.y) / 32); }
+      } else {
+        const k = Math.min(1, st.pt / dr.dur), q = ease(k);
+        cl.x = dr.x0 + (HOME[0] - dr.x0) * q; cl.y = dr.y0 + (HOME[1] - dr.y0) * q;
+        if (k >= 1){ st.phase = 'release'; st.pt = 0; dr.o0 = cl.o; }
+      }
+      if (st.held){
+        const h = st.held, wob = dr.grip === 'slip' ? Math.sin(st.t * 18) * .6 : 0;
+        h.p.x = cl.x + h.ox + wob; h.p.y = cl.y + h.oy; h.p.z = cl.z + h.oz;
+        dr.slipT -= dt;
+        if (dr.slipT <= 0){ if (!dropHeld()) say('SO', 'CLOSE', 2.4); dr.slipped = true; }
+      }
+      break;
+    }
+    case 'release': {
+      if (st.held && st.pt > .05) dropHeld();
+      const k = Math.min(1, st.pt / .4); cl.o = dr.o0 + (1 - dr.o0) * ease(k);
+      if (k >= 1){ st.phase = 'back'; st.pt = 0; }
+      break;
+    }
+    case 'back': {
+      const k = Math.min(1, st.pt / .45); cl.o = 1 - ease(k);
+      if (k >= 1){
+        cl.o = 0; st.phase = 'idle'; st.pt = 0;
+        if (dr.grip === 'miss') say('TRY', 'AGAIN', 2);
+        st.drop = null;
+      }
+      break;
+    }
+  }
+
+  // falling prizes
+  for (const fl of st.falls.slice()){
+    if (fl.delay > 0){ fl.delay -= dt; continue; }
+    fl.vz += 300 * dt; fl.z -= fl.vz * dt;
+    const lk2 = Math.min(1, dt * 7); fl.x += (fl.tx - fl.x) * lk2; fl.y += (fl.ty - fl.y) * lk2;
+    if (fl.mode === 'floor' && fl.z <= fl.tz){
+      fl.z = fl.tz;
+      if (fl.vz > 70){ fl.vz = -fl.vz * .3; continue; }
+      st.falls.splice(st.falls.indexOf(fl), 1);
+      st.prizes.push({ ...fl.p, x:fl.tx, y:fl.ty, z:fl.tz });
+    }
+    if (fl.mode === 'chute' && fl.z < HB - fl.p.r - 3){
+      st.falls.splice(st.falls.indexOf(fl), 1);
+      const i = st.bay.length + st.bayIn.length, [sx, sy, sz] = baySpot(i);
+      st.bayIn.push({ p:fl.p, t:-.35, x:BAY_X + 2, y:sy, z:BAY[3] + fl.p.r + 2, sx, sy, sz, vz:0 });
+    }
+  }
+  // prizes coming out of the chute into the bay
+  for (const b of st.bayIn.slice()){
+    b.t += dt; if (b.t < 0) continue;
+    b.vz += 300 * dt; b.z -= b.vz * dt; b.x += (b.sx - b.x) * Math.min(1, dt * 5);
+    if (b.z <= b.sz){ b.z = b.sz; if (b.vz > 60){ b.vz = -b.vz * .3; } else if (Math.abs(b.x - b.sx) < .3){ st.bayIn.splice(st.bayIn.indexOf(b), 1); st.bay.push(b.p); } }
+  }
+  // flap + taking
+  if (st.flap !== st.flapT){ const g = Math.sign(st.flapT - st.flap); st.flap = Math.max(0, Math.min(1, st.flap + g * dt / .35)); }
+  if (st.take && st.flap >= 1){
+    st.take.t += dt / .7;
+    if (st.take.t >= 1){ st.won += st.take.ps.length; st.bay = []; st.take = null; st.flapT = 0; }
+  }
+}
+
+/* ---------- controls ---------- */
+const busyNote = () => st.phase === 'ready' ? 'the game is starting'
+  : DROP_PH.includes(st.phase) ? 'the claw is busy — wait for it to come back' : 'insert a coin first';
+function insertCoin(){
+  if (st.coin != null) return ui.flash('one token at a time');
+  if (!st.tokens) return ui.flash('out of tokens — press Start over');
+  if (st.credit >= 5) return ui.flash('credit is full');
+  st.tokens--; st.coin = 0; kick();
+}
+function move(dx, dy){
+  st.tiltDir = [dx, dy]; st.tiltHold = .22; kick();
+  if (st.phase !== 'play') return ui.flash(busyNote());
+  const cl = st.claw, nx = clampX(cl.x + dx * STEP), ny = clampY(cl.y + dy * STEP);
+  if (Math.abs(nx - cl.x) + Math.abs(ny - cl.y) < .01 && !st.step) return ui.flash('the claw is at the edge');
+  if (st.step && st.step.dir[0] === dx && st.step.dir[1] === dy) st.step.rem += STEP; else st.step = { dir:[dx, dy], rem:STEP };
+}
+function drop(){
+  st.btn = .22; kick();
+  if (st.phase === 'play') return startDrop();
+  if (DROP_PH.includes(st.phase)) return ui.flash('the claw is already on its way');
+  ui.flash(busyNote());
+}
+function takePrize(){
+  if (st.take) return;
+  if (!st.bay.length){
+    if (st.bayIn.length || st.falls.some(fl => fl.mode === 'chute') || (st.held && st.drop && st.drop.grip === 'hold'))
+      return ui.flash('wait — it is still on its way down');
+    return ui.flash('the prize flap is empty');
+  }
+  st.take = { t:0, ps: st.bay.slice() }; st.flapT = 1; kick();
+}
+function startOver(){ Object.assign(st, fresh()); for (const k in keys) keys[k] = false; ui.flash('fresh machine, 10 tokens'); }
+
+window.GAME_KEYS = true;   // the arrows and space play the game; they don't turn the camera here
+const KEYDIR = { ArrowLeft:[0,1], ArrowRight:[0,-1], ArrowUp:[-1,0], ArrowDown:[1,0] };
+addEventListener('keydown', e => {
+  if (KEYDIR[e.key]){ e.preventDefault(); if (e.repeat) return;
+    if (st.phase !== 'play'){ move(...KEYDIR[e.key]); return; }
+    keys[e.key] = true; kick(); ui.render(); return; }
+  // space always drops, even right after a button was clicked (that button keeps the focus); Enter still presses buttons
+  if (e.key === ' ' || (e.key === 'Enter' && !(e.target && e.target.closest && e.target.closest('button')))){ e.preventDefault(); if (!e.repeat){ drop(); ui.render(); } }
+});
+addEventListener('keyup', e => { if (KEYDIR[e.key]) keys[e.key] = false; });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; });
+
+
+
+/* ---------- see-through: how a real claw machine works ----------
+   Parts (each sits on another part; cables run from a real port to a real port):
+   GANTRY  two rails on brackets under the roof . end stop . bridge beam on two end trucks with hangers .
+           X gearmotor at the back end of the right rail, its pulley, the toothed belt along the rail and the
+           clamp that ties the belt to the bridge . a rack along the bridge . trolley under the bridge .
+           Y gearmotor on the trolley with its pinion on the rack . winch drum with its cheek and coaxial gearmotor .
+           the string down to the claw . the coiled cord that feeds the claw's coil
+   CLAW    fingers . hub with the solenoid coil inside . plunger
+   PRIZES  chute shaft below the hole (back, side and front walls) . deflector into the pickup bay .
+           infrared emitter and receiver on the shaft walls, and the beam between them
+   COINS   coin acceptor under the slot . coin tube . cash box behind the coin door . coin meter
+   POWER   main board on the back wall (chips, connectors, test button, standoff screws, status LED) .
+           power supply on the floor (vents, fan) . speaker . LED strip under the roof
+   CONTROL joystick plate with its shaft and four microswitches . drop-button microswitch
+   HARNESS board to gantry (up the back corner, along the roof), festoon to the bridge and trolley,
+           board to controls and acceptor, power supply to board, chute sensor and speaker to board */
+const COPPER = { l:'#f0b07a', m:'#d08a52', d:'#9a5a2c' }, PCB = { l:'#4fa36a', m:'#2f8a4a', d:'#1d5f31' };
+const GEARM = { l:'#7c8389', m:'#5c6369', d:'#3b4146' }, PLAST = matOf('#e8e4da');
+const boxOf = pts => [[0,1,2].map(i => Math.min(...pts.map(p => p[i])) - 1), [0,1,2].map(i => Math.max(...pts.map(p => p[i])) + 1)];
+// round each interior corner of a route (a cable bends, it doesn't kink)
+const bend = (pts, r = 2.5) => { if (pts.length < 3) return pts; const out = [pts[0]];
+  for (let i = 1; i < pts.length - 1; i++){ const [a, b, c] = [pts[i - 1], pts[i], pts[i + 1]];
+    const la = Math.hypot(...a.map((v, k) => v - b[k])), lc = Math.hypot(...c.map((v, k) => v - b[k])), d = Math.min(r, la/2.2, lc/2.2);
+    const p = a.map((v, k) => b[k] + (v - b[k]) * d/la), q = c.map((v, k) => b[k] + (v - b[k]) * d/lc);
+    for (let j = 0; j <= 5; j++){ const t = j/5; out.push([0,1,2].map(k => (1-t)*(1-t)*p[k] + 2*(1-t)*t*b[k] + t*t*q[k])); } }
+  out.push(pts[pts.length - 1]); return out; };
+const wire = (pts, col, w = .55, ends = true) => { const d = pd(bend(pts), false), [a, b] = [P(...pts[0]), P(...pts[pts.length - 1])];
+  return `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${f(2*w + 1.1)}" stroke-linecap="round" stroke-linejoin="round"/>`
+    + `<path d="${d}" fill="none" stroke="${col}" stroke-width="${f(2*w)}" stroke-linecap="round" stroke-linejoin="round"/>`
+    + (ends ? [a, b].map(([X, Y]) => `<circle cx="${f(X)}" cy="${f(Y)}" r="1.3" fill="${INK}"/>`).join('') : ''); };
+// a cable as short pieces, each with its own box, so byDepth can put it behind or in front of the solids it passes
+const wireParts = (pts, col, w = .55, ends = true) => { const q = bend(pts), out = [], L = 7;
+  for (let i = 0; i < q.length - 1; ){
+    let j = i + 1, len = 0; while (j < q.length - 1 && len < L){ len += Math.hypot(...q[j].map((v, k) => v - q[j - 1][k])); j++; }
+    if (len < L) while (j < q.length - 1) j++;
+    const seg = q.slice(i, j + 1), d = pd(seg, false);
+    let svg = `<path d="${d}" fill="none" stroke="${INK}" stroke-width="${f(2*w + 1.1)}" stroke-linecap="round" stroke-linejoin="round"/>`
+      + `<path d="${d}" fill="none" stroke="${col}" stroke-width="${f(2*w)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    if (ends && i === 0){ const [X, Y] = P(...q[0]); svg += `<circle cx="${f(X)}" cy="${f(Y)}" r="1.3" fill="${INK}"/>`; }
+    if (ends && j === q.length - 1){ const [X, Y] = P(...q[j]); svg += `<circle cx="${f(X)}" cy="${f(Y)}" r="1.3" fill="${INK}"/>`; }
+    out.push({ box: boxOf(seg), svg }); i = j; }
+  return out; };
+const dotX = (x, y, z, r = .45, c = METAL.l) => fill(pd(on(PX(x), ellUV(y, z, r, r, 8))), c) + ink(pd(on(PX(x), ellUV(y, z, r, r, 8))), .4);
+const RAIL = [[1, 4], [D - 4, D - 1]], RZ = [144, 146.5];          // rails: y bands, z band
+const BEAM = [141, 144], TROL = [137, 140.5], DRUM = { z:135, r:1.4 };
+const XM = { x:5, y0:D - 10, y1:D - 4.3, z:143.1, r:2 }, BELT = { y:D - 2.5, z0:142.6, z1:143.6 };
+const CHUTE = { x0:56, x1:78, y0:2, y1:24, z0:36, z1:HB }, IR = { x:68, z:67.5 };
+const ACC = [W + 2, 17.5, 71, W + 12, 26.5, 79.4], CASH = [W - 28, 47, 11, W - 3, 73, 29];
+const BRD = [1, 22, 24, 2.2, 62, 52], PSU = [4, 64, .5, 26, 84, 13];
+let XR_LAST = null;
+function clawMech(st){
+  const c = st.claw, t = performance.now()/1000, ph = st.phase, parts = [], wires = [];
+  const lp = XR_LAST || [c.x, c.y]; const xOn = Math.abs(c.x - lp[0]) > .01, yOn = Math.abs(c.y - lp[1]) > .01; XR_LAST = [c.x, c.y];
+  const winchOn = ph === 'lower' || ph === 'lift', coilOn = ['close', 'lift', 'carry'].includes(ph);
+  const tripped = st.falls.some(fl => fl.mode === 'chute' && fl.z < CHUTE.z1 && fl.z > CHUTE.z0), coinIn = st.coin != null;
+  const live = on => on ? matOf('#ff9a3a') : GEARM;
+  const put = (b, svg) => parts.push({ box: b, svg });
+  const bx = (x0, y0, z0, x1, y1, z1, m, w = .8) => put([[x0, y0, z0], [x1, y1, z1]], box(x0, y0, z0, x1, y1, z1, m, toneI, w));
+  // ---- gantry: rails on brackets, end stop
+  for (const [y0, y1] of RAIL){
+    bx(3, y0, RZ[0], W - 3, y1, RZ[1], METAL, .9);
+    const yw = y0 < 10 ? [0, y0] : [y1, D];
+    for (const x of [12, W/2, W - 12]) bx(x - 1.5, yw[0], RZ[0] - .5, x + 1.5, yw[1], RZ[1] + 2.5, GEARM, .7);   // brackets to the side walls
+  }
+  bx(3.5, 4.1, RZ[0] - 1.6, 5.5, 5.4, RZ[0] + .4, matOf('#d8d2c2'), .7);                                       // end stop (microswitch)
+  // bridge: two end trucks riding on the rails, hanger plates, the beam between them
+  for (const [y0, y1] of RAIL){
+    bx(c.x - 4, y0 - .3, RZ[1], c.x + 4, y1 + .3, RZ[1] + 2.6, GEARM, .8);
+    const hy = y0 < 10 ? [y1 + .5, y1 + 1.5] : [y0 - 1.5, y0 - .5];
+    bx(c.x - 3, hy[0], BEAM[0], c.x + 3, hy[1], RZ[1] + 2.6, GEARM, .7);
+  }
+  bx(c.x - 2.5, 5.5, BEAM[0], c.x + 2.5, D - 5.5, BEAM[1], METAL, .9);
+  // rack on the beam's front face, with its teeth
+  let rack = box(c.x + 2.5, 7, BEAM[0] + .3, c.x + 3.1, D - 7, BEAM[0] + 1.3, GEARM, toneI, .6);
+  if (facing([1,0,0])) for (let y = 8; y < D - 7; y += 1.6) rack += line([[c.x + 3.12, y, BEAM[0] + .3], [c.x + 3.12, y, BEAM[0] + 1.3]], .35);
+  put([[c.x + 2.5, 7, BEAM[0] + .3], [c.x + 3.1, D - 7, BEAM[0] + 1.3]], rack);
+  // X drive: gearmotor at the back end of the right rail, pulley, toothed belt, clamp to the bridge's hanger
+  put([[XM.x - XM.r, XM.y0, XM.z - XM.r], [XM.x + XM.r, XM.y1, XM.z + XM.r]], rod([XM.x, XM.y0, XM.z], [XM.x, XM.y1, XM.z], XM.r, live(xOn), toneI, .9));
+  let belt = '';
+  for (const x of [5, W - 5]) belt += shape(on(PY(BELT.y), ellUV(x, (BELT.z0 + BELT.z1)/2, 1.1, 1.1, 14)), METAL.m, .6);
+  belt += line([[5, BELT.y, BELT.z0 - .1], [W - 5, BELT.y, BELT.z0 - .1]], .9) + line([[5, BELT.y, BELT.z1 + .1], [W - 5, BELT.y, BELT.z1 + .1]], .9);
+  put([[4, BELT.y - .5, BELT.z0 - 1.2], [W - 4, BELT.y + .5, BELT.z1 + 1.2]], belt);
+  bx(c.x - 1.2, D - 5.5, BELT.z0 - .4, c.x + 1.2, BELT.y - .5, BELT.z1 + .4, GEARM, .6);
+  // trolley under the beam; Y gearmotor on its front side, pinion on the rack
+  bx(c.x - 4, c.y - 4.5, TROL[0], c.x + 2.5, c.y + 4.5, TROL[1], GEARM, .9);
+  bx(c.x + 2.5, c.y - 1.5, TROL[0] + .5, c.x + 3, c.y + 1.5, TROL[1] - .5, GEARM, .6);
+  put([[c.x + 3, c.y - 1.4, TROL[0]], [c.x + 5.8, c.y + 1.4, BEAM[0] + 1.3]],
+    cyl(c.x + 4.4, c.y, TROL[0] + .2, BEAM[0] - .2, 1.4, live(yOn), toneI, .8, 16) + cyl(c.x + 4.4, c.y, BEAM[0] + .3, BEAM[0] + 1.3, 1.25, METAL, toneI, .6, 14));
+  // winch: drum with a cheek plate, gearmotor on the same axis
+  bx(c.x - 3.6, c.y - 1.7, DRUM.z - 1.7, c.x - 3, c.y + 1.7, TROL[0], GEARM, .6);
+  put([[c.x - 3, c.y - DRUM.r, DRUM.z - DRUM.r], [c.x + .5, c.y + DRUM.r, DRUM.z + DRUM.r]], cylX(c.x - 3, c.x + .5, c.y, DRUM.z, DRUM.r, COPPER, toneI, .7, 16)
+    + [...Array(5)].map((_, i) => line([[c.x - 2.6 + i*.7, c.y - .3, DRUM.z + DRUM.r - .05], [c.x - 2.6 + i*.7, c.y + .3, DRUM.z + DRUM.r - .05]], .3)).join(''));
+  put([[c.x + .5, c.y - 2, DRUM.z - 2], [c.x + 2.5, c.y + 2, TROL[0]]], cylX(c.x + .5, c.x + 2.5, c.y, DRUM.z, 2, live(winchOn), toneI, .8, 16));
+  // ---- the claw itself (crisp, it is the subject), its coil and the coiled cord
+  const cps = clawParts(c), hubP = cps[cps.length - 1]; for (const p of cps) parts.push(p);
+  const coilM = coilOn ? { l:'#ffc07a', m:'#ff8a3a', d:'#c2560a' } : COPPER;
+  hubP.svg += (cyl(c.x, c.y, c.z + .7, c.z + 4.3, 3.75, coilM, toneI, .8, 20)
+    + [1.4, 2.3, 3.2].map(dz => ink(pd(on(PZ(c.z + .7 + dz), ellUV(c.x, c.y, 3.75, 3.75, 20)).filter(p => facing([p[0] - c.x, p[1] - c.y, 0])), false), .35)).join(''));
+  const cz0 = c.z + 6.2, cz1 = DRUM.z - 2.2, nC = Math.max(4, Math.round((cz1 - cz0) / 1.4)), cord = [];
+  for (let i = 0; i <= nC*8; i++){ const a = i/8 * 2*Math.PI, z = cz0 + (cz1 - cz0) * i/(nC*8); cord.push([c.x + 1.6 + .7*Math.cos(a), c.y + .7*Math.sin(a), z]); }
+  put([[c.x + .8, c.y - .8, cz0], [c.x + 2.4, c.y + .8, cz1]], `<path d="${pd(cord, false)}" fill="none" stroke="${INK}" stroke-width=".7"/>`);
+  // ---- prize chute below the hole: walls, deflector, infrared sensor
+  const wallM = mix(METAL.l, '#f2efe7', .3);
+  let sh = '';
+  const walls = [[[CHUTE.x0, CHUTE.y0, CHUTE.z0 + 4], [CHUTE.x0, CHUTE.y1, CHUTE.z0 + 4], [CHUTE.x0, CHUTE.y1, CHUTE.z1], [CHUTE.x0, CHUTE.y0, CHUTE.z1]],
+    [[CHUTE.x0, CHUTE.y0, CHUTE.z0], [CHUTE.x1, CHUTE.y0, CHUTE.z0], [CHUTE.x1, CHUTE.y0, CHUTE.z1], [CHUTE.x0, CHUTE.y0, CHUTE.z1]],
+    [[CHUTE.x0, CHUTE.y1, CHUTE.z0], [CHUTE.x1, CHUTE.y1, CHUTE.z0], [CHUTE.x1, CHUTE.y1, CHUTE.z1], [CHUTE.x0, CHUTE.y1, CHUTE.z1]],
+    [[CHUTE.x1, CHUTE.y0, CHUTE.z0], [CHUTE.x1, CHUTE.y1, CHUTE.z0], [CHUTE.x1, CHUTE.y1, CHUTE.z1], [CHUTE.x1, CHUTE.y0, CHUTE.z1]]];
+  for (const w of walls) sh += `<g opacity=".42">${fill(pd(w), wallM)}</g>` + ink(pd(w), .7);
+  sh += shape([[CHUTE.x0, CHUTE.y0, CHUTE.z0 + 4], [CHUTE.x0, CHUTE.y1, CHUTE.z0 + 4], [BAY_X, CHUTE.y1, CHUTE.z0 - 2], [BAY_X, CHUTE.y0, CHUTE.z0 - 2]], mix(METAL.m, '#f2efe7', .2), .7);
+  put([[CHUTE.x0, CHUTE.y0, CHUTE.z0 - 2], [CHUTE.x1, CHUTE.y1, CHUTE.z1]], sh);
+  bx(IR.x - 2, CHUTE.y0, IR.z - 1.5, IR.x + 2, CHUTE.y0 + 1.2, IR.z + 1.5, DARK, .7);
+  bx(IR.x - 2, CHUTE.y1 - 1.2, IR.z - 1.5, IR.x + 2, CHUTE.y1, IR.z + 1.5, DARK, .7);
+  const beam = pd([[IR.x, CHUTE.y0 + 1.2, IR.z], [IR.x, CHUTE.y1 - 1.2, IR.z]], false);
+  wires.push(`<path d="${beam}" stroke="${tripped ? '#ff3a2a' : '#e2483d'}" stroke-width="${tripped ? 1.6 : .9}" stroke-dasharray="2 1.6" stroke-dashoffset="${f(-t*12)}" opacity="${tripped ? (Math.sin(t*30) > 0 ? 1 : .35) : .8}"/>`);
+  // ---- coins: acceptor in the ledge under the slot, tube, cash box behind the coin door, meter
+  put([[ACC[0], ACC[1], ACC[2]], [ACC[3], ACC[4], ACC[5]]], box(...ACC, coinIn ? matOf('#ffd46a') : matOf('#b9b2a0'), toneI, .8)
+    + (facing([1,0,0]) ? shape(on(PX(ACC[3] + .05), rectUV(19.5, 73, 24.5, 75)), '#1d1a16', .5) : ''));
+  const tube = [[W + 4, 26.5, 72.5], [W - 3, 34, 66], [W - 6, 46, 40], [W - 12, 58, CASH[5]]];
+  parts.push(...wireParts(tube, coinIn ? '#ffd46a' : '#cfd6d8', .9, false)); 
+  put([[CASH[0], CASH[1], CASH[2]], [CASH[3], CASH[4], CASH[5]]], box(...CASH, GEARM, toneI, 1) + shape(on(PZ(CASH[5] + .05), ellUV(W - 12, 58, 1.8, 1.8, 14)), '#1d1a16', .6)
+    + [[CASH[0] + 3, CASH[1] + 3], [CASH[3] - 3, CASH[1] + 3], [CASH[0] + 3, CASH[4] - 3], [CASH[3] - 3, CASH[4] - 3]].map(([x, y]) => fill(pd(on(PZ(CASH[5] + .05), ellUV(x, y, .5, .5, 8))), METAL.l)).join(''));
+  // ---- main board on the back wall (behind the service door)
+  let brd = box(...BRD, PCB, toneI, .8);
+  if (facing([1,0,0])){
+    for (const [y0, z0, y1, z1] of [[26, 30, 34, 38], [38, 30, 44, 34], [38, 38, 50, 44], [26, 42, 34, 48], [52, 28, 58, 36]]) brd += box(BRD[3], y0, z0, BRD[3] + .7, y1, z1, DARK, toneI, .5);
+    for (const [y, z] of [[23.5, 25.5], [60.5, 25.5], [23.5, 50.5], [60.5, 50.5]]) brd += dotX(BRD[3] + .05, y, z);
+    brd += fill(pd(on(PX(BRD[3] + .05), ellUV(47, 27, .7, .7, 10))), Math.sin(t*4) > 0 ? '#7dff9a' : '#2a5a36');
+  }
+  put([[BRD[0], BRD[1], BRD[2]], [BRD[3] + .7, BRD[4], BRD[5]]], brd);
+  bx(BRD[3], 57, 45, BRD[3] + 1.6, 61, 50, PLAST, .6);                  // connector: gantry and controls
+  bx(BRD[3], 23, 45, BRD[3] + 1.6, 27, 50, PLAST, .6);                  // connector: sensor and speaker
+  bx(BRD[3], 50, 46, BRD[3] + 1, 52, 48, REDM, .5);                     // test button
+  // power supply on the floor: vents on its front, fan on top
+  let psu = box(...PSU, METAL, toneI, .9);
+  if (facing([1,0,0])) for (let i = 0; i < 6; i++) psu += shape(on(PX(PSU[3] + .05), rrUV(66 + i*2.8, 4, 67.4 + i*2.8, 10, .5)), mix(METAL.d, '#000000', .3), .4);
+  psu += shape(on(PZ(PSU[5] + .05), ellUV(15, 74, 5, 5, 24)), '#2a2622', .7) + fill(pd(on(PZ(PSU[5] + .1), ellUV(15, 74, 1.4, 1.4, 12))), METAL.m);
+  put([[PSU[0], PSU[1], PSU[2]], [PSU[3], PSU[4], PSU[5]]], psu);
+  // speaker on the inside of the left wall
+  put([[34, 1, 34], [46, 2, 46]], shape(on(PY(1.2), ellUV(40, 40, 6, 6, 24)), '#2a2622', .8) + shape(on(PY(1.3), ellUV(40, 40, 3.4, 3.4, 18)), '#4a4540', .5)
+    + fill(pd(on(PY(1.4), ellUV(40, 40, 1.3, 1.3, 12))), '#77706a'));
+  // LED strip under the roof, along the front
+  bx(W - 3.5, 6, HG - 1.4, W - 1.5, D - 6, HG - .2, { l:'#fffbe8', m:'#fff1c2', d:'#e8d79a' }, .6);
+  // ---- controls under the ledge: joystick plate, shaft, four microswitches; drop-button microswitch
+  bx(W + 3, 62, LZ0 + 1.2, W + 11, 70, LZ0 + 2, GEARM, .6);
+  const tilt = [st.tilt ? st.tilt[0] : 0, st.tilt ? st.tilt[1] : 0];
+  for (const [dx, dy] of [[3, 0], [-3, 0], [0, 3], [0, -3]]){
+    const hit = (dx && Math.sign(dx) === Math.sign(tilt[0])) || (dy && Math.sign(dy) === Math.sign(tilt[1]));
+    bx(W + 7 + dx - .8, 66 + dy - .8, LZ0 + 2, W + 7 + dx + .8, 66 + dy + .8, LZ0 + 3.6, hit ? matOf('#ff9a3a') : matOf('#d8d2c2'), .5);
+  }
+  put([[W + 6.4, 65.4, LZ0 + 2], [W + 7.6, 66.6, LZ1]], rod([W + 7, 66, LZ0 + 2], [W + 7, 66, LZ1 - .1], .6, METAL, toneI, .6));
+  bx(W + 5.6, 40.6, LZ0 + 1.2, W + 8.4, 43.4, LZ0 + 4, st.btn > 0 ? matOf('#ff9a3a') : matOf('#d8d2c2'), .6);
+  put([[W + 6.4, 41.4, LZ0 + 4], [W + 7.6, 42.6, LZ1]], rod([W + 7, 42, LZ0 + 4], [W + 7, 42, LZ1 - .1], .5, METAL, toneI, .5));
+  // ---- harness (black), each end on a connector, switch, motor or sensor
+  const H = '#3a3632', Hon = '#ffb347';
+  const corner = [[BRD[3] + 1.6, 59, 49], [3.2, 82, 56], [3.2, 82.5, 140]];
+  parts.push(...wireParts([...corner, [4.5, D - 10.5, XM.z]], xOn ? Hon : H));                                       // board to the X motor
+  parts.push(...wireParts([[3.2, 82.5, 140], [3.2, 83, HG - 1], [W - 3.5, 83, HG - 1]], H, .45, false));               // along the roof to the LED strip
+  const sag = Math.max(1.5, 6 - Math.abs(c.x - 6)/14);                                                        // festoon: fixed end to the bridge
+  parts.push(...wireParts([[6, D - 6, BEAM[0] - 1], [(6 + c.x)/2, D - 6.5, BEAM[0] - 1 - sag], [c.x - 2.7, D - 6, BEAM[0] - .2]], winchOn || yOn || coilOn ? Hon : H, .5));
+  parts.push(...wireParts([[c.x - 2.7, D - 6, BEAM[0] - .2], [c.x - 2.7, c.y + 6, BEAM[0] - .2], [c.x - 2.7, c.y + 4.5, TROL[1]]], winchOn || yOn || coilOn ? Hon : H, .5, false));
+  parts.push(...wireParts([[BRD[3] + 1.6, 58.5, 47], [3.2, 50, 40], [3.2, 40, 3], [W - 1.5, 40, 3], [W - 1.5, 40, 66], [W + 5, 42, 69], [W + 7, 42, LZ0 + 1.2]], st.btn > 0 ? Hon : H));   // board to the drop button: down the back wall, along the floor, up the front
+  parts.push(...wireParts([[W - 1.5, 40, 66], [W - 1.5, 62, 67], [W + 5, 66, 69], [W + 7, 66, LZ0 + 1.2]], tilt[0] || tilt[1] ? Hon : H, .55, false));      // to the joystick
+  parts.push(...wireParts([[W - 1.5, 40, 66], [W - 1.5, 30, 68], [W + 5, 22, 70], [W + 6, 22, ACC[2]]], coinIn ? Hon : H, .55, false));                      // to the coin acceptor
+  parts.push(...wireParts([[7, PSU[1] + 2, PSU[5]], [5, 60, 20], [BRD[3] + .1, 55, 26]], '#c2300a'));                                                   // power supply to board
+  parts.push(...wireParts([[IR.x, CHUTE.y0, IR.z + 1.5], [IR.x - 3, 1, IR.z + 3], [3.2, 1, IR.z + 3], [3.2, 16, 52], [BRD[3] + 1.6, 25, 48]], tripped ? Hon : H));            // emitter to board
+  parts.push(...wireParts([[IR.x, CHUTE.y1, IR.z + 1.5], [CHUTE.x0 - 1.5, CHUTE.y1 + 1, IR.z + 3], [CHUTE.x0 - 1.5, 1.6, IR.z + 3]], tripped ? Hon : H, .55, false));
+  parts.push(...wireParts([[40, 1.4, 40], [3.2, 1.4, 40], [3.2, 16, 44], [BRD[3] + 1.6, 24, 46]], H, .45));                                                               // speaker
+  return byDepth(parts) + wires.join('');
+}
+const XR_OPTS = { getSt: () => { try { return ui.st; } catch (e) { return {}; } }, B: [0, W + LX, 0, D, 0, HC],
+  mech: () => '', over: (st, k) => `<g opacity="${f(k)}">${clawMech(st)}</g>`,
+  inside: st => { const c = st.claw, ph = st.phase;
+    return [ { at:[XM.x, (XM.y0 + XM.y1)/2, XM.z + XM.r], text:'X MOTOR', on: ph === 'play' },
+      { at:[c.x + 4.4, c.y, TROL[0] + 2], text:'Y MOTOR', on: ph === 'play' },
+      { at:[c.x + 1.5, c.y, DRUM.z - 2], text:'WINCH', on: ph === 'lower' || ph === 'lift' },
+      { at:[c.x, c.y - 3.8, c.z + 2.5], text:'CLAW COIL', on: ['close', 'lift', 'carry'].includes(ph) },
+      { at:[IR.x, CHUTE.y0, IR.z], text:'PRIZE SENSOR', on: st.falls.some(fl => fl.mode === 'chute') },
+      { at:[ACC[3], 22, ACC[5]], text:'COIN ACCEPTOR', on: st.coin != null },
+      { at:[CASH[3], 60, CASH[5]], text:'CASH BOX', on: false },
+      { at:[BRD[3], 30, BRD[5]], text:'MAIN BOARD', on: ph !== 'idle' },
+      { at:[PSU[3], 74, PSU[5]], text:'POWER SUPPLY', on: false },
+      { at:[W + 10, 66, LZ0 + 2], text:'JOYSTICK SWITCHES', on: !!(st.tilt && (st.tilt[0] || st.tilt[1])) } ]; },
+  surface: st => facing([1,0,0]) ? [ { at:[W + 7, 66, LZ1 + 8], text:'JOYSTICK', on: false }, { at:[W + 7, 42, LZ1 + 3], text:'DROP BUTTON', on: false },
+    { at:[W, 19, 22], text:'PRIZE BAY', on: false }, { at:[W, 60, 44], text:'DISPLAY', on: false } ] : [] };
+const XR_CAPTION = st => {
+  const ph = st.phase;
+  if (st.falls.some(fl => fl.mode === 'chute')) return 'The prize drops through an infrared beam across the chute. Breaking the beam tells the main board you won; the prize slides on into the pickup bay.';
+  if (st.coin != null) return 'Coin in: the coin acceptor checks its size and weight and drops it down the tube into the cash box, the meter counts it, and the main board adds a credit.';
+  if (ph === 'play' || ph === 'ready') return 'Tip the joystick and its plate presses one of four microswitches. The main board runs the X motor, which pulls the bridge along the rails by a belt, or the Y motor, whose pinion walks the trolley along the rack.';
+  if (ph === 'lower') return 'The winch motor unwinds the string from its drum and the claw drops under its own weight.';
+  if (ph === 'close' || ph === 'carry') return 'Current in the coil inside the claw’s hub pulls a plunger up and closes the fingers. The board sets the voltage, which is how hard the claw grips.';
+  if (ph === 'lift') return 'The winch winds the string back onto the drum. The coiled cord beside it keeps the coil powered.';
+  if (ph === 'release' || ph === 'back') return 'Over the chute the board cuts the coil and springs open the fingers; then the motors bring the claw home.';
+  return 'Inside: a gantry under the roof moves the claw on two motors and a winch. The main board, power supply, coin box and prize chute sit in the base.';
+};
+
+XR_OPTS.under = true;
+scene = xrWrap(scene, XR_OPTS);
+ui = mountFigure({
+  fig:'18', turn:'full', title:'Claw machine', hint:'insert a coin, steer with the arrow keys, drop to grab',
+  idea:'The claw only holds a prize it closes around squarely; off-centre, it slips out on the way to the chute.',
+  size:[W + LX, D, HC], palette:'blush', state:st,
+  scene,
+  readout: st => st.phase,
+  stats: st => [ { label:'Tokens', value: String(st.tokens) }, { label:'Prizes won', value: String(st.won) } ],
+  buttonsLabel:'Play',
+  buttons:[
+    { label:'Insert coin', onClick: insertCoin },
+    { label:'Take the prize', onClick: takePrize },
+    { label:'Start over', onClick: startOver },
+  ],
+  acts:{
+    coin: () => insertCoin(),
+    drop: () => drop(),
+    stick: (st, el) => move(+el.dataset.dx, +el.dataset.dy),
+    take: () => takePrize(),
+  },
+  params:(st, q) => {
+    if (q.has('claw')){ const [x, y] = q.get('claw').split(',').map(Number); st.claw.x = clampX(x); st.claw.y = clampY(y); }
+    if (q.get('play') === '1'){ st.phase = 'play'; st.time = +(q.get('time') || GAME_T); st.tokens = 9; }
+    if (q.get('drop') === '1'){ st.phase = 'play'; st.time = 9; st.tokens = 9; startDrop(); }
+    if (q.has('bay')){ const n = +q.get('bay'); for (let i = 0; i < n; i++){ const p = st.prizes.pop(); st.bay.push(p); } st.won = 0; }
+    if (q.get('flap') === '1') st.flap = st.flapT = 1;
+    if (q.has('chute')){ const p = st.prizes.splice(3, 1)[0]; st.falls.push({ p, x:HOME[0], y:HOME[1], z:+q.get('chute'), vz:0, tx:HOME[0], ty:HOME[1], tz:-99, mode:'chute', delay:0 }); }
+    if (q.has('open')) st.claw.o = +q.get('open');
+    if (q.has('cz')) st.claw.z = +q.get('cz');
+  },
+});
+if (active()) kick();
+
+/* ---------- keypad: an inked control plate under the buttons; tap or hold its keys, or press the same keys on the keyboard ----------
+   Each key just sends the keyboard event the figure already handles (arrows, space), so pad and keyboard behave alike;
+   keys light while held, whichever way they are pressed. */
+mountKeypad({ rows: 3, hub: [1, 1], action: 'DROP', keys: [
+  { key:'ArrowUp', glyph:'\u25b2', name:'Forward', at:[1, 0] }, { key:'ArrowLeft', glyph:'\u25c0', name:'Left', at:[0, 1] },
+  { key:'ArrowRight', glyph:'\u25b6', name:'Right', at:[2, 1] }, { key:'ArrowDown', glyph:'\u25bc', name:'Back', at:[1, 2] } ] });
+xrMount(() => ui, XR_CAPTION);
+</script>
+</body>
+</html>

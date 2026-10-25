@@ -91,6 +91,8 @@ export interface EngineConfig {
   workflowPace: 'thorough' | 'fast';
   imagePack: string;
   videoPack: string;
+  /** the Figure pack new figure goals follow unless the goal picks another (ADR-0076) */
+  figurePack: string;
   /** run `npx autoskills` in each goal's workspace so the repository's stack gets matching project skills */
   autoskills: boolean;
   /** fetch the base branch before a goal starts; start the goal branch from the remote tip when local is behind; re-fetch between tasks */
@@ -151,6 +153,8 @@ export interface EngineConfig {
   /** the Conversation on goals' pages (Settings → Beta, ADR-0073) */
   betaConversation: boolean;
   betaMotionStudio: boolean;
+  /** figure goals (the Figure nature and pack) are a beta feature behind Settings → Beta (ADR-0076) */
+  betaFigure: boolean;
   log: (msg: string) => void;
 }
 
@@ -218,6 +222,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     workflowPace: process.env.FOUNDRY_PACE === 'fast' ? 'fast' : 'thorough',
     imagePack: process.env.FOUNDRY_IMAGE_PACK ?? 'gpt-image-2',
     videoPack: process.env.FOUNDRY_VIDEO_PACK ?? 'web-video-presentation',
+    figurePack: process.env.FOUNDRY_FIGURE_PACK ?? 'colorfigures',
     autoskills: process.env.FOUNDRY_AUTOSKILLS ? !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_AUTOSKILLS) : true,
     sync: { fetchBeforeGoal: process.env.FOUNDRY_SYNC_FETCH ? !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_SYNC_FETCH) : true, startFrom: process.env.FOUNDRY_SYNC_START === 'local' ? 'local' : 'auto', refreshBetweenTasks: /^(1|true|on|yes)$/i.test(process.env.FOUNDRY_SYNC_REFRESH ?? '') },
     delivery: { pollMs: 30_000, noChecksGraceMs: 90_000, checksTimeoutMs: 30 * 60_000, automergeWaitMs: 10 * 60_000, updateLocalBase: true, prWatchMs: 5 * 60_000, copyWaitMs: 30_000 },
@@ -234,6 +239,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     markitdownBin: process.env.FOUNDRY_MARKITDOWN,
     betaConversation: process.env.FOUNDRY_BETA_CONVERSATION === '1' || process.env.FOUNDRY_BETA_CONVERSATION === 'true',
     betaMotionStudio: process.env.FOUNDRY_BETA_MOTION_STUDIO === '1' || process.env.FOUNDRY_BETA_MOTION_STUDIO === 'true',
+    betaFigure: process.env.FOUNDRY_BETA_FIGURE === '1' || process.env.FOUNDRY_BETA_FIGURE === 'true',
     log: (m) => console.log(m),
     ...overrides,
   };

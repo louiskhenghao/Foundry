@@ -2,7 +2,9 @@
  * The projects behind the Extensions catalog (catalog/skills.json and catalog/mcp.json), keyed as catalogProject in
  * credits.ts names them: `owner/repo` on GitHub, the home page elsewhere. Each one is credited with its license or left
  * out with the reason; credits.test.ts fails when the catalog gains a project this file does not name. Licenses were read
- * from each project's repository. Goals clone these projects when they install them, so none is in the Docker image.
+ * from each project's repository. Goals clone these projects when they install them, so none is in the Docker image —
+ * except the Figure pack's two skills (ADR-0076), snapshots their author publishes as tarballs, bundled under catalog/bundled/
+ * with their LICENSE files.
  */
 /** `featured`: on the page's cards, so not repeated in the catalog list */
 export type CatalogCredit = { license: string; name?: string; url?: string; featured?: true } | { excluded: string };
@@ -27,6 +29,9 @@ export const CATALOG: Record<string, CatalogCredit> = {
   'morluto/rea': { license: 'MIT' },
   'earthtojake/text-to-cad': { license: 'MIT' },
   'https://ffmpeg.org': { name: 'FFmpeg', license: 'LGPL-2.1-or-later', url: 'https://ffmpeg.org' },
+  // the Figure pack (ADR-0076): April Zhu's Colorfigures and iso-glow, published as tarballs (no repository), bundled with Foundry
+  'https://april-zhu.com/colorfigures': { name: 'Colorfigures', license: 'MIT', url: 'https://april-zhu.com/colorfigures' },
+  'https://isoglow.dev': { name: 'iso-glow', license: 'MIT', url: 'https://isoglow.dev' },
   'upstash/context7': { license: 'MIT' },
   'microsoft/playwright-mcp': { license: 'Apache-2.0' },
   'exa-labs/exa-mcp-server': { license: 'MIT' },

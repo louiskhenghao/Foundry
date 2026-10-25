@@ -81,12 +81,19 @@ export type GoalMode = z.infer<typeof GoalMode>;
  * geometry kernel, keeps the default) and completion defaults.
  * `auto` = the user did not say; the Clarifier decides from the prompt and the engine records its verdict.
  */
-export const GoalNature = z.enum(['auto', 'code', 'docs', 'research', 'image', 'video', 'cad']);
+export const GoalNature = z.enum(['auto', 'code', 'docs', 'research', 'image', 'video', 'figure', 'cad']);
 export type GoalNature = z.infer<typeof GoalNature>;
 /** natures judged by eye: the fast pace by default, image tools writing into artifacts/ (delivery reads ARTIFACT_NATURES) */
-export const MEDIA_NATURES: GoalNature[] = ['image', 'video'];
+export const MEDIA_NATURES: GoalNature[] = ['image', 'video', 'figure'];
 /** natures whose deliverables are files under artifacts/ (kept out of git, delivered to the output folder) */
-export const ARTIFACT_NATURES: GoalNature[] = ['image', 'video', 'cad'];
+export const ARTIFACT_NATURES: GoalNature[] = ['image', 'video', 'figure', 'cad'];
+
+/**
+ * The figure skill a figure goal's workers follow (the Figure pack, ADR-0076): Colorfigures' hand-inked colour or
+ * iso-glow's dark glowing line art, each one self-contained HTML page per figure; `none` = no figure skill is mandated.
+ */
+export const FigurePack = z.enum(['colorfigures', 'iso-glow', 'none']);
+export type FigurePack = z.infer<typeof FigurePack>;
 
 /**
  * The workflow suite a goal's sessions follow (ADR-0049): whose skills the roles are told to invoke. mattpocock (the
@@ -368,6 +375,8 @@ export const Goal = z.object({
   mode: GoalMode.default('expert'),
   /** default keeps pre-nature `goal.created` events replayable (old goals were all code goals in effect) */
   nature: GoalNature.default('auto'),
+  /** the Figure pack this goal's figure tasks follow when one was chosen for the goal (on the New goal form, or by the Clarifier from the goal's words); null = Settings' default at run time; absent on goals from before, read as null */
+  figurePack: FigurePack.nullable().optional(),
   /** where media artifacts are copied when the goal finishes; null = they stay in the goal workspace */
   outputDir: z.string().nullable().default(null),
   /** the progress folder — the goal worktree the human opens, next to the repository; null = the legacy `<dataDir>/worktrees/<id>/_goal` */
