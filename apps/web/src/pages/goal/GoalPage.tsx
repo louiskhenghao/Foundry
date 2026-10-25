@@ -3,6 +3,7 @@ import { ArrowLeft, Ban, Brain, CircleAlert, CornerDownRight, Folder, GitBranch,
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { goalExcerpt } from './excerpt.ts';
 import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
 import { IssueLink, ScheduleLink } from './IssueLink.tsx';
 import { DelegationLinks } from './Delegations.tsx';
@@ -204,7 +205,7 @@ export function GoalPage() {
             {g.title}
           </h1>
           {/* what was asked, in its first lines: the Overview's Goal card holds all of it */}
-          {g.prompt && g.prompt !== g.title && <p className="mt-3 max-w-[72ch] text-[17px] leading-relaxed text-ink-soft line-clamp-2 header-compact:text-sm" title={g.prompt}>{g.prompt}</p>}
+          {g.prompt && goalExcerpt(g.prompt, g.title) && <p className="mt-3 max-w-[72ch] text-[17px] leading-relaxed text-ink-soft line-clamp-2 header-compact:text-sm" title={g.prompt}>{goalExcerpt(g.prompt, g.title)}</p>}
           <ul className="mt-4 flex flex-wrap gap-2" aria-label="About this goal">
             <li className={fact}>
               <Folder size={13} className="shrink-0" aria-hidden="true" />
