@@ -311,6 +311,10 @@ export const GoalIssue = z.object({
 export type GoalIssue = z.infer<typeof GoalIssue>;
 
 /** the Schedule a Goal was made by, on the Goal (ADR-0054) */
+/** the Template a goal was made from (ADR-0079): its id and the name it had then */
+export const GoalTemplateRef = z.object({ id: z.string().min(1), name: z.string().min(1) });
+export type GoalTemplateRef = z.infer<typeof GoalTemplateRef>;
+
 export const GoalSchedule = z.object({
   id: z.string(),
   /** the schedule's name when it fired; shown as-is once the schedule is deleted */
@@ -468,6 +472,8 @@ export const Goal = z.object({
   issue: GoalIssue.nullable().optional(),
   /** the Schedule the goal was made by (ADR-0054); absent on goals made by hand */
   schedule: GoalSchedule.nullable().optional(),
+  /** the Template the goal was made from (ADR-0079): its id and the name it had then; absent on goals made before, and on goals written from scratch */
+  template: GoalTemplateRef.nullable().optional(),
   /** who asked for the goal: the Person signed in when it was made (ADR-0061); null or absent when Access is off or it came another way */
   by: z.string().nullable().optional(),
   /** who approved its Brief: the Person signed in, or the chat it was approved from; absent before Access existed */
