@@ -4,7 +4,6 @@ summary: Bring the README up to date for the people who read it, covering what t
 nature: docs
 settings:
   mode: simple
-  budgetPreset: quick
 inputs:
   - key: audience
     label: Who reads it

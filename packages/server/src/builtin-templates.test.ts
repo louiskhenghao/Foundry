@@ -54,4 +54,9 @@ describe('the built-in templates', () => {
       for (const i of [...t.en!.inputs, ...t.zh!.inputs]) expect(i.example ?? i.default, `${t.id} ${i.key} has no example`).toBeTruthy();
     }
   });
+
+  test('no built-in template chooses the Quick budget: its $3 counts Clarify, which alone can cost that much (live run 2026-10-25)', () => {
+    for (const t of listed.templates) expect(t.settings.budgetPreset, t.id).not.toBe('quick');
+  });
 });
+

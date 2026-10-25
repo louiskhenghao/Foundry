@@ -5,7 +5,6 @@ nature: docs
 lang: zh
 settings:
   mode: simple
-  budgetPreset: quick
 inputs:
   - key: audience
     label: 谁读它

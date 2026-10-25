@@ -3,7 +3,6 @@ name: Bug fix
 summary: A defect described by what you saw, how to see it again and what should have happened; the fix starts from the failing test.
 nature: code
 settings:
-  budgetPreset: quick
   interviewDepth: 1
   workflow:
     tdd: required

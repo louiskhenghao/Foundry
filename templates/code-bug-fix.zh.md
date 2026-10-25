@@ -4,7 +4,6 @@ summary: 用「看到了什么、怎么复现、本该怎样」描述一个缺�
 nature: code
 lang: zh
 settings:
-  budgetPreset: quick
   interviewDepth: 1
   workflow:
     tdd: required
