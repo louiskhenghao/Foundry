@@ -15,3 +15,5 @@ export * from './theme/palette.ts';
 export * from './theme/builtins.ts';
 export * from './theme/layout.ts';
 export * from './guide-anchor.ts';
+export * from './template/yaml.ts';
+export * from './template/template.ts';

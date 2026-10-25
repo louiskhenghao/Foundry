@@ -18,3 +18,5 @@ export * from './store/db.ts';
 export * from './store/event-store.ts';
 export * from './store/projections.ts';
 export * from './guide-anchor.ts';
+export * from './template/yaml.ts';
+export * from './template/template.ts';

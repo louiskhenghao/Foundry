@@ -25,3 +25,4 @@ export * from './json-schema.ts';
 export * from './conversation.ts';
 export * from './proposal.ts';
 export * from './adjust.ts';
+export * from './template.ts';
