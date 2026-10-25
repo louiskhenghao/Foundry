@@ -37,8 +37,10 @@ without a goal (the rate-limit probe).
   template travels. A video engine or figure style is dropped, and said so, while its Beta is off. What a template does
   not name, the form keeps as the person left it.
 - **Two sources and no remote.** Foundry's own templates are `templates/<id>.md` and `templates/<id>.zh.md` in its
-  checkout, two or three per nature, each in English and 中文 with the same inputs and settings (a test keeps the pairs
-  honest); they update with Foundry and are read-only in the UI — a copy is the person's. The person's own are files of
+  checkout, several per nature — from a bug fix to a 3D product showcase site, a SaaS dashboard, an AI assistant or a
+  circuit-board enclosure — each in English and 中文 with the same inputs and settings (a test keeps the pairs honest, and
+  every input carries an example for the preview); they update with Foundry and are read-only in the UI — a copy is the
+  person's. The person's own are files of
   the same shape in `templates/` of the data folder, listed with every file that cannot be used and why, copied,
   renamed, exported, imported, deleted, opened in an editor, as themes are. The gallery, by kind with a search, is the
   marketplace; nothing is fetched from anywhere.
@@ -68,8 +70,8 @@ without a goal (the rate-limit probe).
 
 ## Consequences
 
-- A new kind of goal needs two or three templates in two languages before it is complete, and a change to a built-in
-  template changes what a person's next goal of that kind says; the built-in set is reviewed like the role prompts.
+- A new kind of goal needs a few templates in two languages before it is complete, and a change to a built-in template
+  changes what a person's next goal of that kind says; the built-in set is reviewed like the role prompts.
 - The settings a template may carry are the New goal form's: a setting the form does not show (the self-check, the
   milestone pause) is not a template's, so what the person sees on the form is what the template did.
 - The housekeeping model writes the fast draft and the Explainer's row the repository-aware one; a person who tuned

@@ -4,7 +4,7 @@
 
 A **template** is a pattern the New goal form starts from. It is a goal description with blanks to fill (*the product*, *the length*, *who it is for*) and the settings that suit that kind of goal (its kind, Simple or Expert, the pace, the budget, how deep the interview goes). You fill in the blanks and the description writes itself; the form is set the way such a goal wants to be set; you still change anything you like before pressing **Create**.
 
-Foundry ships a set of templates, two or three for each kind of goal, in English and 中文. Your own are files you make: from a goal you liked, from a copy of one of Foundry's, or from scratch.
+Foundry ships a set of templates for each kind of goal, from a bug fix or a README update to a 3D product showcase website, a SaaS dashboard, an AI assistant inside an app, a brand identity kit or an enclosure for a circuit board, in English and 中文. Your own are files you make: from a goal you liked, from a copy of one of Foundry's, or from scratch.
 
 ## Starting from a template
 
