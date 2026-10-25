@@ -20,7 +20,6 @@ import { AccessCard } from './settings/AccessCard.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Loading, PageHeader, Select, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { AppearanceCard } from './settings/AppearanceCard.tsx';
-import { TemplatesCard } from './settings/TemplatesCard.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 
 type Section = keyof Settings;
@@ -52,7 +51,6 @@ const SECTIONS: { id: string; label: string }[] = [
   { id: 'safety', label: 'Safety' },
   { id: 'beta', label: 'Beta' },
   { id: 'engine', label: 'Engine (install)' },
-  { id: 'templates', label: 'Templates' },
   { id: 'appearance', label: 'Appearance' },
   { id: 'about', label: 'About & updates' },
 ];
@@ -822,7 +820,6 @@ export function SettingsPage() {
         )}
       </Card>
 
-      <TemplatesCard />
       <AppearanceCard />
 
       <Card id="about" title={<SettingsTitle id="about">About & updates<HelpLink to="settings#about--updates" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">

@@ -1,10 +1,9 @@
 import type { TemplateEntry, TemplateInput, TemplateLang, TemplateNature, TemplateVersionView } from '@foundry/core/browser';
 import { inputRequired, labelOf, renderTemplate } from '@foundry/core/browser';
-import { Box, Clapperboard, CodeXml, FileText, Image as ImageIcon, Lamp, LayoutTemplate, Search, Sparkles, Square, Telescope, X, type LucideIcon } from 'lucide-react';
+import { Box, Clapperboard, CodeXml, FileText, Image as ImageIcon, Lamp, LayoutTemplate, Search, Sparkles, Telescope, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { api, type DraftAsk, type DraftView } from '../api.ts';
 import { Button, ButtonGroup, Input, Modal, Select, Textarea, choiceClass, cn, code } from '../ui.tsx';
-import { HelpLink } from '../pages/HelpPage.tsx';
 import { NATURE_WORD, byNature, matchesSearch, shownVersion } from '../pages/new-goal-template.ts';
 
 /** each kind's icon and category colour, as the New goal form's Kind of goal card draws them (ADR-0067) */
@@ -53,45 +52,20 @@ export function TemplateCard({ entry, lang, chosen, onChoose, compact, aside }: 
 }
 
 /**
- * The strip at the top of the New goal form (ADR-0079): a row of the templates of the kind chosen (every kind while the
- * form has none), each a card to start from, with the language switch and a way to the whole gallery.
+ * Every template, by kind, with a search: the dialog the Kind of goal card opens (ADR-0079). It opens on the kind the
+ * form has (every kind while the form says Auto); the language switch is this browser's.
  */
-export function TemplateStrip({ templates, lang, onLang, nature, chosen, onChoose, onBrowse }: { templates: TemplateEntry[]; lang: TemplateLang; onLang: (l: TemplateLang) => void; /** the form's kind of goal; auto = every kind */ nature: string; chosen: TemplateEntry | null; onChoose: (t: TemplateEntry) => void; onBrowse: () => void }) {
-  const shown = (nature === 'auto' ? templates : templates.filter((t) => t.nature === nature)).slice(0, 12);
-  return (
-    <section aria-label="Templates" className="rounded-lg border border-line bg-sunken/60 p-3">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink-soft">
-          <LayoutTemplate size={14} className="text-ink-faint" aria-hidden="true" /> Start from a template
-          <HelpLink to="templates" className="ml-0.5" />
-        </span>
-        <span className="text-xs text-ink-faint">A pattern for the description and the settings of a {nature === 'auto' ? 'goal' : `${NATURE_WORD[nature as TemplateNature] ?? nature} goal`}; fill in its inputs and the words write themselves.</span>
-        <span className="ml-auto flex items-center gap-2">
-          <TemplateLangSwitch value={lang} onChange={onLang} />
-          <Button size="sm" variant="ghost" onClick={onBrowse} title="Every template, with a search">
-            <Search size={13} /> Browse all
-          </Button>
-        </span>
-      </div>
-      {shown.length > 0 ? (
-        <div className="mt-2.5 flex gap-2 overflow-x-auto pb-1" role="list">
-          {shown.map((t) => (
-            <div key={t.id} role="listitem" className="flex">
-              <TemplateCard entry={t} lang={lang} chosen={chosen?.id === t.id} onChoose={() => onChoose(t)} compact />
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="mt-2 text-xs text-ink-faint">No template for this kind of goal yet: write the description below, or make one from a goal you liked (its page's ⋯ menu → Save as template).</p>
-      )}
-    </section>
-  );
-}
-
-/** every template, by kind, with a search: the gallery the strip opens */
-export function TemplateGallery({ open, templates, lang, onLang, onClose, onChoose, chosen }: { open: boolean; templates: TemplateEntry[]; lang: TemplateLang; onLang: (l: TemplateLang) => void; onClose: () => void; onChoose: (t: TemplateEntry) => void; chosen: TemplateEntry | null }) {
+export function TemplateGallery({ open, templates, lang, onLang, onClose, onChoose, chosen, initialKind }: { open: boolean; templates: TemplateEntry[]; lang: TemplateLang; onLang: (l: TemplateLang) => void; onClose: () => void; onChoose: (t: TemplateEntry) => void; chosen: TemplateEntry | null; /** the form's kind of goal; auto = every kind */ initialKind: string }) {
   const [q, setQ] = useState('');
-  const [kind, setKind] = useState<TemplateNature | 'all'>('all');
+  const startKind = (): TemplateNature | 'all' => (initialKind !== 'auto' && templates.some((t) => t.nature === initialKind) ? (initialKind as TemplateNature) : 'all');
+  const [kind, setKind] = useState<TemplateNature | 'all'>(startKind);
+  // each opening starts on the form's kind again, with the search cleared
+  useEffect(() => {
+    if (open) {
+      setKind(startKind());
+      setQ('');
+    }
+  }, [open, initialKind]);
   const groups = byNature(templates.filter((t) => (kind === 'all' || t.nature === kind) && matchesSearch(t, lang, q)));
   return (
     <Modal open={open} onClose={onClose} wide title={<span className="inline-flex items-center gap-2"><LayoutTemplate size={15} className="text-ink-faint" aria-hidden="true" /> Templates</span>}>
@@ -354,5 +328,3 @@ export function TemplatePanel({ entry, version, values, onValues, onRemove, edit
     </div>
   );
 }
-
-export { Square as TemplateBlankIcon };

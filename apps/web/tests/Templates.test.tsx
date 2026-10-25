@@ -3,8 +3,8 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import type { TemplateEntry, TemplateVersionView } from '@foundry/core/browser';
-import { TemplateCard, TemplateInputField, TemplateStrip } from '../src/components/Templates.tsx';
-import { Templates } from '../src/pages/settings/TemplatesCard.tsx';
+import { TemplateCard, TemplateGallery, TemplateInputField } from '../src/components/Templates.tsx';
+import { Templates } from '../src/pages/TemplatesPage.tsx';
 
 const version = (over: Partial<TemplateVersionView> = {}): TemplateVersionView => ({ lang: 'en', name: 'Product reel', summary: 'A short film that shows a product off.', nature: 'video', settings: {}, inputs: [{ key: 'product', type: 'text', other: false }, { key: 'duration', type: 'choice', other: false, options: ['30 s', '60 s'], default: '30 s' }], body: 'A {{duration}} reel for {{product}}.', file: null, warnings: [], ...over });
 const reel: TemplateEntry = { id: 'video-product-reel', builtIn: true, nature: 'video', settings: { videoPack: 'motion-studio' }, en: version(), zh: version({ lang: 'zh', name: '产品 reel' }) };
@@ -28,17 +28,17 @@ test('a template card names the template in the language shown, its kind and wha
   expect(renderToStaticMarkup(<TemplateCard entry={mine} lang="zh" onChoose={() => {}} />)).toContain('Weekly digest');
 });
 
-test('the strip shows the templates of the kind chosen, every kind while the form says Auto, and says so when there is none', () => {
-  const all = route(<TemplateStrip templates={[reel, mine]} lang="en" onLang={() => {}} nature="auto" chosen={null} onChoose={() => {}} onBrowse={() => {}} />);
-  expect(all).toContain('Start from a template');
+test('the gallery opens on the kind of goal the form has, every kind while it says Auto, with a search and the language switch', () => {
+  const all = route(<TemplateGallery open templates={[reel, mine]} lang="en" onLang={() => {}} onClose={() => {}} onChoose={() => {}} chosen={null} initialKind="auto" />);
   expect(all).toContain('Product reel');
   expect(all).toContain('Weekly digest');
-  expect(all).toContain('Browse all');
-  const video = route(<TemplateStrip templates={[reel, mine]} lang="en" onLang={() => {}} nature="video" chosen={reel} onChoose={() => {}} onBrowse={() => {}} />);
+  expect(all).toContain('Search templates');
+  expect(all).toContain('aria-selected="true"');
+  const video = route(<TemplateGallery open templates={[reel, mine]} lang="en" onLang={() => {}} onClose={() => {}} onChoose={() => {}} chosen={reel} initialKind="video" />);
   expect(video).toContain('Product reel');
   expect(video).not.toContain('Weekly digest');
-  const none = route(<TemplateStrip templates={[reel, mine]} lang="en" onLang={() => {}} nature="cad" chosen={null} onChoose={() => {}} onBrowse={() => {}} />);
-  expect(none).toContain('No template for this kind of goal yet');
+  expect(video).toContain('aria-pressed="true"');
+  expect(route(<TemplateGallery open={false} templates={[reel]} lang="en" onLang={() => {}} onClose={() => {}} onChoose={() => {}} chosen={null} initialKind="auto" />)).toBe('');
 });
 
 test('an input field is a line, a paragraph or a choice, marked when required and still empty', () => {

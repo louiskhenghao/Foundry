@@ -128,7 +128,7 @@ export function TemplateEditorPage() {
   if (id && entry === null && !err)
     return (
       <div className="max-w-5xl mx-auto p-3 sm:p-4 md:p-6">
-        <EmptyState icon={CircleAlert} tone="bad" title="No such template" actions={<Link to="/settings#templates" className={buttonClass('default', 'lg')}><ArrowLeft size={16} aria-hidden="true" /> Templates</Link>}>
+        <EmptyState icon={CircleAlert} tone="bad" title="No such template" actions={<Link to="/templates" className={buttonClass('default', 'lg')}><ArrowLeft size={16} aria-hidden="true" /> Templates</Link>}>
           Nothing is called {id}. It may have been renamed or deleted.
         </EmptyState>
       </div>
@@ -145,7 +145,7 @@ export function TemplateEditorPage() {
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-24 space-y-4">
       <nav aria-label="Breadcrumb" className="flex items-center gap-2.5 text-sm text-ink-faint">
-        <Link to="/settings#templates" className="inline-flex items-center gap-1.5 font-bold text-ink hover:underline underline-offset-[3px]">
+        <Link to="/templates" className="inline-flex items-center gap-1.5 font-bold text-ink hover:underline underline-offset-[3px]">
           <ArrowLeft size={14} aria-hidden="true" /> Templates
         </Link>
       </nav>

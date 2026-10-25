@@ -2,11 +2,11 @@ import { AGENT_PROVIDERS, PROVIDER_LABEL, reportsDollars } from '@foundry/core/b
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment, TemplateEntry, TemplateLang, WorkflowProfile } from '@foundry/core/browser';
 import { ARTIFACT_NATURES, BUDGET_PRESETS, MEDIA_NATURES, renderTemplate } from '@foundry/core/browser';
-import { DraftBox, TemplateGallery, TemplatePanel, TemplateStrip, useDraft } from '../components/Templates.tsx';
+import { DraftBox, TemplateGallery, TemplatePanel, useDraft } from '../components/Templates.tsx';
 import { formPatch, initialValues, loadTemplateLang, missingLabels, offeredTemplates, saveTemplateLang, shownVersion } from './new-goal-template.ts';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Lamp, Send, Shapes, Target, Telescope, Wallet, WandSparkles, X, type LucideIcon } from 'lucide-react';
+import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Lamp, LayoutTemplate, Send, Shapes, Target, Telescope, Wallet, WandSparkles, X, type LucideIcon } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
 import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type PackGroupView, type PacksView, type RepoInfo } from '../api.ts';
 import { CompanionFolders } from '../components/CompanionFolders.tsx';
@@ -702,7 +702,6 @@ export function NewGoalPage() {
         <SectionSideNav items={navItems} label="New goal sections" />
         <div className="min-w-0 space-y-4">
           <SectionChipNav items={navItems} label="New goal sections" />
-          {templates && templates.length > 0 && <TemplateStrip templates={offered} lang={templateLang} onLang={setTemplateLang} nature={nature} chosen={template} onChoose={chooseTemplate} onBrowse={() => setGallery(true)} />}
           {follow && (
             <div className="flex items-center gap-2 flex-wrap">
               <span className="inline-flex items-center gap-1.5 rounded-md bg-panel text-ink text-[13px] font-semibold pl-2.5 pr-1 py-1 max-w-full ring-1 ring-inset ring-line-strong">
@@ -750,6 +749,18 @@ export function NewGoalPage() {
                 </button>
               ))}
             </div>
+            {/* templates (ADR-0079): a pattern for this kind of goal, chosen in a dialog; the chosen one's inputs sit above the description */}
+            {templates && templates.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <Button size="sm" variant={template ? 'default' : 'ghost'} onClick={() => setGallery(true)} title={template ? 'Choose another template, or read this one again' : 'A pattern for the description and the settings of such a goal: fill in its inputs and the words write themselves'}>
+                  <LayoutTemplate size={13} /> {template && templateVersion ? `Template: ${templateVersion.name}` : 'Start from a template…'}
+                </Button>
+                <span className="text-xs text-ink-faint">
+                  {template ? 'Its inputs are under 1 · What do you want done.' : `${(nature === 'auto' ? offered : offered.filter((t) => t.nature === nature)).length} for ${nature === 'auto' ? 'every kind of goal' : 'this kind of goal'}: a pattern for the description and the settings; fill in its inputs and the words write themselves.`}
+                  <HelpLink to="templates" className="ml-1.5" />
+                </span>
+              </div>
+            )}
             {nature === 'cad' && cad && !cad.installed && (
               // a tool the goal needs is missing: red, as a coding agent's missing CLI
               <p className="mt-2 text-xs text-bad-ink" role="status">
@@ -1140,7 +1151,7 @@ export function NewGoalPage() {
           </div>
         </div>
       </div>
-      <TemplateGallery open={gallery} templates={offered} lang={templateLang} onLang={setTemplateLang} onClose={() => setGallery(false)} onChoose={chooseTemplate} chosen={template} />
+      <TemplateGallery open={gallery} templates={offered} lang={templateLang} onLang={setTemplateLang} onClose={() => setGallery(false)} onChoose={chooseTemplate} chosen={template} initialKind={nature} />
       <ConfirmDialog
         open={!!pendingTemplate}
         title={`Start from “${pendingTemplate ? shownVersion(pendingTemplate, templateLang).name : ''}”?`}

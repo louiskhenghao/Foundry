@@ -25,7 +25,6 @@ export const SECTION_STYLE: Record<string, { Icon: LucideIcon; ink: string; dot:
   safety: { Icon: Shield, ...hue(4) },
   beta: { Icon: FlaskConical, ...hue(3) },
   engine: { Icon: Server, ...hue(5) },
-  templates: { Icon: LayoutTemplate, ...hue(2) },
   appearance: { Icon: Palette, ...hue(6) },
   about: { Icon: Info, ...hue(1) },
 };
