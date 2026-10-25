@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { runCommandCheck } from './checks/command.ts';
 import { PLAYWRIGHT_PACKAGE_DIR, playwrightEnv } from './playwright-dir.ts';
 
-describe("the engine's Playwright, handed to sessions and to command checks (ADR-0076)", () => {
+describe("the engine's Playwright, handed to sessions and to command checks (ADR-0077)", () => {
   test('resolves to the package the engine imports', () => {
     expect(PLAYWRIGHT_PACKAGE_DIR).toBeTruthy();
     expect(existsSync(join(PLAYWRIGHT_PACKAGE_DIR!, 'package.json'))).toBe(true);

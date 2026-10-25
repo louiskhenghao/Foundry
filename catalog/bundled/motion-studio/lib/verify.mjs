@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Measure a finished film against its contract (ADR-0076), with ffprobe and ffmpeg; exit 0 when every check passes.
+// Measure a finished film against its contract (ADR-0077), with ffprobe and ffmpeg; exit 0 when every check passes.
 //   node motion/lib/verify.mjs artifacts/motion/<film>/final-16x9.mp4 --film motion/<film> [--format 16x9] [--silent-ok] [--no-loop] [--no-determinism]
 // Checks: H.264, yuv420p, the format's size, the duration within 0.1 s of film.json, an audio stream (unless --silent-ok),
 // loudness within 1 LU of -14 LUFS, the loop seam (first frame ≈ last frame, unless --no-loop), and determinism: a

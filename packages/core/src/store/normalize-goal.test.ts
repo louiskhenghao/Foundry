@@ -3,7 +3,7 @@ import { openDatabase } from './db.ts';
 import { getGoal, upsertGoal } from './projections.ts';
 import { IDLE_DELIVERY, type Goal } from '../schema/index.ts';
 
-/** a goal row as a Foundry before ADR-0076 wrote it: no video engine, no session cap of its own */
+/** a goal row as a Foundry before ADR-0077 wrote it: no video engine, no session cap of its own */
 function oldRow(id: string): Goal {
   const now = new Date().toISOString();
   const g = {
@@ -18,7 +18,7 @@ function oldRow(id: string): Goal {
   return g as unknown as Goal;
 }
 
-describe('a goal row from before the video engine and the session cap (ADR-0076)', () => {
+describe('a goal row from before the video engine and the session cap (ADR-0077)', () => {
   test('reads back with the defaults: the Settings pack, the Settings timeout', () => {
     const db = openDatabase(':memory:');
     upsertGoal(db, oldRow('g_old'));

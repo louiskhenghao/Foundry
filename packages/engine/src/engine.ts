@@ -191,7 +191,7 @@ export interface CreateGoalInput {
   workflow?: Partial<GoalWorkflow>;
   /** what the goal produces; auto (default) = the Clarifier decides. Prose and media goals open in Simple mode unless mode says otherwise; cad keeps the default view. */
   nature?: GoalNature;
-  /** the video engine (pack option) of a video goal; null/absent = Settings → workflow.videoPack (ADR-0076) */
+  /** the video engine (pack option) of a video goal; null/absent = Settings → workflow.videoPack (ADR-0077) */
   videoPack?: VideoPack | null;
   /** where media artifacts are copied at done; null = they stay in the goal workspace */
   outputDir?: string | null;
@@ -644,7 +644,7 @@ export class Engine {
       // text-to-cad's cadgen: no usage stats and no update check from Foundry's own processes (the person's setting stays theirs)
       CADGEN_TELEMETRY: '0',
       CADGEN_UPDATE_CHECK: '0',
-      // the Playwright the engine ships, for a session that renders through a headless Chromium (the motion-studio renderer, ADR-0076)
+      // the Playwright the engine ships, for a session that renders through a headless Chromium (the motion-studio renderer, ADR-0077)
       ...playwrightEnv(),
       // Settings → Safety → Desktop apps & printers: off = the boundary hook refuses the openers, the slicers' windows and the gated skills
       ...(this.config.desktopApps ? {} : this.desktopGateEnv()),
@@ -2017,7 +2017,7 @@ export class Engine {
         // media artifacts leave the workspace first (independent of delivery mode — they never ride a PR)
         // never delivered, or run again since its delivery (a restart): the output folder gets the files as they are now
         if (!this.deliveringArtifacts.has(goalId) && artifactsDue(this, goal)) {
-          // the house style a motion-studio film leaves becomes a project skill for the person's own sessions (ADR-0076)
+          // the house style a motion-studio film leaves becomes a project skill for the person's own sessions (ADR-0077)
           if (this.videoPackOf(goal) === MOTION_STUDIO) void exportHouseStyle(this, goal);
           const copy = deliverArtifacts(this, goal)
             .catch((err) => void this.store.append({ type: 'engine.note', goalId, payload: { level: 'warn', message: `artifact delivery crashed: ${String(err)}` } }))
@@ -2141,7 +2141,7 @@ export class Engine {
     return goal.workflow.profile ?? this.config.workflowProfile;
   }
 
-  /** ffmpeg with ffprobe on PATH, and Chromium for the engine's Playwright: what a motion-studio film renders with (ADR-0076) */
+  /** ffmpeg with ffprobe on PATH, and Chromium for the engine's Playwright: what a motion-studio film renders with (ADR-0077) */
   async motionStudioReady(): Promise<boolean> {
     return !!Bun.which('ffmpeg') && !!Bun.which('ffprobe') && (await this.playwrightStatus()).browser;
   }
@@ -2151,7 +2151,7 @@ export class Engine {
     for (const g of listGoals(this.store.db)) if (g.state === 'clarifying' && g.nature === 'video' && this.videoPackOf(g) === MOTION_STUDIO) void this.tick(g.id);
   }
 
-  /** the video engine a goal's sessions follow: its own pick, else Settings → workflow.videoPack (ADR-0076) */
+  /** the video engine a goal's sessions follow: its own pick, else Settings → workflow.videoPack (ADR-0077) */
   videoPackOf(goal: Pick<Goal, 'videoPack'>): string {
     return goal.videoPack ?? this.config.videoPack;
   }
@@ -2264,7 +2264,7 @@ export class Engine {
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' && nature !== 'cad' ? 'simple' : this.config.defaultGoalMode);
     const issue = input.issue ? GoalIssue.parse(input.issue) : null;
     const title = input.title?.trim() || issue?.title.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
-    // the video engine, frozen at creation like the suite: the goal's own pick, else the Settings pack of the day (ADR-0076)
+    // the video engine, frozen at creation like the suite: the goal's own pick, else the Settings pack of the day (ADR-0077)
     const videoPack = input.videoPack ?? (nature === 'video' ? (this.config.videoPack as Goal['videoPack']) : null);
     const motion = videoPack === MOTION_STUDIO;
     const goal: Goal = {
@@ -2284,7 +2284,7 @@ export class Engine {
       investigation: null,
       previewRef: null,
       previewPlace: 'auto',
-      // a motion-studio film is built at xhigh unless Settings or the form said otherwise (ADR-0076)
+      // a motion-studio film is built at xhigh unless Settings or the form said otherwise (ADR-0077)
       effort: input.effort === undefined ? (motion && !this.config.effort ? 'xhigh' : this.config.effort) : input.effort,
       videoPack,
       modelPreset: presetId,
@@ -2298,7 +2298,7 @@ export class Engine {
       })(),
       baseBranch,
       branch: `goal/${id}`,
-      // a motion-studio goal starts on Thorough with an hour per session: a film is built and rendered in long sessions (ADR-0076)
+      // a motion-studio goal starts on Thorough with an hour per session: a film is built and rendered in long sessions (ADR-0077)
       budgets: Budgets.parse({ ...BUDGET_PRESETS[input.budgetPreset ?? (motion ? 'thorough' : 'custom')].budgets, ...(motion ? { attemptTimeoutMin: 60 } : {}), ...(input.budgets ?? {}), ...(!reportsDollars(provider) ? { maxCostUsd: null } : {}) }),
       budgetPreset: input.budgetPreset ?? (motion ? 'thorough' : 'custom'),
       mode,
@@ -2528,7 +2528,7 @@ export class Engine {
       : { id: 'notifications', label: 'Notifications (optional)', ok: false, severity: 'warn' as const, detail: 'not configured — get a Telegram or Discord ping when a goal needs you, finishes, or a delivery fails', fix: { url: '/settings' } };
     const rea = await this.reaEnginesCheck(provider);
     const cad = await this.cadToolsCheck(provider);
-    // the motion-studio engine's tools (ADR-0076), only while its Beta is on
+    // the motion-studio engine's tools (ADR-0077), only while its Beta is on
     const motion = this.config.betaMotionStudio ? await this.playwrightStatus().then((pw) => motionStudioCheck({ ffmpeg: Bun.which('ffmpeg'), ffprobe: Bun.which('ffprobe'), browser: pw.browser, browserDetail: pw.detail, platform: process.platform })) : null;
     if (motion?.ok) this.wakeMotionStudioGoals();
     return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);

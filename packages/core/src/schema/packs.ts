@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 /**
  * Mutually exclusive skill packs (ADR-0005, ADR-0008): one option each, chosen in Settings. The video pack is also a
- * per-goal choice, the goal's engine (ADR-0076), so its enum lives here where both the settings and the goal schema can read it.
+ * per-goal choice, the goal's engine (ADR-0077), so its enum lives here where both the settings and the goal schema can read it.
  */
 export const DesignPack = z.enum(['ui-ux-pro-max', 'frontend-design', 'impeccable', 'bencium', 'garden', 'taste', 'none']);
 export const ImagePack = z.enum(['gpt-image-2', 'claude-image-gen', 'taste-imagegen', 'none']);

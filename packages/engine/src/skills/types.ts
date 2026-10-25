@@ -62,7 +62,7 @@ export const CatalogSource = z.discriminatedUnion('type', [
   }),
   z.object({
     type: z.literal('bundled'),
-    /** a skill folder inside the Foundry repository (catalog/bundled/<name>), copied as it is and versioned with Foundry itself (ADR-0076) */
+    /** a skill folder inside the Foundry repository (catalog/bundled/<name>), copied as it is and versioned with Foundry itself (ADR-0077) */
     path: z.string().min(1),
   }),
   z.object({

@@ -639,8 +639,8 @@ function keptSubjectsNote(goal: Goal): string {
 
 const subjectsSection = (goal: Goal) => [SUBJECTS_ASK, keptSubjectsNote(goal)].filter(Boolean).join('\n');
 
-/** the motion-studio engine (ADR-0076): what the Brief of a film settles, and the contract its goal-level checks measure */
-const MOTION_STUDIO_CLARIFY = `# Engine: motion studio (ADR-0076)
+/** the motion-studio engine (ADR-0077): what the Brief of a film settles, and the contract its goal-level checks measure */
+const MOTION_STUDIO_CLARIFY = `# Engine: motion studio (ADR-0077)
 This goal's films are made with Foundry's motion-studio harness (the \`motion-studio\` skill): one HTML page per film whose \`window.seek(t)\` paints any moment onto a canvas, rendered through a headless Chromium into H.264 by \`motion/lib/render.mjs\`, scored and mixed in code, judged on contact sheets, measured by \`motion/lib/verify.mjs\`.
 Settle in the Brief (ask only for what the prompt and the attachments leave open; the formats always):
 - the subject or product, and its URL when it has one (real screenshots and the real logo come from it; never an invented UI)
@@ -652,8 +652,8 @@ Settle in the Brief (ask only for what the prompt and the attachments leave open
 - the film's slug (lowercase, hyphens): source under \`motion/<slug>/\`, outputs under \`artifacts/motion/<slug>/\`
 Record the deliverables as goal-level must checks: per format, \`artifacts/motion/<slug>/final-<format>.mp4\` verified by the command \`node motion/lib/verify.mjs artifacts/motion/<slug>/final-<format>.mp4 --film motion/<slug> --format <format>\` (exit 0); \`loop_check.mp4\`, \`poster.png\` and \`contact.png\` there; \`motion/<slug>/README.md\` with the commands that render it again; \`docs/motion/review_log.md\` with the scores of every critique round; \`docs/motion/house-style.md\`.`;
 
-/** the motion-studio engine (ADR-0076): how a film's tasks are cut and checked */
-const MOTION_STUDIO_PLAN = `# Engine: motion studio — how the tasks are cut (ADR-0076)
+/** the motion-studio engine (ADR-0077): how a film's tasks are cut and checked */
+const MOTION_STUDIO_PLAN = `# Engine: motion studio — how the tasks are cut (ADR-0077)
 Tasks in this order, each depending on the one before unless said otherwise. Every task spec repeats the render contract (a pure function of time, \`window.seek(t)\`; no CSS transitions, no timers, no state between frames, seeded noise only; springs, not easing curves; cuts on the beat grid; banned: a centred title on a gradient, everything fading in, corner labels and frame borders, glow on UI chrome, particle bursts) and says that the worker runs \`scripts/scaffold.mjs\` of the motion-studio skill once and \`motion/lib/*.mjs\` from the repository root, with Playwright from \`FOUNDRY_PLAYWRIGHT\` and nothing to install.
 1. **Style guide and shotlist** (scenario video; a milestone "Have a look at the shotlist on the grid" — the goal goes on without waiting): gather the real assets, write \`docs/motion/style_guide.md\`, \`motion/<slug>/STORYBOARD.md\` (BPM and beat length, one row per shot with its beats, what the motif does, the sound) and \`motion/<slug>/film.json\`. Check: a must command \`test -s docs/motion/style_guide.md && test -s motion/<slug>/STORYBOARD.md && test -s motion/<slug>/film.json\`.
 2. **Stills and animatic**: every shot as a still in \`index.html\`, then moving at 24 fps; the sheets of each round under \`artifacts/motion/<slug>/rounds/\`. Checks: a must reviewer check with the rubric below on the latest sheets, and a must command \`node motion/lib/render.mjs motion/<slug> --hash --from 0 --to 2 --sub 1\` (the film renders and is deterministic). A film over 30 seconds: one task writes \`docs/motion/ANIMATION_GUIDE.md\` and the engine first, then one task per chapter (they may run in parallel), then an assembly task.

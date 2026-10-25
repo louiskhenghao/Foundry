@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Sound effects on cue, synthesised (ADR-0076): node motion/lib/sfx.mjs cues.json --out sfx.wav [--dur 15]
+// Sound effects on cue, synthesised (ADR-0077): node motion/lib/sfx.mjs cues.json --out sfx.wav [--dur 15]
 // cues.json: [{"t": 0.5, "type": "click"}, {"t": 2.0, "type": "whoosh"}, ...]   types: click, pop, thump, whoosh, tick, rise
 import { readFileSync, writeFileSync } from 'node:fs';
 

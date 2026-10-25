@@ -25,7 +25,7 @@ export interface SkillsPaths {
   suitesDir: string;
   /** Codex only: Claude Code's skills folder, to keep shared skills Claude links to from being removed under it */
   claudeSkillsDir?: string;
-  /** the Foundry checkout (or image) whose catalog/bundled/ holds the skills Foundry ships itself (ADR-0076) */
+  /** the Foundry checkout (or image) whose catalog/bundled/ holds the skills Foundry ships itself (ADR-0077) */
   bundledRoot: string;
 }
 

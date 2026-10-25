@@ -19,7 +19,7 @@ for (const e of ['txt', 'log', 'csv', 'tsv', 'ts', 'tsx', 'js', 'jsx', 'mjs', 'c
 
 /**
  * A file the browser may seek in: a Range request gets the bytes it names (206, Content-Range), anything else the whole
- * file with Accept-Ranges, so a long clip's progress bar works (ADR-0076).
+ * file with Accept-Ranges, so a long clip's progress bar works (ADR-0077).
  */
 export function fileResponse(abs: string, req: Request, headers: Record<string, string>): Response {
   const file = Bun.file(abs);

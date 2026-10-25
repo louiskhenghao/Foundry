@@ -47,7 +47,7 @@ const PLAYWRIGHT = resolve(import.meta.dir, '../node_modules/playwright');
 const chromium = (() => { try { return existsSync(require('playwright').chromium.executablePath()); } catch { return false; } })();
 const tools = !!Bun.which('ffmpeg') && !!Bun.which('ffprobe') && chromium;
 
-describe('the motion-studio harness, laid out and rendered (ADR-0076)', () => {
+describe('the motion-studio harness, laid out and rendered (ADR-0077)', () => {
   const run = (cwd: string, args: string[]) => spawnSync(process.execPath, args, { cwd, encoding: 'utf8', env: { ...process.env, FOUNDRY_PLAYWRIGHT: PLAYWRIGHT } });
   test('scaffold lays a film out with the renderer, the helpers and the templates', () => {
     const dir = mkdtempSync(join(tmpdir(), 'motion-'));

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Render a film that is a pure function of time (ADR-0076): a headless Chromium opens the film's index.html, the page's
+// Render a film that is a pure function of time (ADR-0077): a headless Chromium opens the film's index.html, the page's
 // window.seek(t) paints each moment, every frame is screenshotted and piped to ffmpeg, which blends SUB subframes per
 // frame into motion blur and encodes H.264 yuv420p. Deterministic: the same film renders to the same bytes.
 //

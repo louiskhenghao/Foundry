@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Lay a film out in the repository (ADR-0076):
+// Lay a film out in the repository (ADR-0077):
 //   node <skill>/scripts/scaffold.mjs <film-slug> [--title "..."] [--dur 15] [--fps 60] [--formats 16x9,9x16] [--bpm 120]
 // writes motion/lib/ (the renderer, the motion helpers, the sound, sheet and verify scripts, copied from this skill),
 // motion/<slug>/{film.json, film.js, index.html, STORYBOARD.md} and artifacts/motion/<slug>/.

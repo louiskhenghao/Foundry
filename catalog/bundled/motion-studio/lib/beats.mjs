@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Measure a music track's grid (ADR-0076), with ffmpeg and nothing else: node motion/lib/beats.mjs track.wav [--hint 120] > beats.json
+// Measure a music track's grid (ADR-0077), with ffmpeg and nothing else: node motion/lib/beats.mjs track.wav [--hint 120] > beats.json
 // ffmpeg decodes to mono PCM; an energy envelope over 11.6 ms hops gives onsets; the autocorrelation of the onset strength
 // over 60–200 BPM gives the tempo (the hint breaks ties); the beat phase is the offset where the grid catches most onsets.
 // An approximation, not a transcription: it finds the tempo of a track with a clear pulse and the beat it starts on;

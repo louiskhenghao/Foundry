@@ -1,4 +1,4 @@
-# ADR-0076: The motion-studio video engine — a goal picks its video engine, Foundry ships the harness, the reviewer scores the frames
+# ADR-0077: The motion-studio video engine — a goal picks its video engine, Foundry ships the harness, the reviewer scores the frames
 
 **Status:** accepted · 2026-10-25 · a Beta feature (Settings → Beta); builds on [ADR-0005](0005-scenario-skills-and-settings.md) (packs), [ADR-0008](0008-non-code-goals.md) (media goals, `artifacts/`), [ADR-0049](0049-workflow-suites.md) (a per-goal choice frozen at creation) and [ADR-0074](0074-a-goal-asks-for-what-only-the-person-can-give.md) (a Request has no timeout)
 

@@ -41,7 +41,7 @@ describe('decideNext (continuation vs fresh attempt)', () => {
 
 import { attemptTimeoutMs } from './attempt-loop.ts';
 
-describe('the wall-clock cap of one session (ADR-0076)', () => {
+describe('the wall-clock cap of one session (ADR-0077)', () => {
   const config = { attemptTimeoutMs: 20 * 60_000 };
   const budgets = { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 };
   test("a goal without its own cap takes Settings → sessions.attemptTimeoutMin", () => {

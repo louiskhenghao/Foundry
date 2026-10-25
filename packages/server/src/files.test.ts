@@ -151,7 +151,7 @@ describe('a path in a merged task', () => {
 import { fileResponse } from './files.ts';
 import { bodyCapMb } from './app.ts';
 
-describe('a file the browser may seek in (ADR-0076)', () => {
+describe('a file the browser may seek in (ADR-0077)', () => {
   const dir = tmp();
   const clip = join(dir, 'clip.bin');
   writeFileSync(clip, 'abcdefghij'); // 10 bytes

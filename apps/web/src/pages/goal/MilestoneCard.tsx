@@ -12,7 +12,7 @@ import { HelpLink } from '../HelpPage.tsx';
 const KIND_LABEL: Record<FeedbackPlan['kind'], string> = { hint: 'Hint for the remaining tasks', fix: 'Fix tasks (then a second look here)', decision: 'Decision (every later task follows it)' };
 const IMAGE = /\.(png|jpe?g|webp|gif|svg)$/i;
 const VIDEO = /\.(mp4|webm|mov|m4v)$/i;
-/** the cover of a clip: a poster.png (or .jpg) in its folder, else a picture named like it (ADR-0076) */
+/** the cover of a clip: a poster.png (or .jpg) in its folder, else a picture named like it (ADR-0077) */
 const posterFor = (clip: string, files: string[]): string | null => {
   const dir = clip.includes('/') ? clip.slice(0, clip.lastIndexOf('/') + 1) : '';
   const base = clip.replace(/\.[^.]+$/, '');

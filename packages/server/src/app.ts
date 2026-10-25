@@ -68,7 +68,7 @@ const CreateGoalBody = z.object({
   mode: GoalMode.optional(),
   workflow: GoalWorkflow.partial().optional(),
   nature: GoalNature.optional(),
-  /** the video engine of a video goal (ADR-0076); absent = Settings → workflow.videoPack */
+  /** the video engine of a video goal (ADR-0077); absent = Settings → workflow.videoPack */
   videoPack: VideoPack.nullable().optional(),
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
@@ -141,7 +141,7 @@ export function extraHosts(engine: Engine): string[] {
 export const UNKNOWN_HOST = (host: string | null) =>
   `Foundry does not answer to the name "${host}". If that name is this computer, add it to FOUNDRY_ALLOWED_HOSTS (comma-separated) or set it as Settings → Notifications → Link base URL.`;
 
-/** what any request may carry: a Transfer file has no cap, an upload may hold a 200 MB reference film or track (ADR-0076), anything else keeps to 30 MB */
+/** what any request may carry: a Transfer file has no cap, an upload may hold a 200 MB reference film or track (ADR-0077), anything else keeps to 30 MB */
 export const MAX_BODY_MB = 30;
 export const MAX_UPLOAD_BODY_MB = 210;
 const UPLOAD_PATH = /^\/api\/goals\/[^/]+\/(attachments|materials\/[^/]+|conversations(\/[^/]+)?)$/;
@@ -1375,7 +1375,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     // ?goals=N: how many of the newest goals the usage counts over, clamped silently
     const n = Number.parseInt(c.req.query('goals') ?? '', 10);
     const overview = await skillsFor(c).overview(c.req.query('repo') || undefined, { goals: Number.isFinite(n) ? Math.min(500, Math.max(1, n)) : 30 });
-    // the motion-studio skill shows while its Beta is on (ADR-0076)
+    // the motion-studio skill shows while its Beta is on (ADR-0077)
     return c.json(engine.config.betaMotionStudio || !Array.isArray(overview?.catalog) ? overview : { ...overview, catalog: overview.catalog.filter((s) => s.entry.packOption !== 'motion-studio') });
   });
   app.get('/api/skills/trash', (c) => c.json(skillsFor(c).trash()));
@@ -1608,7 +1608,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({
       design: view('design', DESIGN_PACK_OPTIONS, engine.config.designPack),
       image: view('image', IMAGE_PACK_OPTIONS, engine.config.imagePack),
-      // the motion-studio engine is offered while its Beta is on (ADR-0076)
+      // the motion-studio engine is offered while its Beta is on (ADR-0077)
       video: view('video', engine.config.betaMotionStudio ? VIDEO_PACK_OPTIONS : VIDEO_PACK_OPTIONS.filter((o) => o.id !== 'motion-studio'), engine.config.videoPack),
     });
   });

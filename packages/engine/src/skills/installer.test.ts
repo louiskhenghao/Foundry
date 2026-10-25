@@ -202,7 +202,7 @@ describe('a git source pinned to a commit', () => {
   });
 });
 
-describe('a skill bundled with Foundry (ADR-0076)', () => {
+describe('a skill bundled with Foundry (ADR-0077)', () => {
   const root = join(fake.home, 'foundry-root');
   const src = join(root, 'catalog', 'bundled', 'studio');
   const catalog = () => writeCatalog(join(fake.home, 'catalog-bundled'), [{ id: 'studio', name: 'studio', summary: '', why: '', tier: 'optional', source: { type: 'bundled', path: 'catalog/bundled/studio' } }]);

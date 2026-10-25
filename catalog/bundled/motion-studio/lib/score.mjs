@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A music bed synthesised in code, on the film's own grid (ADR-0076): deterministic, no samples, no network.
+// A music bed synthesised in code, on the film's own grid (ADR-0077): deterministic, no samples, no network.
 //   node motion/lib/score.mjs --bpm 120 --dur 15 --out artifacts/motion/<film>/score.wav [--seed 7] [--key A] [--mood dark|warm|bright] [--drop 10] [--phase 0]
 // Kick on every beat, hats on the off-beats, a bass root per bar, a pad chord per bar, a riser into the drop, a tail that fades.
 import { writeFileSync } from 'node:fs';

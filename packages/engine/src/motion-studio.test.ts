@@ -3,7 +3,7 @@ import { motionStudioCheck } from './motion-studio.ts';
 
 const ready = { ffmpeg: '/opt/homebrew/bin/ffmpeg', ffprobe: '/opt/homebrew/bin/ffprobe', browser: true, browserDetail: 'Chromium at /x/chrome', platform: 'darwin' as const };
 
-describe("the doctor's motion-studio check (ADR-0076)", () => {
+describe("the doctor's motion-studio check (ADR-0077)", () => {
   test('both tools there: green, naming both', () => {
     const c = motionStudioCheck(ready);
     expect(c.ok).toBe(true);
@@ -30,7 +30,7 @@ import { join } from 'node:path';
 import { HOUSE_STYLE_SKILL, exportHouseStyle, renderHouseStyleSkill } from './motion-studio.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
-describe("a film's house style becomes a project skill (ADR-0076)", () => {
+describe("a film's house style becomes a project skill (ADR-0077)", () => {
   test('the skill text carries the house style under a frontmatter the person\'s sessions read', () => {
     const t = renderHouseStyleSkill('# House style\n\n## Brand\n\nink #F0EEE6, accent #D97757', 'Launch reel', '2026-10-25T10:00:00Z');
     expect(t.startsWith(`---\nname: ${HOUSE_STYLE_SKILL}\n`)).toBe(true);

@@ -20,7 +20,7 @@ export interface SourceKey {
   homepage: string | null;
 }
 
-/** what a marker's `repo` says for a skill Foundry ships itself (ADR-0076): no repository to compare against, Foundry's own folder is */
+/** what a marker's `repo` says for a skill Foundry ships itself (ADR-0077): no repository to compare against, Foundry's own folder is */
 export const BUNDLED_REPO = 'foundry';
 
 /** Resolve the source of a scanner row from its provenance metadata; null = hand-installed (needs matching). */

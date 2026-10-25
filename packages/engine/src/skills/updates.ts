@@ -253,7 +253,7 @@ export class SkillsUpdateChecker {
       return { ...base, status: current ? 'up-to-date' : 'outdated', actions: current ? [] : ['update'] };
     }
 
-    // a skill Foundry ships itself (ADR-0076): current when it equals the folder of the Foundry that runs now
+    // a skill Foundry ships itself (ADR-0077): current when it equals the folder of the Foundry that runs now
     if (key.kind === 'bundled') {
       const entry = catalog.entries.find((e) => e.id === row.marker?.catalogId);
       const src = entry?.source.type === 'bundled' ? join(this.paths.bundledRoot, entry.source.path) : null;

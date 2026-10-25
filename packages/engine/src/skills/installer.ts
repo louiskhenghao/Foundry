@@ -230,7 +230,7 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
 }
 
 /**
- * A skill Foundry ships itself (ADR-0076): copied from catalog/bundled/<path> of the Foundry that runs. The marker's
+ * A skill Foundry ships itself (ADR-0077): copied from catalog/bundled/<path> of the Foundry that runs. The marker's
  * `commit` is the folder's content fingerprint, so an update after a Foundry release copies the newer folder.
  */
 async function installBundled(entry: CatalogEntry, source: Extract<CatalogEntry['source'], { type: 'bundled' }>, ctx: InstallContext, opts: { force?: boolean; refresh?: boolean }): Promise<InstallResult> {

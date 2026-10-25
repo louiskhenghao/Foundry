@@ -28,7 +28,7 @@ describe('SkillsHints and the workflow suite (ADR-0049)', () => {
   });
 });
 
-describe('the pack options a section is built with (ADR-0076)', () => {
+describe('the pack options a section is built with (ADR-0077)', () => {
   const videoSkill = (id: string, option: string): CatalogEntryStatus => ({
     entry: CatalogEntry.parse({ id, name: id, summary: '', why: '', tier: 'optional', source: { type: 'git', repo: 'o/r' }, roles: ['worker'], pack: 'video', packOption: option, scenarios: ['video'], workflow: [{ role: 'worker', mandate: 'must', scenarios: ['video'], instruction: `render with ${id}` }] }),
     status: 'installed',

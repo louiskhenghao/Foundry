@@ -2033,7 +2033,7 @@
       "id": "motion-studio",
       "name": "motion-studio",
       "summary": "Foundry's motion-studio engine: a film as a pure function of time (window.seek(t)), rendered through a headless Chromium into H.264, scored and mixed in code, judged on contact sheets, measured by verify.mjs.",
-      "why": "The motion-studio video engine (ADR-0076, beta): the harness that turns a prompt into a repeatable film pipeline — renderer, springs, beat grid, sound, critique loop, verifier — shipped with Foundry so it moves with the engine's checks and prompts.",
+      "why": "The motion-studio video engine (ADR-0077, beta): the harness that turns a prompt into a repeatable film pipeline — renderer, springs, beat grid, sound, critique loop, verifier — shipped with Foundry so it moves with the engine's checks and prompts.",
       "tier": "optional",
       "source": {
         "type": "bundled",

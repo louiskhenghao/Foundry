@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// The pictures a film is judged by (ADR-0076), all from ffmpeg:
+// The pictures a film is judged by (ADR-0077), all from ffmpeg:
 //   node motion/lib/sheets.mjs <video.mp4> --out <dir>            contact.png (2 frames a second, 6 across), phone.png (how it reads 360 px wide), poster.png
 //   node motion/lib/sheets.mjs <video.mp4> --out <dir> --strip 4.2  strip.png: 12 consecutive frames from 4.2 s (pops, overlaps)
 //   node motion/lib/sheets.mjs <video.mp4> --out <dir> --poster 12.5 the poster from that second instead of the middle

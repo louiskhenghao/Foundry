@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Put the sound on the picture (ADR-0076): node motion/lib/mix.mjs <silent.mp4> --out final.mp4 [--music score.wav] [--sfx sfx.wav] [--music-gain 1] [--sfx-gain 1] [--lufs -14]
+// Put the sound on the picture (ADR-0077): node motion/lib/mix.mjs <silent.mp4> --out final.mp4 [--music score.wav] [--sfx sfx.wav] [--music-gain 1] [--sfx-gain 1] [--lufs -14]
 // The tracks are mixed, normalised to the target loudness (EBU R128, the platforms' -14 LUFS), encoded AAC, and muxed
 // with the video stream copied as it is, so the picture stays byte for byte what render.mjs made.
 import { execFileSync, spawnSync } from 'node:child_process';

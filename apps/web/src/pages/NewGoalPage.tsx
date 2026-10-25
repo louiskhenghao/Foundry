@@ -146,7 +146,7 @@ export function NewGoalPage() {
   const [advanced, setAdvanced] = useState(false);
   const [nature, setNature] = useState<Nature>(() => ((localStorage.getItem(NATURE_KEY) as Nature | null) ?? 'auto'));
   const [outputDir, setOutputDir] = useState('');
-  // the video engine of a video goal (Beta, ADR-0076): '' = the Video skills pack Settings names
+  // the video engine of a video goal (Beta, ADR-0077): '' = the Video skills pack Settings names
   const [videoPack, setVideoPack] = useState('');
   const [videoPacks, setVideoPacks] = useState<PackGroupView | null>(null);
   const [betaMotionStudio, setBetaMotionStudio] = useState(false);

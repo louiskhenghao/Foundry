@@ -35,7 +35,7 @@ export const Budgets = z.object({
   maxDurationMin: z.number().positive().nullable().default(120),
   maxConcurrent: z.number().int().positive().default(3),
   attemptsPerTask: z.number().int().positive().default(3),
-  /** wall-clock cap of one session of this goal, in minutes; null = Settings → sessions.attemptTimeoutMin (ADR-0076) */
+  /** wall-clock cap of one session of this goal, in minutes; null = Settings → sessions.attemptTimeoutMin (ADR-0077) */
   attemptTimeoutMin: z.number().int().min(5).max(240).nullable().default(null),
 });
 export type Budgets = z.infer<typeof Budgets>;
@@ -400,7 +400,7 @@ export const Goal = z.object({
   revise: ReviseState.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */
   effort: CodexEffort.nullable().default(null),
-  /** the video engine (pack option) this goal's sessions follow; null = Settings → workflow.videoPack (ADR-0076) */
+  /** the video engine (pack option) this goal's sessions follow; null = Settings → workflow.videoPack (ADR-0077) */
   videoPack: VideoPack.nullable().default(null),
   /** the model preset this goal uses; null = the preset Settings picks for its nature */
   codexPreset: CodexModelPreset.optional(),

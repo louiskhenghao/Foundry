@@ -1,4 +1,4 @@
-// Motion helpers for a film that is a pure function of time (ADR-0076). Everything here is deterministic: the same t
+// Motion helpers for a film that is a pure function of time (ADR-0077). Everything here is deterministic: the same t
 // gives the same value, so any frame can be rendered alone and two renders are identical. No timers, no state.
 // A classic script (index.html loads it with a plain <script> over file://, where module imports are refused) that
 // also exports for Node and the tests: in the page it is window.Motion.

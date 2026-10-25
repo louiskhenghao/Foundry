@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { ATTACHMENT_LIMITS, attachmentMaxBytes, isMediaAttachment } from './attachment.ts';
 
-describe('what an attachment may weigh (ADR-0076)', () => {
+describe('what an attachment may weigh (ADR-0077)', () => {
   test('audio and video, by mime or by name, get the media cap; everything else the 25 MB one', () => {
     expect(attachmentMaxBytes({ name: 'ref.mp4', mime: 'video/mp4' })).toBe(ATTACHMENT_LIMITS.maxMediaFileBytes);
     expect(attachmentMaxBytes({ name: 'track.wav', mime: null })).toBe(ATTACHMENT_LIMITS.maxMediaFileBytes);

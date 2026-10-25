@@ -27,7 +27,7 @@ export interface SectionOpts {
   files?: string[];
   /** the goal's workflow suite (ADR-0049); default: the Settings default */
   profile?: WorkflowProfile;
-  /** the pack options to build with, a goal's own video engine among them (ADR-0076); default: the Settings packs */
+  /** the pack options to build with, a goal's own video engine among them (ADR-0077); default: the Settings packs */
   packs?: Record<string, string | undefined>;
 }
 

@@ -6,7 +6,7 @@ import { excludeFromGit } from './skills/autoskills.ts';
 import type { DoctorCheck } from './skills/types.ts';
 import { goalWorkspacePath } from './workspace.ts';
 
-/** the video pack option of the motion-studio engine (ADR-0076) */
+/** the video pack option of the motion-studio engine (ADR-0077) */
 export const MOTION_STUDIO = 'motion-studio';
 /** the project skill a film's house style becomes: what the next film for this product starts from */
 export const HOUSE_STYLE_SKILL = 'motion-house-style';
@@ -50,7 +50,7 @@ export async function exportHouseStyle(engine: Engine, goal: Goal): Promise<'wri
   }
 }
 
-/** what the doctor found of the motion-studio engine's tools (ADR-0076): ffmpeg with ffprobe on PATH, Chromium for the engine's Playwright */
+/** what the doctor found of the motion-studio engine's tools (ADR-0077): ffmpeg with ffprobe on PATH, Chromium for the engine's Playwright */
 export interface MotionStudioTools {
   ffmpeg: string | null;
   ffprobe: string | null;

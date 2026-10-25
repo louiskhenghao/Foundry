@@ -5,7 +5,7 @@ import { cn } from '../ui.tsx';
 const tone = (n: number) => (n >= 8 ? 'text-ok-ink' : n >= 6 ? 'text-you-ink' : 'text-bad-ink');
 
 /**
- * A reviewer's scores on the axes its rubric named (ADR-0076), one chip per axis, with the move since the attempt
+ * A reviewer's scores on the axes its rubric named (ADR-0077), one chip per axis, with the move since the attempt
  * before when there was one: `hook 8 ↑2`.
  */
 export function ScoreRow({ scores, prev, className }: { scores: VerdictScores; prev?: VerdictScores | null; className?: string }) {

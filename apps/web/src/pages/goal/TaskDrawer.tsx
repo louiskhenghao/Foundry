@@ -57,7 +57,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
   const results: CheckResult[] = a ? d.checkResults.filter((r) => r.attemptId === a.id) : [];
   const checks = d.checks.filter((c) => c.taskId === task.id);
   const obs = a ? (d.events.find((e) => e.type === 'observation.reported' && (e.payload as any).report.attemptId === a.id)?.payload as any)?.report : null;
-  // the task reviewer's scores on the rubric's axes (ADR-0076), and the attempt before's to show the move
+  // the task reviewer's scores on the rubric's axes (ADR-0077), and the attempt before's to show the move
   const scoresOf = (attemptId: string): VerdictScores | null => ((d.events.find((e) => e.type === 'review.task.finished' && (e.payload as any).attemptId === attemptId)?.payload as any)?.verdict?.scores as VerdictScores | undefined) ?? null;
   const scores = a ? scoresOf(a.id) : null;
   const prevScores = a ? (attempts.slice(0, Math.max(0, attempts.indexOf(a))).map((x) => scoresOf(x.id)).filter(Boolean).at(-1) ?? null) : null;

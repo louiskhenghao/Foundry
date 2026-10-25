@@ -58,7 +58,7 @@ export interface Continuation {
 }
 
 /** The message that resumes a session. It never restates the task: the session still has all of that. */
-/** the wall-clock cap of one session: the goal's own (Budgets, ADR-0076), else Settings → sessions.attemptTimeoutMin */
+/** the wall-clock cap of one session: the goal's own (Budgets, ADR-0077), else Settings → sessions.attemptTimeoutMin */
 export const attemptTimeoutMs = (goal: Pick<Goal, 'budgets'>, config: Pick<EngineConfig, 'attemptTimeoutMs'>): number => (goal.budgets.attemptTimeoutMin ? goal.budgets.attemptTimeoutMin * 60_000 : config.attemptTimeoutMs);
 
 export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string; answer?: RequestAnswer } = {}): string {
