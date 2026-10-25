@@ -14,7 +14,7 @@ Press a card and three things happen:
 
 - The template's inputs appear above the description box, each with a label and a note on what to write. Those marked `*` are needed before the goal can be made; a choice offers its options, and sometimes a way to write your own.
 - The description is written from your inputs as you type. The words are the template's; you can edit them at any time, and once you do, the inputs stop writing the description (**Write it from the inputs again** puts it back).
-- The form takes the template's settings: the kind of goal, and whatever else the template says, for example a product reel sets *Video*, the motion-studio engine, the Simple view and the Thorough budget. What the template does not name stays as you had it.
+- The form takes the template's settings: the kind of goal, and whatever else the template says, for example a product reel sets *Video*, the motion-studio engine, the Simple view and the Thorough budget. What the template does not name stays as you had it. When the template's figure style is not installed for the coding agent you chose, the form says what the goal would draw in instead and where to install it.
 
 The button then reads **Template: …**, and a chip of the same name above the inputs says which template is behind the form; its **×** forgets the template but keeps the words and the settings. If you had already written a description, choosing a template asks before replacing it.
 

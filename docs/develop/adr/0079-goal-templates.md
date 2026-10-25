@@ -34,8 +34,10 @@ without a goal (the rate-limit probe).
   the view, the workflow (pace, discipline, Ponytail, suite), the budget preset (and limits when custom), the interview
   depth and the skip-Clarify checks. Never the coding agent, its models or effort, the delivery, the output folder, the
   repository, companions, attachments, references or an issue: those belong to a computer and its accounts, and a
-  template travels. A video engine or figure style is dropped, and said so, while its Beta is off. What a template does
-  not name, the form keeps as the person left it.
+  template travels. A video engine or figure style is dropped, and said so, while its Beta is off; a figure style not
+  installed for the coding agent stays chosen, and the form says what the goal would draw in instead and where to
+  install it. A template that names no budget leaves the form's (Auto); from the CLI it is Auto too. What a template
+  does not name, the form keeps as the person left it.
 - **Two sources and no remote.** Foundry's own templates are `templates/<id>.md` and `templates/<id>.zh.md` in its
   checkout, several per nature — from a bug fix to a 3D product showcase site, a SaaS dashboard, an AI assistant or a
   circuit-board enclosure — each in English and 中文 with the same inputs and settings (a test keeps the pairs honest, and
