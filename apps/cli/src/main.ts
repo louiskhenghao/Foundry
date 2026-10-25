@@ -34,7 +34,7 @@ function opts(name: string): string[] {
 }
 const has = (name: string) => rest.includes(name);
 const positional = () => rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && !FLAGS.has(rest[i - 1]!)));
-const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--dry-run', '--password-stdin', '--all', '--new']);
+const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--templates', '--dry-run', '--password-stdin', '--all', '--new']);
 const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
 
 async function api(path: string, init?: RequestInit): Promise<any> {
@@ -95,6 +95,7 @@ function printIncoming(r: any): void {
   for (const repo of r.repos) console.log(`  repository ${repo.original} → ${repo.match ?? 'not found here (map it with --map old=new, or later)'}`);
   for (const s of r.settings) console.log(`  settings ${pad(s.section, 14)} differs: ${s.keys.join(', ')}`);
   if (r.secrets) console.log('  Keys & secrets: present (bring them in with --secrets)');
+  if (r.templates?.length || r.themes?.length) console.log(`  Templates & themes: ${[...(r.templates ?? []), ...(r.themes ?? [])].map((f: { name: string }) => f.name).join(', ')} (brought in beside yours; a clash gets a number)`);
 }
 function printApplied(r: any): void {
   for (const g of r.imported) console.log(`imported   ${g.id}  ${g.title}`);
@@ -103,6 +104,10 @@ function printApplied(r: any): void {
   if (r.settings.length) console.log(`settings   ${r.settings.join(', ')}`);
   if (r.secrets.length) console.log(`secrets    ${r.secrets.join(', ')}`);
   if (r.previewEnv.waiting.length) console.log(`preview variables wait for: ${r.previewEnv.waiting.join(', ')}`);
+  for (const [kind, files] of [['templates', r.templates], ['themes', r.themes]] as const) {
+    if (files?.imported.length) console.log(`${pad(kind, 10)} brought in: ${files.imported.join(', ')}`);
+    if (files?.skipped.length) console.log(`${pad(kind, 10)} skipped: ${files.skipped.join(', ')}`);
+  }
 }
 
 async function serverUp(): Promise<boolean> {
@@ -154,11 +159,19 @@ switch (cmd) {
     const repoPath = opt('--repo') ?? draft?.prefill.repoPath;
     // a goal from a GitHub issue: its title and body stand in for the prompt, its thread is attached (ADR-0052)
     const issueRef = opt('--issue');
-    if (!repoPath || (!prompt && !issueRef)) return usage('goal new needs "<prompt>" (or --issue <link>) and --repo <path> (or --follows <goal id>)');
+    // a goal from a Template (ADR-0079): its description written on the server from the --set values
+    const templateId = opt('--template');
+    const setValues = Object.fromEntries(opts('--set').map((kv) => {
+      const i = kv.indexOf('=');
+      if (i <= 0) return usage(`--set takes key=value, not "${kv}"`);
+      return [kv.slice(0, i).trim(), kv.slice(i + 1)];
+    }));
+    if (!repoPath || (!prompt && !issueRef && !templateId)) return usage('goal new needs "<prompt>" (or --issue <link>, or --template <id>) and --repo <path> (or --follows <goal id>)');
     const issue = issueRef ? await api('/api/issues/read', { method: 'POST', body: JSON.stringify({ ref: issueRef, repoPath: resolve(repoPath) }) }) : null;
     const effort = opt('--effort');
     const body: any = {
-      prompt: prompt ?? issue.prompt,
+      prompt: prompt ?? issue?.prompt,
+      ...(templateId ? { template: { id: templateId, ...(opt('--lang') ? { lang: opt('--lang') } : {}), values: setValues } } : {}),
       repoPath: resolve(repoPath),
       title: opt('--title') ?? issue?.title,
       ...(issue ? { issue: issue.issue, attachments: [issue.attachment] } : {}),
@@ -207,6 +220,42 @@ switch (cmd) {
     console.log(`  ui: ${BASE}/goals/${goal.id}`);
     if (has('--follow')) await watch(goal.id);
     break;
+  }
+  case 'templates': {
+    // Templates (ADR-0079): the built-in ones and yours, a file of one to keep, a file from elsewhere brought in
+    const sub = rest[0] && !rest[0].startsWith('--') ? rest[0] : 'list';
+    if (sub === 'list') {
+      const { templates, problems } = await api('/api/templates');
+      if (has('--json')) {
+        console.log(JSON.stringify({ templates, problems }, null, 2));
+        break;
+      }
+      for (const t of templates) {
+        const v = t.en ?? t.zh;
+        console.log(`${pad(t.id, 28)} ${pad(t.nature, 9)} ${pad(t.builtIn ? 'built in' : 'yours', 9)} ${pad([t.en && 'EN', t.zh && '中文'].filter(Boolean).join(' · '), 8)} ${v.name}${v.summary ? ` — ${v.summary}` : ''}`);
+      }
+      for (const p of problems) console.log(`cannot use ${p.file}: ${p.error}`);
+      break;
+    }
+    if (sub === 'export') {
+      const id = rest[1];
+      if (!id || id.startsWith('--')) return usage('templates export needs <id>');
+      const lang = opt('--lang');
+      const res = await fetch(`${BASE}/api/templates/${encodeURIComponent(id)}/file${lang ? `?lang=${lang}` : ''}`, { headers: process.env.FOUNDRY_TOKEN ? { authorization: `Bearer ${process.env.FOUNDRY_TOKEN}` } : {} });
+      if (!res.ok) return usage(`no template ${id}`);
+      const out = resolve(opt('--out') ?? `${id}${lang === 'zh' ? '.zh' : ''}.md`);
+      await Bun.write(out, await res.text());
+      console.log(`wrote ${out}`);
+      break;
+    }
+    if (sub === 'import') {
+      const file = rest[1];
+      if (!file || file.startsWith('--')) return usage('templates import needs <file>');
+      const made = await api('/api/templates/import', { method: 'POST', body: JSON.stringify({ file: file.replace(/^.*[\\/]/, ''), text: await Bun.file(resolve(file)).text() }) });
+      console.log(`imported ${made.id} (${made.lang === 'zh' ? '中文' : 'English'}): ${(made[made.lang] ?? made.en ?? made.zh).name}`);
+      break;
+    }
+    return usage('templates takes list, export <id> or import <file>');
   }
   case 'status': {
     const id = positional()[0];
@@ -353,8 +402,8 @@ switch (cmd) {
   }
   case 'export': {
     const goalsArg = opt('--goals');
-    const picked = has('--settings') || has('--secrets') || goalsArg != null;
-    const categories = { settings: !picked || has('--settings'), secrets: has('--secrets'), goals: !picked || goalsArg != null, transcripts: has('--transcripts') };
+    const picked = has('--settings') || has('--secrets') || has('--templates') || goalsArg != null;
+    const categories = { settings: !picked || has('--settings'), secrets: has('--secrets'), goals: !picked || goalsArg != null, transcripts: has('--transcripts'), templates: has('--templates') };
     const goalIds = !goalsArg || goalsArg === 'all' ? 'all' : goalsArg.split(',').map((s) => s.trim()).filter(Boolean);
     const password = categories.secrets ? await transferPassword() : undefined;
     const out = resolve(opt('--out') ?? `foundry-transfer-${new Date().toISOString().slice(0, 10)}.tgz`);
