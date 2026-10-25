@@ -168,8 +168,12 @@ describe('Adjust the result', () => {
     await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
     expect(getGoal(engine.store.db, goal.id)!.adjustments).toEqual([]);
     await expect(engine.adjust(goal.id, '   ')).rejects.toThrow(/what should change/);
-    // a branch pushed: an adjustment after the delivery was set going means it carries on; not before, not once it did again
+    // while a delivery runs, nothing is adjusted: the branch it pushes must not move under it
     engine.store.append({ type: 'delivery.policy_set', goalId: goal.id, payload: { policy: getGoal(engine.store.db, goal.id)!.delivery.policy, source: 'deliver' } });
+    engine.store.append({ type: 'delivery.started', goalId: goal.id, payload: { policy: getGoal(engine.store.db, goal.id)!.delivery.policy, plan: [] } });
+    expect(engine.adjustView(getGoal(engine.store.db, goal.id)!).reason).toContain('delivery is under way');
+    await expect(engine.adjust(goal.id, 'words')).rejects.toThrow(/delivery is under way/);
+    // a branch pushed: an adjustment after the delivery was set going means it carries on; not before, not once it did again
     engine.store.append({ type: 'delivery.completed', goalId: goal.id, payload: { outcome: 'pushed' } });
     expect(adjustedSinceDelivery(engine, getGoal(engine.store.db, goal.id)!)).toBe(false);
     const adj = await engine.adjust(goal.id, 'again');

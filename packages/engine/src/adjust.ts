@@ -43,6 +43,7 @@ export function adjustPlan(engine: Engine, goal: Goal): { mode: AdjustmentMode; 
   }
   if (isHistory(goal) || !repoHere(goal)) return { refused: 'an imported goal held as history: its repository is not on this computer' };
   if (goal.delegatedFrom) return { refused: 'a Delegated goal: adjust its main goal, whose result it is part of' };
+  if (goal.delivery.status === 'running') return { refused: 'its delivery is under way: adjust it once that has finished' };
   if (goal.delivery.cleanup?.done || goal.delivery.outcome === 'merged') return { refused: 'its work was merged: start a follow-up for the change' };
   if (!existsSync(goalWorkspacePath(engine.config.dataDir, goal))) return { refused: 'its progress folder is gone: start a follow-up for the change' };
   const b = budgetStatus(goal);
