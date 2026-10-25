@@ -132,6 +132,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'safety.desktopApps': { section: 'Safety', help: 'Let sessions open desktop apps and hand files to printers (text-to-cad\'s Bambu hand-off, `open …`, `xdg-open`, the slicers\' windows). Off: the boundary guard refuses those commands and the hand-off skill; headless slicing stays available.' },
   // Beta (ADR-0073)
   'beta.conversation': { section: 'Beta', help: "The Conversation on a goal's page: a bubble opens a read-only Explainer that answers questions about the goal's code and Foundry's records of it, on the preset's Conversation model. Off = no bubble and no Conversation tab." },
+  'beta.motionStudio': { section: 'Beta', help: 'The motion-studio video engine: video goals get an Engine picker (motion-studio beside the Video skills pack), the bundled motion-studio skill shows in the catalog, and the doctor checks ffmpeg and Chromium for it. Off: the Video skills pack alone, as before.' },
   'beta.figure': { section: 'Beta', help: "Figure goals: a kind of goal of its own — interactive isometric figures of everyday objects and machines, one web page each, drawn by the Figure pack (Colorfigures or iso-glow, bundled with Foundry) and opened headless by Foundry when a task lands. Off = the kind, the Figure skills picker and the CLI's figure nature stay hidden; figure goals made before still open." },
   // Engine (install)
   'engine.port': { section: 'Engine (install)', help: 'Port the UI and API listen on.' },

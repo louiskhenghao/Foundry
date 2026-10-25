@@ -3,6 +3,7 @@ import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { reportsDollars, parseNeedsBlock, withoutNeedsBlock } from '@foundry/core';
 import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@foundry/core';
+import type { EngineConfig } from './config.ts';
 import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
 import { LIMIT_TEXT, resumeRefused, type RunResult } from '@foundry/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
@@ -19,7 +20,7 @@ import { learningsForWorker } from './learnings.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { runFigureCheck } from './checks/figure.ts';
 import { attemptTimeoutMs } from './figure.ts';
-import { reviewTaskDiff } from './checks/reviewer.ts';
+import { verdictSummary, reviewTaskDiff } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
 import { commitAll, headRef, numstat, resetHard } from './git/git.ts';
@@ -59,6 +60,9 @@ export interface Continuation {
 }
 
 /** The message that resumes a session. It never restates the task: the session still has all of that. */
+/** the wall-clock cap of one session before any per-task floor: the goal's own (Budgets, ADR-0077), else Settings → sessions.attemptTimeoutMin */
+export const goalSessionTimeoutMs = (goal: Pick<Goal, 'budgets'>, config: Pick<EngineConfig, 'attemptTimeoutMs'>): number => (goal.budgets.attemptTimeoutMin ? goal.budgets.attemptTimeoutMin * 60_000 : config.attemptTimeoutMs);
+
 export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string; answer?: RequestAnswer } = {}): string {
   switch (reason) {
     case 'usage_limit':
@@ -237,8 +241,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : []), ...(subjects ? subjectsAddDirs(config.dataDir, goal.id, brief) : [])]),
-      // a figure task's session runs a few very long turns: at least 45 minutes before a cut and resume (ADR-0076)
-      timeoutMs: attemptTimeoutMs(config, task),
+      // the session's cap: the goal's own (Budgets, ADR-0077), else Settings'; a figure task gets at least 45 minutes (ADR-0076)
+      timeoutMs: attemptTimeoutMs({ ...config, attemptTimeoutMs: goalSessionTimeoutMs(goal, config) }, task),
       transcriptPath: attempt.transcriptPath!,
       resumeSessionId,
       env: { FOUNDRY_ATTEMPT_ID: attempt.id, FOUNDRY_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) },
@@ -369,7 +373,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
         // no verdict = infrastructure problem (model ran out of turns, bad JSON…), never the worker's fault:
         // the check is skipped for this attempt and the objective checks decide
         status: reviewerVerdict ? (reviewerVerdict.pass ? 'pass' : 'fail') : 'skipped',
-        summary: reviewerVerdict ? (reviewerVerdict.pass ? 'Reviewer: no blockers.' : reviewerVerdict.blockers.join('\n')) : 'reviewer returned no verdict — skipped for this attempt (objective checks decide)',
+        summary: reviewerVerdict ? verdictSummary(reviewerVerdict) : 'reviewer returned no verdict — skipped for this attempt (objective checks decide)',
         rawRef: null,
         durationMs: 0,
         at: new Date().toISOString(),

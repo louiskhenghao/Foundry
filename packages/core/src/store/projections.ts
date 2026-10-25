@@ -781,6 +781,8 @@ function normalizeGoal(g: Goal): Goal {
   g.delegation ??= { ...NO_DELEGATION };
   g.delegatedFrom ??= null;
   g.conversationCostUsd ??= 0;
+  g.videoPack ??= null;
+  if (g.budgets) g.budgets.attemptTimeoutMin ??= null;
   g.figurePack ??= null;
   if (g.workflow && g.workflow.ponytail == null) g.workflow.ponytail = 'on';
   g.completion = { ...IDLE_COMPLETION, ...(g.completion ?? {}) };

@@ -19,6 +19,7 @@ export const CatalogSource = z.discriminatedUnion('type', [
     repo: z.string().regex(/^[\w.-]+\/[\w.-]+$/),
     /** clone URL override (tests use file://) */
     url: z.string().optional(),
+    /** a tag (a pinned release), a branch, or a 40-character commit id (a repository without releases is pinned to one commit) */
     ref: z.string().optional(),
     /** path of the skill dir inside the repo; when missing we search **\/<name>/SKILL.md */
     path: z.string().optional(),

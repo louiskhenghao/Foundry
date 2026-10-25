@@ -1,0 +1,92 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>FILM TITLE</title>
+<!-- A film that is a pure function of time (ADR-0077): window.seek(t) paints the frame at t seconds. No CSS transitions,
+     no timers, no requestAnimationFrame while rendering, no state carried between frames, seeded noise only. -->
+<style>html,body{margin:0;background:#141413}canvas{display:block}</style>
+<canvas id="c"></canvas>
+<script src="./film.js"></script>
+<script src="../lib/motion.js"></script>
+<script>
+const { clamp, lerp, unit, smooth, spring, SPRINGS, track, rng, stagger, beats: beatGrid } = window.Motion;
+const q = new URLSearchParams(location.search);
+const FORMAT = q.get('format') || FILM.formats[0] || '16x9';
+const SIZE = { '16x9': [1920, 1080], '9x16': [1080, 1920], '1x1': [1080, 1080], '4x5': [1080, 1350] }[FORMAT];
+const [W, H] = SIZE;
+const DUR = FILM.duration;
+const grid = beatGrid(FILM.bpm, FILM.beatPhase || 0);
+const c = document.getElementById('c'); c.width = W; c.height = H;
+const g = c.getContext('2d');
+const P = FILM.palette, F = FILM.fonts;
+
+// Layout, not pixels: every scene places things by these, so 9:16, 1:1 and 16:9 come from the same timeline.
+const L = {
+  m: Math.round(Math.min(W, H) * 0.06),              // margin
+  cx: W / 2, cy: H / 2,
+  display: Math.round(Math.min(W, H) * 0.14),        // the display face's size
+  mono: Math.round(Math.min(W, H) * 0.024),
+  tall: H > W,
+};
+const font = (px, face = F.display, weight = 800) => `${weight} ${px}px "${face}", system-ui, sans-serif`;
+
+// One object per shot: [from, to) in seconds, draw(t) with t local to the shot. Something new every 2–4 s; cuts on the grid.
+const SCENES = [
+  { from: 0, to: grid.at(4), draw(t) {
+      // the motif slams in on beat 1: a block, heavy spring, then the hook in huge display type
+      const s = spring(t, SPRINGS.heavy.k, SPRINGS.heavy.d);
+      const size = Math.min(W, H) * 0.22;
+      g.fillStyle = P.accent;
+      g.fillRect(L.m, L.cy - size * s / 2, size * s, size * s);
+      g.globalAlpha = unit(t, 0.35, 0.6);
+      g.fillStyle = P.ink; g.font = font(L.display); g.textBaseline = 'alphabetic';
+      g.fillText('JUST WRITE', L.m + size + L.m * 0.6, L.cy - L.display * 0.15);
+      g.fillText('THE GOAL.', L.m + size + L.m * 0.6, L.cy + L.display * 0.95);
+      g.globalAlpha = 1;
+  } },
+  { from: grid.at(4), to: grid.at(12), draw(t) {
+      // a grid of cards assembles on a stagger; the accent block becomes one of them
+      const r = rng(7);
+      const cols = L.tall ? 3 : 6, rows = L.tall ? 6 : 3;
+      const cell = (W - 2 * L.m) / cols, size = cell * 0.82;
+      for (let i = 0; i < cols * rows; i++) {
+        const x = L.m + (i % cols) * cell + (cell - size) / 2, y = L.cy - (rows * cell) / 2 + Math.floor(i / cols) * cell + (cell - size) / 2;
+        const s = spring(t - stagger(i, 0.04, 0.05, 11), SPRINGS.default.k, SPRINGS.default.d);
+        g.fillStyle = i % 7 === 3 ? P.accent : P.ink;
+        g.globalAlpha = 0.92;
+        g.fillRect(x + size * (1 - s) / 2, y + size * (1 - s) / 2, size * s, size * s);
+      }
+      g.globalAlpha = 1;
+      g.fillStyle = P.ink; g.font = font(L.mono, F.mono, 500);
+      g.fillText(`${Math.min(cols * rows, Math.floor(t * 9)).toString().padStart(2, '0')} TASKS`, L.m, H - L.m);
+  } },
+  { from: grid.at(12), to: DUR, draw(t) {
+      // the lockup: the block lands, a rule draws, the name settles; the last frame equals the first scene's rest pose
+      const s = spring(t, SPRINGS.heavy.k, SPRINGS.heavy.d);
+      const size = Math.min(W, H) * 0.12;
+      g.fillStyle = P.accent;
+      g.fillRect(L.cx - size * 1.6, L.cy - size / 2, size * s, size * s);
+      g.fillStyle = P.ink; g.font = font(L.display * 0.8);
+      g.globalAlpha = unit(t, 0.2, 0.5);
+      g.fillText('Foundry', L.cx - size * 0.3, L.cy + L.display * 0.3);
+      g.fillRect(L.cx - size * 1.6, L.cy + size * 0.9, (W - 2 * L.m - size * 1.6) * smooth(unit(t, 0.4, 1.1)) * 0.5, Math.max(2, size * 0.06));
+      g.font = font(L.mono, F.mono, 500);
+      g.globalAlpha = unit(t, 1.0, 1.4);
+      g.fillText('Goals in. Work out.', L.cx - size * 1.6, L.cy + size * 1.5);
+      g.globalAlpha = 1;
+  } },
+];
+
+function draw(t) {
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalAlpha = 1;
+  g.fillStyle = P.paper; g.fillRect(0, 0, W, H);
+  for (const s of SCENES) if (t >= s.from && t < s.to) s.draw(t - s.from);
+}
+window.seek = (t) => { draw(clamp(t, 0, DUR)); return true; };
+
+// a live preview in a normal browser; off while rendering (render.mjs opens the page with ?render=1)
+if (!q.get('render') && !navigator.webdriver) {
+  const t0 = performance.now();
+  (function loop() { draw(((performance.now() - t0) / 1000) % DUR); requestAnimationFrame(loop); })();
+}
+</script>

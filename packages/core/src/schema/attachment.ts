@@ -38,7 +38,13 @@ export const Attachment = z.object({
 });
 export type Attachment = z.infer<typeof Attachment>;
 
-export const ATTACHMENT_LIMITS = { maxFileBytes: 25 * 1024 * 1024, maxPerGoal: 20 } as const;
+export const ATTACHMENT_LIMITS = { maxFileBytes: 25 * 1024 * 1024, maxMediaFileBytes: 200 * 1024 * 1024, maxPerGoal: 20 } as const;
+
+const MEDIA_EXT = /\.(mp4|m4v|mov|webm|mkv|avi|wav|mp3|m4a|aac|flac|ogg|oga|opus|aiff?)$/i;
+/** is this attachment audio or video: a reference film, a music track (ADR-0077) */
+export const isMediaAttachment = (a: { name: string; mime: string | null }): boolean => !!(a.mime && /^(audio|video)\//.test(a.mime)) || MEDIA_EXT.test(a.name);
+/** what one attachment may weigh: audio and video get the larger cap */
+export const attachmentMaxBytes = (a: { name: string; mime: string | null }): number => (isMediaAttachment(a) ? ATTACHMENT_LIMITS.maxMediaFileBytes : ATTACHMENT_LIMITS.maxFileBytes);
 
 export const attachmentKindLabel = (a: Pick<Attachment, 'kind' | 'mime' | 'name'>): 'image' | 'pdf' | 'document' | 'text' | 'file' | 'link' => {
   if (a.kind === 'link') return 'link';

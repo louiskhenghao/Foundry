@@ -13,16 +13,20 @@ import { InstallError, type InstallContext } from './install-types.ts';
 export { InstallError };
 export type { InstallContext };
 
-const cloneUrl = (src: Extract<CatalogEntry['source'], { type: 'git' }>) => src.url ?? `https://github.com/${src.repo}.git`;
+type GitSource = Extract<CatalogEntry['source'], { type: 'git' }>;
+const cloneUrl = (src: GitSource) => src.url ?? `https://github.com/${src.repo}.git`;
+/** a `ref` naming one commit (40 hex characters): a repository without releases is pinned to it instead of following a branch */
+const isCommitRef = (ref: string | undefined): ref is string => !!ref && /^[0-9a-f]{40}$/i.test(ref);
 
 /** Default history depth of a cache clone: enough for per-skill "last changed" dates and old-copy matching. */
 export const CACHE_DEPTH = 100;
 
 /**
  * Clone (or refresh) the source repo into the cache; returns the checkout dir.
- * The cache is the engine's private read-only copy: on refresh it is fetched (deepened) and hard-reset to the remote head.
+ * The cache is the engine's private read-only copy: on refresh it is fetched (deepened) and hard-reset to the remote head,
+ * or to the pinned tag, branch or commit.
  */
-export async function ensureCache(src: Extract<CatalogEntry['source'], { type: 'git' }>, ctx: InstallContext, refresh = false, opts: { depth?: number } = {}): Promise<string> {
+export async function ensureCache(src: GitSource, ctx: InstallContext, refresh = false, opts: { depth?: number } = {}): Promise<string> {
   const [owner, name] = src.repo.split('/') as [string, string];
   const dir = join(ctx.paths.cacheDir, owner, name);
   const depth = opts.depth ?? CACHE_DEPTH;
@@ -30,6 +34,7 @@ export async function ensureCache(src: Extract<CatalogEntry['source'], { type: '
     if (refresh) {
       const f = await exec(['git', 'fetch', '-q', `--deepen=${depth}`, 'origin'], dir, { timeoutMs: 120_000 });
       if (f.code !== 0) ctx.log?.(`[skills] git fetch failed for ${src.repo}: ${f.stderr.slice(-300)}`);
+      else if (isCommitRef(src.ref)) await resetToCommit(src, dir, depth);
       else {
         // a ref that is a tag (a pinned release, v1.3.1) is fetched by name and reset to as such; a branch as origin/<ref>
         if (src.ref) await exec(['git', 'fetch', '-q', 'origin', 'tag', src.ref], dir, { timeoutMs: 60_000 });
@@ -41,17 +46,42 @@ export async function ensureCache(src: Extract<CatalogEntry['source'], { type: '
           await exec(['git', 'reset', '-q', '--hard', 'FETCH_HEAD'], dir, { timeoutMs: 60_000 });
         }
       }
+    } else if (isCommitRef(src.ref) && (await exec(['git', 'rev-parse', 'HEAD'], dir, { timeoutMs: 10_000 })).stdout.trim() !== src.ref) {
+      // another entry of the same repository left the cache at a different commit: pinned means this one
+      await resetToCommit(src, dir, depth);
     }
     return dir;
   }
   mkdirSync(join(ctx.paths.cacheDir, owner), { recursive: true });
-  const args = ['git', 'clone', '-q', '--depth', String(depth), ...(src.ref ? ['--branch', src.ref] : []), cloneUrl(src), dir];
+  const branch = src.ref && !isCommitRef(src.ref) ? ['--branch', src.ref] : [];
+  const args = ['git', 'clone', '-q', '--depth', String(depth), ...branch, cloneUrl(src), dir];
   const r = await exec(args, ctx.paths.cacheDir, { timeoutMs: 180_000 });
   if (r.code !== 0) {
     rmSync(dir, { recursive: true, force: true });
     throw new InstallError(`git clone failed for ${src.repo}: ${r.stderr.trim().slice(-400)}`, 'git');
   }
+  if (isCommitRef(src.ref)) {
+    try {
+      await resetToCommit(src, dir, depth);
+    } catch (err) {
+      rmSync(dir, { recursive: true, force: true });
+      throw err;
+    }
+  }
   return dir;
+}
+
+/**
+ * Hard-reset the cache to the pinned commit. A shallow clone of the default branch may not reach it (a commit on another
+ * branch, or older than the depth): then it is fetched by id, which GitHub and protocol v2 remotes serve.
+ */
+async function resetToCommit(src: GitSource, dir: string, depth: number): Promise<void> {
+  const sha = src.ref!;
+  const present = async () => (await exec(['git', 'rev-parse', '-q', '--verify', `${sha}^{commit}`], dir, { timeoutMs: 10_000 })).code === 0;
+  if (!(await present())) await exec(['git', 'fetch', '-q', `--depth=${depth}`, 'origin', sha], dir, { timeoutMs: 120_000 });
+  if (!(await present())) throw new InstallError(`commit ${sha.slice(0, 7)} is not in ${src.repo}`, 'git');
+  const r = await exec(['git', 'reset', '-q', '--hard', sha], dir, { timeoutMs: 60_000 });
+  if (r.code !== 0) throw new InstallError(`git reset to ${sha.slice(0, 7)} failed for ${src.repo}: ${r.stderr.trim().slice(-400)}`, 'git');
 }
 
 /** Honor an explicit native path; only path-less entries may discover `**\/<name>/SKILL.md`. */
@@ -263,7 +293,7 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
   return { ok: true, id: entry.id, name: entry.name, path: dest, commit, manual: null, error: null };
 }
 
-/** Re-install from a refreshed cache. Returns from/to commits. */
+/** Re-install from a refreshed cache (or Foundry's bundled folder). Returns from/to commits. */
 export async function updateEntry(entry: CatalogEntry, ctx: InstallContext): Promise<{ name: string; from: string | null; to: string | null; changed: boolean }> {
   const dest = join(ctx.paths.skillsDir, entry.name);
   const from = readMarker(dest)?.commit ?? null;

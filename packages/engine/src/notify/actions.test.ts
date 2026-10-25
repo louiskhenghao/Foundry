@@ -48,7 +48,7 @@ const goal = (over: Partial<Goal> = {}): Goal =>
     state: 'clarifying',
     provider: 'claude',
     budgetPreset: 'auto',
-    budgets: { maxCostUsd: null, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3 },
+    budgets: { maxCostUsd: null, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null },
     delegatedFrom: null,
     delegation: { allow: false, autoApprove: false },
     revise: null,
@@ -322,7 +322,7 @@ describe('approving a Brief', () => {
   });
 
   test('limits the goal already has stand; Codex sets no dollar limit', () => {
-    const fixed = { provider: 'claude' as const, budgetPreset: 'custom' as const, budgets: { maxCostUsd: 10, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3 } };
+    const fixed = { provider: 'claude' as const, budgetPreset: 'custom' as const, budgets: { maxCostUsd: 10, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null } };
     expect(budgetOnApproval(fixed, brief())).toEqual({ text: '$10 / no time limit' });
     expect(budgetOnApproval({ ...goal(), provider: 'codex' }, brief())).toEqual({ budgets: { maxDurationMin: 80 }, text: '80 min (the estimate ×2)' });
   });

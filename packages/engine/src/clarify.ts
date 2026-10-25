@@ -650,6 +650,31 @@ function keptSubjectsNote(goal: Goal): string {
 
 const subjectsSection = (goal: Goal) => [SUBJECTS_ASK, keptSubjectsNote(goal)].filter(Boolean).join('\n');
 
+/** the motion-studio engine (ADR-0077): what the Brief of a film settles, and the contract its goal-level checks measure */
+const MOTION_STUDIO_CLARIFY = `# Engine: motion studio (ADR-0077)
+This goal's films are made with Foundry's motion-studio harness (the \`motion-studio\` skill): one HTML page per film whose \`window.seek(t)\` paints any moment onto a canvas, rendered through a headless Chromium into H.264 by \`motion/lib/render.mjs\`, scored and mixed in code, judged on contact sheets, measured by \`motion/lib/verify.mjs\`.
+Settle in the Brief (ask only for what the prompt and the attachments leave open; the formats always):
+- the subject or product, and its URL when it has one (real screenshots and the real logo come from it; never an invented UI)
+- the duration in seconds, and the formats (16x9, 9x16, 1x1, 4x5): every requested format comes from one timeline, reframed, never cropped
+- brand colours (hex) and faces (a display face and a mono face), or the style direction you recommend among \`styleOptions\`
+- the reference: an attached frame, clip or folder of pictures, or none (say so)
+- the music: a supplied track (attached) or synthesised on the film's BPM; the BPM
+- the language of any words on screen, and the closing CTA or tagline (exact spelling)
+- the film's slug (lowercase, hyphens): source under \`motion/<slug>/\`, outputs under \`artifacts/motion/<slug>/\`
+Record the deliverables as goal-level must checks: per format, \`artifacts/motion/<slug>/final-<format>.mp4\` verified by the command \`node motion/lib/verify.mjs artifacts/motion/<slug>/final-<format>.mp4 --film motion/<slug> --format <format>\` (exit 0); \`loop_check.mp4\`, \`poster.png\` and \`contact.png\` there; \`motion/<slug>/README.md\` with the commands that render it again; \`docs/motion/review_log.md\` with the scores of every critique round; \`docs/motion/house-style.md\`.`;
+
+/** the motion-studio engine (ADR-0077): how a film's tasks are cut and checked */
+const MOTION_STUDIO_PLAN = `# Engine: motion studio — how the tasks are cut (ADR-0077)
+Tasks in this order, each depending on the one before unless said otherwise. Every task spec repeats the render contract (a pure function of time, \`window.seek(t)\`; no CSS transitions, no timers, no state between frames, seeded noise only; springs, not easing curves; cuts on the beat grid; banned: a centred title on a gradient, everything fading in, corner labels and frame borders, glow on UI chrome, particle bursts) and says that the worker runs \`scripts/scaffold.mjs\` of the motion-studio skill once and \`motion/lib/*.mjs\` from the repository root, with Playwright from \`FOUNDRY_PLAYWRIGHT\` and nothing to install.
+1. **Style guide and shotlist** (scenario video; a milestone "Have a look at the shotlist on the grid" — the goal goes on without waiting): gather the real assets, write \`docs/motion/style_guide.md\`, \`motion/<slug>/STORYBOARD.md\` (BPM and beat length, one row per shot with its beats, what the motif does, the sound) and \`motion/<slug>/film.json\`. Check: a must command \`test -s docs/motion/style_guide.md && test -s motion/<slug>/STORYBOARD.md && test -s motion/<slug>/film.json\`.
+2. **Stills and animatic**: every shot as a still in \`index.html\`, then moving at 24 fps; the sheets of each round under \`artifacts/motion/<slug>/rounds/\`. Checks: a must reviewer check with the rubric below on the latest sheets, and a must command \`node motion/lib/render.mjs motion/<slug> --hash --from 0 --to 2 --sub 1\` (the film renders and is deterministic). A film over 30 seconds: one task writes \`docs/motion/ANIMATION_GUIDE.md\` and the engine first, then one task per chapter (they may run in parallel), then an assembly task.
+3. **Full pass**: 60 fps, springs everywhere, motion blur, the held-back colour at the climax; three critique rounds at least, each logged in \`docs/motion/review_log.md\` (a \`## Round N\` heading, the scores per axis, the three problems, what changed). Checks: the reviewer rubric (must), and a must command \`test $(grep -c '^## Round' docs/motion/review_log.md) -ge 3\`.
+4. **Sound**: \`motion/lib/score.mjs\` on the film's BPM (or \`beats.mjs\` on the supplied track, the grid following it), \`sfx.mjs\` on the cues, \`mix.mjs\` into the first format. Check: a must command that the mixed file has an audio stream (\`ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 <file> | grep -qx audio\`).
+5. **Render, sheets and verify**: every format, \`sheets.mjs --loop\`, \`verify.mjs\` per format; the deliverables are the contract files the goal-level checks name.
+6. **House style** (last): \`docs/motion/house-style.md\` from the skill's template. Check: a must command \`test -s docs/motion/house-style.md\`.
+The reviewer rubric, for every reviewer check of a film task: "Open the attempt's latest contact.png, strip.png and phone.png under artifacts/motion/<slug>/ and look at them. Score 1–10 in \`scores\`: hook (something striking in the first 2 s), readability (every word legible at phone size), motion (springs that settle, no dead frames, no stutter), variety (something new every 2–4 s), composition (off-centre where it should be, one accent, no corner labels or borders, no glow on UI chrome), brand (the real colours, faces and words), sound (cuts on the grid, hits on the beat). Pass only when every axis is 8 or more; list the three worst frames by timestamp."
+Estimate generously: a 15-second film is five to eight sessions of up to an hour at xhigh effort.`;
+
 /** what every media task's spec and checks must say: where files go, parallel generation, the manifest, how they are judged */
 function mediaConventions(kind: 'image' | 'video', ffprobe: boolean): string {
   return `Conventions every media task's spec MUST state verbatim:\n- generated files go to \`artifacts/\` in the workspace (the engine keeps that folder out of git)\n- independent artifacts are generated IN PARALLEL (launch the generation calls together, e.g. background jobs), never one after another; at most one regeneration pass per artifact\n- the task also writes its manifest \`docs/artifacts/<task-slug>.md\` (committed): one bullet per artifact — file name, what it shows, and the prompt/parameters used\nAcceptance: reviewer checks whose rubric judges the manifest AND the artifacts themselves (the reviewer opens image files to look at them)${kind === 'video' ? `; add a must command check verifying each video with ffprobe (duration, resolution)${ffprobe ? '' : ' — ffprobe is NOT installed on this machine, so use a plain file-exists check instead'}` : ''}. Command checks otherwise only verify objective facts (files exist, counts).`;
@@ -668,6 +693,7 @@ function plannerNatureSection(goal: Goal, emptyRepo: boolean): string {
   const nature = goal.nature;
   if (nature === 'docs') return docs;
   if (nature === 'research') return research;
+  if (nature === 'video' && goal.videoPack === 'motion-studio') return [media('video'), MOTION_STUDIO_PLAN].join('\n\n');
   if (nature === 'image' || nature === 'video') return media(nature);
   if (nature === 'cad') return CAD_PLAN;
   if (nature === 'figure') return FIGURE_PLAN;
@@ -697,7 +723,7 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
     case 'image':
       return [media('image'), subjectsSection(goal)].join('\n\n');
     case 'video':
-      return [media('video'), subjectsSection(goal)].join('\n\n');
+      return [media('video'), ...(goal.videoPack === 'motion-studio' ? [MOTION_STUDIO_CLARIFY] : []), subjectsSection(goal)].join('\n\n');
     case 'figure':
       return [figureClarifySection(figure), subjectsSection(goal)].join('\n\n');
     case 'cad':

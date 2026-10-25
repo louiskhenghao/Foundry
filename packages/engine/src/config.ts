@@ -152,6 +152,7 @@ export interface EngineConfig {
   groqApiKey?: string;
   /** the Conversation on goals' pages (Settings → Beta, ADR-0073) */
   betaConversation: boolean;
+  betaMotionStudio: boolean;
   /** figure goals (the Figure nature and pack) are a beta feature behind Settings → Beta (ADR-0076) */
   betaFigure: boolean;
   log: (msg: string) => void;
@@ -237,6 +238,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     defaultGoalMode: process.env.FOUNDRY_GOAL_MODE === 'simple' ? 'simple' : 'expert',
     markitdownBin: process.env.FOUNDRY_MARKITDOWN,
     betaConversation: process.env.FOUNDRY_BETA_CONVERSATION === '1' || process.env.FOUNDRY_BETA_CONVERSATION === 'true',
+    betaMotionStudio: process.env.FOUNDRY_BETA_MOTION_STUDIO === '1' || process.env.FOUNDRY_BETA_MOTION_STUDIO === 'true',
     betaFigure: process.env.FOUNDRY_BETA_FIGURE === '1' || process.env.FOUNDRY_BETA_FIGURE === 'true',
     log: (m) => console.log(m),
     ...overrides,

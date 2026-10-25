@@ -156,6 +156,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
 | `beta.conversation` | `false` | `FOUNDRY_BETA_CONVERSATION` | The Conversation on a goal's page: a bubble opens a read-only Explainer that answers questions about the goal's code and Foundry's records of it, on the preset's Conversation model. Off = no bubble and no Conversation tab. |
+| `beta.motionStudio` | `false` | `FOUNDRY_BETA_MOTION_STUDIO` | The motion-studio video engine: video goals get an Engine picker (motion-studio beside the Video skills pack), the bundled motion-studio skill shows in the catalog, and the doctor checks ffmpeg and Chromium for it. Off: the Video skills pack alone, as before. |
 | `beta.figure` | `false` | `FOUNDRY_BETA_FIGURE` | Figure goals: a kind of goal of its own — interactive isometric figures of everyday objects and machines, one web page each, drawn by the Figure pack (Colorfigures or iso-glow, bundled with Foundry) and opened headless by Foundry when a task lands. Off = the kind, the Figure skills picker and the CLI's figure nature stay hidden; figure goals made before still open. |
 
 ## Engine (install)

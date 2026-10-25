@@ -1,0 +1,11 @@
+{
+  "title": "FILM TITLE",
+  "duration": 15,
+  "fps": 60,
+  "subframes": 4,
+  "formats": ["16x9"],
+  "bpm": 120,
+  "beatPhase": 0,
+  "palette": { "paper": "#141413", "ink": "#F0EEE6", "accent": "#D97757" },
+  "fonts": { "display": "Archivo", "mono": "JetBrains Mono" }
+}

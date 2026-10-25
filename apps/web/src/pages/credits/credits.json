@@ -1120,6 +1120,15 @@
       "notice": "a050dcc9cb96"
     },
     {
+      "id": "ffmpeg",
+      "name": "FFmpeg",
+      "version": null,
+      "license": "GPL-2.0-or-later (Debian build; LGPL-2.1-or-later core)",
+      "url": "https://ffmpeg.org",
+      "copyright": null,
+      "note": "Debian's ffmpeg package is built with its GPL components (libx264 among them), so the binary is GPL-2+ while FFmpeg's own core is LGPL-2.1+. Its copyright file is at /usr/share/doc/ffmpeg/copyright in the image. Foundry runs it to render and measure video (the motion-studio engine, the likeness review's frames, the reviewers' ffprobe checks)."
+    },
+    {
       "id": "debian",
       "name": "Debian packages",
       "version": null,
@@ -1241,6 +1250,17 @@
       "featured": false
     },
     {
+      "project": "nateherkai/hyperframes-student-kit",
+      "name": "Herk Edit Kit (hyperframes-student-kit)",
+      "url": "https://github.com/nateherkai/hyperframes-student-kit",
+      "license": "MIT, Apache-2.0 and the kit's use permission",
+      "kinds": [
+        "Skills"
+      ],
+      "ref": "10511e5af86fc47756ea89803b397422e2d89284",
+      "featured": false
+    },
+    {
       "project": "https://isoglow.dev",
       "name": "iso-glow",
       "url": "https://isoglow.dev",
@@ -1303,17 +1323,6 @@
       "kinds": [
         "Skills",
         "MCP server"
-      ],
-      "ref": null,
-      "featured": false
-    },
-    {
-      "project": "nateherkai/hyperframes-student-kit",
-      "name": "nateherkai/hyperframes-student-kit",
-      "url": "https://github.com/nateherkai/hyperframes-student-kit",
-      "license": "MIT",
-      "kinds": [
-        "Skills"
       ],
       "ref": null,
       "featured": false

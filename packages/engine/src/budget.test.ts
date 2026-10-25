@@ -10,7 +10,7 @@ const base = (over: Partial<Goal> = {}): Goal =>
     repoPath: '/r',
     baseBranch: 'main',
     branch: 'goal/g_1',
-    budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 },
+    budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' },
     state: 'running',
     stateBeforeBlock: null,
@@ -28,11 +28,11 @@ describe('budgetStatus', () => {
     expect(s.remainingUsd).toBe(1);
     expect(s.exceeded).toBeNull();
     expect(budgetStatus(base({ costUsd: 5 })).exceeded).toBe('cost');
-    expect(budgetStatus(base({ budgets: { maxCostUsd: 5, maxDurationMin: 5, maxConcurrent: 3, attemptsPerTask: 3 } })).exceeded).toBe('time');
+    expect(budgetStatus(base({ budgets: { maxCostUsd: 5, maxDurationMin: 5, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null } })).exceeded).toBe('time');
   });
 
   test('null limits never exceed and report remaining=null (not Infinity)', () => {
-    const g = base({ costUsd: 999, budgets: { maxCostUsd: null, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3 } });
+    const g = base({ costUsd: 999, budgets: { maxCostUsd: null, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null } });
     const s = budgetStatus(g);
     expect(s.exceeded).toBeNull();
     expect(s.remainingUsd).toBeNull();

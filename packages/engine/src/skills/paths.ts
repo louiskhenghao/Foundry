@@ -27,6 +27,7 @@ export interface SkillsPaths {
   claudeSkillsDir?: string;
 }
 
+
 export function skillsPaths(claudeHome: string, dataDir: string, provider: AgentProvider = 'claude', sharedHome?: string): SkillsPaths {
   const home = sharedHome ?? (provider !== 'claude' ? homedir() : dirname(claudeHome));
   return {

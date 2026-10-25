@@ -1,7 +1,7 @@
 import { PROVIDER_NAME, getBrief, listEscalations } from '@foundry/core';
 import type { Goal, Task } from '@foundry/core';
 import { ARTIFACT_SCENARIOS, listTasks, getTask, getGoal, listAttempts, getObservation } from '@foundry/core';
-import { type Continuation, type ContinueReason, continuationMessage, cutByLimit, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
+import { type Continuation, type ContinueReason, goalSessionTimeoutMs, continuationMessage, cutByLimit, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import type { Engine } from './engine.ts';
 import { runAudit } from './audit.ts';
@@ -298,7 +298,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       }
       if (next.reason === 'checks_failed' && outcome.nonBoundaryDenials.length) break; // a denied tool will not resolve itself
       prevFailed = outcome.report.failedCount;
-      const message = continuationMessage(next.reason, { timeoutMin: Math.round(config.attemptTimeoutMs / 60_000), report: outcome.report.summary.slice(0, 4000) });
+      const message = continuationMessage(next.reason, { timeoutMin: Math.round(goalSessionTimeoutMs(goal, config) / 60_000), report: outcome.report.summary.slice(0, 4000) });
       store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'running', reason: `continuation ${outcome.attempt.continuations + 1}: ${next.reason.replace('_', ' ')}` } });
       outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, cwd, { resume: { attempt: outcome.attempt, reason: next.reason, message } });
       fresh = getTask(store.db, task.id)!;

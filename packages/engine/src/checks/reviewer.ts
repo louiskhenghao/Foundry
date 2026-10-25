@@ -2,7 +2,7 @@ import { metaFor, modelFor } from '../models/roles.ts';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@foundry/core';
-import { jsonSchemaFor, ReviewerVerdict as ReviewerVerdictSchema, chosenStyle, getBrief } from '@foundry/core';
+import { jsonSchemaFor, ReviewerVerdict as ReviewerVerdictSchema, VERDICT_AXES, type VerdictAxis, type VerdictScores, chosenStyle, getBrief } from '@foundry/core';
 import { renderStyle } from '../attempt-prompt.ts';
 import { FIGURE_REVIEW_TASK } from '../figure.ts';
 import { figureCheckLines, figureReviewSection } from './figure.ts';
@@ -179,7 +179,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
   const recalled = await engine.memory.reflect('review_task', memoryQuestion('review_task', { goalTitle: goal.title, taskTitle: task.title, files: task.relevantFiles }), { repoPath: goal.repoPath, goalId: goal.id, taskId: task.id, attemptId: attempt.id });
   const prompt = [
     `# Task (${task.kind}${task.scenario !== 'general' ? `, ${task.scenario}` : ''})\n${task.title}\n\n${task.spec}`,
-    rubric ? `# Rubric (verify each)\n${rubric}` : '',
+    rubric ? `# Rubric (verify each)\n${rubric}${/\bscores\b/i.test(rubric) ? '\nPut the numbers in the JSON `scores` field, one integer per axis, not only in the notes.' : ''}` : '',
     style,
     subjects,
     media,
@@ -226,7 +226,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
   if (!parsed.success && r.sessionId) {
     // one nudge in the same session: "stop reading, answer now"
     const again = await engine.runner.run({
-      prompt: 'Stop exploring. Reply now with ONLY the JSON verdict matching the schema (pass, blockers, notes). If you are unsure, pass with a note.',
+      prompt: 'Stop exploring. Reply now with ONLY the JSON verdict matching the schema (pass, blockers, notes, and scores when the rubric scores axes). If you are unsure, pass with a note.',
       cwd,
       model: modelFor(engine.config, goal, 'taskReviewer').model,
       meta: metaFor(goal.id, modelFor(engine.config, goal, 'taskReviewer')),
@@ -256,7 +256,32 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     engine.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `task reviewer returned no verdict for attempt ${attempt.id} (${r.subtype}${r.errorMessage ? `: ${r.errorMessage.slice(0, 120)}` : ''}) — objective checks decide this attempt` } });
     return null;
   }
-  return parsed.data;
+  return withScoresFromNotes(parsed.data);
+}
+
+/**
+ * A reviewer that scored the axes in its notes (a table, `hook | 9`, or `hook: 9`) instead of the `scores` field: the
+ * numbers are read back from there. Three axes at least, or nothing: a stray number in prose is not a score.
+ */
+export function scoresFromNotes(notes: string | undefined): VerdictScores | undefined {
+  if (!notes) return undefined;
+  const out: Partial<Record<VerdictAxis, number>> = {};
+  for (const axis of VERDICT_AXES) {
+    const m = new RegExp(`(?:^|[^a-z])${axis}\\s*\\**\\s*[|:：—–-]\\s*\\**\\s*(\\d{1,2})\\b`, 'im').exec(notes);
+    const n = m ? Number(m[1]) : NaN;
+    if (n >= 1 && n <= 10) out[axis] = n;
+  }
+  return Object.keys(out).length >= 3 ? out : undefined;
+}
+
+/** the verdict with its scores: the field when the reviewer filled it, else what its notes say */
+export const withScoresFromNotes = (v: ReviewerVerdict): ReviewerVerdict => (v.scores && Object.keys(v.scores).length ? v : { ...v, scores: scoresFromNotes(v.notes) });
+
+/** the summary a verdict leaves on its check result: the blockers or the pass, then the scores when the rubric scored axes */
+export function verdictSummary(v: ReviewerVerdict): string {
+  const head = v.pass ? 'Reviewer: no blockers.' : v.blockers.join('\n');
+  const scored = v.scores ? VERDICT_AXES.filter((a) => v.scores![a] != null) : [];
+  return scored.length ? `${head}\nScores: ${scored.map((a) => `${a} ${v.scores![a]}`).join(' · ')}` : head;
 }
 
 export function tryJson(s: string | null): unknown {
