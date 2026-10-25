@@ -75,4 +75,5 @@ export { DEPLOY_PROVIDERS, PROVIDER_LABEL } from './deploy/providers.ts';
 export { Access, AccessError, type Person } from './access.ts';
 export { Conversations, ConversationError, CONVERSATION_MAX_TURNS, CONVERSATION_MAX_BUDGET_USD, CONVERSATION_TIMEOUT_MS, conversationChannel, type ConversationsView, type ConversationLive } from './conversation/conversations.ts';
 export { RECORDS_DIR, conversationWorkspacePath } from './conversation/workspace.ts';
+export { DRAFT_FAST_BUDGET_USD, DRAFT_REPO_BUDGET_USD, DRAFT_NOTES_MAX, TemplateDraftError, draftModels, draftPrompt, runTemplateDraft, type TemplateDraftRequest, type TemplateDraftResult, type TemplateDraftSource } from './templates/draft.ts';
 export { AdjustError, adjustPlan, adjustView, snapshotResult, versionFiles, renderAdjustment, renderAdjustments, adjustmentContext, adjustedSinceDelivery, type AdjustView, type AdjustmentContext } from './adjust.ts';

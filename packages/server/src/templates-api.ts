@@ -1,6 +1,7 @@
-import { TemplateLang, TemplateVersion, renderTemplate, type TemplateEntry, type TemplateVersionView } from '@foundry/core';
-import type { CreateGoalInput, Engine, OpenTargetId, Person } from '@foundry/engine';
-import { OpenError, openFile, openPath } from '@foundry/engine';
+import { AgentProvider, GoalNature, TemplateLang, TemplateVersion, newId, renderTemplate, type TemplateEntry, type TemplateNature, type TemplateVersionView } from '@foundry/core';
+import type { CreateGoalInput, TemplateDraftResult, Engine, OpenTargetId, Person } from '@foundry/engine';
+import { DRAFT_NOTES_MAX, TemplateDraftError, OpenError, assertAllowed, defaultAllowedRoots, inspectRepo, openFile, openPath, runTemplateDraft } from '@foundry/engine';
+import type { RunHandle } from '@foundry/runner';
 import type { Hono } from 'hono';
 import { z } from 'zod';
 import { HttpError } from './http-error.ts';
@@ -30,6 +31,21 @@ function templateOr404(engine: Engine, id: string): TemplateEntry {
 export function versionOf(t: TemplateEntry, lang?: TemplateLang): TemplateVersionView {
   return (lang ? t[lang] : null) ?? t.en ?? t.zh!;
 }
+
+/** the built-in template a description of each kind is shaped like when the person chose none */
+export const GUIDE_TEMPLATE: Record<TemplateNature, string> = { code: 'code-feature', docs: 'docs-prd', research: 'research-report', image: 'image-poster', video: 'video-product-reel', figure: 'figure-how-it-works', cad: 'cad-part' };
+
+/** a draft under way, done, failed or stopped; forgotten a while after it ends */
+interface DraftJob {
+  id: string;
+  startedAt: number;
+  status: 'running' | 'done' | 'failed' | 'stopped';
+  result: TemplateDraftResult | null;
+  error: string | null;
+  handle: RunHandle | null;
+  stopAsked: boolean;
+}
+const DRAFT_KEEP_MS = 10 * 60_000;
 
 /**
  * What POST /api/goals makes of a goal from a Template (ADR-0079): the description rendered from the values when only
@@ -131,6 +147,77 @@ export function registerTemplateRoutes(app: App, engine: Engine): void {
     const t = entry(body.id);
     const v = versionOf(t, body.lang);
     return c.json({ ...renderTemplate(v, body.values ?? {}), name: v.name, nature: t.nature, settings: t.settings });
+  });
+
+  // ---- the AI draft (ADR-0079): fills the chosen template's inputs from rough notes, or writes a description ----
+  const drafts = new Map<string, DraftJob>();
+  const sweepDrafts = (now = Date.now()) => {
+    for (const [id, j] of drafts) if (j.status !== 'running' && now - j.startedAt > DRAFT_KEEP_MS) drafts.delete(id);
+  };
+  const draftOr404 = (id: string) => {
+    const j = drafts.get(id);
+    if (!j) throw new HttpError(404, { error: 'this draft is gone; ask for another' });
+    return j;
+  };
+  app.post('/api/templates/draft', async (c) => {
+    const body = z
+      .object({
+        provider: AgentProvider.optional(),
+        nature: GoalNature.optional(),
+        lang: TemplateLang.optional(),
+        notes: z.string().max(DRAFT_NOTES_MAX),
+        template: z.object({ id: z.string().min(1), lang: TemplateLang.optional() }).optional(),
+        /** read this checkout too (the form's repository, once it passed its check) */
+        repoPath: z.string().min(1).optional(),
+      })
+      .parse(await c.req.json());
+    if (!body.notes.trim()) throw new HttpError(400, { error: 'write a few notes first: what you have in mind, in your own words' });
+    const provider = body.provider ?? engine.config.provider;
+    const lang = body.lang ?? 'en';
+    const chosen = body.template ? versionOf(entry(body.template.id), body.template.lang ?? lang) : null;
+    const nature: GoalNature = chosen?.nature ?? body.nature ?? 'auto';
+    const guideId = nature !== 'auto' ? GUIDE_TEMPLATE[nature as TemplateNature] : null;
+    const guideEntry = !chosen && guideId ? templatesOf(engine).templates.find((t) => t.id === guideId) : null;
+    const guide = guideEntry ? versionOf(guideEntry, lang) : null;
+    let repoPath: string | null = null;
+    if (body.repoPath) {
+      // the checkout the goal will run in: inside the folders Foundry may touch, a repository with commits
+      try {
+        repoPath = assertAllowed(body.repoPath, engine.config.allowedRoots ?? defaultAllowedRoots());
+      } catch (e) {
+        throw new HttpError(403, { error: String((e as Error).message ?? e) });
+      }
+      const info = await inspectRepo(repoPath);
+      if (!info.isGitRepo || !info.hasCommits) throw new HttpError(400, { error: 'the repository has to pass its check before the draft can read it' });
+    }
+    sweepDrafts();
+    const job: DraftJob = { id: newId('td'), startedAt: Date.now(), status: 'running', result: null, error: null, handle: null, stopAsked: false };
+    drafts.set(job.id, job);
+    void runTemplateDraft(engine, { provider, nature, lang, notes: body.notes, template: chosen ? { name: chosen.name, body: chosen.body, inputs: chosen.inputs } : null, guide: guide ? { name: guide.name, body: guide.body, inputs: guide.inputs } : null, repoPath }, (h) => {
+      job.handle = h;
+      if (job.stopAsked) h.kill('killed_manual');
+    })
+      .then((r) => {
+        job.status = job.stopAsked ? 'stopped' : 'done';
+        job.result = r;
+      })
+      .catch((e: unknown) => {
+        job.status = job.stopAsked || (e instanceof TemplateDraftError && e.status === 409) ? 'stopped' : 'failed';
+        job.error = String((e as Error).message ?? e);
+      });
+    return c.json({ id: job.id, status: job.status }, 202);
+  });
+  app.get('/api/templates/draft/:id', (c) => {
+    const j = draftOr404(c.req.param('id'));
+    return c.json({ id: j.id, status: j.status, result: j.result, error: j.error, elapsedMs: Date.now() - j.startedAt });
+  });
+  app.delete('/api/templates/draft/:id', (c) => {
+    const j = draftOr404(c.req.param('id'));
+    if (j.status === 'running') {
+      j.stopAsked = true;
+      j.handle?.kill('killed_manual');
+    }
+    return c.json({ id: j.id, status: j.status === 'running' ? 'stopped' : j.status });
   });
 
   // the templates folder, or with `template` one file of the person's own (in an editor only); never another path
