@@ -97,6 +97,8 @@ test('a draft fills the chosen template from the notes on the housekeeping model
     expect(spec.prompt).toContain('- product (The product) — Its name and what it does, in a line. — required');
     expect(spec.prompt).toContain('one of: 15 s | 30 s | 45 s | 60 s');
     expect(spec.prompt).toContain('Write in English.');
+    // a one-line value sits inside the template's sentence: it must read on there (a live fill once wrote "Draw A retro deck…")
+    expect(spec.prompt).toContain('A one-line value goes into the sentence where its blank is');
     expect(spec.prompt).toContain('turns a goal into a pull request');
     expect(spec.jsonSchema).toMatchObject({ properties: { values: expect.anything() } });
     const usage = engine.store.db.query("SELECT goal_id, kind, model FROM usage_ledger WHERE kind = 'template'").all() as { goal_id: string | null; kind: string; model: string }[];

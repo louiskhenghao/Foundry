@@ -105,7 +105,7 @@ export function draftPrompt(req: TemplateDraftRequest): string {
       `# The template "${req.template.name}"\n${blanks(req.template.body)}`,
       `# Its inputs\n${req.template.inputs.map(describeInput).join('\n')}`,
       `# The person's notes\n${req.notes.trim()}`,
-      `# Your job\nFill each input from the notes${repo ? ' and what the repository shows' : ''}. For a choice, pick one of its options as written (or write your own only where something else is allowed). An optional input the notes say nothing about stays an empty string. ${rules.join(' ')} Answer with JSON matching the schema: {"values": {<key>: <value>, ...}} with every input key.${repo}`,
+      `# Your job\nFill each input from the notes${repo ? ' and what the repository shows' : ''}. A one-line value goes into the sentence where its blank is: write it so that sentence reads on (lower case unless it starts with a name, no full stop of its own). For a choice, pick one of its options as written (or write your own only where something else is allowed). An optional input the notes say nothing about stays an empty string. ${rules.join(' ')} Answer with JSON matching the schema: {"values": {<key>: <value>, ...}} with every input key.${repo}`,
     ].join('\n\n');
   }
   const kind = req.nature === 'auto' ? 'Decide first what kind of goal the notes describe — code (software), docs (prose), research (a cited report), image, video, figure (an interactive isometric figure of an object or machine) or cad (3D parts) — and set `nature` to it.' : `This is a ${req.nature} goal.`;

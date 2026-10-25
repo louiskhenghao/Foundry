@@ -93,3 +93,15 @@ test('the Templates page lists yours and Foundry\'s with what each can have done
   // a built-in template is viewed and copied, never opened as a file
   expect(html.match(/Open in VS Code/g)).toHaveLength(1);
 });
+
+test('the AI\'s values are listed in the template\'s order under its labels, then any key it does not know', async () => {
+  const { draftRows } = await import('../src/components/Templates.tsx');
+  const inputs = [{ key: 'object', label: 'The device', type: 'text' as const, other: false }, { key: 'live', label: 'What is live', type: 'textarea' as const, other: false }, { key: 'accent', type: 'choice' as const, other: false, options: ['ember', 'cyan'] }];
+  expect(draftRows({ accent: 'cyan', live: 'the screen', object: 'a tape deck', stray: 'x' }, inputs)).toEqual([
+    ['object', 'The device', 'a tape deck'],
+    ['live', 'What is live', 'the screen'],
+    ['accent', 'Accent', 'cyan'],
+    ['stray', 'Stray', 'x'],
+  ]);
+});
+

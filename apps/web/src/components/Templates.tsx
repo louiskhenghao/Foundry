@@ -285,7 +285,14 @@ const DRAFT_WORDS = 'One short call on the housekeeping model, a few cents. With
  * The AI draft's controls: the notes, the Fill in / Write button, the repository switch, the wait, and what came back as
  * a preview to take or leave — never written into the form on its own.
  */
-export function DraftBox({ mode, notes, onNotes, repoReady, draft, onAsk, onAccept, label }: { mode: 'fill' | 'write'; notes: string; onNotes: (v: string) => void; /** the form's repository passed its check */ repoReady: boolean; draft: ReturnType<typeof useDraft>; onAsk: (readRepo: boolean) => void; onAccept: (r: NonNullable<DraftView['result']>) => void; label?: string }) {
+/** the filled values as the preview lists them: in the template's order, under the labels its inputs show, then any other key */
+export function draftRows(values: Record<string, string>, inputs?: TemplateVersionView['inputs']): [key: string, label: string, value: string][] {
+  const known = (inputs ?? []).filter((i) => i.key in values).map((i): [string, string, string] => [i.key, i.label ?? labelOf(i.key), values[i.key] ?? '']);
+  const rest = Object.entries(values).filter(([k]) => !known.some(([key]) => key === k)).map(([k, v]): [string, string, string] => [k, labelOf(k), v]);
+  return [...known, ...rest];
+}
+
+export function DraftBox({ mode, notes, onNotes, repoReady, draft, onAsk, onAccept, label, inputs }: { mode: 'fill' | 'write'; notes: string; onNotes: (v: string) => void; /** the form's repository passed its check */ repoReady: boolean; draft: ReturnType<typeof useDraft>; onAsk: (readRepo: boolean) => void; onAccept: (r: NonNullable<DraftView['result']>) => void; label?: string; /** the template's inputs: the filled values are listed in their order, under their labels */ inputs?: TemplateVersionView['inputs'] }) {
   const [readRepo, setReadRepo] = useState(false);
   const r = draft.job?.result;
   const settledWith = draft.job && draft.job.status !== 'running' ? draft.job : null;
@@ -324,9 +331,9 @@ export function DraftBox({ mode, notes, onNotes, repoReady, draft, onAsk, onAcce
         <div className="rounded-md border border-line bg-panel p-2.5 text-xs space-y-2" role="region" aria-label="The AI's draft">
           {r.values ? (
             <ul className="space-y-1">
-              {Object.entries(r.values).map(([k, v]) => (
+              {draftRows(r.values, inputs).map(([k, label, v]) => (
                 <li key={k} className="flex gap-2">
-                  <span className="shrink-0 font-semibold text-ink-soft">{labelOf(k)}</span>
+                  <span className="shrink-0 font-semibold text-ink-soft">{label}</span>
                   <span className={cn('min-w-0 whitespace-pre-wrap', v ? 'text-ink' : 'italic text-ink-faint')}>{v || 'left empty: the notes said nothing'}</span>
                 </li>
               ))}
@@ -396,7 +403,7 @@ export function TemplatePanel({ entry, version, values, onValues, onRemove, edit
           .
         </p>
       )}
-      {version.inputs.length > 0 && <DraftBox mode="fill" notes={notes} onNotes={onNotes} repoReady={repoReady} draft={draft} onAsk={onAsk} onAccept={(r) => r.values && onAcceptValues(r.values)} />}
+      {version.inputs.length > 0 && <DraftBox mode="fill" notes={notes} onNotes={onNotes} repoReady={repoReady} draft={draft} onAsk={onAsk} onAccept={(r) => r.values && onAcceptValues(r.values)} inputs={version.inputs} />}
     </div>
   );
 }
