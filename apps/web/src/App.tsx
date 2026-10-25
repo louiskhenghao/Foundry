@@ -21,6 +21,7 @@ import { BuildWatch } from './buildWatch.tsx';
 import { LearningsPage } from './pages/LearningsPage.tsx';
 import { SchedulesPage } from './pages/SchedulesPage.tsx';
 import { NewGoalPage } from './pages/NewGoalPage.tsx';
+import { TemplateEditorPage } from './pages/TemplateEditorPage.tsx';
 import { SetupPage } from './pages/SetupPage.tsx';
 import { SkillsTabs } from './pages/skills/SkillsTabs.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
@@ -178,6 +179,8 @@ export function App() {
         <Routes>
           <Route path="/" element={<GoalsPage />} />
           <Route path="/goals/new" element={<NewGoalPage />} />
+          <Route path="/templates/new" element={<TemplateEditorPage />} />
+          <Route path="/templates/:id" element={<TemplateEditorPage />} />
           <Route path="/goals/:id/brief" element={<BriefPage />} />
           <Route path="/goals/:id/resolve/:taskId" element={<MergeResolvePage />} />
           <Route path="/goals/:id" element={<GoalPage />} />
