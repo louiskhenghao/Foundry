@@ -9,10 +9,18 @@ settings:
 inputs:
   - key: topic
     label: What it explains
+    example: how compound interest works
   - key: script
     label: The words
     type: textarea
     help: The script, or the points to make in order. Short sentences move best.
+    example: |
+      You save 100.
+      It earns 5. Now it is 105.
+      Next year the 5 earns too.
+      Small at first. Then not small at all.
+      Thirty years: 432, from doing nothing.
+      Start early. Let time do the work.
   - key: duration
     label: Length
     type: choice
@@ -32,6 +40,7 @@ inputs:
     label: Colours and type
     required: false
     help: Two or three colours and a font family, or a brand to take them from.
+    example: Near-black, chalk white and one acid green; a tall grotesque for the big words.
 ---
 
 Make a {{duration}} kinetic-type explainer about {{topic}}.

@@ -7,10 +7,12 @@ settings:
 inputs:
   - key: brand
     label: Brand or account
+    example: Ridgeline, a small outdoor gear brand
   - key: message
     label: The message
     type: textarea
     help: What the set says, in a sentence or two; the words to appear on the images, if any.
+    example: The spring line is out, made to be repaired rather than replaced. On the images, only "Made to be repaired" and the launch date.
   - key: platforms
     label: Platforms
     type: choice
@@ -26,10 +28,12 @@ inputs:
     label: Look and feel
     type: textarea
     help: Colours, typography, photography or illustration, references.
+    example: Flat illustration, slate blue and burnt orange, a heavy sans-serif for the one line of text; no photographs, no gradients.
   - key: avoid
     label: Avoid
     type: textarea
     required: false
+    example: Stock-photo smiles, mountain clichés, more than one line of text per image.
 ---
 
 Make a set of {{count}} social media images for {{brand}}.

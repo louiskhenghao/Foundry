@@ -10,11 +10,13 @@ inputs:
     label: 问题
     type: textarea
     help: 你需要知道什么，尽量说准。一份报告只回答一个问题。
+    example: 一个小团队做一款手机上必须能离线、联网后再同步的应用，该选哪种数据库，各个选择在运维上要付出什么？
   - key: scope
     label: 包含与排除
     type: textarea
     required: false
     help: 时间跨度、地区、产品或来源，哪些算、哪些不算。
+    example: 只看开源或有免费档的；最近三年的版本；排除需要专门服务器团队的方案。
   - key: sources
     label: 允许的来源
     type: choice
@@ -29,6 +31,7 @@ inputs:
     label: 它要支撑的决定
     required: false
     help: 你拿到答案后要做什么，报告就按这个来权衡轻重。
+    example: 我们要为下一个版本选定数据库，两年内不会再换。
 ---
 
 调研这个问题，写一份带引用的报告。

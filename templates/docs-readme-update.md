@@ -11,10 +11,16 @@ inputs:
     type: choice
     options: [newcomers trying it for the first time, contributors who change the code, people who run it, all of them]
     other: true
+    example: newcomers trying it for the first time
   - key: cover
     label: What it must cover
     type: textarea
     help: The things a reader must learn, one per line. Mention anything that changed recently.
+    example: |
+      What the tool does, in five lines.
+      Installing it with one command, on macOS and Linux.
+      The three commands everyone uses, with their output.
+      The new config file (it replaced the environment variables in 1.8).
   - key: tone
     label: Tone
     type: choice
@@ -25,6 +31,7 @@ inputs:
     type: textarea
     required: false
     help: Sections or wording that must stay.
+    example: The licence section and the project's one-line tagline.
 ---
 
 Update the README for {{audience}}.

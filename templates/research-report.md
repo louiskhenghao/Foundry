@@ -9,11 +9,13 @@ inputs:
     label: The question
     type: textarea
     help: What you need to know, as precisely as you can put it. One question per report.
+    example: Which database should a small team pick for an app that must work offline on phones and sync when back online, and what does each choice cost in operations?
   - key: scope
     label: Include and exclude
     type: textarea
     required: false
     help: Time span, regions, products or sources to include or leave out.
+    example: Open-source or free-tier options only; releases from the last three years; leave out anything that needs its own server team.
   - key: sources
     label: Sources allowed
     type: choice
@@ -28,6 +30,7 @@ inputs:
     label: The decision it informs
     required: false
     help: What you will do with the answer, so the report weighs what matters to that.
+    example: We pick the database for the next release and will not change it for two years.
 ---
 
 Research this question and write a report with citations.

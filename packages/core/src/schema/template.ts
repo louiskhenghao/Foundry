@@ -39,6 +39,8 @@ export const TemplateInput = z.object({
   default: z.string().max(2000).optional(),
   /** must be filled before the goal is made; default: yes, unless a default is given */
   required: z.boolean().optional(),
+  /** a value to show the template filled in with (the preview), never written into a goal */
+  example: z.string().max(2000).optional(),
 });
 export type TemplateInput = z.infer<typeof TemplateInput>;
 

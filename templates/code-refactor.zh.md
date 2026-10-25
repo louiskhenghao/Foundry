@@ -9,19 +9,23 @@ inputs:
   - key: area
     label: 重构什么
     help: 一个模块、一个目录、一个类，或一条流程。
+    example: 通知模块（src/notify/*）
   - key: why
     label: 为什么
     type: textarea
     help: 今天什么事情很难，重构之后应该变得容易。
+    example: 每个渠道（邮件、聊天、webhook）都重复同一套重试和格式化代码，改一次重试策略要改三处，总有一处漏掉。加第四个渠道应该只是一个文件的事。
   - key: keep
     label: 什么不能变
     type: textarea
     required: false
     help: 其他代码或其他人依赖的行为、公开接口、文件格式、性能。
+    example: 消息文案、重试次数和公开的 send() 签名。现有通知测试原样通过。
   - key: stop_at
     label: 止于哪里
     required: false
     help: 改动的边界。边界之外的，再诱人也不碰。
+    example: 各渠道自己的 HTTP 客户端保持原样。
 ---
 
 # 重构：{{area}}

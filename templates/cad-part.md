@@ -6,17 +6,25 @@ inputs:
   - key: part
     label: The part
     help: What it is called, and what it fits.
+    example: a wall bracket for a 40 mm curtain pole
   - key: function
     label: What it does
     type: textarea
     help: What it holds, guides, covers or connects, and the forces or heat it sees.
+    example: Holds one end of a 40 mm pole 80 mm off the wall, screwed to the wall with two screws; carries about 5 kg of curtain with a tug now and then.
   - key: dimensions
     label: Key dimensions
     type: textarea
     help: With units. Overall size, hole positions and sizes, fits and clearances, wall thickness.
+    example: |
+      Pole socket 40.5 mm bore, 25 mm deep, open at the top so the pole lifts out.
+      Stand-off 80 mm from the wall plate to the pole centre.
+      Wall plate 60 × 40 mm with two 5 mm holes 40 mm apart, countersunk.
+      Walls at least 4 mm.
   - key: material
     label: Material
     required: false
+    example: PETG, or aluminium if machined
   - key: process
     label: How it will be made
     type: choice

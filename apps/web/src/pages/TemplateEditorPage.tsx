@@ -356,6 +356,7 @@ export function TemplateEditorPage() {
                       </Select>
                       <Input aria-label={`Default for ${i.key}`} placeholder="Default" value={i.default ?? ''} readOnly={readOnly} onChange={(e) => updateInput(i.key, { default: e.target.value || undefined })} />
                     </div>
+                    <Input aria-label={`Example for ${i.key}`} placeholder="Example, shown when the template is read filled in" value={i.example ?? ''} readOnly={readOnly} onChange={(e) => updateInput(i.key, { example: e.target.value || undefined })} />
                     {i.type === 'choice' && (
                       <>
                         <Input aria-label={`Options for ${i.key}`} placeholder="Options, separated by |" value={(i.options ?? []).join(' | ')} readOnly={readOnly} onChange={(e) => updateInput(i.key, { options: e.target.value.split('|').map((s) => s.trim()).filter(Boolean) })} />

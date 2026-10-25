@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import type { TemplateVersion } from '../schema/template.ts';
 import { YamlError, parseYaml, yamlString, yamlText, type YamlValue } from './yaml.ts';
-import { inputsFor, labelOf, parseTemplateText, placeholdersOf, renderTemplate, settingsFromGoal, splitFrontmatter, templateFileText, templateFromGoal } from './template.ts';
+import { bodyWithBlanks, inputsFor, labelOf, parseTemplateText, placeholdersOf, renderTemplate, sampleValues, settingsFromGoal, splitFrontmatter, templateFileText, templateFromGoal } from './template.ts';
 
 describe('the frontmatter YAML', () => {
   test('reads maps, lists, scalars, flow lists and block scalars', () => {
@@ -207,6 +207,19 @@ describe('rendering', () => {
     const sections: Pick<TemplateVersion, 'body' | 'inputs'> = { body: '# Bug: {{symptom}}\n\n## Where it lives\n{{where}}\n\n## Since when\n{{since}}\n\n## Already decided\n- Fix the cause.', inputs: [{ key: 'symptom', type: 'text', other: false }, { key: 'where', type: 'text', other: false, required: false }, { key: 'since', type: 'text', other: false, required: false }] };
     expect(renderTemplate(sections, { symptom: 'a 500 on save' }).prompt).toBe('# Bug: a 500 on save\n\n## Already decided\n- Fix the cause.');
     expect(renderTemplate(sections, { symptom: 'a 500 on save', since: 'v2.1' }).prompt).toBe('# Bug: a 500 on save\n\n## Since when\nv2.1\n\n## Already decided\n- Fix the cause.');
+  });
+
+  test('the preview shows the blanks by their names, and the words filled with each input\'s example, default or name', () => {
+    const t = { body: 'A {{duration}} reel for {{product}}.\n\n{{brand}}', inputs: [{ key: 'duration', type: 'choice' as const, other: false, options: ['30 s'], default: '30 s' }, { key: 'product', type: 'text' as const, other: false, label: 'The product', example: 'Foundry' }, { key: 'brand', type: 'textarea' as const, other: false, required: false }] };
+    expect(bodyWithBlanks(t)).toBe('A **［Length］** reel for **［The product］**.\n\n**［Brand］**'.replace('Length', 'Duration'));
+    expect(sampleValues(t)).toEqual({ duration: '30 s', product: 'Foundry', brand: '［Brand］' });
+    expect(renderTemplate(t, sampleValues(t)).prompt).toBe('A 30 s reel for Foundry.\n\n［Brand］');
+    // an example is kept in the file and read back
+    const text = templateFileText({ lang: 'en', name: 'Reel', summary: '', nature: 'video', settings: {}, inputs: t.inputs, body: t.body });
+    expect(text).toContain('    example: Foundry\n');
+    const back = parseTemplateText(text, 'en');
+    if ('error' in back) throw new Error(back.error);
+    expect(back.template.inputs.find((i) => i.key === 'product')?.example).toBe('Foundry');
   });
 
   test('a template from a goal keeps its words as the body and its settings about the work', () => {

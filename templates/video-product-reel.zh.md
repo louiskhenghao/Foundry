@@ -11,10 +11,12 @@ inputs:
   - key: product
     label: 产品
     help: 名字，以及它是做什么的，一句话。
+    example: Ledgerly，给自由职业者的开票工具，替你催拖欠的款
   - key: url
     label: 在哪里能看到它
     required: false
     help: 网站或应用，短片可以从那里取真实界面和配色。
+    example: https://app.example.com
   - key: duration
     label: 时长
     type: choice
@@ -29,11 +31,13 @@ inputs:
     label: 唯一要记住的一件事
     type: textarea
     help: 看完之后，观众应该能说出产品的哪一点。
+    example: 账单发一次就好；Ledgerly 会客客气气地一直提醒，直到收到钱。
   - key: brand
     label: 品牌
     type: textarea
     required: false
     help: 颜色、字体、logo、品牌的语气；有文件就在下面附上。
+    example: 墨蓝 #1b2a49 配纸白，字标用几何无衬线体；沉稳、克制，绝不叫卖。
   - key: music
     label: 音乐
     type: choice

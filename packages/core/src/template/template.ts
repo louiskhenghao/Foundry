@@ -95,7 +95,7 @@ export const TEMPLATE_MAX_BYTES = 64 * 1024;
  */
 export function templateFileText(t: TemplateVersion): string {
   const inputs = t.inputs
-    .filter((i) => i.label !== undefined || i.help !== undefined || i.type !== 'text' || i.options !== undefined || i.other || i.default !== undefined || i.required !== undefined)
+    .filter((i) => i.label !== undefined || i.help !== undefined || i.type !== 'text' || i.options !== undefined || i.other || i.default !== undefined || i.required !== undefined || i.example !== undefined)
     .map((i) => {
       const o: Record<string, YamlValue> = { key: i.key };
       if (i.label !== undefined) o.label = i.label;
@@ -105,6 +105,7 @@ export function templateFileText(t: TemplateVersion): string {
       if (i.other) o.other = true;
       if (i.default !== undefined) o.default = i.default;
       if (i.required !== undefined) o.required = i.required;
+      if (i.example !== undefined) o.example = i.example;
       return o;
     });
   const fm: Record<string, YamlValue> = { name: t.name };
@@ -172,6 +173,19 @@ export function renderTemplate(t: Pick<TemplateVersion, 'body' | 'inputs'>, valu
     .trim();
   return { prompt, missing };
 }
+
+/**
+ * The template filled in for a look (the preview): each input's example, else its default, else its label in brackets,
+ * so the words read as they would with something in the blanks. Never what a goal is made from.
+ */
+export const sampleValues = (t: Pick<TemplateVersion, 'inputs'>): Record<string, string> => Object.fromEntries(t.inputs.map((i) => [i.key, i.example ?? i.default ?? `［${i.label ?? labelOf(i.key)}］`]));
+
+/** the body with every placeholder shown as its input's name in brackets, in bold: what a reader sees before filling in */
+export const bodyWithBlanks = (t: Pick<TemplateVersion, 'body' | 'inputs'>): string =>
+  t.body.replace(PLACEHOLDER, (_, key: string) => {
+    const input = t.inputs.find((i) => i.key === key);
+    return `**［${input?.label ?? labelOf(key)}］**`;
+  });
 
 /** the settings a goal was made with, as a template would carry them: what the New goal form shows of its work */
 export function settingsFromGoal(g: Pick<Goal, 'videoPack' | 'figurePack' | 'mode' | 'workflow' | 'budgetPreset' | 'budgets' | 'interview' | 'nature'>): TemplateSettings {

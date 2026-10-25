@@ -7,18 +7,26 @@ inputs:
   - key: assembly
     label: 装配体
     help: 它是什么，一句话。
+    example: 一个可调角度的桌面手机支架
   - key: parts
     label: 零件
     type: textarea
     help: 每个零件以及它和其他零件怎么连接，一行一个，附上已知的关键尺寸。
+    example: |
+      底座：120 × 90 mm 板，厚 8 mm，四个 10 mm 凹槽嵌橡胶脚垫。
+      背板：100 × 140 mm，沿后缘用 6 mm 销轴铰接在底座上。
+      托沿：高 12 mm、宽 80 mm，在背板前端，开一个 14 mm 走线槽。
+      撑杆：把背板撑在 55°、65° 或 75°，落在底座的三个凹口里。
   - key: motion
     label: 什么会动
     type: textarea
     required: false
     help: 哪些零件会动、动多远、绕着或沿着什么。
+    example: 背板绕销轴从平放转到 80°；撑杆可以折平贴着背板方便携带。
   - key: envelope
     label: 总体尺寸
     help: 它必须装进的空间，带单位。
+    example: 折叠后不超过 120 × 90 × 25 mm。
   - key: exports
     label: 需要的文件
     type: choice

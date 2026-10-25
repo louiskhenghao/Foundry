@@ -7,17 +7,25 @@ inputs:
   - key: part
     label: 零件
     help: 它叫什么，装在哪里。
+    example: 一个 40 mm 窗帘杆的墙面托架
   - key: function
     label: 它的作用
     type: textarea
     help: 它固定、导向、遮盖或连接什么，承受什么力或热。
+    example: 托住 40 mm 窗帘杆的一端，离墙 80 mm，用两颗螺丝固定在墙上；承受大约 5 kg 的窗帘，偶尔被拽一下。
   - key: dimensions
     label: 关键尺寸
     type: textarea
     help: 带单位。总体尺寸、孔位和孔径、配合与间隙、壁厚。
+    example: |
+      杆槽内径 40.5 mm、深 25 mm，顶部开口，杆能向上取出。
+      墙板到杆心的外伸距离 80 mm。
+      墙板 60 × 40 mm，两个 5 mm 沉头孔，孔距 40 mm。
+      壁厚不小于 4 mm。
   - key: material
     label: 材料
     required: false
+    example: PETG；机加工则用铝
   - key: process
     label: 怎么做出来
     type: choice

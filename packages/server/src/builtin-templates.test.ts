@@ -50,6 +50,8 @@ describe('the built-in templates', () => {
       if (t.settings.figurePack) expect(t.nature, `${t.id} has a figure style`).toBe('figure');
       // a choice input offers its default among its options, so the form can show it chosen
       for (const i of [...t.en!.inputs, ...t.zh!.inputs]) if (i.type === 'choice' && i.default !== undefined) expect(i.options, `${t.id} ${i.key}`).toContain(i.default);
+      // read filled in, every blank has something to show: an example, or the default
+      for (const i of [...t.en!.inputs, ...t.zh!.inputs]) expect(i.example ?? i.default, `${t.id} ${i.key} has no example`).toBeTruthy();
     }
   });
 });

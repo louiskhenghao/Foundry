@@ -1,9 +1,11 @@
 import type { TemplateEntry, TemplateInput, TemplateLang, TemplateNature, TemplateVersionView } from '@foundry/core/browser';
-import { inputRequired, labelOf, renderTemplate } from '@foundry/core/browser';
-import { Box, Clapperboard, CodeXml, FileText, Image as ImageIcon, Lamp, LayoutTemplate, Search, Sparkles, Telescope, X, type LucideIcon } from 'lucide-react';
+import { bodyWithBlanks, inputRequired, labelOf, renderTemplate, sampleValues } from '@foundry/core/browser';
+import { Box, Clapperboard, CodeXml, Copy, FileText, Image as ImageIcon, Lamp, LayoutTemplate, Pencil, Search, Sparkles, Telescope, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { api, type DraftAsk, type DraftView } from '../api.ts';
-import { Button, ButtonGroup, Input, Modal, Select, Textarea, choiceClass, cn, code } from '../ui.tsx';
+import { Markdown } from './Markdown.tsx';
+import { Button, ButtonGroup, Input, Modal, Select, Textarea, buttonClass, choiceClass, cn, code } from '../ui.tsx';
 import { NATURE_WORD, byNature, matchesSearch, shownVersion } from '../pages/new-goal-template.ts';
 
 /** each kind's icon and category colour, as the New goal form's Kind of goal card draws them (ADR-0067) */
@@ -100,6 +102,76 @@ export function TemplateGallery({ open, templates, lang, onLang, onClose, onChoo
             </section>
           );
         })}
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * A template read in a dialog (ADR-0079): its words with the blanks named, or filled in with each input's example, and
+ * above them what can be done with it — a new goal from it, its editor (one of the person's own), a copy of a built-in one.
+ */
+export function TemplatePreview({ entry, lang, onLang, onClose, onCopy, copying }: { entry: TemplateEntry | null; lang: TemplateLang; onLang: (l: TemplateLang) => void; onClose: () => void; onCopy: (t: TemplateEntry) => void; copying?: boolean }) {
+  const [filled, setFilled] = useState(false);
+  useEffect(() => {
+    if (entry) setFilled(false);
+  }, [entry?.id]);
+  if (!entry) return null;
+  const v = shownVersion(entry, lang);
+  const { Icon, ink } = NATURE_ICON[entry.nature];
+  const text = filled ? renderTemplate(v, sampleValues(v)).prompt : bodyWithBlanks(v);
+  const s = entry.settings;
+  const brings = [
+    s.videoPack && `engine ${s.videoPack}`,
+    s.figurePack && s.figurePack !== 'none' && `style ${s.figurePack}`,
+    s.mode && `${s.mode === 'simple' ? 'Simple' : 'Expert'} view`,
+    s.workflow?.pace && `${s.workflow.pace} pace`,
+    s.workflow?.tdd && `TDD ${s.workflow.tdd}`,
+    s.budgetPreset && `${s.budgetPreset} budget`,
+    s.interviewDepth !== undefined && `interview depth ${s.interviewDepth}`,
+    s.autoBrief && 'skips Clarify',
+  ].filter((x): x is string => !!x);
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      wide
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Icon size={15} strokeWidth={2.25} className={ink} aria-hidden="true" /> {v.name}
+          {!entry.builtIn && <span className="rounded-sm px-1 py-px text-[10px] font-semibold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line-strong">yours</span>}
+        </span>
+      }
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link to={`/goals/new?template=${encodeURIComponent(entry.id)}`} className={buttonClass('primary', 'sm')} title="A new goal from this template">
+            Use on a new goal
+          </Link>
+          {!entry.builtIn && (
+            <Link to={`/templates/${encodeURIComponent(entry.id)}${v.lang === 'zh' ? '?lang=zh' : ''}`} className={buttonClass('default', 'sm')}>
+              <Pencil size={13} /> Edit
+            </Link>
+          )}
+          <Button size="sm" disabled={copying} onClick={() => onCopy(entry)} title={entry.builtIn ? 'Writes a copy in your templates folder, in every language it has, to edit' : 'Another template of yours, starting from this one'}>
+            <Copy size={13} /> {copying ? 'Copying…' : 'Make a copy'}
+          </Button>
+          <span className="ml-auto flex items-center gap-2">
+            <ButtonGroup<'blanks' | 'filled'> label="Shown" value={filled ? 'filled' : 'blanks'} onChange={(m) => setFilled(m === 'filled')} options={[{ id: 'blanks', label: 'With blanks', title: 'The words as written, each input as a blank' }, { id: 'filled', label: 'Filled in', title: 'The words with an example in every blank' }]} />
+            <TemplateLangSwitch value={lang} onChange={onLang} />
+          </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-faint">
+          {v.summary && <span className="text-ink-soft">{v.summary}</span>}
+          <span>
+            {v.inputs.length} input{v.inputs.length === 1 ? '' : 's'}
+            {v.inputs.filter(inputRequired).length ? ` (${v.inputs.filter(inputRequired).length} required)` : ''}
+          </span>
+          {brings.length > 0 && <span>brings: {brings.join(', ')}</span>}
+        </div>
+        <div className="rounded-lg border border-line bg-sunken p-4 text-sm">
+          <Markdown source={text} />
+        </div>
       </div>
     </Modal>
   );

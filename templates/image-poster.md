@@ -8,6 +8,7 @@ inputs:
   - key: subject
     label: What the poster is for
     help: The event, product or message, in a line.
+    example: the neighbourhood repair café, first Saturday of every month
   - key: size
     label: Size
     type: choice
@@ -18,15 +19,21 @@ inputs:
     label: Look and feel
     type: textarea
     help: Mood, era, references, what it must never look like.
+    example: Warm and hand-made, like a 1960s workshop manual: two inks on paper, a big drawn screwdriver, nothing glossy or corporate.
   - key: words
     label: Words that must appear
     type: textarea
     required: false
     help: Title, date, place, call to action, exactly as they should read.
+    example: |
+      Repair Café
+      First Saturday · 10–13 · The Old Library
+      Bring it broken, take it home working
   - key: colours
     label: Colours
     required: false
     help: Brand colours or a palette, as names or hex codes.
+    example: Mustard #d9a21b and deep green #1f4d3a on cream paper
 ---
 
 Design a poster for {{subject}}.

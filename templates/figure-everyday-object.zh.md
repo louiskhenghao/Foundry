@@ -9,19 +9,26 @@ inputs:
   - key: object
     label: 物件
     help: 一台烤面包机、一盏台灯、一台自动售货机、一台街机。
+    example: 一台双片烤面包机
   - key: does
     label: 玩它的时候会发生什么
     type: textarea
     help: 观众按、拉、转或投入什么东西时会怎样，按顺序写。
+    example: |
+      按下压杆：面包沉下去，发热丝亮起橙光，压杆锁住。
+      转旋钮：烘烤时间变化，橙光亮得更久或更短。
+      时间到，压杆弹起，吐司跳出来，焦黄程度和旋钮一致。
   - key: look
     label: 样子
     type: textarea
     required: false
     help: 颜色、材质、年代、像哪个牌子；绝不能像什么。
+    example: 奶油色搪瓷配镀铬侧板，五十年代厨房那种圆润；不要现代哑黑方盒子。
   - key: page_name
     label: 文件名
     required: false
     help: 网页文件的名字，不带 .html。
+    example: toaster
 ---
 
 画一个可以玩的{{object}}。

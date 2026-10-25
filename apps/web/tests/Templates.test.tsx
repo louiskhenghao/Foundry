@@ -3,7 +3,7 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import type { TemplateEntry, TemplateVersionView } from '@foundry/core/browser';
-import { TemplateCard, TemplateGallery, TemplateInputField } from '../src/components/Templates.tsx';
+import { TemplateCard, TemplateGallery, TemplateInputField, TemplatePreview } from '../src/components/Templates.tsx';
 import { Templates } from '../src/pages/TemplatesPage.tsx';
 
 const version = (over: Partial<TemplateVersionView> = {}): TemplateVersionView => ({ lang: 'en', name: 'Product reel', summary: 'A short film that shows a product off.', nature: 'video', settings: {}, inputs: [{ key: 'product', type: 'text', other: false }, { key: 'duration', type: 'choice', other: false, options: ['30 s', '60 s'], default: '30 s' }], body: 'A {{duration}} reel for {{product}}.', file: null, warnings: [], ...over });
@@ -55,7 +55,24 @@ test('an input field is a line, a paragraph or a choice, marked when required an
   expect(para).toContain('<textarea');
 });
 
-test('Settings → Templates lists yours and Foundry\'s with what each can have done, the folder and the files that cannot be used', () => {
+test('a template read in the dialog shows its words with the blanks named, offers a new goal, a copy and (for yours) the editor', () => {
+  const built = route(<TemplatePreview entry={reel} lang="en" onLang={() => {}} onClose={() => {}} onCopy={() => {}} />);
+  expect(built).toContain('Product reel');
+  expect(built).toContain('［Duration］');
+  expect(built).toContain('［Product］');
+  expect(built).toContain('Use on a new goal');
+  expect(built).toContain('Make a copy');
+  expect(built).not.toContain('>Edit<');
+  expect(built).toContain('With blanks');
+  expect(built).toContain('Filled in');
+  expect(built).toContain('brings: engine motion-studio');
+  const own = route(<TemplatePreview entry={mine} lang="en" onLang={() => {}} onClose={() => {}} onCopy={() => {}} />);
+  expect(own).toContain('Edit');
+  expect(own).toContain('/templates/weekly-digest');
+  expect(route(<TemplatePreview entry={null} lang="en" onLang={() => {}} onClose={() => {}} onCopy={() => {}} />)).toBe('');
+});
+
+test('the Templates page lists yours and Foundry\'s with what each can have done, the folder and the files that cannot be used', () => {
   const html = route(<Templates templates={[reel, mine]} problems={[{ file: 'broken.md', error: 'frontmatter line 2: indent with spaces, not tabs' }]} dir="/data/templates" editors={[{ id: 'vscode', label: 'VS Code', kind: 'editor', available: true, via: 'vscode' } as never]} lang="en" onLang={() => {}} error={null} onError={() => {}} onChanged={() => {}} />);
   expect(html).toContain('Yours');
   expect(html).toContain('Weekly digest');
@@ -65,6 +82,8 @@ test('Settings → Templates lists yours and Foundry\'s with what each can have 
   expect(html).toContain('Import a file');
   expect(html).toContain('Product reel');
   expect(html).toContain('Make a copy');
+  // every template can be read in the dialog; only yours has an editor
+  expect(html.match(/>View</g)).toHaveLength(2);
   expect(html).toContain('/goals/new?template=video-product-reel');
   expect(html).toContain('/templates/weekly-digest');
   expect(html).toContain('/data/templates');

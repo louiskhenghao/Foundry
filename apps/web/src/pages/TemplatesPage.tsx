@@ -3,7 +3,7 @@ import { ChevronDown, Copy, Download, FilePenLine, FolderOpen, LayoutTemplate, M
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type OpenTarget } from '../api.ts';
-import { NATURE_ICON, TemplateLangSwitch } from '../components/Templates.tsx';
+import { NATURE_ICON, TemplateLangSwitch, TemplatePreview } from '../components/Templates.tsx';
 import { Button, ConfirmDialog, CopyButton, Card, Input, Menu, MenuItem, PageHeader, buttonClass, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { NATURE_WORD, byNature, loadTemplateLang, saveTemplateLang, shownVersion } from './new-goal-template.ts';
@@ -51,6 +51,8 @@ export function TemplatesPage() {
 export function Templates({ templates, problems, dir, editors, lang, onLang, error, onError, onChanged }: { templates: TemplateEntry[]; problems: TemplateProblem[]; dir: string | null; editors: OpenTarget[]; lang: TemplateLang; onLang: (l: TemplateLang) => void; error: string | null; onError: (e: string | null) => void; onChanged: () => void | Promise<void> }) {
   const [renaming, setRenaming] = useState<{ entry: TemplateEntry; name: string } | null>(null);
   const [deleting, setDeleting] = useState<TemplateEntry | null>(null);
+  /** the template read in the dialog (View) */
+  const [viewing, setViewing] = useState<TemplateEntry | null>(null);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const picker = useRef<HTMLInputElement>(null);
@@ -71,6 +73,7 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
   const copy = (t: TemplateEntry) =>
     act(async () => {
       const made = await api.copyTemplate(t.id);
+      setViewing(null);
       setNote(`“${shownVersion(made, lang).name}” is yours now: edit it here, or open its file in an editor.`);
     });
   const exportFile = (t: TemplateEntry, l: TemplateLang) => {
@@ -136,7 +139,7 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
         ) : (
           <ul className="divide-y divide-line rounded-lg border border-line" aria-label="Your templates">
             {own.map((t) => (
-              <TemplateRow key={t.id} entry={t} lang={lang} editors={editors} onError={onError} onCopy={() => void copy(t)} onRename={() => setRenaming({ entry: t, name: shownVersion(t, lang).name })} onExport={(l) => exportFile(t, l)} onDelete={() => setDeleting(t)} />
+              <TemplateRow key={t.id} entry={t} lang={lang} editors={editors} onError={onError} onView={() => setViewing(t)} onCopy={() => void copy(t)} onRename={() => setRenaming({ entry: t, name: shownVersion(t, lang).name })} onExport={(l) => exportFile(t, l)} onDelete={() => setDeleting(t)} />
             ))}
           </ul>
         )}
@@ -160,7 +163,7 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
                 </div>
                 <ul className="divide-y divide-line rounded-lg border border-line">
                   {g.templates.map((t) => (
-                    <TemplateRow key={t.id} entry={t} lang={lang} editors={[]} onError={onError} onCopy={() => void copy(t)} onExport={(l) => exportFile(t, l)} />
+                    <TemplateRow key={t.id} entry={t} lang={lang} editors={[]} onError={onError} onView={() => setViewing(t)} onCopy={() => void copy(t)} onExport={(l) => exportFile(t, l)} />
                   ))}
                 </ul>
               </div>
@@ -208,6 +211,7 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
         </div>
       </Card>
 
+      <TemplatePreview entry={viewing} lang={lang} onLang={onLang} onClose={() => setViewing(null)} onCopy={(t) => void copy(t)} copying={busy} />
       <ConfirmDialog open={!!renaming} title="Rename the template" confirmLabel="Rename" busy={busy} confirmDisabled={!renaming?.name.trim()} onConfirm={() => renaming && void act(async () => void (await api.renameTemplate(renaming.entry.id, renaming.name)))} onClose={() => setRenaming(null)}>
         <p>Its files take the new name too, in every language it has.</p>
         <Input autoFocus aria-label="New name" maxLength={80} value={renaming?.name ?? ''} onChange={(e) => setRenaming((r) => (r ? { ...r, name: e.target.value } : r))} onKeyDown={(e) => e.key === 'Enter' && renaming?.name.trim() && void act(async () => void (await api.renameTemplate(renaming.entry.id, renaming.name)))} />
@@ -222,7 +226,7 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
 }
 
 /** one template in the lists: its kind, name, summary and languages; what can be done with it */
-function TemplateRow({ entry, lang, editors, onError, onCopy, onRename, onExport, onDelete }: { entry: TemplateEntry; lang: TemplateLang; editors: OpenTarget[]; onError: (e: string | null) => void; onCopy: () => void; onRename?: () => void; onExport: (l: TemplateLang) => void; onDelete?: () => void }) {
+function TemplateRow({ entry, lang, editors, onError, onView, onCopy, onRename, onExport, onDelete }: { entry: TemplateEntry; lang: TemplateLang; editors: OpenTarget[]; onError: (e: string | null) => void; onView: () => void; onCopy: () => void; onRename?: () => void; onExport: (l: TemplateLang) => void; onDelete?: () => void }) {
   const v = shownVersion(entry, lang);
   const { Icon, ink } = NATURE_ICON[entry.nature];
   const langs = (['en', 'zh'] as TemplateLang[]).filter((l) => entry[l]);
@@ -241,15 +245,13 @@ function TemplateRow({ entry, lang, editors, onError, onCopy, onRename, onExport
         <Link to={`/goals/new?template=${encodeURIComponent(entry.id)}`} className={buttonClass('default', 'sm')} title="A new goal from this template">
           Use
         </Link>
+        <Button size="sm" variant="ghost" onClick={onView} title="Read it: its words with the blanks named, or filled in with examples">
+          View
+        </Button>
         {entry.builtIn ? (
-          <>
-            <Link to={`/templates/${encodeURIComponent(entry.id)}`} className={buttonClass('ghost', 'sm')} title="Read it: its inputs, its settings and its words">
-              View
-            </Link>
-            <Button size="sm" variant="ghost" onClick={onCopy} title="Writes a copy in your templates folder, to edit">
-              <Copy size={13} /> Make a copy
-            </Button>
-          </>
+          <Button size="sm" variant="ghost" onClick={onCopy} title="Writes a copy in your templates folder, to edit">
+            <Copy size={13} /> Make a copy
+          </Button>
         ) : (
           <>
             <Link to={`/templates/${encodeURIComponent(entry.id)}`} className={buttonClass('ghost', 'sm')}>

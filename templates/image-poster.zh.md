@@ -9,6 +9,7 @@ inputs:
   - key: subject
     label: 海报是为了什么
     help: 活动、产品或要传达的话，一句话。
+    example: 每月第一个周六的社区修理咖啡馆
   - key: size
     label: 尺寸
     type: choice
@@ -19,15 +20,21 @@ inputs:
     label: 观感
     type: textarea
     help: 情绪、年代、参考作品，以及绝不能像什么。
+    example: 温暖、手工感，像六十年代的车间手册：纸上两种油墨，一把大大的手绘螺丝刀，不要任何光面和企业感。
   - key: words
     label: 必须出现的文字
     type: textarea
     required: false
     help: 标题、日期、地点、行动号召，照原样写。
+    example: |
+      修理咖啡馆
+      每月第一个周六 · 10–13 点 · 老图书馆
+      坏的带来，好的带走
   - key: colours
     label: 颜色
     required: false
     help: 品牌色或一套配色，用名字或十六进制都行。
+    example: 芥末黄 #d9a21b 和深绿 #1f4d3a，印在米色纸上
 ---
 
 为{{subject}}设计一张海报。

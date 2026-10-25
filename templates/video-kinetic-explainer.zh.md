@@ -10,10 +10,18 @@ settings:
 inputs:
   - key: topic
     label: 讲什么
+    example: 复利是怎么回事
   - key: script
     label: 文字
     type: textarea
     help: 脚本，或按顺序要讲的要点。短句动起来最好看。
+    example: |
+      你存下 100。
+      它赚了 5。现在是 105。
+      明年，那 5 也开始赚钱。
+      起初很小。后来一点也不小。
+      三十年：432，什么都没做。
+      早点开始。让时间干活。
   - key: duration
     label: 时长
     type: choice
@@ -33,6 +41,7 @@ inputs:
     label: 颜色与字体
     required: false
     help: 两三种颜色和一个字体家族，或者一个可以取用的品牌。
+    example: 近黑、粉笔白和一种酸绿；大字用瘦高的黑体。
 ---
 
 做一支 {{duration}} 的动态文字讲解，讲{{topic}}。

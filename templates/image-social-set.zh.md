@@ -8,10 +8,12 @@ settings:
 inputs:
   - key: brand
     label: 品牌或账号
+    example: Ridgeline，一个小型户外装备品牌
   - key: message
     label: 要说的话
     type: textarea
     help: 这组图传达什么，一两句；要印在图上的字，如果有。
+    example: 春季系列上市，为修而生而不是用完即弃。图上只放「为修而生」和上市日期。
   - key: platforms
     label: 平台
     type: choice
@@ -27,10 +29,12 @@ inputs:
     label: 观感
     type: textarea
     help: 颜色、字体、摄影还是插画、参考作品。
+    example: 扁平插画，石板蓝配焦橙，那一行字用粗无衬线体；不用照片，不用渐变。
   - key: avoid
     label: 避免
     type: textarea
     required: false
+    example: 图库式的笑脸、山景俗套、每张图超过一行字。
 ---
 
 为{{brand}}做一组 {{count}} 张的社媒图。
