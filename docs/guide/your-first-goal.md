@@ -168,7 +168,7 @@ The switch appears only in Expert view. The initial Settings default is on; the 
 
 ### Templates
 
-Above the form, **Start from a template** offers a pattern for the kind of goal you chose: a description with blanks to fill and the settings that suit it. Press a card, fill in its inputs above the text box, and the description writes itself; **Fill in with AI** fills the inputs from a few rough notes, and **Write it with AI** under the text box writes a description from what you typed there when no template is chosen. Every template, and how to make your own, is in [Templates](./templates.md).
+Under *What kind of goal is this?*, **Start from a template…** opens the templates in a dialog: a pattern for the kind of goal you chose, with blanks to fill and the settings that suit it. Press a card, fill in its inputs above the text box, and the description writes itself; **Fill in with AI** fills the inputs from a few rough notes, and **Write it with AI** under the text box writes a description from what you typed there when no template is chosen. Every template, and how to make your own, is in [Templates](./templates.md).
 
 ### What do you want done
 

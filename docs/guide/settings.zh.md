@@ -359,10 +359,6 @@ Access 打开后，每个人做的事都记在自己名下：goal 页面会写�
 - **Codex binary** 和 **Codex home**：Codex 程序和原生账户／配置目录。留空使用 PATH 及 `CODEX_HOME` 或 `~/.codex`。需要重启。启动配置保持固定，每个 goal 的编码智能体在 New goal 选择。
 - **Progress folders**：每个 goal 的文件夹在哪里创建。留空时放在你的项目旁边，即 `<project>-foundry/<goal>`。在这里填一个文件夹，就会变成 `<folder>/<project>/<goal>`。对今后创建的 goal 生效。
 
-## Templates
-
-New goal 表单起步用的模版：Foundry 自带的（中英文）和你自己的。**Use** 用某个模版开一个新 goal；**Make a copy** 把 Foundry 的某个写进你的模版文件夹供你修改；**New template** 和 **Import a file** 添加你自己的；你的模版有 **Edit**、**Open in VS Code**（以这台电脑上找到的编辑器命名）和一个 **⋯** 菜单，可以改名、导出或删除。**EN / 中文** 选择模版在这个浏览器里显示的语言。这里还显示文件夹的位置，以及无法使用的文件和原因。见[模版](./templates.zh.md)。
-
 ## Appearance
 
 主题和浅色／深色模式，只对这个浏览器生效：每个人、每台设备可以各选各的，改动立即生效，不需要按 **Save**。在某个主题下按 **Make a copy**，会把它写成一个文件，供你手动修改。怎样选主题、怎样做自己的主题，见 [主题](./themes.zh.md)。

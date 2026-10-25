@@ -12,7 +12,7 @@ Tick what goes into the file, then press **Export**. The file downloads; nothing
 - **Keys & secrets**: the API keys, the notification tokens and the variables you entered on goals' Preview cards. They are sealed with a password you type twice. Without it they cannot be read, and Foundry cannot recover it.
 - **Goals**: **All goals**, or **Choose goals** one by one. A goal that follows one you left out says so, with a link to add it. Each goal brings its history, attachments and screenshots. When a goal's branch has work the base branch lacks, finished or not, the branch comes too. An unfinished goal also brings the files Git ignores in its progress folder, such as generated images and style samples. A finished goal leaves those behind, and the clips its milestones copied from files its output folder received; their pictures still come, and a clip left behind shows as *not on this computer*. A goal that failed, was cancelled or had no output folder brings its milestone clips.
 - **Session transcripts**: the full session logs of those goals. They can be large; `foundry export --transcripts` in a terminal suits a big file better.
-- **Templates & themes**: the template files and theme files of your own (Settings → Templates, Settings → Appearance). Foundry's own travel with Foundry and are not in the file. A file with them ticked needs a Foundry that knows templates on the other side.
+- **Templates & themes**: the template files and theme files of your own (the Templates page, Settings → Appearance). Foundry's own travel with Foundry and are not in the file. A file with them ticked needs a Foundry that knows templates on the other side.
 
 ## Import
 

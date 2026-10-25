@@ -8,7 +8,7 @@ Foundry ships a set of templates, two or three for each kind of goal, in English
 
 ## Starting from a template
 
-At the top of the New goal form, **Start from a template** shows a row of cards for the kind of goal chosen under *Kind of goal* (every kind, while the form still says *Auto*). Each card names the template, says what it is for and how many inputs it asks. **Browse all** opens the whole gallery, by kind, with a search. **EN / 中文** switches the language the templates are shown in; this browser remembers it.
+On the New goal form, under *What kind of goal is this?*, **Start from a template…** opens the templates in a dialog: by kind, starting on the kind you chose (every kind while the form still says *Auto*), with a search. Each card names the template, says what it is for and how many inputs it asks. **EN / 中文** switches the language the templates are shown in; this browser remembers it.
 
 Press a card and three things happen:
 
@@ -16,7 +16,7 @@ Press a card and three things happen:
 - The description is written from your inputs as you type. The words are the template's; you can edit them at any time, and once you do, the inputs stop writing the description (**Write it from the inputs again** puts it back).
 - The form takes the template's settings: the kind of goal, and whatever else the template says, for example a product reel sets *Video*, the motion-studio engine, the Simple view and the Thorough budget. What the template does not name stays as you had it.
 
-A chip above the inputs, **Template: …**, says which template is behind the form; its **×** forgets the template but keeps the words and the settings. If you had already written a description, choosing a template asks before replacing it.
+The button then reads **Template: …**, and a chip of the same name above the inputs says which template is behind the form; its **×** forgets the template but keeps the words and the settings. If you had already written a description, choosing a template asks before replacing it.
 
 The goal remembers its template: its page shows **template: …** among its facts.
 
@@ -30,7 +30,9 @@ Both are one short call on the housekeeping model, a few cents. Tick **Also read
 
 ## Making your own
 
-Open **Settings → Templates**. Under **Yours**:
+Open **Templates** in the top bar. The page lists yours and Foundry's; **Use** on any of them opens a new goal from it, and **View** reads it in a dialog: its words with each blank named, or **Filled in** with an example in every blank, with **Edit** (one of yours) and **Make a copy** above them.
+
+![The Templates page: your own templates, then Foundry's by kind, and the templates folder](images/templates.png)
 
 - **New template** opens the editor with an empty template.
 - **Import a file** brings in a template file from elsewhere: one exported from another Foundry, or written by hand. Foundry checks it first.
@@ -52,11 +54,11 @@ The editor shows one template in one language. **EN / 中文** switches to the o
 
 ### Rename, export, delete
 
-Each template of yours has a **⋯** menu in Settings → Templates: **Rename…** (its files follow the name), **Export the English file** / **Export the 中文 file** (the file as written, to keep or pass on), **Delete…**. **Open in VS Code** (named after the editor found on this computer) opens its file to edit by hand; save there and this page shows the change when it comes back to the front.
+Each template of yours has a **⋯** menu on the Templates page: **Rename…** (its files follow the name), **Export the English file** / **Export the 中文 file** (the file as written, to keep or pass on), **Delete…**. **Open in VS Code** (named after the editor found on this computer) opens its file to edit by hand; save there and the page shows the change when it comes back to the front.
 
 ## The template file
 
-Your templates live in `templates/` of Foundry's data folder; Settings → Templates shows where that is. Each is one Markdown file: `<id>.md` in English, `<id>.zh.md` in 中文, the id being lowercase letters, digits and hyphens. A file with a mistake is listed under **The templates folder** with what to fix.
+Your templates live in `templates/` of Foundry's data folder; the Templates page shows where that is. Each is one Markdown file: `<id>.md` in English, `<id>.zh.md` in 中文, the id being lowercase letters, digits and hyphens. A file with a mistake is listed under **The templates folder** on the Templates page with what to fix.
 
 The file is a frontmatter between two `---` lines, then the description:
 
@@ -94,7 +96,7 @@ Make a {{duration}} product reel for {{product}}.
 
 - `name` and `nature` (`code`, `docs`, `research`, `image`, `video`, `figure` or `cad`) are needed; `summary` and `settings` are optional; a `.zh.md` file says `lang: zh`.
 - `settings` may name `mode` (`simple` or `expert`), `workflow` (`pace`, `tdd`, `ponytail`, `profile`), `budgetPreset` (and `budgets` with `maxCostUsd`, `maxDurationMin`, `maxConcurrent`, `attemptsPerTask` when custom), `interviewDepth` (0–5), `autoBrief` (`mustChecks` and `stretchChecks`, lists of commands), `videoPack` for a video template and `figurePack` for a figure one. Nothing about a computer or its accounts belongs here: the coding agent, its models, the delivery and the folders are the form's.
-- `inputs` only refines what the description already says: a `{{key}}` with no entry is a required one-line input labelled after its key. An entry may give `label`, `help`, `type` (`text`, `textarea` or `choice` with `options` and `other: true` for a free answer), `default` and `required`. An entry for a key the description never names is a warning, not an error.
+- `inputs` only refines what the description already says: a `{{key}}` with no entry is a required one-line input labelled after its key. An entry may give `label`, `help`, `type` (`text`, `textarea` or `choice` with `options` and `other: true` for a free answer), `default`, `required` and `example` (shown when the template is read filled in; never written into a goal). An entry for a key the description never names is a warning, not an error.
 - The description may use Markdown. A line that holds nothing but an optional input left empty (`## Brand` followed by `{{brand}}`) is dropped when the description is written.
 
 The 中文 twin of a built-in template is the same template in the other language: the same inputs and settings, its own words.

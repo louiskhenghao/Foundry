@@ -170,7 +170,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 ### Templates
 
-表单上方的 **Start from a template** 提供你所选种类的 goal 的一个模式：留着空白的描述，加上适合它的设置。按一张卡片，在文本框上方填好它的输入，描述就自己写出来；**Fill in with AI** 能从几行零散笔记里替你填好输入，没选模版时文本框下方的 **Write it with AI** 则把你写在框里的内容写成一段描述。每个模版以及怎样做自己的模版，见[模版](./templates.zh.md)。
+在 *What kind of goal is this?* 下面，**Start from a template…** 会弹出模版对话框：你所选种类的 goal 的一个模式，留着空白的描述，加上适合它的设置。按一张卡片，在文本框上方填好它的输入，描述就自己写出来；**Fill in with AI** 能从几行零散笔记里替你填好输入，没选模版时文本框下方的 **Write it with AI** 则把你写在框里的内容写成一段描述。每个模版以及怎样做自己的模版，见[模版](./templates.zh.md)。
 
 ### What do you want done
 

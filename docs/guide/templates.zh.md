@@ -8,7 +8,7 @@ Foundry 自带一套模版，每种 goal 两三个，中英文都有。你自己
 
 ## 从模版开始
 
-New goal 表单顶部的 **Start from a template** 是一排卡片，对应 *Kind of goal* 里选中的种类（表单还是 *Auto* 时显示所有种类）。每张卡片写着模版的名字、它是做什么的、要填几个输入。**Browse all** 打开完整画廊，按种类分组，带搜索。**EN / 中文** 切换模版显示的语言；这个浏览器会记住。
+在 New goal 表单的 *What kind of goal is this?* 下面，**Start from a template…** 会弹出模版对话框：按种类分组，一打开就停在你选中的种类上（表单还是 *Auto* 时显示所有种类），带搜索。每张卡片写着模版的名字、它是做什么的、要填几个输入。**EN / 中文** 切换模版显示的语言；这个浏览器会记住。
 
 按下一张卡片，会发生三件事：
 
@@ -16,7 +16,7 @@ New goal 表单顶部的 **Start from a template** 是一排卡片，对应 *Kin
 - 描述随着你填写的输入自动写出来。文字是模版的，你随时可以改；一旦改了，输入就不再改写描述（**Write it from the inputs again** 可以再写一遍）。
 - 表单带上模版的设置：goal 的种类，以及模版点名的其他设置，比如产品 reel 会设成 *Video*、motion-studio 引擎、Simple 视图和 Thorough 预算。模版没点名的，保持你原来的样子。
 
-输入上方的小标签 **Template: …** 说明表单背后是哪个模版；它的 **×** 会忘掉模版，但保留文字和设置。如果你已经写了描述，选模版前会先问你。
+按钮随即显示为 **Template: …**，输入上方同名的小标签说明表单背后是哪个模版；它的 **×** 会忘掉模版，但保留文字和设置。如果你已经写了描述，选模版前会先问你。
 
 goal 记得自己的模版：goal 页面的事实栏里有 **template: …**。
 
@@ -30,7 +30,9 @@ goal 记得自己的模版：goal 页面的事实栏里有 **template: …**。
 
 ## 做自己的模版
 
-打开 **Settings → Templates**。在 **Yours** 下面：
+打开顶栏的 **Templates**。这一页列出你的和 Foundry 的模版；任何一个上的 **Use** 都会用它开一个新 goal，**View** 则在弹窗里读它：带占位符名字的原文，或者 **Filled in**——每个空白都填上示例，上方有 **Edit**（你自己的才有）和 **Make a copy**。
+
+![Templates 页面：你自己的模版，然后是 Foundry 按种类分组的模版，以及模版文件夹](images/templates.png)
 
 - **New template** 用一个空模版打开编辑器。
 - **Import a file** 导入一个来自别处的模版文件：从另一个 Foundry 导出的，或手写的。Foundry 会先检查。
@@ -52,11 +54,11 @@ goal 记得自己的模版：goal 页面的事实栏里有 **template: …**。
 
 ### 改名、导出、删除
 
-你的每个模版在 Settings → Templates 里都有一个 **⋯** 菜单：**Rename…**（文件跟着改名）、**Export the English file** / **Export the 中文 file**（文件原样导出，留存或转给别人）、**Delete…**。**Open in VS Code**（以这台电脑上找到的编辑器命名）打开它的文件手动改；在那里保存，这个页面回到前台时就会显示变化。
+你的每个模版在 Templates 页面上都有一个 **⋯** 菜单：**Rename…**（文件跟着改名）、**Export the English file** / **Export the 中文 file**（文件原样导出，留存或转给别人）、**Delete…**。**Open in VS Code**（以这台电脑上找到的编辑器命名）打开它的文件手动改；在那里保存，页面回到前台时就会显示变化。
 
 ## 模版文件
 
-你的模版放在 Foundry 数据文件夹的 `templates/` 里；Settings → Templates 会显示它在哪。每个模版是一个 Markdown 文件：英文是 `<id>.md`，中文是 `<id>.zh.md`，id 由小写字母、数字和连字符组成。有错误的文件列在 **The templates folder** 下面，并说明该改什么。
+你的模版放在 Foundry 数据文件夹的 `templates/` 里；Templates 页面会显示它在哪。每个模版是一个 Markdown 文件：英文是 `<id>.md`，中文是 `<id>.zh.md`，id 由小写字母、数字和连字符组成。有错误的文件列在 Templates 页面的 **The templates folder** 下面，并说明该改什么。
 
 文件是两行 `---` 之间的 frontmatter，然后是描述：
 
@@ -95,7 +97,7 @@ inputs:
 
 - `name` 和 `nature`（`code`、`docs`、`research`、`image`、`video`、`figure` 或 `cad`）必须有；`summary` 和 `settings` 可选；`.zh.md` 文件写 `lang: zh`。
 - `settings` 可以写 `mode`（`simple` 或 `expert`）、`workflow`（`pace`、`tdd`、`ponytail`、`profile`）、`budgetPreset`（custom 时加 `budgets`：`maxCostUsd`、`maxDurationMin`、`maxConcurrent`、`attemptsPerTask`）、`interviewDepth`（0–5）、`autoBrief`（`mustChecks` 和 `stretchChecks`，命令列表）、视频模版的 `videoPack`、figure 模版的 `figurePack`。跟电脑和账号有关的东西不属于这里：coding agent、模型、delivery、文件夹都是表单自己的事。
-- `inputs` 只是细化描述里已有的东西：一个没有条目的 `{{key}}` 就是一个必填的单行输入，标签取自它的 key。条目可以给 `label`、`help`、`type`（`text`、`textarea`，或带 `options` 的 `choice`，`other: true` 允许自由作答）、`default` 和 `required`。描述里没出现过的 key 的条目是警告，不是错误。
+- `inputs` 只是细化描述里已有的东西：一个没有条目的 `{{key}}` 就是一个必填的单行输入，标签取自它的 key。条目可以给 `label`、`help`、`type`（`text`、`textarea`，或带 `options` 的 `choice`，`other: true` 允许自由作答）、`default`、`required` 和 `example`（预览「Filled in」时显示的示例，不会写进 goal）。描述里没出现过的 key 的条目是警告，不是错误。
 - 描述可以用 Markdown。只放着一个留空的可选输入的行（`## 品牌` 后面跟着 `{{brand}}`）在写出描述时会被去掉。
 
 内置模版的中文孪生是同一个模版的另一种语言：同样的输入和设置，各自的文字。
