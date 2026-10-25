@@ -1,5 +1,5 @@
 import { AccountsPage } from './pages/AccountsPage.tsx';
-import { ArrowLeftRight, ArrowUpCircle, BarChart3, Bot, Inbox, ListTodo, LogOut, Menu, Moon, Network, NotebookPen, Palette, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
+import { ArrowLeftRight, ArrowUpCircle, BarChart3, Bot, Inbox, LayoutTemplate, ListTodo, LogOut, Menu, Moon, Network, NotebookPen, Palette, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
 import { HelpPage } from './pages/HelpPage.tsx';
 import { TransferPage } from './pages/TransferPage.tsx';
 import { PortsPage } from './pages/PortsPage.tsx';
@@ -21,6 +21,8 @@ import { BuildWatch } from './buildWatch.tsx';
 import { LearningsPage } from './pages/LearningsPage.tsx';
 import { SchedulesPage } from './pages/SchedulesPage.tsx';
 import { NewGoalPage } from './pages/NewGoalPage.tsx';
+import { TemplateEditorPage } from './pages/TemplateEditorPage.tsx';
+import { TemplatesPage } from './pages/TemplatesPage.tsx';
 import { SetupPage } from './pages/SetupPage.tsx';
 import { SkillsTabs } from './pages/skills/SkillsTabs.tsx';
 import { LoginPage } from './pages/LoginPage.tsx';
@@ -97,6 +99,9 @@ export function App() {
       </NavLink>
       <NavLink to="/skills" className={cls} title="Extensions: skills and MCP servers">
         <Puzzle size={15} /> <span className={label}>Extensions</span>
+      </NavLink>
+      <NavLink to="/templates" className={cls} title="Templates: patterns the New goal form starts from, Foundry's and yours">
+        <LayoutTemplate size={15} /> <span className={label}>Templates</span>
       </NavLink>
     </>
   );
@@ -178,6 +183,9 @@ export function App() {
         <Routes>
           <Route path="/" element={<GoalsPage />} />
           <Route path="/goals/new" element={<NewGoalPage />} />
+          <Route path="/templates" element={<TemplatesPage />} />
+          <Route path="/templates/new" element={<TemplateEditorPage />} />
+          <Route path="/templates/:id" element={<TemplateEditorPage />} />
           <Route path="/goals/:id/brief" element={<BriefPage />} />
           <Route path="/goals/:id/resolve/:taskId" element={<MergeResolvePage />} />
           <Route path="/goals/:id" element={<GoalPage />} />

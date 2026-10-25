@@ -1,8 +1,9 @@
 import { isHistory, reportsDollars, taskUsage } from '@foundry/core/browser';
-import { ArrowLeft, Ban, Brain, CircleAlert, CornerDownRight, Folder, GitBranch, GitMerge, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Brain, CircleAlert, CornerDownRight, Folder, GitBranch, GitMerge, LayoutTemplate, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { goalExcerpt } from './excerpt.ts';
 import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
 import { IssueLink, ScheduleLink } from './IssueLink.tsx';
 import { DelegationLinks } from './Delegations.tsx';
@@ -162,6 +163,7 @@ export function GoalPage() {
     ...(!terminal && awaiting ? [{ label: 'Cancel goal', icon: <Ban size={13} />, onClick: () => api.cancelGoal(id) }] : []),
     ...(!g.follows ? [{ label: 'Mark as follow-up of…', icon: <Link2 size={13} />, onClick: () => setMarkFollow(true), title: 'Record that this goal continues an earlier goal of the same repository' }] : []),
     ...(terminal && g.state !== 'cancelled' ? [{ label: 'Learn from this goal again', icon: <NotebookPen size={13} />, onClick: () => api.learnFrom(id).catch((e) => setErr(e.message)), title: "A short session reads how this goal went and updates this folder's Learnings" }] : []),
+    { label: 'Save as template…', icon: <LayoutTemplate size={13} />, onClick: () => nav(`/templates/new?from=${id}`), title: 'A template of your own from the words and settings of this goal, to start the next one from (ADR-0079)' },
     { label: 'Delete goal…', icon: <Trash2 size={13} />, onClick: () => setDel(true), danger: true },
   ];
 
@@ -203,7 +205,7 @@ export function GoalPage() {
             {g.title}
           </h1>
           {/* what was asked, in its first lines: the Overview's Goal card holds all of it */}
-          {g.prompt && g.prompt !== g.title && <p className="mt-3 max-w-[72ch] text-[17px] leading-relaxed text-ink-soft line-clamp-2 header-compact:text-sm" title={g.prompt}>{g.prompt}</p>}
+          {g.prompt && goalExcerpt(g.prompt, g.title) && <p className="mt-3 max-w-[72ch] text-[17px] leading-relaxed text-ink-soft line-clamp-2 header-compact:text-sm" title={g.prompt}>{goalExcerpt(g.prompt, g.title)}</p>}
           <ul className="mt-4 flex flex-wrap gap-2" aria-label="About this goal">
             <li className={fact}>
               <Folder size={13} className="shrink-0" aria-hidden="true" />
@@ -230,6 +232,14 @@ export function GoalPage() {
             <li className={fact}>
               <span className="font-medium text-ink-faint">delivery</span> {g.delivery.policy.mode}
             </li>
+            {g.template && (
+              <li className={fact} title={`Made from the template "${g.template.name}"`}>
+                <span className="font-medium text-ink-faint">template</span>{' '}
+                <Link to={`/templates/${encodeURIComponent(g.template.id)}`} className="hover:underline">
+                  {g.template.name}
+                </Link>
+              </li>
+            )}
             {(g.companions?.length ?? 0) > 0 && (
               <li className={fact} title={`Also changes: ${g.companions!.map((c) => c.repoPath).join(', ')}`}>
                 +{g.companions!.length} folder{g.companions!.length === 1 ? '' : 's'}

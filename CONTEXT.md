@@ -36,7 +36,11 @@ _Avoid_: ticket, bug report
 
 **Schedule**
 The New goal form saved with a cadence (every day, one weekday a week, or one day a month, at a time of this computer's clock). When it is due the engine makes one Goal from its recipe and runs it; while the previous run is still going, the firing is skipped and said so. A Schedule that approves its runs' Briefs skips the interview and has the engine approve each Brief as a Delegated goal's is (a blocking question still waits for the user). Schedules belong to one computer; a Transfer carries none. A Goal records the Schedule it is a run of.
-_Avoid_: cron job, recurring goal (the Goal is not recurring, the Schedule is), template
+_Avoid_: cron job, recurring goal (the Goal is not recurring, the Schedule is), template (a Template is a pattern the form starts from, ADR-0079; a Schedule is the form saved with a cadence)
+
+**Template**
+A pattern the New goal form starts from (ADR-0079): a goal description with `{{placeholders}}`, which are its inputs, and the settings about the work it brings (the Nature, a video Goal's engine or a figure's style, the view, the workflow, the Budget Preset, the interview depth, the skip-Clarify checks) — never a computer's or its accounts' (the Coding agent, models, Delivery, folders). One Markdown file per language: Foundry's own ship in its checkout (`templates/<id>.md` and `templates/<id>.zh.md`), read-only, copied to edit; the user's are files of the same shape in the data folder's `templates/`. The form writes the description from the inputs until the user edits the words; a Goal records the Template it came from. The AI draft fills a Template's inputs, or writes a description shaped like the Nature's built-in Template, from the user's notes, in one session that belongs to no Goal.
+_Avoid_: recipe (what a Schedule keeps of the form), preset (a Model Preset), starter, boilerplate, prompt (the description a Template writes)
 
 **Calibration**
 How far earlier Goals ran from their Brief's estimate, as a cost factor and a time factor: each the median of actual over estimate across finished Goals with an approved Brief, from the Goal's folder when it has three, else from every folder's Goals of the same nature, else none. The Brief shows the estimate as written and what it likely comes to; an Auto budget proposes twice the calibrated estimate. The Clarifier's estimate is never rewritten.

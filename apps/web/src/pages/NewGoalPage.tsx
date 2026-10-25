@@ -1,10 +1,12 @@
 import { AGENT_PROVIDERS, PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
-import type { Attachment, WorkflowProfile } from '@foundry/core/browser';
-import { ARTIFACT_NATURES, BUDGET_PRESETS, MEDIA_NATURES } from '@foundry/core/browser';
+import type { Attachment, TemplateEntry, TemplateLang, WorkflowProfile } from '@foundry/core/browser';
+import { ARTIFACT_NATURES, BUDGET_PRESETS, MEDIA_NATURES, renderTemplate } from '@foundry/core/browser';
+import { DraftBox, TemplateGallery, TemplatePanel, useDraft } from '../components/Templates.tsx';
+import { formPatch, initialValues, loadTemplateLang, missingLabels, missingStyle, offeredTemplates, saveTemplateLang, shownVersion, fallbackStyle } from './new-goal-template.ts';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Lamp, Send, Shapes, Target, Telescope, Wallet, WandSparkles, X, type LucideIcon } from 'lucide-react';
+import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Lamp, LayoutTemplate, Send, Shapes, Target, Telescope, Wallet, WandSparkles, X, type LucideIcon } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
 import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type PackGroupView, type PacksView, type RepoInfo } from '../api.ts';
 import { CompanionFolders } from '../components/CompanionFolders.tsx';
@@ -15,7 +17,7 @@ import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPoli
 import { RepoCard } from '../components/RepoCard.tsx';
 import { useUnsaved } from '../unsaved.ts';
 import { CodexModelSelect } from '../components/CodexModelSelect.tsx';
-import { Button, ButtonGroup, Card, Input, PageHeader, Select, Textarea, choiceClass, cn, code } from '../ui.tsx';
+import { Button, ButtonGroup, Card, ConfirmDialog, Input, PageHeader, Select, Textarea, choiceClass, cn, code } from '../ui.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 import { HelpLink } from './HelpPage.tsx';
 import { initialWorkflow, updateWorkflow } from './new-goal-workflow.ts';
@@ -121,6 +123,25 @@ export function NewGoalPage() {
   const initialProvider = AGENT_PROVIDERS.includes(requestedProvider as AgentProvider) ? (requestedProvider as AgentProvider) : null;
   // a follow-up started from a goal page (the audit's remaining findings) arrives with its text
   const [prompt, setPrompt] = useState(() => params.get('prompt') ?? '');
+  // templates (ADR-0079): the one chosen writes the description from its inputs until the person edits the words
+  const [templates, setTemplates] = useState<TemplateEntry[] | null>(null);
+  const [templateLang, setTemplateLangState] = useState<TemplateLang>(() => loadTemplateLang());
+  const [template, setTemplate] = useState<TemplateEntry | null>(null);
+  const [templateValues, setTemplateValues] = useState<Record<string, string>>({});
+  const [templateNotes, setTemplateNotes] = useState('');
+  const [templateDropped, setTemplateDropped] = useState<string[]>([]);
+  const [gallery, setGallery] = useState(false);
+  const [pendingTemplate, setPendingTemplate] = useState<TemplateEntry | null>(null);
+  /** the description as the template last wrote it: while the box still says this, the inputs keep writing it */
+  const rendered = useRef<string | null>(null);
+  const fillDraft = useDraft();
+  const writeDraft = useDraft();
+  useEffect(() => {
+    api
+      .templates()
+      .then((v) => setTemplates(v.templates))
+      .catch(() => setTemplates([]));
+  }, []);
   useUnsaved('new-goal', !!prompt.trim());
   const [repoPath, setRepoPath] = useState('');
   // companion repositories (ADR-0063): other folders the goal changes too
@@ -163,10 +184,14 @@ export function NewGoalPage() {
   const [effort, setEffort] = useState('');
   const [provider, setProvider] = useState<AgentProvider>(initialProvider ?? 'claude');
   // the Figure pack's install state for this coding agent, read when the Figure kind is picked (ADR-0076)
+  // and again when the page comes back to the front: a style installed in Settings meanwhile becomes a choice here
   useEffect(() => {
     if (nature !== 'figure') return;
     setFigurePacks(null);
-    void apiForProvider(provider).packs().then((p) => setFigurePacks(p.figure)).catch(() => {});
+    const read = () => void apiForProvider(provider).packs().then((p) => setFigurePacks(p.figure)).catch(() => {});
+    read();
+    window.addEventListener('focus', read);
+    return () => window.removeEventListener('focus', read);
   }, [nature, provider]);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountsInfo | null>(null);
@@ -245,6 +270,98 @@ export function NewGoalPage() {
     basePace.current = v;
     setPace(v);
   };
+
+  // ---- templates (ADR-0079) ----
+  const beta = { figure: betaFigure, motionStudio: betaMotionStudio };
+  const offered = offeredTemplates(templates ?? [], beta);
+  const templateVersion = template ? shownVersion(template, templateLang) : null;
+  const setTemplateLang = (l: TemplateLang) => {
+    saveTemplateLang(l);
+    setTemplateLangState(l);
+  };
+  /** the description written from the inputs, and remembered as the template's own words */
+  const writeFromInputs = (values: Record<string, string>, version = templateVersion) => {
+    if (!version) return;
+    const words = renderTemplate(version, values).prompt;
+    rendered.current = words;
+    setPrompt(words);
+  };
+  /** the form as the template says: its kind as if pressed, then only the settings it names */
+  const applyTemplate = (t: TemplateEntry) => {
+    const version = shownVersion(t, templateLang);
+    const patch = formPatch(t, beta);
+    setTemplate(t);
+    setTemplateDropped(patch.dropped);
+    setNature(patch.nature);
+    if (patch.nature !== 'code' && patch.nature !== 'cad') setMode('simple');
+    if (!paceTouched.current) setPace(MEDIA_NATURES.includes(patch.nature) ? 'fast' : basePace.current);
+    if (patch.videoPack !== undefined) setVideoPack(patch.videoPack);
+    if (patch.figurePack !== undefined) setFigurePack(patch.figurePack);
+    if (patch.mode) setMode(patch.mode);
+    if (patch.pace) choosePace(patch.pace);
+    if (patch.tdd) setTdd(patch.tdd);
+    if (patch.ponytail) {
+      changed.current.add('ponytail');
+      changeWorkflow({ type: 'edit', field: 'ponytail', value: { ponytail: patch.ponytail } });
+    }
+    if (patch.profile) setProfile(patch.profile);
+    if (patch.budget) setBudget(patch.budget);
+    if (patch.interviewDepth !== undefined) {
+      changed.current.add('interviewDepth');
+      setInterviewDepth(patch.interviewDepth);
+    }
+    if (patch.auto) {
+      setAdvanced(true);
+      setAuto(true);
+      setChecks(patch.auto.checks);
+      setStretch(patch.auto.stretch);
+    }
+    const values = initialValues(version);
+    setTemplateValues(values);
+    writeFromInputs(values, version);
+    fillDraft.clear();
+    setGallery(false);
+  };
+  /** words of the person's own are never thrown away without asking */
+  const chooseTemplate = (t: TemplateEntry) => {
+    if (template?.id === t.id) return setGallery(false);
+    if (prompt.trim() && prompt !== rendered.current) setPendingTemplate(t);
+    else applyTemplate(t);
+  };
+  const removeTemplate = () => {
+    setTemplate(null);
+    setTemplateValues({});
+    setTemplateDropped([]);
+    rendered.current = null;
+    fillDraft.clear();
+  };
+  /** the person edited the description since the template wrote it: the inputs no longer write it */
+  const templateEdited = !!template && rendered.current !== null && prompt !== rendered.current;
+  const changeTemplateValues = (values: Record<string, string>) => {
+    setTemplateValues(values);
+    if (!templateEdited) writeFromInputs(values);
+  };
+  // the language switched: a description the template wrote is written again in the new language
+  useEffect(() => {
+    if (template && !templateEdited) writeFromInputs(templateValues);
+  }, [templateLang]);
+  // a template named in the address (Settings → Templates → Use), once the templates and the Beta switches are known
+  useEffect(() => {
+    const id = params.get('template');
+    if (!id || !templates || template || !presetInfo) return;
+    const t = templates.find((x) => x.id === id);
+    if (t) applyTemplate(t);
+  }, [templates, presetInfo]);
+  const askFill = (readRepo: boolean) => {
+    if (!template || !templateVersion) return;
+    void fillDraft.start({ provider, nature, lang: templateLang, notes: templateNotes, template: { id: template.id, lang: templateVersion.lang }, ...(readRepo && repoInfo?.ok ? { repoPath: repoPath.trim() } : {}) });
+  };
+  const acceptFill = (values: Record<string, string>) => {
+    const next = { ...templateValues, ...Object.fromEntries(Object.entries(values).filter(([, v]) => v.trim())) };
+    setTemplateValues(next);
+    if (!templateEdited) writeFromInputs(next);
+  };
+  const askWrite = (readRepo: boolean) => void writeDraft.start({ provider, nature, lang: templateLang, notes: prompt, ...(readRepo && repoInfo?.ok ? { repoPath: repoPath.trim() } : {}) });
   // the form starts from Settings → New goal defaults (view, pace, TDD, delivery) and the goal-type model presets
   useEffect(() => {
     api
@@ -461,7 +578,11 @@ export function NewGoalPage() {
   }))] : [];
   const agentName = PROVIDER_LABEL[provider];
   // the first thing still missing, said next to the button: a greyed-out button must never leave you guessing
-  const notReady = !prompt.trim()
+  // a template's required inputs come first, while the template still writes the description
+  const templateMissing = template && templateVersion && !templateEdited ? missingLabels(templateVersion, templateValues) : [];
+  const notReady = templateMissing.length
+    ? `Fill in ${templateMissing.join(', ')}`
+    : !prompt.trim()
     ? 'Describe the goal'
     : !repoPath.trim()
       ? 'Select a repository folder'
@@ -482,7 +603,7 @@ export function NewGoalPage() {
                     : null;
   const ready = notReady === null;
   /** how that first missing thing stands: still to fill in (ink), being checked (blue), a sign-in only you can do (yellow), broken (red) */
-  const notReadyTone = !prompt.trim() || !repoPath.trim() ? 'text-ink-soft' : !repoInfo ? 'text-work-ink' : !repoInfo.ok ? 'text-bad-ink' : !selectedAccount ? 'text-work-ink' : !selectedAccount.installed ? 'text-bad-ink' : !selectedAccount.status.loggedIn ? 'text-you-ink' : missingPreset || unsupportedCodexChoices.length ? 'text-bad-ink' : 'text-ink-soft';
+  const notReadyTone = templateMissing.length ? 'text-you-ink' : !prompt.trim() || !repoPath.trim() ? 'text-ink-soft' : !repoInfo ? 'text-work-ink' : !repoInfo.ok ? 'text-bad-ink' : !selectedAccount ? 'text-work-ink' : !selectedAccount.installed ? 'text-bad-ink' : !selectedAccount.status.loggedIn ? 'text-you-ink' : missingPreset || unsupportedCodexChoices.length ? 'text-bad-ink' : 'text-ink-soft';
   // a schedule is saved without starting a session: the sign-in gates do not hold it back (a run refuses at its time instead)
   const scheduleReady = !!prompt.trim() && !!repoInfo?.ok && !missingPreset && !unsupportedCodexChoices.length && !(provider === 'codex' && codexOverride && !codexModel.trim());
   const done = [prompt.trim().length > 0, repoInfo?.ok ?? false, true, true];
@@ -518,6 +639,8 @@ export function NewGoalPage() {
         delegation: { allow: delegate, autoApprove: delegate && delegateAuto },
         companions: companions.map((p) => p.trim()).filter(Boolean).map((p) => ({ repoPath: p })),
         issue: issue?.read.issue,
+        // the template the goal is made from (ADR-0079), recorded on it; the words above are already its rendering
+        template: template && templateVersion ? { id: template.id, lang: templateVersion.lang } : undefined,
       });
   const submit = async () => {
     setBusy(true);
@@ -630,6 +753,18 @@ export function NewGoalPage() {
                 </button>
               ))}
             </div>
+            {/* templates (ADR-0079): a pattern for this kind of goal, chosen in a dialog; the chosen one's inputs sit above the description */}
+            {templates && templates.length > 0 && (
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                <Button size="sm" variant={template ? 'default' : 'ghost'} onClick={() => setGallery(true)} title={template ? 'Choose another template, or read this one again' : 'A pattern for the description and the settings of such a goal: fill in its inputs and the words write themselves'}>
+                  <LayoutTemplate size={13} /> {template && templateVersion ? `Template: ${templateVersion.name}` : 'Start from a template…'}
+                </Button>
+                <span className="text-xs text-ink-faint">
+                  {template ? 'Its inputs are under 1 · What do you want done.' : `${(nature === 'auto' ? offered : offered.filter((t) => t.nature === nature)).length} for ${nature === 'auto' ? 'every kind of goal' : 'this kind of goal'}: a pattern for the description and the settings; fill in its inputs and the words write themselves.`}
+                  <HelpLink to="templates" className="ml-1.5" />
+                </span>
+              </div>
+            )}
             {nature === 'cad' && cad && !cad.installed && (
               // a tool the goal needs is missing: red, as a coding agent's missing CLI
               <p className="mt-2 text-xs text-bad-ink" role="status">
@@ -666,6 +801,11 @@ export function NewGoalPage() {
                     </button>
                   ))}
                 </div>
+                {figurePack && missingStyle(figurePacks, figurePack) && (
+                  <p className="mt-2 text-xs text-bad-ink" role="status">
+                    {missingStyle(figurePacks, figurePack)} is not installed for {agentName}, so this goal would {fallbackStyle(figurePacks) ? `draw in ${fallbackStyle(figurePacks)} instead` : 'be drawn by hand, with no figure skill'}. Install it under <Link to="/settings#skills" className="underline">Settings → Skills → Figure skills</Link>, or choose another style.
+                  </p>
+                )}
               </div>
             )}
             {ARTIFACT_NATURES.includes(nature) && (
@@ -888,7 +1028,32 @@ export function NewGoalPage() {
                 </p>
               )}
             </div>
+            {template && templateVersion && (
+              <div className="mb-3">
+                <TemplatePanel entry={template} version={templateVersion} values={templateValues} onValues={changeTemplateValues} onRemove={removeTemplate} edited={templateEdited} onReapply={() => writeFromInputs(templateValues)} dropped={templateDropped} draft={fillDraft} notes={templateNotes} onNotes={setTemplateNotes} repoReady={!!repoInfo?.ok} onAsk={askFill} onAcceptValues={acceptFill} />
+              </div>
+            )}
             <Textarea rows={6} placeholder="Describe the goal as you would to a senior engineer. The system clarifies, proposes Must / Stretch acceptance checks and a task plan for you to approve." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+            {!template && (
+              <div className="mt-2">
+                <DraftBox
+                  mode="write"
+                  notes={prompt}
+                  onNotes={setPrompt}
+                  repoReady={!!repoInfo?.ok}
+                  draft={writeDraft}
+                  onAsk={askWrite}
+                  onAccept={(r) => {
+                    if (r.prompt) setPrompt(r.prompt);
+                    if (r.nature && nature === 'auto') {
+                      setNature(r.nature);
+                      if (r.nature !== 'code' && r.nature !== 'cad') setMode('simple');
+                      if (!paceTouched.current) setPace(MEDIA_NATURES.includes(r.nature) ? 'fast' : basePace.current);
+                    }
+                  }}
+                />
+              </div>
+            )}
             <AttachmentInput className="mt-2" items={attachments} onChange={setAttachments} />
             <div className="mt-3 space-y-1.5">
               <div className="flex items-center gap-2">
@@ -995,6 +1160,19 @@ export function NewGoalPage() {
           </div>
         </div>
       </div>
+      <TemplateGallery open={gallery} templates={offered} lang={templateLang} onLang={setTemplateLang} onClose={() => setGallery(false)} onChoose={chooseTemplate} chosen={template} initialKind={nature} />
+      <ConfirmDialog
+        open={!!pendingTemplate}
+        title={`Start from “${pendingTemplate ? shownVersion(pendingTemplate, templateLang).name : ''}”?`}
+        confirmLabel="Replace the description"
+        onConfirm={() => {
+          if (pendingTemplate) applyTemplate(pendingTemplate);
+          setPendingTemplate(null);
+        }}
+        onClose={() => setPendingTemplate(null)}
+      >
+        <p>The template writes the description from its inputs, so what you wrote in the box is replaced. The rest of the form keeps what you set, except what the template says.</p>
+      </ConfirmDialog>
     </div>
   );
 }

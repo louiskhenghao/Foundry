@@ -17,15 +17,9 @@ import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.
 import { channelTranscript, readHistory, readTranscriptEvent } from './transcripts.ts';
 import { z } from 'zod';
 
-/** Errors that carry their own HTTP status (409/422…) instead of the default 400. */
-export class HttpError extends Error {
-  constructor(
-    public readonly status: number,
-    public readonly body: Record<string, unknown>,
-  ) {
-    super(String(body.error ?? 'error'));
-  }
-}
+import { HttpError } from './http-error.ts';
+import { TemplateRefBody, goalFromTemplate, registerTemplateRoutes } from './templates-api.ts';
+export { HttpError };
 
 /** Optional id a caller picks for its Skills operation, so it can follow `skills-op:<id>` before the request returns. */
 const OpId = z.string().regex(OP_ID).optional();
@@ -51,7 +45,10 @@ const CreateGoalBody = z.object({
   codexModel: z.string().trim().min(1).optional(),
   agyModel: z.string().trim().min(1).optional(),
   title: z.string().optional(),
-  prompt: z.string().min(1),
+  /** the description; may be left out when a Template and its values render it (ADR-0079) */
+  prompt: z.string().min(1).optional(),
+  /** the Template the goal is made from (ADR-0079): recorded on the goal; with `values` and no prompt, rendered here */
+  template: TemplateRefBody.optional(),
   repoPath: z.string().min(1),
   baseBranch: z.string().optional(),
   /** companion repositories (ADR-0063) */
@@ -336,7 +333,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   app.post('/api/goals', async (c) => {
     const body = CreateGoalBody.parse(await c.req.json());
-    const goal = await engine.createGoal({ ...body, by: c.get('person')?.name ?? null });
+    // a goal from a Template (ADR-0079): its words rendered here when only the values came, its settings where the request said nothing
+    const goal = await engine.createGoal({ ...goalFromTemplate(engine, body), by: c.get('person')?.name ?? null });
     return c.json(goal, 201);
   });
 
@@ -1348,7 +1346,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // ---------- Transfer (ADR-0030): carry settings, keys and goals to another Foundry ----------
   const transferDir = (sub: string) => join(engine.config.dataDir, 'transfer', sub);
   const TransferExportBody = z.object({
-    categories: z.object({ settings: z.boolean().optional(), secrets: z.boolean().optional(), goals: z.boolean().optional(), transcripts: z.boolean().optional() }),
+    categories: z.object({ settings: z.boolean().optional(), secrets: z.boolean().optional(), goals: z.boolean().optional(), transcripts: z.boolean().optional(), templates: z.boolean().optional() }),
     goalIds: z.union([z.literal('all'), z.array(z.string())]).optional(),
     password: z.string().optional(),
   });
@@ -1747,6 +1745,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       throw e;
     }
   });
+  // ---- templates (ADR-0079): the built-in ones and the files in the data folder's templates/ ----
+  registerTemplateRoutes(app, engine);
   // ---------- Learnings (ADR-0040): what Foundry knows about each project folder ----------
   // ---- schedules (ADR-0054): goals that run on their own ----
   const scheduleError = (e: unknown) => {

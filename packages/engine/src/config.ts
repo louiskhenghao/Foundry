@@ -27,6 +27,8 @@ export interface EngineConfig {
   catalogPath: string;
   /** Directory with roles/*.md */
   rolesDir: string;
+  /** Directory with the built-in Templates (ADR-0079): `<id>.md` and `<id>.zh.md` */
+  templatesDir: string;
   /** Directory with boundary-guard.sh / canary.sh */
   hooksDir: string;
   port: number;
@@ -185,6 +187,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     claudeHome: process.env.FOUNDRY_CLAUDE_HOME ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
     catalogPath: resolve(root, 'catalog/skills.json'),
     rolesDir: resolve(root, 'roles'),
+    templatesDir: resolve(root, 'templates'),
     hooksDir: resolve(root, 'packages/runner/hooks'),
     port: Number(process.env.FOUNDRY_PORT ?? 4111),
     host: process.env.FOUNDRY_HOST ?? '127.0.0.1',

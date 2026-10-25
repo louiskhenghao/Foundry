@@ -1,11 +1,12 @@
 import type { AgentProvider } from '@foundry/core';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { hostname, platform } from 'node:os';
 import { basename, join } from 'node:path';
 import {
   FOLLOWABLE_STATES,
   TRANSFER_FORMAT,
   TRANSFER_FORMAT_VERSION,
+  TRANSFER_FORMAT_VERSION_PLAIN,
   getGoal,
   listAttemptsByGoal,
   listCheckResultsByGoal,
@@ -13,6 +14,7 @@ import {
   listGoals,
   listTasks,
   newId,
+  parseTemplateText,
   repoHere,
   secretSettings,
   transferableSettings,
@@ -20,6 +22,7 @@ import {
   type Goal,
   type SettingsPatch,
   type TransferCategory,
+  type TransferFileEntry,
   type TransferGoalEntry,
   type TransferManifest,
 } from '@foundry/core';
@@ -78,7 +81,7 @@ export interface ExportResult {
  */
 export async function exportTransfer(host: TransferHost, opts: ExportOptions): Promise<ExportResult> {
   const cat = (c: TransferCategory) => !!opts.categories[c];
-  if (!(['settings', 'secrets', 'goals'] as const).some(cat)) throw new TransferError('tick at least one of Settings, Keys & secrets or Goals');
+  if (!(['settings', 'secrets', 'goals', 'templates'] as const).some(cat)) throw new TransferError('tick at least one of Settings, Keys & secrets, Goals or Templates & themes');
   if (cat('transcripts') && !cat('goals')) throw new TransferError('session transcripts travel with their goals: tick Goals too');
   if (cat('secrets') && !opts.password) throw new TransferError('Keys & secrets need a password');
   const goals = cat('goals') ? pickGoals(host, opts.goalIds ?? 'all') : [];
@@ -94,15 +97,19 @@ export async function exportTransfer(host: TransferHost, opts: ExportOptions): P
     if (cat('secrets')) writeFileSync(join(stage, 'secrets.json'), JSON.stringify(sealSecrets({ settings: secretSettings(file), previewEnv: host.previewEnv() }, opts.password!, transferId)), { mode: 0o600 });
     const entries: TransferGoalEntry[] = [];
     for (const g of goals) entries.push(await stageGoal(host, g, stage, cat('transcripts')));
+    // Templates & themes (ADR-0079): the person's own files, as they are; the first format is kept for a file without them
+    const own = cat('templates') ? stageOwnFiles(host.dataDir, stage) : { templates: [], themes: [] };
     const manifest: TransferManifest = {
       format: TRANSFER_FORMAT,
-      formatVersion: TRANSFER_FORMAT_VERSION,
+      formatVersion: cat('templates') ? TRANSFER_FORMAT_VERSION : TRANSFER_FORMAT_VERSION_PLAIN,
       release: host.release,
       transferId,
       exportedAt: new Date().toISOString(),
       source: { hostname: hostname(), platform: platform(), provider: host.provider, dataDir: host.dataDir },
-      categories: { settings: cat('settings'), secrets: cat('secrets'), goals: cat('goals'), transcripts: cat('transcripts') },
+      categories: { settings: cat('settings'), secrets: cat('secrets'), goals: cat('goals'), transcripts: cat('transcripts'), ...(cat('templates') ? { templates: true } : {}) },
       goals: entries,
+      templates: own.templates,
+      themes: own.themes,
     };
     writeFileSync(join(stage, 'manifest.json'), JSON.stringify(manifest, null, 2));
     await packTransfer(stage, opts.out);
@@ -110,6 +117,40 @@ export async function exportTransfer(host: TransferHost, opts: ExportOptions): P
   } finally {
     rmSync(stage, { recursive: true, force: true });
   }
+}
+
+/**
+ * The person's own Templates (`templates/*.md`) and themes (`themes/*.json`, never the schema written beside them) linked
+ * into the staging folder, each named as its file says it (the name a reader sees in the list of what the file holds).
+ */
+function stageOwnFiles(dataDir: string, stage: string): { templates: TransferFileEntry[]; themes: TransferFileEntry[] } {
+  const templates: TransferFileEntry[] = [];
+  const tdir = join(dataDir, 'templates');
+  if (existsSync(tdir)) {
+    for (const file of readdirSync(tdir).filter((f) => f.endsWith('.md')).sort()) {
+      const text = readFileSync(join(tdir, file), 'utf8');
+      const r = parseTemplateText(text, file.endsWith('.zh.md') ? 'zh' : 'en');
+      if ('error' in r) continue;
+      link(stage, join('templates', file), join(tdir, file));
+      templates.push({ file, name: r.template.name });
+    }
+  }
+  const themes: TransferFileEntry[] = [];
+  const hdir = join(dataDir, 'themes');
+  if (existsSync(hdir)) {
+    for (const file of readdirSync(hdir).filter((f) => f.endsWith('.json') && f !== 'theme.schema.json').sort()) {
+      let name = file.slice(0, -'.json'.length);
+      try {
+        const parsed = JSON.parse(readFileSync(join(hdir, file), 'utf8')) as { name?: unknown };
+        if (typeof parsed.name === 'string' && parsed.name.trim()) name = parsed.name.trim();
+      } catch {
+        continue;
+      }
+      link(stage, join('themes', file), join(hdir, file));
+      themes.push({ file, name });
+    }
+  }
+  return { templates, themes };
 }
 
 function pickGoals(host: TransferHost, ids: string[] | 'all'): Goal[] {

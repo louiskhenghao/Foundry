@@ -9,9 +9,11 @@ import { SECRET_SETTINGS, SettingsPatch } from './settings.ts';
  * an older one refuses a newer file.
  */
 export const TRANSFER_FORMAT = 'foundry-transfer';
-export const TRANSFER_FORMAT_VERSION = 1;
+/** the newest format this Foundry reads and writes; a file without Templates & themes is still written as the first format, so an older Foundry reads it */
+export const TRANSFER_FORMAT_VERSION = 2;
+export const TRANSFER_FORMAT_VERSION_PLAIN = 1;
 
-export const TransferCategory = z.enum(['settings', 'secrets', 'goals', 'transcripts']);
+export const TransferCategory = z.enum(['settings', 'secrets', 'goals', 'transcripts', 'templates']);
 export type TransferCategory = z.infer<typeof TransferCategory>;
 
 export const TransferGoalEntry = z.object({
@@ -38,6 +40,10 @@ export const TransferGoalEntry = z.object({
 });
 export type TransferGoalEntry = z.infer<typeof TransferGoalEntry>;
 
+/** a file of the person's own the Transfer carries (format 2): a Template or a theme, by its file name and its name */
+export const TransferFileEntry = z.object({ file: z.string(), name: z.string() });
+export type TransferFileEntry = z.infer<typeof TransferFileEntry>;
+
 export const TransferManifest = z.object({
   format: z.literal(TRANSFER_FORMAT),
   formatVersion: z.number().int().positive(),
@@ -48,6 +54,9 @@ export const TransferManifest = z.object({
   source: z.object({ hostname: z.string(), platform: z.string(), provider: AgentProvider, dataDir: z.string() }),
   categories: z.record(TransferCategory, z.boolean()).default({}),
   goals: z.array(TransferGoalEntry).default([]),
+  /** Templates & themes (ADR-0079): the person's own template files and theme files; absent in the first format */
+  templates: z.array(TransferFileEntry).default([]),
+  themes: z.array(TransferFileEntry).default([]),
 });
 export type TransferManifest = z.infer<typeof TransferManifest>;
 

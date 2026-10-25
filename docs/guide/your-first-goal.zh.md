@@ -168,6 +168,10 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 开关只在 Expert 视图里显示。Settings 的初始默认值是开启；表单遵循上面的继承规则。Ponytail 是"懒惰的资深工程师"：写代码之前，worker 先问这段代码需不需要存在，仓库、标准库、平台或已装的依赖是不是已经有了，然后才写能完整解决任务的最小改动，连同调用方、测试和 fixture。planner 也这样规划；`ponytail-review` 审查每个任务和整个 goal：它读改动牵连到的代码，不只看 diff，只有它的 *must fix* 发现（bug、安全漏洞、丢数据、在预期负载下出问题）会阻断，其余写进审查笔记和 pull request。测试怎么写仍由 TDD 决定。不是代码的工作（文档、调研、媒体）从来不会用到它；开关之后可以在 goal 页面上改，从 goal 的下一个会话起生效。它需要 Ponytail 的 skill，在 Setup 页安装。
 
+### Templates
+
+在 *What kind of goal is this?* 下面，**Start from a template…** 会弹出模版对话框：你所选种类的 goal 的一个模式，留着空白的描述，加上适合它的设置。按一张卡片，在文本框上方填好它的输入，描述就自己写出来；**Fill in with AI** 能从几行零散笔记里替你填好输入，没选模版时文本框下方的 **Write it with AI** 则把你写在框里的内容写成一段描述。每个模版以及怎样做自己的模版，见[模版](./templates.zh.md)。
+
 ### What do you want done
 
 大文本框 **1 · What do you want done?**。像跟一位资深同事说话那样描述 goal：你想要什么、给谁用、有什么必须发生或绝不能发生。Foundry 会把它变成验收检查和计划交给你批准，所以你不用写得面面俱到。

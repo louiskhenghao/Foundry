@@ -8,7 +8,7 @@ import { AgyQuotaReader } from './usage/agy-quota.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
 import { basename, dirname, join } from 'node:path';
-import type { Attachment, Attempt, Brief, BriefApp, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalWorkflow, ModelConfig, Task, Check, Adjustment } from '@foundry/core';
+import type { Attachment, Attempt, Brief, BriefApp, BudgetPreset, DocType, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalTemplateRef, GoalWorkflow, ModelConfig, Task, Check, Adjustment } from '@foundry/core';
 import {
   BUDGET_PRESETS,
   Budgets,
@@ -216,6 +216,8 @@ export interface CreateGoalInput {
   by?: string | null;
   /** the other repositories the goal changes (ADR-0063): each gets its part as a `goal` task bound to it */
   companions?: { repoPath: string; baseBranch?: string }[];
+  /** the Template the goal was made from (ADR-0079), recorded on the goal; the form or the CLI rendered the prompt from it */
+  template?: GoalTemplateRef | null;
 }
 
 /** events of a Delegated goal its main goal must hear of: the ones that change what the main goal waits for, or cost it */
@@ -2297,7 +2299,8 @@ export class Engine {
     // anyone-facing default: prose and media goals open in the plain-language view; cad is code work with a geometry kernel and keeps the default
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' && nature !== 'cad' ? 'simple' : this.config.defaultGoalMode);
     const issue = input.issue ? GoalIssue.parse(input.issue) : null;
-    const title = input.title?.trim() || issue?.title.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
+    // the first line names the goal: a Markdown heading mark or emphasis around it is not part of the name
+    const title = input.title?.trim() || issue?.title.trim() || input.prompt.trim().split('\n')[0]!.replace(/^#{1,6}\s+/, '').replace(/^\*\*(.+)\*\*$/, '$1').trim().slice(0, 80);
     // the video engine, frozen at creation like the suite: the goal's own pick, else the Settings pack of the day (ADR-0077)
     const videoPack = input.videoPack ?? (nature === 'video' ? (this.config.videoPack as Goal['videoPack']) : null);
     const motion = videoPack === MOTION_STUDIO;
@@ -2361,6 +2364,7 @@ export class Engine {
       follows: followUp?.follows ?? null,
       issue,
       schedule: input.schedule ?? null,
+      template: input.template ?? null,
       // one level: a Delegated goal never delegates, whatever the caller says
       // a goal with companions needs `goal` tasks for their parts: delegation is on for it (ADR-0063)
       delegation: { allow: input.delegatedFrom ? false : companions.length > 0 || !!input.delegation?.allow, autoApprove: !!input.delegation?.autoApprove },

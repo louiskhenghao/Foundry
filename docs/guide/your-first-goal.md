@@ -166,6 +166,10 @@ Docs, infra, research, image and video tasks never get a TDD rule, and a single 
 
 The switch appears only in Expert view. The initial Settings default is on; the form uses the inheritance rules above. Ponytail is "the lazy senior dev": before writing, a worker checks whether the code needs to exist at all, whether the repository, the standard library, the platform or an installed dependency already has it, and only then writes the smallest change that fully solves the task, callers, tests and fixtures included. The planner plans the same way, and `ponytail-review` reviews each task and the whole goal: it reads the code a change touches, not only the diff, and only its *must fix* findings (a bug, a security hole, data loss, breaking under the expected load) block; the rest goes into the review notes and the pull request. TDD still decides how tests are written. Work that is not code (documents, research, media) never sees it, and the switch can be changed later on the goal page, from the goal's next session. It needs the Ponytail skills, installed from the Setup page.
 
+### Templates
+
+Under *What kind of goal is this?*, **Start from a template…** opens the templates in a dialog: a pattern for the kind of goal you chose, with blanks to fill and the settings that suit it. Press a card, fill in its inputs above the text box, and the description writes itself; **Fill in with AI** fills the inputs from a few rough notes, and **Write it with AI** under the text box writes a description from what you typed there when no template is chosen. Every template, and how to make your own, is in [Templates](./templates.md).
+
 ### What do you want done
 
 The big text box, **1 · What do you want done?** Describe the goal as you would to a senior colleague: what you want, for whom, and anything that must or must not happen. Foundry will turn it into acceptance checks and a plan for you to approve, so you do not need to be complete.

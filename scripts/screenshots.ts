@@ -218,6 +218,7 @@ try {
     await page.evaluate(() => window.scrollBy(0, 24));
     await page.waitForTimeout(300);
   });
+  await shot('templates', '/templates', undefined, 900);
   await shot('settings-models', '/settings', async () => {
     await page.evaluate(() => document.getElementById('models')?.scrollIntoView({ block: 'start' }));
     await page.waitForTimeout(300);

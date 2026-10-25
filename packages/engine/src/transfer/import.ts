@@ -1,7 +1,8 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { z } from 'zod';
 import {
+  BUILTIN_THEMES,
   SealedSecrets,
   SettingsPatch,
   TRANSFER_FORMAT,
@@ -15,6 +16,7 @@ import {
   maskSecret,
   newId,
   transferableSettings,
+  type TransferFileEntry,
   type TransferGoalEntry,
 } from '@foundry/core';
 import type { Engine } from '../engine.ts';
@@ -108,6 +110,9 @@ export interface IncomingReport {
   /** settings sections that differ from what is saved here, with the leaves that would change */
   settings: { section: keyof SettingsPatch; keys: string[] }[];
   secrets: boolean;
+  /** Templates & themes the file holds (ADR-0079): the person's own files on the other computer */
+  templates: TransferFileEntry[];
+  themes: TransferFileEntry[];
 }
 
 /** Unpack a received Transfer file and say what it holds and how it meets this Foundry */
@@ -150,6 +155,8 @@ export async function inspectIncoming(engine: Engine, uploadId: string): Promise
     repos: [...repos.values()],
     settings: m.categories.settings ? settingsDiff(engine, importedSettings(dir)) : [],
     secrets: !!m.categories.secrets && existsSync(join(dir, 'secrets.json')),
+    templates: m.templates,
+    themes: m.themes,
   };
 }
 
@@ -211,8 +218,16 @@ export const ImportChoices = z.object({
   secrets: z.object({ password: z.string(), keepMine: z.array(z.string()).default([]) }).nullable().optional(),
   /** the checkout here for each repository the file names; null = leave it unmapped; absent = what matched */
   repos: z.record(z.string(), z.string().nullable()).optional(),
+  /** bring the Templates & themes in (ADR-0079); absent = yes, when the file holds any */
+  templates: z.boolean().optional(),
 });
 export type ImportChoices = z.infer<typeof ImportChoices>;
+
+/** what came of the person's own files of one kind: each by name, placed or already here */
+export interface ImportedFiles {
+  imported: string[];
+  skipped: string[];
+}
 
 export interface ImportReport {
   imported: { id: string; title: string }[];
@@ -222,6 +237,9 @@ export interface ImportReport {
   previewEnv: { applied: string[]; waiting: string[] };
   /** the repositories mapped to a checkout here, or why one could not be (its goals stay unmapped) */
   repos: { original: string; to: string; error: string | null }[];
+  /** Templates & themes (ADR-0079): each file by its name; one that is already here as written is skipped, one that clashes gets a numbered name */
+  templates: ImportedFiles;
+  themes: ImportedFiles;
 }
 
 /**
@@ -236,7 +254,7 @@ export async function applyIncoming(engine: Engine, uploadId: string, choicesIn:
   const m = readManifest(dir, engine.updater.current());
   // a wrong password stops the import before anything is written
   const secrets = choices.secrets && m.categories.secrets ? readSecrets(engine, uploadId, choices.secrets.password) : null;
-  const report: ImportReport = { imported: [], skipped: [], settings: [], secrets: [], previewEnv: { applied: [], waiting: [] }, repos: [] };
+  const report: ImportReport = { imported: [], skipped: [], settings: [], secrets: [], previewEnv: { applied: [], waiting: [] }, repos: [], templates: { imported: [], skipped: [] }, themes: { imported: [], skipped: [] } };
 
   const wanted = choices.goals ? new Set(choices.goals) : null;
   for (const entry of m.goals) {
@@ -287,8 +305,52 @@ export async function applyIncoming(engine: Engine, uploadId: string, choicesIn:
     }
   }
 
+  // Templates & themes (ADR-0079): the person's own files come in beside the ones here, never over them
+  if (m.categories.templates && (choices.templates ?? true)) {
+    const shipped = new Set(existsSync(engine.config.templatesDir) ? readdirSync(engine.config.templatesDir).map((f) => f.replace(/(\.zh)?\.md$/, '')) : []);
+    placeOwnFiles(join(dir, 'templates'), join(dataDir, 'templates'), m.templates, (f) => /^([a-z0-9][a-z0-9-]{0,39})(\.zh)?\.md$/.exec(f)?.[1] ?? null, (id) => shipped.has(id), report.templates);
+    placeOwnFiles(join(dir, 'themes'), join(dataDir, 'themes'), m.themes, (f) => /^([a-z0-9][a-z0-9-]{0,39})\.json$/.exec(f)?.[1] ?? null, (id) => BUILTIN_THEMES.some((b) => b.id === id), report.themes);
+  }
+
   rmSync(dir, { recursive: true, force: true });
   return report;
+}
+
+/**
+ * Files of the person's own from the Transfer (a template's languages, a theme), placed in the folder here by their id:
+ * a file already here as written is skipped; an id that is taken (a built-in's, or a file here that reads differently)
+ * gets a numbered id, every language of the template with it, so the pair stays one template.
+ */
+function placeOwnFiles(srcDir: string, destDir: string, entries: TransferFileEntry[], idOf: (file: string) => string | null, taken: (id: string) => boolean, out: ImportedFiles): void {
+  const groups = new Map<string, TransferFileEntry[]>();
+  for (const e of entries) {
+    const id = idOf(e.file);
+    if (!id || !existsSync(join(srcDir, e.file))) continue;
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id)!.push(e);
+  }
+  if (!groups.size) return;
+  mkdirSync(destDir, { recursive: true });
+  for (const [id, files] of groups) {
+    const read = files.map((e) => ({ ...e, text: readFileSync(join(srcDir, e.file), 'utf8'), ext: e.file.slice(id.length), here: existsSync(join(destDir, e.file)) }));
+    const clash = taken(id) || read.some((f) => f.here && readFileSync(join(destDir, f.file), 'utf8') !== f.text);
+    let target = id;
+    if (clash) for (let n = 2; ; n++) {
+      const c = `${id}-${n}`;
+      if (!taken(c) && !read.some((f) => existsSync(join(destDir, `${c}${f.ext}`)))) {
+        target = c;
+        break;
+      }
+    }
+    for (const f of read) {
+      if (!clash && f.here) {
+        out.skipped.push(`${f.name} (already here)`);
+        continue;
+      }
+      writeFileSync(join(destDir, `${target}${f.ext}`), f.text);
+      out.imported.push(target === id ? f.name : `${f.name} (as ${target})`);
+    }
+  }
 }
 
 /** one goal: its files first, then its events, then what marks it as history and closes what was cut off */

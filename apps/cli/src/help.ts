@@ -7,6 +7,8 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
                                           prompt when none is given, its thread is attached, and the pull request closes it
        [--provider claude|codex|agy] [--codex-model <model ID>] [--agy-model <model ID>]   backend fixed for this goal; follow-ups inherit it
        [--title t] [--base branch] [--preset auto|quick|thorough|unlimited|custom] [--max-cost 5|none] [--max-min 120|none] [--concurrency 3] [--attempts 3]
+       [--template <id> [--lang en|zh] [--set key=value]...]   start from a Template (ADR-0079): the description is written from the
+                                          values (every required input needs a --set), its settings apply where no flag says otherwise
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
        [--models max|production|balanced|economy|<your preset>]   Selected agent model preset (default: Settings' preset for the goal type)
        [--nature auto|code|docs|research|image|video|figure|cad] [--figure-pack colorfigures|iso-glow] [--pace thorough|fast] [--suite mattpocock|pstack|plain] [--interview auto|always|never]
@@ -22,6 +24,9 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
                                           Clarify gets its prompt, Brief and outcomes; starts from its branch unless merged
        [--follow]                         tail the goal's live stream after creating it
        [--deliver push|pr|pr-automerge [--remote origin] [--remote-url URL]]   delivery policy (default local)
+  templates [list] [--json]               the Templates: Foundry's own (English and 中文) and yours, each with its kind and inputs
+  templates export <id> [--lang en|zh] [--out <file>]   write a template's file, to keep or pass on
+  templates import <file>                 bring a template file in (checked first; a name already taken gets a number)
   status [goalId]                         list goals, or show one goal's tasks/attempts/checks
   brief <goalId> [--approve]              print the brief; --approve approves it as-is
   ports [--all] [--json]                  ports in use and who holds them: Foundry, tailscale serve, Docker, other processes
@@ -45,8 +50,9 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
   skills restore <name> · skills update [name] · skills trash
        All skills commands accept --provider claude|codex|agy (default: the running instance).
   deliver <goalId> [--mode push|pr|pr-automerge ...]   deliver a finished goal (no --mode: print the plan)
-  export [--out <file>] [--settings] [--secrets] [--goals all|<id,id>] [--transcripts] [--password-stdin]
+  export [--out <file>] [--settings] [--secrets] [--goals all|<id,id>] [--transcripts] [--templates] [--password-stdin]
                                           write a Transfer file for another Foundry (no category flag: Settings and every goal)
+                                          --templates adds your own Templates & themes (their files; Foundry's own travel with Foundry)
                                           --secrets seals Keys & secrets with a password (stdin, or FOUNDRY_TRANSFER_PASSWORD)
   import <file> [--dry-run] [--goals <id,id>] [--keep-mine <section,…>] [--secrets [--keep-key <key,…>]]
        [--map <path there>=<path here>]... [--no-map <path there>]...

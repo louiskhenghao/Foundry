@@ -1,4 +1,4 @@
-import { Bell, Cpu, FlaskConical, GitBranch, Info, KeyRound, MonitorPlay, Palette, Server, Shield, Target, WandSparkles, Wrench, type LucideIcon } from 'lucide-react';
+import { Bell, Cpu, FlaskConical, GitBranch, Info, KeyRound, LayoutTemplate, MonitorPlay, Palette, Server, Shield, Target, WandSparkles, Wrench, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { cn, code } from '../../ui.tsx';
 

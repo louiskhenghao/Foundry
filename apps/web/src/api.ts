@@ -3,6 +3,7 @@ import type { Adjustment, AdjustmentMode, Attachment, Attempt, Brief, BriefApp, 
 import type { IssueRead } from './pages/new-goal-issue.ts';
 import type { Calibration, GoalRecipe, Schedule, ScheduleCadence, ThemeEntry, ThemeProblem } from '@foundry/core/browser';
 import type { Conversation } from '@foundry/core/browser';
+import type { TemplateEntry, TemplateLang, TemplateNature, TemplateProblem, TemplateVersion } from '@foundry/core/browser';
 export type { Conversation, ConversationMessage } from '@foundry/core/browser';
 
 /** a Schedule as the Schedules page lists it (ADR-0054): with its next run and the goal of its last run */
@@ -666,6 +667,24 @@ export function apiForProvider(provider?: AgentProvider) {
   importTheme: (file: string, text: string) => req<ThemeEntry>('/api/themes/import', { method: 'POST', body: JSON.stringify({ file, text }) }),
   /** the themes folder, or with `theme` that theme's own file (in an editor) */
   openThemes: (target: OpenTarget['id'], theme?: string) => req<{ ok: true; path: string; command: string[] }>('/api/themes/open', { method: 'POST', body: JSON.stringify({ target, theme }) }),
+  // templates (ADR-0079): the built-in ones and the files in the data folder's templates/
+  templates: () => req<TemplatesView>('/api/templates'),
+  /** a copy of a template to edit (both its languages), under a name of your own */
+  copyTemplate: (from: string, name?: string) => req<TemplateEntry>('/api/templates', { method: 'POST', body: JSON.stringify({ from, name }) }),
+  createTemplate: (template: TemplateVersion) => req<TemplateEntry>('/api/templates', { method: 'POST', body: JSON.stringify({ template }) }),
+  /** one language of a template of your own, saved whole */
+  saveTemplate: (id: string, template: TemplateVersion) => req<TemplateEntry>(`/api/templates/${id}`, { method: 'PUT', body: JSON.stringify(template) }),
+  renameTemplate: (id: string, name: string) => req<TemplateEntry>(`/api/templates/${id}`, { method: 'PATCH', body: JSON.stringify({ name }) }),
+  deleteTemplate: (id: string) => req<{ ok: true }>(`/api/templates/${id}`, { method: 'DELETE' }),
+  templateFileUrl: (id: string, lang?: TemplateLang) => `/api/templates/${id}/file${lang ? `?lang=${lang}` : ''}`,
+  /** a template file from elsewhere: its name and its text */
+  importTemplate: (file: string, text: string) => req<TemplateEntry & { lang: TemplateLang }>('/api/templates/import', { method: 'POST', body: JSON.stringify({ file, text }) }),
+  /** the templates folder, or with `template` that template's own file (in an editor) */
+  openTemplates: (target: OpenTarget['id'], template?: string, lang?: TemplateLang) => req<{ ok: true; path: string; command: string[] }>('/api/templates/open', { method: 'POST', body: JSON.stringify({ target, template, lang }) }),
+  /** the AI draft: the chosen template's inputs filled from rough notes, or a description written; polled until it settles */
+  startDraft: (body: DraftAsk) => req<{ id: string; status: DraftStatus }>('/api/templates/draft', { method: 'POST', body: JSON.stringify(body) }),
+  draft: (id: string) => req<DraftView>(`/api/templates/draft/${id}`),
+  stopDraft: (id: string) => req<{ id: string; status: DraftStatus }>(`/api/templates/draft/${id}`, { method: 'DELETE' }),
   openGoal: (goalId: string, target: OpenTarget['id'], which: 'repo' | 'workspace' | `task:${string}` | `resolve:${string}`) => req<{ ok: true; path: string; command: string[] }>(`/api/goals/${goalId}/open`, { method: 'POST', body: JSON.stringify({ target, which }) }),
   stagedAttachment: (attId: string) => req<Attachment>(`/api/uploads/${attId}`),
   reconvertAttachment: (goalId: string, attId: string) => req<{ markdown: Attachment['markdown'] }>(`/api/goals/${goalId}/attachments/${attId}/convert`, { method: 'POST' }),
@@ -907,6 +926,31 @@ export function apiForProvider(provider?: AgentProvider) {
 };
 }
 
+/** Templates (ADR-0079) — mirrors packages/server/src/templates-api.ts */
+export interface TemplatesView {
+  builtInDir: string;
+  dir: string;
+  templates: TemplateEntry[];
+  problems: TemplateProblem[];
+}
+export type DraftStatus = 'running' | 'done' | 'failed' | 'stopped';
+export interface DraftAsk {
+  provider?: AgentProvider;
+  nature?: GoalNature;
+  lang?: TemplateLang;
+  notes: string;
+  template?: { id: string; lang?: TemplateLang };
+  /** read this checkout too (once it passed its check) */
+  repoPath?: string;
+}
+export interface DraftView {
+  id: string;
+  status: DraftStatus;
+  result: { values: Record<string, string> | null; prompt: string | null; nature: TemplateNature | null; costUsd: number; costAvailable: boolean; model: string; durationMs: number } | null;
+  error: string | null;
+  elapsedMs: number;
+}
+
 /** where the browser downloads a Transfer file written by transferExport */
 export const transferDownloadUrl = (downloadId: string) => `/api/transfer/download/${downloadId}`;
 
@@ -916,6 +960,13 @@ export interface TransferCategories {
   secrets?: boolean;
   goals?: boolean;
   transcripts?: boolean;
+  /** Templates & themes of your own (ADR-0079) */
+  templates?: boolean;
+}
+/** a Template or theme file the Transfer carries, by its file name and its name */
+export interface TransferFileEntry {
+  file: string;
+  name: string;
 }
 export interface IncomingGoal {
   id: string;
@@ -945,6 +996,8 @@ export interface IncomingReport {
   repos: { original: string; remoteUrl: string | null; goals: string[]; match: string | null }[];
   settings: { section: string; keys: string[] }[];
   secrets: boolean;
+  templates: TransferFileEntry[];
+  themes: TransferFileEntry[];
 }
 export interface SecretsPreview {
   settings: { key: string; imported: string; mine: string | null; same: boolean }[];
@@ -955,6 +1008,7 @@ export interface ImportChoices {
   settings?: Record<string, 'imported' | 'mine'>;
   secrets?: { password: string; keepMine: string[] } | null;
   repos?: Record<string, string | null>;
+  templates?: boolean;
 }
 export interface ImportReport {
   imported: { id: string; title: string }[];
@@ -963,6 +1017,8 @@ export interface ImportReport {
   secrets: string[];
   previewEnv: { applied: string[]; waiting: string[] };
   repos: { original: string; to: string; error: string | null }[];
+  templates: { imported: string[]; skipped: string[] };
+  themes: { imported: string[]; skipped: string[] };
 }
 export interface MapResult {
   original: string;
