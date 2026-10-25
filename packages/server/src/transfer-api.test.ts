@@ -78,3 +78,30 @@ test('a Transfer file uploads through the real server, streamed to disk', async 
   expect((await res.json()).goals).toHaveLength(1);
 });
 
+
+test('Templates & themes travel through the API: the person\'s template files reach the Transfer file and the other Foundry (ADR-0079)', async () => {
+  const tmp = mkdtempSync(join(tmpdir(), 'foundry-transfer-templates-'));
+  cleanup.push(async () => rmSync(tmp, { recursive: true, force: true }));
+  const make = (name: string) => {
+    const dataDir = join(tmp, name);
+    const e = new Engine(defaultConfig(resolve(import.meta.dir, '../../..'), { dataDir, claudeHome: join(dataDir, 'claude'), useGraphify: false, log: () => {} }), new FakeRunner(() => {}));
+    cleanup.push(() => e.stop());
+    return { e, app: createApp(e), dataDir };
+  };
+  const a = make('a');
+  const { mkdirSync, existsSync, readFileSync } = await import('node:fs');
+  mkdirSync(join(a.dataDir, 'templates'), { recursive: true });
+  writeFileSync(join(a.dataDir, 'templates', 'pricing-bug.md'), '---\nname: Pricing bug\nnature: code\n---\n\nFix {{what}}.\n');
+  // only the templates ticked: a file of its own, not refused as "nothing ticked"
+  const res = await a.app.request('/api/transfer/export', json({ categories: { templates: true } }));
+  expect(res.status).toBe(201);
+  const exported = await res.json();
+  expect(exported.categories).toMatchObject({ templates: true, goals: false, settings: false });
+  const file = await (await a.app.request(`/api/transfer/download/${exported.downloadId}`)).arrayBuffer();
+  const b = make('b');
+  const incoming = await (await b.app.request('/api/transfer/incoming', { method: 'POST', body: file, headers: { 'content-type': 'application/octet-stream' } })).json();
+  const report = await (await b.app.request(`/api/transfer/incoming/${incoming.uploadId}/apply`, json({ templates: true }))).json();
+  expect(report.templates.imported.length).toBe(1);
+  expect(existsSync(join(b.dataDir, 'templates', 'pricing-bug.md'))).toBe(true);
+  expect(readFileSync(join(b.dataDir, 'templates', 'pricing-bug.md'), 'utf8')).toContain('name: Pricing bug');
+});

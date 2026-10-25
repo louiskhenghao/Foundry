@@ -1346,7 +1346,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // ---------- Transfer (ADR-0030): carry settings, keys and goals to another Foundry ----------
   const transferDir = (sub: string) => join(engine.config.dataDir, 'transfer', sub);
   const TransferExportBody = z.object({
-    categories: z.object({ settings: z.boolean().optional(), secrets: z.boolean().optional(), goals: z.boolean().optional(), transcripts: z.boolean().optional() }),
+    categories: z.object({ settings: z.boolean().optional(), secrets: z.boolean().optional(), goals: z.boolean().optional(), transcripts: z.boolean().optional(), templates: z.boolean().optional() }),
     goalIds: z.union([z.literal('all'), z.array(z.string())]).optional(),
     password: z.string().optional(),
   });
