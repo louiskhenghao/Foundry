@@ -125,6 +125,15 @@ export const TOOLS: Tool[] = [
     notice: 'docker-compose.NOTICE',
   },
   {
+    id: 'ffmpeg',
+    name: 'FFmpeg',
+    url: 'https://ffmpeg.org',
+    license: 'GPL-2.0-or-later (Debian build; LGPL-2.1-or-later core)',
+    copyright: null,
+    installs: ['apt:ffmpeg'],
+    note: "Debian's ffmpeg package is built with its GPL components (libx264 among them), so the binary is GPL-2+ while FFmpeg's own core is LGPL-2.1+. Its copyright file is at /usr/share/doc/ffmpeg/copyright in the image. Foundry runs it to render and measure video (the motion-studio engine, the likeness review's frames, the reviewers' ffprobe checks).",
+  },
+  {
     id: 'debian',
     name: 'Debian packages',
     url: 'https://www.debian.org',

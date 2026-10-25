@@ -90,7 +90,7 @@ export const Task = z.object({
   delegatedGoalId: z.string().nullable().default(null),
   /** what this task delivered, written when it landed, for the tasks that depend on it (a Delegated goal's summary; null = none yet) */
   summary: z.string().nullable().default(null),
-  /** the Adjustment this task is carrying out (ADR-0077): the person's words a resumed or restarted session is given; cleared when the task lands; absent on tasks from before, read as null */
+  /** the Adjustment this task is carrying out (ADR-0078): the person's words a resumed or restarted session is given; cleared when the task lands; absent on tasks from before, read as null */
   adjustment: Adjustment.nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),

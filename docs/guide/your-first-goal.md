@@ -180,7 +180,7 @@ Reading an issue needs the GitHub CLI connected (the Setup page, or Settings →
 
 Below the text box: **Attach screenshots, PDFs, files or links — or drop / paste them here.** Use **Files** to pick files, or **Link** to add a web address, then **Add**. You can also paste a screenshot straight into the page.
 
-Every session of the goal can read the attachments. They are never added to your project. Documents are converted to text in the background; a small tag shows when that is done. You can add more attachments later from the goal page.
+Every session of the goal can read the attachments. A file may weigh up to 25 MB, an audio or video file (a reference film, a music track) up to 200 MB, and a goal holds up to 20 attachments. They are never added to your project. Documents are converted to text in the background; a small tag shows when that is done. You can add more attachments later from the goal page.
 
 ### Reference
 
@@ -224,7 +224,7 @@ The card below the picker says where the new goal starts. If the earlier goal's 
 | **Quick** | $3 · 30 min · 2 parallel · 2 attempts per task. For a small fix or a question about the code. |
 | **Thorough** | $25 · 8 h · 3 parallel · 4 attempts per task. A feature with tests and review. |
 | **Unlimited** | No cost or time limit. Attempts per task and parallel sessions still apply. |
-| **Custom** | Set **Max cost (USD est.)**, **Max minutes**, **Parallel sessions** and **Attempts per task** yourself. |
+| **Custom** | Set **Max cost (USD est.)**, **Max minutes**, **Parallel sessions**, **Attempts per task** and, for a goal whose sessions run long (a video render), **Attempt timeout** yourself; a blank timeout keeps the Settings value. |
 
 If you are unsure, keep **Auto**. More in [Costs and usage](./costs-and-usage.md).
 

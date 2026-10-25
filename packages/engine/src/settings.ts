@@ -92,6 +92,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'memory.seedCommits': { name: 'FOUNDRY_MEMORY_SEED_COMMITS', parse: num },
   // Beta (ADR-0073)
   'beta.conversation': { name: 'FOUNDRY_BETA_CONVERSATION', parse: bool },
+  'beta.motionStudio': { name: 'FOUNDRY_BETA_MOTION_STUDIO', parse: bool },
   'beta.figure': { name: 'FOUNDRY_BETA_FIGURE', parse: bool },
   'beta.adjust': { name: 'FOUNDRY_BETA_ADJUST', parse: bool },
 };
@@ -331,6 +332,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('workflow.codexMcpAllowed')) config.codexMcpAllowed = s.workflow.codexMcpAllowed;
   if (on('reviews.alwaysReviewTasks')) config.alwaysReviewTasks = s.reviews.alwaysReviewTasks;
   if (on('beta.conversation')) config.betaConversation = s.beta.conversation;
+  if (on('beta.motionStudio')) config.betaMotionStudio = s.beta.motionStudio;
   if (on('beta.figure')) config.betaFigure = s.beta.figure;
   if (on('beta.adjust')) config.betaAdjust = s.beta.adjust;
   if (on('reviews.maxFixCycles')) config.maxFixCycles = s.reviews.maxFixCycles;

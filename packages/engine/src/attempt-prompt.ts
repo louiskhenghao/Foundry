@@ -32,7 +32,7 @@ export interface AttemptPromptInput {
   prevReport: ObservationReport | null;
   rolledBack: { toRef: string; reason: string } | null;
   hint: string | null;
-  /** rendered `# Adjustment asked by the person` section (adjust.ts renderAdjustment) when the task carries one out, or '' (ADR-0077) */
+  /** rendered `# Adjustment asked by the person` section (adjust.ts renderAdjustment) when the task carries one out, or '' (ADR-0078) */
   adjustment?: string;
   relevantContext: string | null;
   /** one line from SkillsHints, or null */

@@ -8,6 +8,7 @@ import { BriefSubject } from './subject.ts';
 import { DeliveryState, IDLE_DELIVERY } from './delivery.ts';
 import { Deployment } from './deploy.ts';
 import { Interview, ReviseState } from './interview.ts';
+import { VideoPack } from './packs.ts';
 
 /** Claude Code effort level handed to every session of a goal; null = the CLI default */
 export const Effort = z.enum(['low', 'medium', 'high', 'xhigh', 'max']);
@@ -35,6 +36,8 @@ export const Budgets = z.object({
   maxDurationMin: z.number().positive().nullable().default(120),
   maxConcurrent: z.number().int().positive().default(3),
   attemptsPerTask: z.number().int().positive().default(3),
+  /** wall-clock cap of one session of this goal, in minutes; null = Settings → sessions.attemptTimeoutMin (ADR-0077) */
+  attemptTimeoutMin: z.number().int().min(5).max(240).nullable().default(null),
 });
 export type Budgets = z.infer<typeof Budgets>;
 
@@ -45,13 +48,13 @@ export type Budgets = z.infer<typeof Budgets>;
 export const BudgetPreset = z.enum(['auto', 'quick', 'thorough', 'unlimited', 'custom']);
 export type BudgetPreset = z.infer<typeof BudgetPreset>;
 
-export const DEFAULT_BUDGETS: Budgets = { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 };
+export const DEFAULT_BUDGETS: Budgets = { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null };
 
 export const BUDGET_PRESETS: Record<BudgetPreset, { label: string; blurb: string; budgets: Budgets }> = {
-  auto: { label: 'Auto', blurb: 'No cap while clarifying. The Brief estimates cost and time; you confirm the proposed budget before work starts.', budgets: { maxCostUsd: null, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3 } },
-  quick: { label: 'Quick', blurb: 'Small fix or a question about the code. $3 · 30 min · 2 parallel · 2 attempts per task.', budgets: { maxCostUsd: 3, maxDurationMin: 30, maxConcurrent: 2, attemptsPerTask: 2 } },
-  thorough: { label: 'Thorough', blurb: 'A feature with tests and review. $25 · 8 h · 3 parallel · 4 attempts per task.', budgets: { maxCostUsd: 25, maxDurationMin: 480, maxConcurrent: 3, attemptsPerTask: 4 } },
-  unlimited: { label: 'Unlimited', blurb: 'No cost or time cap. Attempts per task and parallelism still apply; rate limits still pause the engine.', budgets: { maxCostUsd: null, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3 } },
+  auto: { label: 'Auto', blurb: 'No cap while clarifying. The Brief estimates cost and time; you confirm the proposed budget before work starts.', budgets: { maxCostUsd: null, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null } },
+  quick: { label: 'Quick', blurb: 'Small fix or a question about the code. $3 · 30 min · 2 parallel · 2 attempts per task.', budgets: { maxCostUsd: 3, maxDurationMin: 30, maxConcurrent: 2, attemptsPerTask: 2, attemptTimeoutMin: null } },
+  thorough: { label: 'Thorough', blurb: 'A feature with tests and review. $25 · 8 h · 3 parallel · 4 attempts per task.', budgets: { maxCostUsd: 25, maxDurationMin: 480, maxConcurrent: 3, attemptsPerTask: 4, attemptTimeoutMin: null } },
+  unlimited: { label: 'Unlimited', blurb: 'No cost or time cap. Attempts per task and parallelism still apply; rate limits still pause the engine.', budgets: { maxCostUsd: null, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null } },
   custom: { label: 'Custom', blurb: 'Set every limit yourself.', budgets: DEFAULT_BUDGETS },
 };
 
@@ -375,7 +378,7 @@ export const Goal = z.object({
   nature: GoalNature.default('auto'),
   /** the Figure pack this goal's figure tasks follow when one was chosen for the goal (on the New goal form, or by the Clarifier from the goal's words); null = Settings' default at run time; absent on goals from before, read as null */
   figurePack: FigurePack.nullable().optional(),
-  /** the Adjustments asked for on this goal's result (ADR-0077), oldest first; absent on goals from before, read as [] */
+  /** the Adjustments asked for on this goal's result (ADR-0078), oldest first; absent on goals from before, read as [] */
   adjustments: z.array(Adjustment).optional(),
   /** where media artifacts are copied when the goal finishes; null = they stay in the goal workspace */
   outputDir: z.string().nullable().default(null),
@@ -409,6 +412,8 @@ export const Goal = z.object({
   revise: ReviseState.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */
   effort: CodexEffort.nullable().default(null),
+  /** the video engine (pack option) this goal's sessions follow; null = Settings → workflow.videoPack (ADR-0077) */
+  videoPack: VideoPack.nullable().default(null),
   /** the model preset this goal uses; null = the preset Settings picks for its nature */
   codexPreset: CodexModelPreset.optional(),
   /** Explicit all-role model selection, retained separately from the captured role table for follow-ups. */

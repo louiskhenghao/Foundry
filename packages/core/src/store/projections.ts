@@ -626,7 +626,7 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'attempt.continued': {
       const a = getAttempt(db, e.payload.attemptId);
-      // a usage limit's cut, a wait for the person's answer (ADR-0074) and an Adjustment of the result (ADR-0077) do not count towards the continuation cap
+      // a usage limit's cut, a wait for the person's answer (ADR-0074) and an Adjustment of the result (ADR-0078) do not count towards the continuation cap
       if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + (e.payload.reason === 'usage_limit' || e.payload.reason === 'needs_input' || e.payload.reason === 'adjust' ? 0 : 1), endedAt: null, pid: null });
       break;
     }
@@ -791,6 +791,8 @@ function normalizeGoal(g: Goal): Goal {
   g.delegation ??= { ...NO_DELEGATION };
   g.delegatedFrom ??= null;
   g.conversationCostUsd ??= 0;
+  g.videoPack ??= null;
+  if (g.budgets) g.budgets.attemptTimeoutMin ??= null;
   g.figurePack ??= null;
   g.adjustments ??= [];
   if (g.workflow && g.workflow.ponytail == null) g.workflow.ponytail = 'on';

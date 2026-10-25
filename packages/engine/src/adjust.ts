@@ -1,5 +1,5 @@
 /**
- * Adjust the result (ADR-0077): a finished goal takes the person's words on its result — what should change, with the
+ * Adjust the result (ADR-0078): a finished goal takes the person's words on its result — what should change, with the
  * pictures or files they give — and carries them out itself, as the goal it is. Never a new goal, never a chat:
  * - a goal of one finished task resumes that task's session, which knows the work it did, with the words (`resume`);
  * - a goal of several tasks gets a task appended after the finished ones, a fresh session given what they delivered (`task`);
@@ -79,7 +79,7 @@ export interface AdjustView {
   history: (Adjustment & { files: string[] })[];
 }
 
-/** the goal page's view of Adjust (ADR-0077) */
+/** the goal page's view of Adjust (ADR-0078) */
 export function adjustView(engine: Engine, goal: Goal): AdjustView {
   const enabled = engine.config.betaAdjust;
   const plan = enabled ? adjustPlan(engine, goal) : { refused: 'Adjust the result is off: Settings → Beta' };
@@ -200,7 +200,7 @@ const firstLine = (text: string, max = 60): string => {
 };
 
 /**
- * Adjust a finished goal's result (ADR-0077). The staged uploads become attachments of the goal marked with the
+ * Adjust a finished goal's result (ADR-0078). The staged uploads become attachments of the goal marked with the
  * Adjustment; the result as it stands is kept aside first; then the goal runs again the way `adjustPlan` says.
  */
 export async function adjustGoal(engine: Engine, goalId: string, textIn: string, opts: { by?: string | null; attachments?: Attachment[] } = {}): Promise<Adjustment> {

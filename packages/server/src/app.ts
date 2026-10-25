@@ -8,9 +8,9 @@ import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman } from '@foundry/engine';
 import { AdjustError, ConversationError } from '@foundry/engine';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, VideoPack, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
-import { FileRefused, type FileSource, commitTree, fileKind, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles, deliveredFile } from './files.ts';
+import { FileRefused, type FileSource, commitTree, fileKind, fileResponse, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles, deliveredFile } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
 import { copyTheme, deleteTheme, importTheme, renameTheme, themeFileText, listThemes, prepareThemesDir, themesDir } from './themes.ts';
 import { OP_ID, SkillOpError, SkillOps, opIdOfChannel, opOf } from './skill-ops.ts';
@@ -35,6 +35,7 @@ const BudgetsBody = z.object({
   maxCostUsd: z.number().positive().nullable().optional(),
   maxDurationMin: z.number().positive().nullable().optional(),
   maxConcurrent: z.number().int().positive().optional(),
+  attemptTimeoutMin: z.number().int().min(5).max(240).nullable().optional(),
   attemptsPerTask: z.number().int().positive().optional(),
 });
 
@@ -67,6 +68,8 @@ const CreateGoalBody = z.object({
   mode: GoalMode.optional(),
   workflow: GoalWorkflow.partial().optional(),
   nature: GoalNature.optional(),
+  /** the video engine of a video goal (ADR-0077); absent = Settings → workflow.videoPack */
+  videoPack: VideoPack.nullable().optional(),
   /** the Figure pack this goal follows when it should differ from Settings' (ADR-0076) */
   figurePack: FigurePack.nullable().optional(),
   outputDir: z.string().nullable().optional(),
@@ -140,11 +143,14 @@ export function extraHosts(engine: Engine): string[] {
 export const UNKNOWN_HOST = (host: string | null) =>
   `Foundry does not answer to the name "${host}". If that name is this computer, add it to FOUNDRY_ALLOWED_HOSTS (comma-separated) or set it as Settings → Notifications → Link base URL.`;
 
-/** what any request but a Transfer file may carry (attachments are capped at 25 MB in their route) */
+/** what any request may carry: a Transfer file has no cap, an upload may hold a 200 MB reference film or track (ADR-0077), anything else keeps to 30 MB */
 export const MAX_BODY_MB = 30;
-const tooLarge = (req: Request) => {
+export const MAX_UPLOAD_BODY_MB = 210;
+const UPLOAD_PATH = /^\/api\/goals\/[^/]+\/(attachments|materials\/[^/]+|conversations(\/[^/]+)?)$/;
+export const bodyCapMb = (path: string, method: string): number | null => (path === '/api/transfer/incoming' ? null : method === 'POST' && UPLOAD_PATH.test(path) ? MAX_UPLOAD_BODY_MB : MAX_BODY_MB);
+const tooLarge = (req: Request, capMb: number) => {
   const length = req.headers.get('content-length');
-  if (length != null) return Number(length) > MAX_BODY_MB * 1024 * 1024;
+  if (length != null) return Number(length) > capMb * 1024 * 1024;
   return !!req.body && req.headers.get('transfer-encoding') === 'chunked';
 };
 
@@ -204,8 +210,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.use('/api/*', async (c, next) => {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(c.req.method) && crossSite(c.req.raw)) return c.json({ error: 'refused: a request from another site' }, 403);
-    // only a Transfer file may be large; every other request keeps to what an attachment may weigh
-    if (c.req.path !== '/api/transfer/incoming' && tooLarge(c.req.raw)) return c.json({ error: `a request may carry at most ${MAX_BODY_MB} MB` }, 413);
+    // only a Transfer file may be large; an upload may carry a media attachment; every other request keeps to 30 MB
+    const cap = bodyCapMb(c.req.path, c.req.method);
+    if (cap != null && tooLarge(c.req.raw, cap)) return c.json({ error: `a request may carry at most ${cap} MB` }, 413);
     await next();
   });
   const db = engine.store.db;
@@ -638,7 +645,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const p = join(screenshotsDir(engine.config.dataDir, goal), file);
     if (!existsSync(p)) throw new HttpError(404, { error: 'screenshot not found' });
     const type = SCREENSHOT_TYPES[ext];
-    return new Response(Bun.file(p), { headers: { 'content-type': type!, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' } });
+    return fileResponse(p, c.req.raw, { 'content-type': type!, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' });
   });
   app.get('/api/goals/:id/artifacts', (c) => c.json({ files: listArtifacts(goalWorkspacePath(engine.config.dataDir, goalOr404(c))) }));
   app.get('/api/goals/:id/artifacts/*', (c) => {
@@ -651,9 +658,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (!existsSync(p) && run?.status === 'ok' && run.dest && run.files.includes(rel)) p = join(run.dest, rel);
     if (!existsSync(p)) throw new HttpError(404, { error: 'artifact not found' });
     // a figure's page (ADR-0076) runs in the browser, but never as Foundry: the sandbox directive gives it an opaque
-    // origin, with none of this origin's cookies, storage or API; every other kind of artifact is served as before
+    // origin, with none of this origin's cookies, storage or API; every other kind of artifact is served as before,
+    // and a clip can be seeked in (Range, ADR-0077)
     const page = /\.html?$/i.test(rel);
-    return new Response(Bun.file(p), { headers: { 'cache-control': 'private, max-age=60', ...(page ? { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': 'sandbox allow-scripts', 'x-content-type-options': 'nosniff' } : {}) } });
+    return fileResponse(p, c.req.raw, { 'cache-control': 'private, max-age=60', ...(page ? { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': 'sandbox allow-scripts', 'x-content-type-options': 'nosniff' } : {}) });
   });
   // ---- the user guide, bundled with the install: docs/guide/*.md (+ .zh.md) and its screenshots ----
   const guideDir = join(engine.config.rootDir, 'docs', 'guide');
@@ -706,13 +714,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const abs = attachmentAbsPath(engine.config.dataDir, goal.id, att);
     if (!abs) throw new HttpError(404, { error: 'attachment file is missing on disk' });
     const inline = c.req.query('download') !== '1';
-    return new Response(Bun.file(abs), {
-      headers: {
-        'content-type': att.mime ?? 'application/octet-stream',
-        'content-disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(att.name)}`,
-        'cache-control': 'private, max-age=3600',
-        'x-content-type-options': 'nosniff',
-      },
+    return fileResponse(abs, c.req.raw, {
+      'content-type': att.mime ?? 'application/octet-stream',
+      'content-disposition': `${inline ? 'inline' : 'attachment'}; filename*=UTF-8''${encodeURIComponent(att.name)}`,
+      'cache-control': 'private, max-age=3600',
+      'x-content-type-options': 'nosniff',
     });
   });
 
@@ -841,7 +847,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       goal,
       paths: { repo: goal.repoPath, workspace: existsSync(ws) ? ws : null },
       budget: budgetStatus(goal),
-      // Adjust the result (ADR-0077): whether the person can ask for one now, and the Adjustments made
+      // Adjust the result (ADR-0078): whether the person can ask for one now, and the Adjustments made
       adjust: engine.adjustView(goal),
       // live: a slot held / a session alive, so the drawer can tell stuck from busy; waiting: why a ready task is not running
       tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0, usage: taskUsage(listAttempts(db, t.id)), live: engine.taskLiveness(t.id), ...readyView(t), ...delegatedView(t) })),
@@ -952,7 +958,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       throw e;
     }
   });
-  // Adjust the result (ADR-0077): the person's words on a finished goal's result, with staged uploads; the goal runs again
+  // Adjust the result (ADR-0078): the person's words on a finished goal's result, with staged uploads; the goal runs again
   app.post('/api/goals/:id/adjust', async (c) => {
     const goal = goalOr404(c);
     const body = z.object({ text: z.string(), attachments: z.array(Attachment).optional() }).parse(await c.req.json());
@@ -1407,7 +1413,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/skills', async (c) => {
     // ?goals=N: how many of the newest goals the usage counts over, clamped silently
     const n = Number.parseInt(c.req.query('goals') ?? '', 10);
-    return c.json(await skillsFor(c).overview(c.req.query('repo') || undefined, { goals: Number.isFinite(n) ? Math.min(500, Math.max(1, n)) : 30 }));
+    const overview = await skillsFor(c).overview(c.req.query('repo') || undefined, { goals: Number.isFinite(n) ? Math.min(500, Math.max(1, n)) : 30 });
+    // the motion-studio skill shows while its Beta is on (ADR-0077)
+    return c.json(engine.config.betaMotionStudio || !Array.isArray(overview?.catalog) ? overview : { ...overview, catalog: overview.catalog.filter((s) => s.entry.packOption !== 'motion-studio') });
   });
   app.get('/api/skills/trash', (c) => c.json(skillsFor(c).trash()));
   // Grouped-by-source update report. ?refresh=1 starts an upstream fetch in the background and returns the
@@ -1639,7 +1647,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({
       design: view('design', DESIGN_PACK_OPTIONS, engine.config.designPack),
       image: view('image', IMAGE_PACK_OPTIONS, engine.config.imagePack),
-      video: view('video', VIDEO_PACK_OPTIONS, engine.config.videoPack),
+      // the motion-studio engine is offered while its Beta is on (ADR-0077)
+      video: view('video', engine.config.betaMotionStudio ? VIDEO_PACK_OPTIONS : VIDEO_PACK_OPTIONS.filter((o) => o.id !== 'motion-studio'), engine.config.videoPack),
       figure: view('figure', FIGURE_PACK_OPTIONS, engine.config.figurePack),
     });
   });

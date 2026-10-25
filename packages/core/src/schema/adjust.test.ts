@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { ADJUST_ATTACHMENTS_MAX, ARTIFACTS_HISTORY_DIR, Adjustment, Attachment, DEFAULT_SETTINGS, Goal, IdPrefix, Task, TaskOrigin, assertTaskTransition } from '../index.ts';
 
-/** Adjust the result (ADR-0077): a finished goal carries out the person's words on its result itself */
+/** Adjust the result (ADR-0078): a finished goal carries out the person's words on its result itself */
 describe('an Adjustment', () => {
   const adjustment = { id: 'adj_1', n: 1, text: 'make the lid red', mode: 'resume' as const, taskId: 't_1', attachmentIds: ['att_1'], at: '2026-10-25T10:00:00.000Z', by: 'ann' };
   test('is recorded on the goal in order and on the task carrying it out; rows from before read as none', () => {

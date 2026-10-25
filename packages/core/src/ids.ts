@@ -49,6 +49,6 @@ export const IdPrefix = {
   message: 'msg',
   /** what the Explainer proposed (ADR-0075) */
   proposal: 'prop',
-  /** an Adjustment of a finished goal's result (ADR-0077) */
+  /** an Adjustment of a finished goal's result (ADR-0078) */
   adjust: 'adj',
 } as const;

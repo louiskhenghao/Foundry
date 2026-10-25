@@ -36,7 +36,7 @@ describe('decideNext (continuation vs fresh attempt)', () => {
     expect(continuationMessage('orphaned')).toContain('engine restart');
     expect(continuationMessage('timeout', { timeoutMin: 20 })).toContain('20 min');
     expect(continuationMessage('checks_failed', { report: '- ❌ tests' })).toContain('- ❌ tests');
-    // an Adjustment of the result (ADR-0077): the words, the files by path, and that the earlier work stays
+    // an Adjustment of the result (ADR-0078): the words, the files by path, and that the earlier work stays
     const adjust = continuationMessage('adjust', { adjustment: { n: 2, text: 'make the lid red', files: [{ name: 'lid.png', path: '/data/attachments/g/att/lid.png' }], links: ['https://example.com/red'] } });
     expect(adjust).toContain('adjustment 2');
     expect(adjust).toContain('make the lid red');
@@ -44,5 +44,18 @@ describe('decideNext (continuation vs fresh attempt)', () => {
     expect(adjust).toContain('https://example.com/red');
     expect(adjust).toContain('do not redo finished work');
     expect(adjust).not.toContain('# Your task');
+  });
+});
+
+import { goalSessionTimeoutMs } from './attempt-loop.ts';
+
+describe('the wall-clock cap of one session (ADR-0077)', () => {
+  const config = { attemptTimeoutMs: 20 * 60_000 };
+  const budgets = { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 };
+  test("a goal without its own cap takes Settings → sessions.attemptTimeoutMin", () => {
+    expect(goalSessionTimeoutMs({ budgets: { ...budgets, attemptTimeoutMin: null } }, config)).toBe(20 * 60_000);
+  });
+  test('a goal with its own cap (a long render) takes that', () => {
+    expect(goalSessionTimeoutMs({ budgets: { ...budgets, attemptTimeoutMin: 60 } }, config)).toBe(60 * 60_000);
   });
 });

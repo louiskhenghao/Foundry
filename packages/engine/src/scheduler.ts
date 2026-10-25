@@ -1,7 +1,7 @@
 import { PROVIDER_NAME, getBrief, listEscalations } from '@foundry/core';
 import type { Goal, Task } from '@foundry/core';
 import { ARTIFACT_SCENARIOS, listTasks, getTask, getGoal, listAttempts, getObservation } from '@foundry/core';
-import { type Continuation, type ContinueReason, continuationMessage, cutByLimit, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
+import { type Continuation, type ContinueReason, goalSessionTimeoutMs, continuationMessage, cutByLimit, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import { adjustmentContext } from './adjust.ts';
 import type { Engine } from './engine.ts';
@@ -260,7 +260,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     // a session that stopped to ask the person resumes with their answer (ADR-0074), past the continuation cap too
     const answer = cutBy === 'needs_input' ? requestAnswerFor(engine, goal, task) : undefined;
     let resume: Continuation | null = last && last.state === 'interrupted' && last.sessionId && (cutBy === 'usage_limit' || cutBy === 'needs_input' || last.continuations < config.maxContinuations) ? { attempt: last, reason: cutBy, message: continuationMessage(cutBy, { answer }) } : null;
-    // an Adjustment of a finished task (ADR-0077): the session that passed resumes with the person's words — it knows
+    // an Adjustment of a finished task (ADR-0078): the session that passed resumes with the person's words — it knows
     // the work it did — past the continuation cap; with no session to resume, a fresh attempt is given them instead
     if (!resume && task.adjustment && last?.state === 'passed' && last.sessionId) resume = { attempt: last, reason: 'adjust', message: continuationMessage('adjust', { adjustment: adjustmentContext(getGoal(store.db, goal.id)!, task.adjustment, config.dataDir) }) };
     const attemptsSoFar = engine.attemptCount(task.id);
@@ -303,7 +303,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
       }
       if (next.reason === 'checks_failed' && outcome.nonBoundaryDenials.length) break; // a denied tool will not resolve itself
       prevFailed = outcome.report.failedCount;
-      const message = continuationMessage(next.reason, { timeoutMin: Math.round(config.attemptTimeoutMs / 60_000), report: outcome.report.summary.slice(0, 4000) });
+      const message = continuationMessage(next.reason, { timeoutMin: Math.round(goalSessionTimeoutMs(goal, config) / 60_000), report: outcome.report.summary.slice(0, 4000) });
       store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'observing', to: 'running', reason: `continuation ${outcome.attempt.continuations + 1}: ${next.reason.replace('_', ' ')}` } });
       outcome = await runAttempt(engine, getGoal(store.db, goal.id)!, getTask(store.db, task.id)!, cwd, { resume: { attempt: outcome.attempt, reason: next.reason, message } });
       fresh = getTask(store.db, task.id)!;
@@ -332,7 +332,7 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
           store.append({ type: 'task.workspace_assigned', goalId: goal.id, payload: { taskId: task.id, branch: null, worktreePath: null } });
         }
         const t = getTask(store.db, task.id)!;
-        // the Adjustment it carried out is done with (ADR-0077); the record stays on the goal
+        // the Adjustment it carried out is done with (ADR-0078); the record stays on the goal
         if (t.adjustment) store.append({ type: 'task.adjustment_set', goalId: goal.id, payload: { taskId: task.id, adjustment: null } });
         store.append({ type: 'task.state_changed', goalId: goal.id, payload: { taskId: task.id, from: 'merging', to: 'done', reason: t.commitRef ? `committed ${t.commitRef.slice(0, 7)} on goal branch` : 'no changes to commit' } });
         // empty-repo goals: the task that created the first stack manifest unlocks autoskills for the rest

@@ -11,7 +11,7 @@ import { FakeRunner, makeRepo, sh, terminal, waitFor } from './test-helpers.ts';
 import { goalWorkspacePath, listArtifacts } from './workspace.ts';
 
 /**
- * Adjust the result (ADR-0077): a finished goal takes the person's words on its result and carries them out itself —
+ * Adjust the result (ADR-0078): a finished goal takes the person's words on its result and carries them out itself —
  * the finished task's session resumed, a task appended, or the failed tasks run again — keeping the earlier result.
  */
 const ROOT = resolve(import.meta.dir, '../../..');

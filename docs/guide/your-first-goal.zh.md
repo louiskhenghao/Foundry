@@ -182,7 +182,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 文本框下面：**Attach screenshots, PDFs, files or links — or drop / paste them here.** 用 **Files** 选文件，或者用 **Link** 加一个网址，然后按 **Add**。你也可以直接把截图粘贴到页面上。
 
-这个 goal 的每个会话都能读到这些附件。它们永远不会被加进你的项目。文档会在后台转成文本，转好后会显示一个小标签。之后你还可以在 goal 页面上继续添加附件。
+这个 goal 的每个会话都能读到这些附件。一个文件最大 25 MB，音频或视频文件（参考影片、音乐）最大 200 MB，一个 goal 最多 20 个附件。它们永远不会被加进你的项目。文档会在后台转成文本，转好后会显示一个小标签。之后你还可以在 goal 页面上继续添加附件。
 
 ### Reference
 
@@ -226,7 +226,7 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 | **Quick** | $3 · 30 分钟 · 2 个并行 · 每个任务 2 次尝试。适合小修复或关于代码的提问。 |
 | **Thorough** | $25 · 8 小时 · 3 个并行 · 每个任务 4 次尝试。一个带测试和审查的功能。 |
 | **Unlimited** | 没有费用和时间上限。每个任务的尝试次数和并行会话数仍然有效。 |
-| **Custom** | 自己设 **Max cost (USD est.)**、**Max minutes**、**Parallel sessions** 和 **Attempts per task**。 |
+| **Custom** | 自己设 **Max cost (USD est.)**、**Max minutes**、**Parallel sessions**、**Attempts per task**，以及会话跑得久的 goal（比如渲染影片）用的 **Attempt timeout**；超时留空就沿用 Settings 的值。 |
 
 拿不准就保持 **Auto**。更多内容见 [费用与用量](./costs-and-usage.zh.md)。
 

@@ -17,7 +17,7 @@ const firstLine = (text: string, max = 90): string => {
 const basename = (p: string) => p.split('/').pop() ?? p;
 
 /**
- * Adjust the result (ADR-0077, beta): on a finished goal, the person says what should change, with pictures or files, and
+ * Adjust the result (ADR-0078, beta): on a finished goal, the person says what should change, with pictures or files, and
  * the goal carries it out itself — the finished task's session resumed, a task appended, or the failed tasks run again.
  * Below the box, the Adjustments made so far, each with the version of the result kept before it.
  */

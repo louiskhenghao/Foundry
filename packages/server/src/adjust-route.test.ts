@@ -6,7 +6,7 @@ import { Engine, defaultConfig } from '@foundry/engine';
 import { FakeRunner, makeRepo } from '../../engine/src/test-helpers.ts';
 import { createApp } from './app.ts';
 
-/** Adjust the result (ADR-0077) over HTTP: refused while the beta is off or the goal is at work; the goal view says whether it can be done */
+/** Adjust the result (ADR-0078) over HTTP: refused while the beta is off or the goal is at work; the goal view says whether it can be done */
 const setup = async (betaAdjust: boolean) => {
   const home = mkdtempSync(join(tmpdir(), 'foundry-adjust-route-'));
   const repo = await makeRepo();

@@ -4,19 +4,16 @@ import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
 import { Discipline, FigurePack, GoalMode, PonytailSwitch, WorkflowProfile } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
+import { DesignPack, ImagePack, VideoPack } from './packs.ts';
+
+export { DesignPack, ImagePack, VideoPack } from './packs.ts';
 
 /**
  * User-editable engine settings (Settings page, `data/settings.json`). Every field has a default so a
  * missing/partial file is fine. Precedence at runtime: settings file > environment variable > default.
  */
-export const DesignPack = z.enum(['ui-ux-pro-max', 'frontend-design', 'impeccable', 'bencium', 'garden', 'taste', 'none']);
-export type DesignPack = z.infer<typeof DesignPack>;
 
-export const ImagePack = z.enum(['gpt-image-2', 'claude-image-gen', 'taste-imagegen', 'none']);
-export type ImagePack = z.infer<typeof ImagePack>;
 
-export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'hyperframes', 'none']);
-export type VideoPack = z.infer<typeof VideoPack>;
 
 export const EngineSettings = z.object({
   provider: AgentProvider.default('claude'),
@@ -270,9 +267,11 @@ export type MemorySettings = z.infer<typeof MemorySettings>;
 export const BetaSettings = z.object({
   /** the Conversation on a goal's page (ADR-0073): a read-only Explainer answers questions about the goal's code and records */
   conversation: z.boolean().default(false),
+  /** the motion-studio video engine (ADR-0077): the per-goal engine picker on video goals, the bundled motion-studio skill and its doctor checks */
+  motionStudio: z.boolean().default(false),
   /** figure goals (ADR-0076): the Figure nature and the Figure pack — interactive isometric figures of everyday objects and machines, one HTML page each, drawn with Colorfigures or iso-glow */
   figure: z.boolean().default(false),
-  /** Adjust the result (ADR-0077): a finished goal takes the person's words on its result and carries them out itself — the finished task's session resumed, or a task appended */
+  /** Adjust the result (ADR-0078): a finished goal takes the person's words on its result and carries them out itself — the finished task's session resumed, or a task appended */
   adjust: z.boolean().default(false),
 });
 export type BetaSettings = z.infer<typeof BetaSettings>;

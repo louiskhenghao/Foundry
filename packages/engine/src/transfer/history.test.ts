@@ -29,8 +29,8 @@ const t0 = (m: number) => new Date(Date.UTC(2026, 0, 1, 0, m)).toISOString();
 /** a goal as another computer had it; repoPath is a real repository here, as when the same path exists on both */
 function goal(id: string, state: Goal['state'], delivery = IDLE_DELIVERY): Goal {
   return {
-    provider: 'claude', id, title: 'imported', prompt: 'p', workspaceDir: null, checkpoint: null, selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true, clarifyStage: null, references: [], investigation: null, revise: null, interview: null, effort: null, modelPreset: null, modelSubstitutions: {}, repoPath: repo, baseBranch: 'main', branch: `goal/${id}`,
-    budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3 }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough', ponytail: 'on' },
+    provider: 'claude', id, title: 'imported', prompt: 'p', workspaceDir: null, checkpoint: null, selfCheck: false, previewRef: null, previewPlace: 'auto', milestonePause: true, clarifyStage: null, references: [], investigation: null, revise: null, interview: null, effort: null, videoPack: null, modelPreset: null, modelSubstitutions: {}, repoPath: repo, baseBranch: 'main', branch: `goal/${id}`,
+    budgets: { maxCostUsd: 5, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null }, budgetPreset: 'custom', mode: 'expert', workflow: { tdd: 'off', pace: 'thorough', ponytail: 'on' },
     models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state, stateBeforeBlock: null, costUsd: 0, fixCycles: 0, delivery, attachments: [], baseSync: null, autoskills: null, follows: null, delegation: { allow: false, autoApprove: false }, delegatedFrom: null,
     completion: { graphRefresh: false, docs: [], audit: false, auditRun: null, qa: false, qaRun: null, docsRun: null, graphRun: null, artifactsRun: null }, nature: 'code', outputDir: null, runningSince: t0(0), createdAt: t0(0), updatedAt: t0(0),
   };

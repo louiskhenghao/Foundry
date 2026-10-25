@@ -98,7 +98,7 @@ here. The feature ships as a **beta** behind `beta.figure`, as the Conversation 
   is lost); accepted.
 - `html` became its own file kind, so a repository's HTML files open in the preview as pages too (rendered only on request,
   sandboxed), not only as source.
-- Not done: a second delivery round or an in-page "adjust" (ADR-0077 plans Adjust on finished goals, figure goals
+- Not done: a second delivery round or an in-page "adjust" (ADR-0078 plans Adjust on finished goals, figure goals
   included); the Explainer knows nothing special about figures; no per-figure budget cap.
 
 ## Alternatives considered

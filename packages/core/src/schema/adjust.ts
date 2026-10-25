@@ -5,7 +5,7 @@ export const AdjustmentMode = z.enum(['resume', 'task', 'restart']);
 export type AdjustmentMode = z.infer<typeof AdjustmentMode>;
 
 /**
- * An Adjustment (ADR-0077): the person's words on a finished goal's result — what should change — with the files they
+ * An Adjustment (ADR-0078): the person's words on a finished goal's result — what should change — with the files they
  * gave, carried out by the goal itself (never a new goal). Recorded on the goal in order (`n` from 1); the one a task is
  * carrying out sits on the task until it lands.
  */

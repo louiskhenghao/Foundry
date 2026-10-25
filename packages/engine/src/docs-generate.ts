@@ -43,7 +43,7 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal, opts: { re
     const log = await git(['log', '--no-merges', '--format=%s', range ? `${range.from}..${range.to}` : `${goal.baseBranch}..HEAD`], ws).catch(() => null);
     const before = await headRef(ws);
     // a document an agent reads (AGENTS.md, CLAUDE.md, a skill) is written by the writing-for-agents skill when it is installed
-    const skillsHint = await engine.skillsFor(goal).hints.sectionFor('documenter', { profile: engine.workflowProfileOf(goal), scenario: 'docs' });
+    const skillsHint = await engine.skillsFor(goal).hints.sectionFor('documenter', { packs: engine.packsFor(goal), profile: engine.workflowProfileOf(goal), scenario: 'docs' });
     const prompt = [
       `# Goal\n${goal.title}\n\n${goal.prompt}`,
       brief ? `# Approved understanding\n${brief.understanding}` : '',

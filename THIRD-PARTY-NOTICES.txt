@@ -1414,6 +1414,14 @@ This product includes software developed at Docker, Inc. (https://www.docker.com
 
 
 ------------------------------------------------------------------------------
+FFmpeg — GPL-2.0-or-later (Debian build; LGPL-2.1-or-later core)
+https://ffmpeg.org
+------------------------------------------------------------------------------
+
+Debian's ffmpeg package is built with its GPL components (libx264 among them), so the binary is GPL-2+ while FFmpeg's own core is LGPL-2.1+. Its copyright file is at /usr/share/doc/ffmpeg/copyright in the image. Foundry runs it to render and measure video (the motion-studio engine, the likeness review's frames, the reviewers' ffprobe checks).
+
+
+------------------------------------------------------------------------------
 Debian packages — Various
 https://www.debian.org
 ------------------------------------------------------------------------------

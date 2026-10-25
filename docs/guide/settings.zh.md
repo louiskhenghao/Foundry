@@ -346,6 +346,7 @@ Access 打开后，每个人做的事都记在自己名下：goal 页面会写�
 试用中的功能。每一项都默认关闭，要在这里打开；以后的版本里可能会变，也可能去掉；开着的时候，它出现的地方会标上 **Beta**。
 
 - **Conversation on the goal page**：goal 页面和它的 Brief 页面右下角的泡泡，打开一条与这个 goal 的 **Explainer** 的 Conversation —— goal 所用编码智能体的一个只读会话，在页面旁边的小窗里回答你关于 goal 的代码和 Foundry 对它的记录的问题。它用的模型是预设里的 **Conversation** 一行。关着时：没有泡泡，也没有 Conversation 标签页；已有的 Conversation 会保留，再打开时回来。见 [Conversation](./while-it-runs.zh.md#conversation)。
+- **Motion studio video engine**：影片 goal 在 New goal 表单上多一个 **Engine** 选择，除了 Video skills 那个 pack，还能选 **motion-studio** 引擎（确定性渲染加 critique 循环，见 [动效工作室](./motion-studio.zh.md)）；它自带的 skill 会出现在 Extensions 目录里，doctor 也会为它检查 ffmpeg 和 Chromium。关着时和以前一样，只有 Video skills pack。
 - **Figure goals**：一种自己的 goal 类型 —— 日常物件和机器的可交互等轴测图，每张一个网页，由 Figure 包（Colorfigures 或 iso-glow）画出来，任务落地时由 Foundry 在无头浏览器里打开检查。开着时：goal 类型里有 **Figures**，Skills 下有 **Figure skills**，命令行接受 `--nature figure`，doctor 会检查相关工具。关着时：这些都不出现；之前做的 figure goal 仍能打开。见 [Figure goal](./figures.zh.md)。
 - **Adjust the result**：已完成 goal 页面上的一张卡片，接收你对结果的意见 —— 要改什么，可以附图片或文件 —— 由 goal 自己去做：当初干活的会话从停下的地方接着来，或者在做完的任务后面加一个任务，或者失败的 goal 把失败的任务重新跑一遍。检查和审查会重新跑，输出文件夹和已开的 pull request 会拿到新结果，改之前的结果会保留。费用算在 goal 上，在它的预算之内。关着时：没有这张卡片；已经做过的调整留在 goal 上。见[调整结果](./getting-the-result.zh.md#调整结果)。
 

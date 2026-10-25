@@ -15,7 +15,7 @@ const render = (d: GoalDetail) =>
     </MemoryRouter>,
   );
 
-describe('AdjustCard (ADR-0077)', () => {
+describe('AdjustCard (ADR-0078)', () => {
   test('hidden while the beta is off, and on a goal still at work with nothing adjusted yet', () => {
     expect(render(detail('done', undefined))).toBe('');
     expect(render(detail('done', { enabled: false, can: false, reason: 'off', mode: null, next: 1, history: [] }))).toBe('');

@@ -442,7 +442,7 @@ export interface ConversationsView {
   live: Record<string, ConversationLive>;
 }
 
-/** the goal page's view of Adjust the result (ADR-0077), as the server computes it */
+/** the goal page's view of Adjust the result (ADR-0078), as the server computes it */
 export interface AdjustView {
   /** Settings → Beta → Adjust the result is on */
   enabled: boolean;
@@ -467,7 +467,7 @@ export interface GoalDetail {
   /** directories the Open menu can launch: the user's checkout and the goal branch worktree (when it exists) */
   paths: { repo: string; workspace: string | null };
   budget: BudgetStatus;
-  /** Adjust the result (ADR-0077): whether an Adjustment can be asked for now, and those made with the versions kept before each */
+  /** Adjust the result (ADR-0078): whether an Adjustment can be asked for now, and those made with the versions kept before each */
   adjust?: AdjustView;
   /** live: a slot held / a session process alive; waiting: why a ready task is not running (null: nothing holds it back);
    * waitingKind: the scheduler's caution (slots, running alone, shared files), which Start now may override, or 'hard' */
@@ -778,7 +778,7 @@ export function apiForProvider(provider?: AgentProvider) {
   taskFiles: (goalId: string, taskId: string) => req<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[]; delivers?: { rel: string; open: FileRef | null }[] }>(`/api/goals/${goalId}/tasks/${taskId}/files`),
   streamEvent: (ref: { file: string; line: number; block: number }) => req<{ event: any }>(`/api/transcripts/${encodeURIComponent(ref.file)}/event?line=${ref.line}&block=${ref.block}`),
   workspace: (id: string) => req<{ path: string; exists: boolean; branch: string; head: string | null; packageManager: string | null; install: string | null; scripts: { name: string; command: string }[]; baseSync: Goal['baseSync']; upstream: BaseSync | null; tasks: { id: string; title: string; path: string; branch: string | null }[] }>(`/api/goals/${id}/workspace`),
-  /** Adjust the result (ADR-0077): the words and the staged uploads going with them; 202 once the goal runs again */
+  /** Adjust the result (ADR-0078): the words and the staged uploads going with them; 202 once the goal runs again */
   adjust: (id: string, body: { text: string; attachments?: Attachment[] }) => req<{ adjustment: Adjustment }>(`/api/goals/${id}/adjust`, { method: 'POST', body: JSON.stringify(body) }),
   restartGoal: (id: string, fromTaskId?: string) => req<{ restarted: string[] }>(`/api/goals/${id}/restart`, { method: 'POST', body: JSON.stringify({ fromTaskId }) }),
   ports: () => req<PortsView>('/api/ports'),

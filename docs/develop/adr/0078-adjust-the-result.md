@@ -1,4 +1,4 @@
-# ADR-0077: Adjust the result — a finished goal carries out the person's words on its result itself, behind a beta switch
+# ADR-0078: Adjust the result — a finished goal carries out the person's words on its result itself, behind a beta switch
 
 **Status:** accepted · 2026-10-25 · builds on [ADR-0073](0073-a-conversation-about-a-goal.md) and [ADR-0076](0076-figure-goals-from-a-bundled-figure-pack.md)
 

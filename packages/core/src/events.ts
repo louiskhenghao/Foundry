@@ -178,7 +178,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.nature_set', { nature: GoalNature, reason: z.string() }),
   /** the goal's Figure pack was settled for it (the Clarifier read the style from the goal's words, ADR-0076); Settings' default applies while unset */
   ev('goal.figure_pack_set', { figurePack: FigurePack, reason: z.string() }),
-  /** the person asked for an Adjustment of the finished goal's result (ADR-0077): the goal runs again and carries it out itself */
+  /** the person asked for an Adjustment of the finished goal's result (ADR-0078): the goal runs again and carries it out itself */
   ev('goal.adjusted', { adjustment: Adjustment }),
   /** a figure task's pages were opened headless by Foundry (ADR-0076): per page its screenshot(s) in the goal's screenshots folder and what went wrong */
   ev('figure.checked', { taskId: z.string(), attemptId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), pages: z.array(z.object({ file: z.string(), screenshot: z.string().nullable(), inside: z.string().nullable(), errors: z.array(z.string()) })), summary: z.string() }),
@@ -265,7 +265,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** a landed task's artifacts (git-excluded, so outside its commit) were copied into the goal workspace: the files it made or changed, relative to artifacts/; `failed`: those that could not be copied; `settled`: earlier failures a retry read through (what they held came over, or nothing was left to copy) */
   ev('task.artifacts_landed', { taskId: z.string(), files: z.array(z.string()), failed: z.array(z.string()).optional(), settled: z.array(z.string()).optional() }),
   ev('task.hint_set', { taskId: z.string(), hint: z.string().nullable(), extraAttempts: z.number().int() }),
-  /** the Adjustment a task carries out (set when asked for, null once the task lands) (ADR-0077) */
+  /** the Adjustment a task carries out (set when asked for, null once the task lands) (ADR-0078) */
   ev('task.adjustment_set', { taskId: z.string(), adjustment: Adjustment.nullable() }),
   /** human restarted the task (and its dependents): back to pending with a fresh attempt budget */
   ev('task.restarted', { taskId: z.string(), extraAttempts: z.number().int(), reason: z.string() }),

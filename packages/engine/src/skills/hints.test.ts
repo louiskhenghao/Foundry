@@ -27,3 +27,28 @@ describe('SkillsHints and the workflow suite (ADR-0049)', () => {
     expect(await hints.sectionFor('worker', { taskKind: 'feature' })).toContain("Matt Pocock's engineering workflow");
   });
 });
+
+describe('the pack options a section is built with (ADR-0077)', () => {
+  const videoSkill = (id: string, option: string): CatalogEntryStatus => ({
+    entry: CatalogEntry.parse({ id, name: id, summary: '', why: '', tier: 'optional', source: { type: 'git', repo: 'o/r' }, roles: ['worker'], pack: 'video', packOption: option, scenarios: ['video'], workflow: [{ role: 'worker', mandate: 'must', scenarios: ['video'], instruction: `render with ${id}` }] }),
+    status: 'installed',
+    installedInvoke: `/${id}`,
+    commit: null,
+    detail: '',
+    manual: null,
+    missingEnv: [],
+  });
+  const statuses = [videoSkill('hyper', 'hyperframes'), videoSkill('mmx', 'mmx-cli')];
+
+  test("a goal's own video engine replaces the Settings pack for its section and its mandates", async () => {
+    const hints = new SkillsHints(async () => statuses, { packs: () => ({ video: 'hyperframes' }) });
+    const settingsPack = await hints.sectionFor('worker', { scenario: 'video' });
+    expect(settingsPack).toContain('render with hyper');
+    expect(settingsPack).not.toContain('render with mmx');
+    const own = await hints.sectionFor('worker', { scenario: 'video', packs: { video: 'mmx-cli' } });
+    expect(own).toContain('render with mmx');
+    expect(own).not.toContain('render with hyper');
+    expect((await hints.mandatedFor('worker', { scenario: 'video', packs: { video: 'mmx-cli' } })).map((m) => m.invoke)).toEqual(['/mmx']);
+    expect((await hints.mandatedFor('worker', { scenario: 'video' })).map((m) => m.invoke)).toEqual(['/hyper']);
+  });
+});

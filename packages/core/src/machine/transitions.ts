@@ -28,7 +28,7 @@ const TASK: Record<TaskState, TaskState[]> = {
   observing: ['merging', 'ready', 'blocked', 'failed', 'done'],
   merging: ['done', 'blocked', 'failed', 'observing'],
   blocked: ['ready', 'failed', 'done', 'merging', 'skipped'],
-  // a finished task runs again for an Adjustment of the goal's result (ADR-0077): its session resumed with the person's words
+  // a finished task runs again for an Adjustment of the goal's result (ADR-0078): its session resumed with the person's words
   done: ['ready'],
   // a failed upstream task is treated as skipped when the human restarts from a task below it
   failed: ['skipped'],
