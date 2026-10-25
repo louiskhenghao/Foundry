@@ -169,3 +169,41 @@ test('opening the templates folder makes it first; a file of your own opens in a
     rmSync(home, { recursive: true, force: true });
   }
 }, 30_000);
+
+test('a goal from a template through the API (as the CLI sends it): the template\'s settings where the request said nothing, per key', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'foundry-templates-goal-'));
+  const repo = join(home, 'repo');
+  mkdirSync(repo);
+  const git = (...args: string[]) => Bun.spawnSync(['git', '-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], { cwd: repo });
+  git('init', '-q', '-b', 'main');
+  writeFileSync(join(repo, 'README.md'), '# r\n');
+  git('add', '-A');
+  git('commit', '-q', '-m', 'start');
+  const { engine, send } = start(home);
+  try {
+    // the bug-fix template: Quick budget, interview depth 1, TDD required
+    const made = await (await send('POST', '/api/goals', { repoPath: repo, template: { id: 'code-bug-fix', values: { symptom: 'The total is wrong.', steps: 'Add ten of one item.', expected: 'Ten percent off once.' } }, workflow: { pace: 'fast' } })).json();
+    expect(made.template).toEqual({ id: 'code-bug-fix', name: 'Bug fix' });
+    expect(made.budgetPreset).toBe('quick');
+    expect(made.budgets.maxCostUsd).toBe(3);
+    // the request's pace and the template's discipline, side by side
+    expect(made.workflow.pace).toBe('fast');
+    expect(made.workflow.tdd).toBe('required');
+    expect(made.interview.depth).toBe(1);
+    // a template that names no budget: Auto, as the CLI's own default
+    const figure = await (await send('POST', '/api/goals', { repoPath: repo, template: { id: 'docs-readme-update', values: { audience: 'new contributors', cover: 'setup' } }, budgetPreset: undefined })).json();
+    expect(figure.budgetPreset).toBe('quick');
+    const own = join(home, 'templates');
+    mkdirSync(own, { recursive: true });
+    writeFileSync(join(own, 'plain-note.md'), '---\nname: Plain note\nnature: docs\n---\n\nWrite a note about {{topic}}.\n');
+    const plain = await (await send('POST', '/api/goals', { repoPath: repo, template: { id: 'plain-note', values: { topic: 'the cache' } } })).json();
+    expect(plain.budgetPreset).toBe('auto');
+    // what the request says wins
+    const asked = await (await send('POST', '/api/goals', { repoPath: repo, template: { id: 'code-bug-fix', values: { symptom: 's', steps: 't', expected: 'e' } }, budgetPreset: 'thorough' })).json();
+    expect(asked.budgetPreset).toBe('thorough');
+  } finally {
+    await engine.stop();
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+

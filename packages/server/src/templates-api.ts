@@ -73,12 +73,16 @@ export function goalFromTemplate<B extends { prompt?: string; template?: Templat
   if (s.videoPack && engine.config.betaMotionStudio) defaults.videoPack = s.videoPack;
   if (s.figurePack && engine.config.betaFigure) defaults.figurePack = s.figurePack;
   if (s.mode) defaults.mode = s.mode;
-  if (s.workflow) defaults.workflow = s.workflow;
-  if (s.budgetPreset) defaults.budgetPreset = s.budgetPreset;
+  // a template that names no budget gets Auto (the Brief proposes one), as the CLI's own default — except a motion-studio
+  // film, whose engine decides its default
+  const motion = (given.videoPack ?? defaults.videoPack) === 'motion-studio';
+  if (s.budgetPreset || !motion) defaults.budgetPreset = s.budgetPreset ?? 'auto';
   if (s.budgets) defaults.budgets = s.budgets;
   if (s.interviewDepth !== undefined) defaults.interviewDepth = s.interviewDepth;
   if (s.autoBrief) defaults.autoBrief = s.autoBrief;
   for (const [k, val] of Object.entries(defaults)) if (given[k] === undefined) given[k] = val;
+  // the workflow key by key: a request that names its pace keeps the template's discipline, and the other way round
+  if (s.workflow) given.workflow = { ...s.workflow, ...((given.workflow as object | undefined) ?? {}) };
   return { ...(given as Omit<B, 'template' | 'prompt'>), prompt: words, template: { id: t.id, name: v.name } };
 }
 

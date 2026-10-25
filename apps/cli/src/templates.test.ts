@@ -43,6 +43,18 @@ describe('CLI templates (ADR-0079)', () => {
       expect(body.prompt).toBeUndefined();
       expect(body.template).toEqual({ id: 'video-product-reel', lang: 'zh', values: { product: 'Foundry', message: 'a goal in, a pull request out' } });
       expect(r.stdout).toContain('created goal g_1');
+      // no budget or workflow flag spoke: the template's own settings decide them on the server
+      expect(body.budgetPreset).toBeUndefined();
+      expect(body.budgets).toBeUndefined();
+      expect(body.workflow).toBeUndefined();
+      // a flag still wins over the template
+      await run(['goal', 'new', '--template', 'video-product-reel', '--set', 'product=Foundry', '--preset', 'thorough', '--max-cost', '7', '--repo', '/tmp/foundry-cli-fixture'], url);
+      const flagged = sent.filter((s) => s.path === '/api/goals').at(-1)!.body as Record<string, unknown>;
+      expect(flagged.budgetPreset).toBe('thorough');
+      expect(flagged.budgets).toEqual({ maxCostUsd: 7 });
+      // without a template the CLI's default stays Auto
+      await run(['goal', 'new', 'Fix the footer', '--repo', '/tmp/foundry-cli-fixture'], url);
+      expect((sent.filter((s) => s.path === '/api/goals').at(-1)!.body as Record<string, unknown>).budgetPreset).toBe('auto');
       // a --set without an equals sign is refused before anything is sent
       const bad = await run(['goal', 'new', '--template', 'video-product-reel', '--set', 'product', '--repo', '/tmp/x'], url);
       expect(bad.exitCode).not.toBe(0);

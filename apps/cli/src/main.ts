@@ -169,6 +169,16 @@ switch (cmd) {
     if (!repoPath || (!prompt && !issueRef && !templateId)) return usage('goal new needs "<prompt>" (or --issue <link>, or --template <id>) and --repo <path> (or --follows <goal id>)');
     const issue = issueRef ? await api('/api/issues/read', { method: 'POST', body: JSON.stringify({ ref: issueRef, repoPath: resolve(repoPath) }) }) : null;
     const effort = opt('--effort');
+    /** the budget limits the flags name, none when no flag spoke; `none` (or 0) = no limit */
+    const budgetFlags = () => {
+      const b = {
+        ...(opt('--max-cost') ? { maxCostUsd: limitArg(opt('--max-cost')!) } : {}),
+        ...(opt('--max-min') ? { maxDurationMin: limitArg(opt('--max-min')!) } : {}),
+        ...(opt('--concurrency') ? { maxConcurrent: Number(opt('--concurrency')) } : {}),
+        ...(opt('--attempts') ? { attemptsPerTask: Number(opt('--attempts')) } : {}),
+      };
+      return Object.keys(b).length ? b : undefined;
+    };
     const body: any = {
       prompt: prompt ?? issue?.prompt,
       ...(templateId ? { template: { id: templateId, ...(opt('--lang') ? { lang: opt('--lang') } : {}), values: setValues } } : {}),
@@ -179,14 +189,9 @@ switch (cmd) {
       codexModel: opt('--codex-model') ?? (opt('--models') ? undefined : draft?.prefill.codexModel),
       agyModel: opt('--agy-model') ?? draft?.prefill.agyModel,
       baseBranch: opt('--base'),
-      budgetPreset: opt('--preset') ?? (opt('--max-cost') || opt('--max-min') ? 'custom' : 'auto'),
-      budgets: {
-        // `none` (or 0) = no limit
-        ...(opt('--max-cost') ? { maxCostUsd: limitArg(opt('--max-cost')!) } : {}),
-        ...(opt('--max-min') ? { maxDurationMin: limitArg(opt('--max-min')!) } : {}),
-        ...(opt('--concurrency') ? { maxConcurrent: Number(opt('--concurrency')) } : {}),
-        ...(opt('--attempts') ? { attemptsPerTask: Number(opt('--attempts')) } : {}),
-      },
+      // with a template and no budget flag, the template's own budget decides (the server falls back to Auto)
+      budgetPreset: opt('--preset') ?? (opt('--max-cost') || opt('--max-min') ? 'custom' : templateId ? undefined : 'auto'),
+      budgets: budgetFlags(),
       modelPreset: opt('--models'),
       nature: opt('--nature'),
       // the Figure pack a figure goal follows instead of Settings' default (ADR-0076, beta)
