@@ -50,7 +50,7 @@ function followNote(follows: { goalId: string; title: string } | null, chosen: S
 }
 
 export function ExportPanel({ initialGoals }: { initialGoals?: GoalRow[] }) {
-  const [cats, setCats] = useState<Required<TransferCategories>>({ settings: true, secrets: false, goals: true, transcripts: false });
+  const [cats, setCats] = useState<Required<TransferCategories>>({ settings: true, secrets: false, goals: true, transcripts: false, templates: false });
   const [goals, setGoals] = useState<GoalRow[] | null>(initialGoals ?? null);
   const [which, setWhich] = useState<'all' | 'pick'>('all');
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -65,7 +65,7 @@ export function ExportPanel({ initialGoals }: { initialGoals?: GoalRow[] }) {
   const set = (k: keyof TransferCategories, v: boolean) => setCats((c) => ({ ...c, [k]: v, ...(k === 'goals' && !v ? { transcripts: false } : {}) }));
   const toggle = (id: string, on: boolean) => setPicked((p) => (on ? new Set(p).add(id) : new Set([...p].filter((x) => x !== id))));
   const ids = new Set((goals ?? []).map((g) => g.id));
-  const problem = !cats.settings && !cats.secrets && !cats.goals ? 'Tick at least one of Settings, Keys & secrets or Goals.' : cats.goals && which === 'pick' && !picked.size ? 'Choose at least one goal.' : cats.secrets && !pw ? 'Keys & secrets need a password.' : cats.secrets && pw !== pw2 ? 'The two passwords differ.' : null;
+  const problem = !cats.settings && !cats.secrets && !cats.goals && !cats.templates ? 'Tick at least one of Settings, Keys & secrets, Goals or Templates & themes.' : cats.goals && which === 'pick' && !picked.size ? 'Choose at least one goal.' : cats.secrets && !pw ? 'Keys & secrets need a password.' : cats.secrets && pw !== pw2 ? 'The two passwords differ.' : null;
   const run = async () => {
     setBusy(true);
     setErr(null);
@@ -100,6 +100,9 @@ export function ExportPanel({ initialGoals }: { initialGoals?: GoalRow[] }) {
             Session transcripts <span className="text-ink-faint text-xs">— the full logs; they can be large</span>
           </Check>
         </div>
+        <Check checked={cats.templates} onChange={(v) => set('templates', v)}>
+          Templates & themes <span className="text-ink-faint text-xs">— the template files and theme files of your own; a file from Foundry itself travels with Foundry</span>
+        </Check>
       </div>
       {cats.goals && (
         <div className="pl-6 space-y-2">
@@ -168,6 +171,7 @@ export function ImportPanel({ initial }: { initial?: IncomingReport }) {
   const [picking, setPicking] = useState<string | null>(null);
   const [sections, setSections] = useState<Record<string, 'imported' | 'mine'>>(() => importedSections(initial ?? null));
   const [bring, setBring] = useState(true);
+  const [bringTemplates, setBringTemplates] = useState(true);
   const [pw, setPw] = useState('');
   const [secrets, setSecrets] = useState<SecretsPreview | null>(null);
   const [keepMine, setKeepMine] = useState<Set<string>>(new Set());
@@ -214,6 +218,7 @@ export function ImportPanel({ initial }: { initial?: IncomingReport }) {
         settings: sections,
         secrets: report.secrets && bring ? { password: pw, keepMine: [...keepMine] } : null,
         repos: Object.fromEntries(chosen.map((x) => [x.original, repos[x.original]?.trim() || null])),
+        templates: bringTemplates,
       });
       setResult(r);
       setReport(null);
@@ -302,6 +307,19 @@ export function ImportPanel({ initial }: { initial?: IncomingReport }) {
             </div>
           )}
 
+          {((report.templates?.length ?? 0) > 0 || (report.themes?.length ?? 0) > 0) && (
+            <div className="space-y-1.5">
+              <div className={LABEL}>Templates & themes</div>
+              <Check checked={bringTemplates} onChange={setBringTemplates}>
+                Bring them in{' '}
+                <span className="text-ink-faint text-xs">
+                  — {[report.templates.length ? `${report.templates.length} template file${report.templates.length === 1 ? '' : 's'}` : '', report.themes.length ? `${report.themes.length} theme${report.themes.length === 1 ? '' : 's'}` : ''].filter(Boolean).join(', ')}: {[...report.templates, ...report.themes].map((f) => f.name).join(', ')}
+                </span>
+              </Check>
+              <p className="text-[11px] text-ink-faint">A file already here as written is skipped; one that clashes with a file here or with one of Foundry's gets a numbered name.</p>
+            </div>
+          )}
+
           {report.secrets && (
             <div className="space-y-1.5">
               <div className={LABEL}>Keys & secrets</div>
@@ -386,6 +404,10 @@ export function ImportResult({ r }: { r: ImportReport }) {
       ))}
       {r.settings.length > 0 && <div className="text-ink-soft">settings changed: {r.settings.join(', ')}</div>}
       {r.secrets.length > 0 && <div className="text-ink-soft">keys brought in: {r.secrets.join(', ')}</div>}
+      {(r.templates?.imported.length ?? 0) > 0 && <div className="text-ink-soft">templates brought in: {r.templates.imported.join(', ')}</div>}
+      {(r.templates?.skipped.length ?? 0) > 0 && <div className="text-ink-faint">templates skipped: {r.templates.skipped.join(', ')}</div>}
+      {(r.themes?.imported.length ?? 0) > 0 && <div className="text-ink-soft">themes brought in: {r.themes.imported.join(', ')}</div>}
+      {(r.themes?.skipped.length ?? 0) > 0 && <div className="text-ink-faint">themes skipped: {r.themes.skipped.join(', ')}</div>}
       {r.previewEnv.waiting.length > 0 && <div className="text-ink-soft">preview variables wait until their repository is mapped: {r.previewEnv.waiting.join(', ')}</div>}
     </div>
   );
