@@ -1,5 +1,6 @@
 import type { Budgets, BudgetPreset, TemplateEntry, TemplateLang, TemplateNature, TemplateVersionView } from '@foundry/core/browser';
 import { BUDGET_PRESETS, inputRequired, labelOf, renderTemplate } from '@foundry/core/browser';
+import type { PackGroupView } from '../api.ts';
 
 /** the language the templates are shown in, for this browser (ADR-0079): English unless the person switched */
 export const TEMPLATE_LANG_KEY = 'foundry.templateLang';
@@ -90,6 +91,21 @@ export function formPatch(t: TemplateEntry, beta: { figure: boolean; motionStudi
   if (s.interviewDepth !== undefined) patch.interviewDepth = String(s.interviewDepth);
   if (s.autoBrief) patch.auto = { checks: s.autoBrief.mustChecks.join('\n'), stretch: (s.autoBrief.stretchChecks ?? []).join('\n') };
   return patch;
+}
+
+/** the figure style the form holds when it is not installed for the coding agent, by its label (a template can choose one the
+ * form's own buttons could not); null while the install state is not known, or when it is installed */
+export function missingStyle(packs: PackGroupView | null, id: string): string | null {
+  const option = packs?.options.find((o) => o.id === id);
+  if (!option) return null;
+  return option.entries.length > 0 && option.entries.every((e) => e.status.startsWith('installed')) ? null : option.label;
+}
+/** the style a figure goal falls back to, as the engine picks it (figureStyleOf): Settings' pack when it is installed, else the
+ * first installed style; null when none is installed (the worker draws by hand) */
+export function fallbackStyle(packs: PackGroupView | null): string | null {
+  const styles = (packs?.options ?? []).filter((o) => o.id === 'colorfigures' || o.id === 'iso-glow');
+  const installed = styles.filter((o) => missingStyle(packs, o.id) === null);
+  return (installed.find((o) => o.id === packs?.chosen) ?? installed[0])?.label ?? null;
 }
 
 /** the kinds in words, as the form names them */

@@ -3,7 +3,7 @@ import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment, TemplateEntry, TemplateLang, WorkflowProfile } from '@foundry/core/browser';
 import { ARTIFACT_NATURES, BUDGET_PRESETS, MEDIA_NATURES, renderTemplate } from '@foundry/core/browser';
 import { DraftBox, TemplateGallery, TemplatePanel, useDraft } from '../components/Templates.tsx';
-import { formPatch, initialValues, loadTemplateLang, missingLabels, offeredTemplates, saveTemplateLang, shownVersion } from './new-goal-template.ts';
+import { formPatch, initialValues, loadTemplateLang, missingLabels, missingStyle, offeredTemplates, saveTemplateLang, shownVersion, fallbackStyle } from './new-goal-template.ts';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Lamp, LayoutTemplate, Send, Shapes, Target, Telescope, Wallet, WandSparkles, X, type LucideIcon } from 'lucide-react';
@@ -184,10 +184,14 @@ export function NewGoalPage() {
   const [effort, setEffort] = useState('');
   const [provider, setProvider] = useState<AgentProvider>(initialProvider ?? 'claude');
   // the Figure pack's install state for this coding agent, read when the Figure kind is picked (ADR-0076)
+  // and again when the page comes back to the front: a style installed in Settings meanwhile becomes a choice here
   useEffect(() => {
     if (nature !== 'figure') return;
     setFigurePacks(null);
-    void apiForProvider(provider).packs().then((p) => setFigurePacks(p.figure)).catch(() => {});
+    const read = () => void apiForProvider(provider).packs().then((p) => setFigurePacks(p.figure)).catch(() => {});
+    read();
+    window.addEventListener('focus', read);
+    return () => window.removeEventListener('focus', read);
   }, [nature, provider]);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountsInfo | null>(null);
@@ -797,6 +801,11 @@ export function NewGoalPage() {
                     </button>
                   ))}
                 </div>
+                {figurePack && missingStyle(figurePacks, figurePack) && (
+                  <p className="mt-2 text-xs text-bad-ink" role="status">
+                    {missingStyle(figurePacks, figurePack)} is not installed for {agentName}, so this goal would {fallbackStyle(figurePacks) ? `draw in ${fallbackStyle(figurePacks)} instead` : 'be drawn by hand, with no figure skill'}. Install it under <Link to="/settings#skills" className="underline">Settings → Skills → Figure skills</Link>, or choose another style.
+                  </p>
+                )}
               </div>
             )}
             {ARTIFACT_NATURES.includes(nature) && (

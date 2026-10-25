@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { TemplateEntry, TemplateVersionView } from '@foundry/core/browser';
-import { byNature, complete, formPatch, initialValues, matchesSearch, missingLabels, offeredTemplates, shownVersion } from '../src/pages/new-goal-template.ts';
+import { byNature, complete, formPatch, initialValues, matchesSearch, missingLabels, missingStyle, offeredTemplates, shownVersion, fallbackStyle } from '../src/pages/new-goal-template.ts';
 
 const version = (over: Partial<TemplateVersionView> = {}): TemplateVersionView => ({ lang: 'en', name: 'Product reel', summary: 'A short film.', nature: 'video', settings: {}, inputs: [{ key: 'product', type: 'text', other: false }, { key: 'duration', type: 'choice', other: false, options: ['30 s', '60 s'], default: '30 s' }, { key: 'brand', type: 'textarea', other: false, required: false }], body: 'A {{duration}} reel for {{product}}. {{brand}}', file: null, warnings: [], ...over });
 const entry = (over: Partial<TemplateEntry> = {}): TemplateEntry => ({ id: 'video-product-reel', builtIn: true, nature: 'video', settings: { videoPack: 'motion-studio', mode: 'simple', budgetPreset: 'thorough' }, en: version(), zh: version({ lang: 'zh', name: '产品 reel' }), ...over });
@@ -45,5 +45,21 @@ describe('templates on the New goal form', () => {
     const custom = formPatch(entry({ nature: 'code', settings: { budgetPreset: 'custom', budgets: { maxCostUsd: 9 }, workflow: { pace: 'fast', tdd: 'off' }, interviewDepth: 0, autoBrief: { mustChecks: ['bun test'], stretchChecks: ['bun run lint'] } } }), { figure: false, motionStudio: false });
     expect(custom).toEqual({ nature: 'code', pace: 'fast', tdd: 'off', budget: { preset: 'custom', budgets: { maxCostUsd: 9, maxDurationMin: 120, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null } }, interviewDepth: '0', auto: { checks: 'bun test', stretch: 'bun run lint' }, dropped: [] });
     expect(formPatch(entry({ nature: 'figure', settings: { figurePack: 'iso-glow' } }), { figure: true, motionStudio: false }).figurePack).toBe('iso-glow');
+  });
+
+  test('names a figure style the form holds (a template chose it) that is not installed for the coding agent', () => {
+    const option = (id: string, label: string, status: string) => ({ id, label, summary: '', entries: [{ name: id, status }] });
+    const packs = { chosen: 'colorfigures', options: [option('colorfigures', 'Colorfigures', 'installed'), option('iso-glow', 'iso-glow', 'missing'), option('none', 'None', 'installed')] } as never;
+    expect(missingStyle(packs, 'iso-glow')).toBe('iso-glow');
+    expect(missingStyle(packs, 'colorfigures')).toBeNull();
+    // not known yet, or an id the agent does not list: nothing to say
+    expect(missingStyle(null, 'iso-glow')).toBeNull();
+    expect(missingStyle(packs, 'other')).toBeNull();
+    // what the goal draws in instead, as the engine picks it: Settings' pack when installed, else the first installed, else none
+    expect(fallbackStyle(packs)).toBe('Colorfigures');
+    const isoOnly = { chosen: 'colorfigures', options: [option('colorfigures', 'Colorfigures', 'missing'), option('iso-glow', 'iso-glow', 'installed')] } as never;
+    expect(fallbackStyle(isoOnly)).toBe('iso-glow');
+    const neither = { chosen: 'colorfigures', options: [option('colorfigures', 'Colorfigures', 'missing'), option('iso-glow', 'iso-glow', 'missing')] } as never;
+    expect(fallbackStyle(neither)).toBeNull();
   });
 });
