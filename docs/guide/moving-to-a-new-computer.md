@@ -12,6 +12,7 @@ Tick what goes into the file, then press **Export**. The file downloads; nothing
 - **Keys & secrets**: the API keys, the notification tokens and the variables you entered on goals' Preview cards. They are sealed with a password you type twice. Without it they cannot be read, and Foundry cannot recover it.
 - **Goals**: **All goals**, or **Choose goals** one by one. A goal that follows one you left out says so, with a link to add it. Each goal brings its history, attachments and screenshots. When a goal's branch has work the base branch lacks, finished or not, the branch comes too. An unfinished goal also brings the files Git ignores in its progress folder, such as generated images and style samples. A finished goal leaves those behind, and the clips its milestones copied from files its output folder received; their pictures still come, and a clip left behind shows as *not on this computer*. A goal that failed, was cancelled or had no output folder brings its milestone clips.
 - **Session transcripts**: the full session logs of those goals. They can be large; `foundry export --transcripts` in a terminal suits a big file better.
+- **Templates & themes**: the template files and theme files of your own (Settings → Templates, Settings → Appearance). Foundry's own travel with Foundry and are not in the file. A file with them ticked needs a Foundry that knows templates on the other side.
 
 ## Import
 
@@ -21,6 +22,7 @@ On the new computer, open **Transfer** and press **Choose a Transfer file…**. 
 - **Repositories**: for each project the goals named, its folder on this computer. A folder at the same path with the same remote is filled in. Leave one empty to choose it later on the goal's page.
 - **Settings that differ**: **Use imported** or **Keep mine**, section by section. Imported is preselected.
 - **Keys & secrets**: tick **Bring Keys & secrets in**, type the password and press **Unlock** to see each key masked next to yours. Tick **keep mine** on any key you want to keep. Preview variables are added next to the ones already set here.
+- **Templates & themes**: ticked by default when the file holds any. They arrive beside what is here: a file already here as written is skipped, one that clashes with a file here or with one of Foundry's gets a numbered name.
 
 **Import** brings them in and lists what came, what was skipped and why.
 

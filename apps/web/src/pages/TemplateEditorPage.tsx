@@ -153,7 +153,7 @@ export function TemplateEditorPage() {
         title={
           <span className="inline-flex items-center gap-2">
             <LayoutTemplate size={22} className="text-ink-faint" aria-hidden="true" /> {entry ? (readOnly ? 'Template' : 'Edit template') : from ? 'Save as template' : 'New template'}
-            <HelpLink to="templates#making-your-own" className="ml-1" />
+            <HelpLink to="templates" className="ml-1" />
           </span>
         }
         actions={

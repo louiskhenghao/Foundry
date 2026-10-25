@@ -359,6 +359,10 @@ Settings for whoever installed Foundry. Leave them unless you know why.
 - **Codex binary** and **Codex home**: the Codex executable and native account/configuration directory. Empty uses PATH and `CODEX_HOME` or `~/.codex`. Restart needed. The launch profile is fixed; choose each goal’s coding agent on New goal.
 - **Progress folders**: where each goal's folder is created. Empty puts it next to your project as `<project>-foundry/<goal>`. A folder here gives `<folder>/<project>/<goal>` instead. Applies to goals created from now on.
 
+## Templates
+
+The templates the New goal form starts from: Foundry's own, in English and 中文, and yours. **Use** opens a new goal from one; **Make a copy** writes one of Foundry's to your templates folder to edit; **New template** and **Import a file** add your own; a template of yours has **Edit**, **Open in VS Code** (named after the editor found on this computer) and a **⋯** menu to rename, export or delete it. **EN / 中文** chooses the language the templates are shown in, for this browser. The folder's address is shown, with any file that cannot be used and why. See [Templates](./templates.md).
+
 ## Appearance
 
 The theme and light or dark mode, for this browser only: each person and each device picks their own, and a change applies at once without **Save**. **Make a copy** under a theme writes it as a file to edit by hand. See [Themes](./themes.md) for choosing one and making your own.
