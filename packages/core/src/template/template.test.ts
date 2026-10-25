@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import type { TemplateVersion } from '../schema/template.ts';
 import { YamlError, parseYaml, yamlString, yamlText, type YamlValue } from './yaml.ts';
 import { inputsFor, labelOf, parseTemplateText, placeholdersOf, renderTemplate, settingsFromGoal, splitFrontmatter, templateFileText, templateFromGoal } from './template.ts';
 
@@ -66,6 +67,8 @@ tags:
   test('writes what it reads back, quoting only what needs it', () => {
     expect(yamlString('plain words')).toBe('plain words');
     expect(yamlString('true')).toBe('"true"');
+    expect(yamlString('on')).toBe('"on"');
+    expect(parseYaml('ponytail: "on"\nmode: off')).toEqual({ ponytail: 'on', mode: 'off' });
     expect(yamlString('12')).toBe('"12"');
     expect(yamlString('a: b')).toBe('"a: b"');
     expect(yamlString(' spaced')).toBe('" spaced"');
@@ -200,6 +203,10 @@ describe('rendering', () => {
     expect(full.prompt).toContain('Make a 60 s product reel for Foundry.\n\nAudience: founders\n- Tone: warm');
     // a heading that is just words and a colon stays: it never held a placeholder
     expect(renderTemplate({ body: 'Already decided:\n- x {{a}}', inputs: [{ key: 'a', type: 'text', other: false, required: false }] }, {}).prompt).toBe('Already decided:\n- x');
+    // a Markdown heading whose whole section was an optional input left empty goes with it; a filled one stays
+    const sections: Pick<TemplateVersion, 'body' | 'inputs'> = { body: '# Bug: {{symptom}}\n\n## Where it lives\n{{where}}\n\n## Since when\n{{since}}\n\n## Already decided\n- Fix the cause.', inputs: [{ key: 'symptom', type: 'text', other: false }, { key: 'where', type: 'text', other: false, required: false }, { key: 'since', type: 'text', other: false, required: false }] };
+    expect(renderTemplate(sections, { symptom: 'a 500 on save' }).prompt).toBe('# Bug: a 500 on save\n\n## Already decided\n- Fix the cause.');
+    expect(renderTemplate(sections, { symptom: 'a 500 on save', since: 'v2.1' }).prompt).toBe('# Bug: a 500 on save\n\n## Since when\nv2.1\n\n## Already decided\n- Fix the cause.');
   });
 
   test('a template from a goal keeps its words as the body and its settings about the work', () => {

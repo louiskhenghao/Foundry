@@ -2299,7 +2299,8 @@ export class Engine {
     // anyone-facing default: prose and media goals open in the plain-language view; cad is code work with a geometry kernel and keeps the default
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' && nature !== 'cad' ? 'simple' : this.config.defaultGoalMode);
     const issue = input.issue ? GoalIssue.parse(input.issue) : null;
-    const title = input.title?.trim() || issue?.title.trim() || input.prompt.trim().split('\n')[0]!.slice(0, 80);
+    // the first line names the goal: a Markdown heading mark or emphasis around it is not part of the name
+    const title = input.title?.trim() || issue?.title.trim() || input.prompt.trim().split('\n')[0]!.replace(/^#{1,6}\s+/, '').replace(/^\*\*(.+)\*\*$/, '$1').trim().slice(0, 80);
     // the video engine, frozen at creation like the suite: the goal's own pick, else the Settings pack of the day (ADR-0077)
     const videoPack = input.videoPack ?? (nature === 'video' ? (this.config.videoPack as Goal['videoPack']) : null);
     const motion = videoPack === MOTION_STUDIO;

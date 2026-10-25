@@ -221,7 +221,8 @@ export function parseYaml(text: string): YamlValue {
 const PLAIN = /^[A-Za-z0-9_][^#:\[\]{}"'`&*!%@|>,\n]*$/;
 /** a string as this YAML writes it: plain where YAML would read it back as the same string, else quoted */
 export function yamlString(s: string): string {
-  if (s === '' || s !== s.trim() || !PLAIN.test(s) || /^(true|false|null|~|-?\d+(\.\d+)?)$/.test(s) || s.includes(': ') || s.endsWith(':')) return JSON.stringify(s);
+  // the words other YAML readers take for booleans (on, yes…) are quoted too, so a file edited elsewhere reads the same
+  if (s === '' || s !== s.trim() || !PLAIN.test(s) || /^(true|false|null|~|on|off|yes|no|y|n|-?\d+(\.\d+)?)$/i.test(s) || s.includes(': ') || s.endsWith(':')) return JSON.stringify(s);
   return s;
 }
 

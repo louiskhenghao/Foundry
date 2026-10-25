@@ -142,20 +142,34 @@ const valueOf = (i: TemplateInput, values: Record<string, string>): string => (v
 export function renderTemplate(t: Pick<TemplateVersion, 'body' | 'inputs'>, values: Record<string, string>): { prompt: string; missing: string[] } {
   const byKey = new Map(t.inputs.map((i) => [i.key, i]));
   const missing = t.inputs.filter((i) => inputRequired(i) && !valueOf(i, values)).map((i) => i.key);
-  const lines = t.body.split('\n').flatMap((line) => {
+  const heading = (s: string) => /^#{1,6}\s/.test(s);
+  const rendered = t.body.split('\n').map((line) => {
     let placeholders = 0;
     let filled = 0;
-    const out = line.replace(PLACEHOLDER, (_, key: string) => {
-      placeholders++;
-      const v = byKey.has(key) ? valueOf(byKey.get(key)!, values) : '';
-      if (v) filled++;
-      return v;
-    });
-    // a line that held nothing but empty optional placeholders and their label goes: no "Audience:" is left hanging
-    if (placeholders && !filled && /^\s*(?:[-*]\s+)?(?:[^{}]*[:：])?\s*$/.test(out)) return [];
-    return [out.replace(/[^\S\n]+$/, '')];
+    const out = line
+      .replace(PLACEHOLDER, (_, key: string) => {
+        placeholders++;
+        const v = byKey.has(key) ? valueOf(byKey.get(key)!, values) : '';
+        if (v) filled++;
+        return v;
+      })
+      .replace(/[^\S\n]+$/, '');
+    // a line that held nothing but empty placeholders and their label goes: no "Audience:" is left hanging
+    return { out, drop: placeholders > 0 && !filled && /^\s*(?:[-*]\s+)?(?:[^{}]*[:：])?\s*$/.test(out) };
   });
-  const prompt = lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  const kept = rendered.filter((r, i) => {
+    if (r.drop) return false;
+    if (!heading(r.out)) return true;
+    // a heading whose whole section went with its empty inputs goes too; one that never had a section stays
+    const section: typeof rendered = [];
+    for (let j = i + 1; j < rendered.length && !heading(rendered[j]!.out); j++) if (rendered[j]!.drop || rendered[j]!.out.trim()) section.push(rendered[j]!);
+    return !(section.length > 0 && section.every((s) => s.drop));
+  });
+  const prompt = kept
+    .map((r) => r.out)
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
   return { prompt, missing };
 }
 
