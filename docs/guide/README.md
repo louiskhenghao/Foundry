@@ -51,7 +51,7 @@ The full glossary, for the curious, is `CONTEXT.md` in the Foundry repository.
 4. [Approving the Brief](./approving-the-brief.md): every part of the plan, and what you can change.
 5. [While it runs](./while-it-runs.md): the goal page, tasks, logs, the progress folder, previews and milestones.
 6. [When Foundry needs you](./when-foundry-needs-you.md): the only reasons it stops, and what to press.
-7. [Getting the result](./getting-the-result.md): branches, pushes and pull requests, and media files.
+7. [Getting the result](./getting-the-result.md): branches, pushes and pull requests, media files, and adjusting a finished result (beta).
 8. [Figure goals](./figures.md) (beta): interactive isometric figures of objects and machines, one web page each.
 9. [Schedules](./schedules.md): goals that run on their own, every day, week or month.
 10. [Settings explained](./settings.md): every Settings section in plain words.

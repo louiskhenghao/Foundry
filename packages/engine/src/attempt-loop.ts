@@ -20,6 +20,7 @@ import { learningsForWorker } from './learnings.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { runFigureCheck } from './checks/figure.ts';
 import { attemptTimeoutMs } from './figure.ts';
+import { renderAdjustment, type AdjustmentContext } from './adjust.ts';
 import { verdictSummary, reviewTaskDiff } from './checks/reviewer.ts';
 import type { Engine } from './engine.ts';
 import { taskCommitMessage } from './git/conventional.ts';
@@ -40,8 +41,8 @@ export interface AttemptOutcome {
   needs: NeedsBlock | null;
 }
 
-/** Why an attempt's session is resumed instead of a new attempt being started. */
-export type ContinueReason = 'orphaned' | 'max_turns' | 'max_budget' | 'timeout' | 'checks_failed' | 'usage_limit' | 'needs_input';
+/** Why an attempt's session is resumed instead of a new attempt being started (`adjust`: a passed session, for an Adjustment of the result, ADR-0078). */
+export type ContinueReason = 'orphaned' | 'max_turns' | 'max_budget' | 'timeout' | 'checks_failed' | 'usage_limit' | 'needs_input' | 'adjust';
 
 /** what the person answered a Request with (ADR-0074), for the session that asked */
 export interface RequestAnswer {
@@ -63,7 +64,7 @@ export interface Continuation {
 /** the wall-clock cap of one session before any per-task floor: the goal's own (Budgets, ADR-0077), else Settings → sessions.attemptTimeoutMin */
 export const goalSessionTimeoutMs = (goal: Pick<Goal, 'budgets'>, config: Pick<EngineConfig, 'attemptTimeoutMs'>): number => (goal.budgets.attemptTimeoutMin ? goal.budgets.attemptTimeoutMin * 60_000 : config.attemptTimeoutMs);
 
-export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string; answer?: RequestAnswer } = {}): string {
+export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string; answer?: RequestAnswer; adjustment?: AdjustmentContext } = {}): string {
   switch (reason) {
     case 'usage_limit':
       return 'Your session was stopped by a usage limit before you finished. The workspace is exactly as you left it (uncommitted edits were snapshotted). Continue from where you stopped; do not redo finished steps. When done, reply with the usual short summary.';
@@ -90,6 +91,12 @@ Fix them; everything else you did is kept. Do not start over. When done, reply w
       const files = a?.files.length ? `\n\nWhat they gave, read it from these paths:\n${a.files.map((f) => `- ${f.path} (${f.name})`).join('\n')}` : '';
       const links = a?.links.length ? `\n\nLinks they gave:\n${a.links.map((l) => `- ${l}`).join('\n')}` : '';
       return `${head}${words}${files}${links}\n\nThe workspace is exactly as you left it (your edits were snapshotted). Continue from where you stopped; do not redo finished steps. When done, reply with the usual short summary.`;
+    }
+    case 'adjust': {
+      const a = ctx.adjustment;
+      const files = a?.files.length ? `\n\nFiles they gave, read them from these paths:\n${a.files.map((f) => `- ${f.path} (${f.name})`).join('\n')}` : '';
+      const links = a?.links.length ? `\n\nLinks they gave:\n${a.links.map((l) => `- ${l}`).join('\n')}` : '';
+      return `Your task landed and the goal finished. The person looked at the result and asks for an adjustment${a ? ` (adjustment ${a.n})` : ''}:\n\n${a?.text ?? '(see the hint)'}${files}${links}\n\nThe workspace is the goal branch as it stands, your work landed on it; what you do now lands as a commit of its own. Carry out the adjustment and nothing else: do not redo finished work, keep what the person did not name, and run the acceptance checks again before you stop. \`artifacts/.history/\` keeps the earlier result — leave it alone. When done, reply with the usual short summary.`;
     }
   }
 }
@@ -217,7 +224,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const style = brief && styleApplies(task.scenario) ? chosenStyle(brief) : null;
   // the real things the result depicts, with their pictures (outside the worktree: their folder is added to the session)
   const subjects = renderSubjects(config.dataDir, goal.id, brief, 'worker', task.scenario);
-  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), provides: renderProvides(goal, brief, task, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, memory, style, subjects, baseMoved: opts.baseMoved ?? null });
+  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, adjustment: task.adjustment ? renderAdjustment(goal, task.adjustment, config.dataDir) : '', relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), provides: renderProvides(goal, brief, task, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, memory, style, subjects, baseMoved: opts.baseMoved ?? null });
   const prompt = resume ? resume.message : freshPrompt(relevantContext, prevReport);
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection (continuations append)
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });
@@ -285,7 +292,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     // the coding agent could not pick the session up (another account's home or signatures, a cleaned record): a new
     // session takes over in the same workspace, told what the earlier one did (ADR-0065)
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `attempt ${attempt.id}: its session could not be resumed (${(result.errorMessage ?? result.subtype).slice(0, 160)}); a new session takes over with a handoff` } });
-    const why = resume.reason === 'usage_limit' ? 'stopped by a usage limit' : resume.reason === 'orphaned' ? 'interrupted by an engine restart' : resume.reason === 'needs_input' ? 'paused to ask the person for something, which they have now answered (see the hint)' : `cut short: ${resume.reason.replace('_', ' ')}`;
+    const why = resume.reason === 'usage_limit' ? 'stopped by a usage limit' : resume.reason === 'orphaned' ? 'interrupted by an engine restart' : resume.reason === 'needs_input' ? 'paused to ask the person for something, which they have now answered (see the hint)' : resume.reason === 'adjust' ? 'finished the task and landed it; the person now asks for an adjustment of the result (their words are in the prompt above)' : `cut short: ${resume.reason.replace('_', ' ')}`;
     const handoff = await handoffSection({ cwd, attemptBaseRef: attempt.baseRef, taskBaseRef, transcriptPath: attempt.transcriptPath, provider: goal.provider ?? 'claude', why });
     const latest = prior.length ? getObservation(store.db, prior[prior.length - 1]!.id) : null;
     const text = `${freshPrompt(await engine.context.locate(goal, task).catch(() => null), latest)}\n\n${handoff}`;

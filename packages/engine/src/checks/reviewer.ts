@@ -5,6 +5,7 @@ import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@foundry/core'
 import { jsonSchemaFor, ReviewerVerdict as ReviewerVerdictSchema, VERDICT_AXES, type VerdictAxis, type VerdictScores, chosenStyle, getBrief } from '@foundry/core';
 import { renderStyle } from '../attempt-prompt.ts';
 import { FIGURE_REVIEW_TASK } from '../figure.ts';
+import { renderAdjustment } from '../adjust.ts';
 import { figureCheckLines, figureReviewSection } from './figure.ts';
 import type { Engine } from '../engine.ts';
 import { diff } from '../git/git.ts';
@@ -179,6 +180,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
   const recalled = await engine.memory.reflect('review_task', memoryQuestion('review_task', { goalTitle: goal.title, taskTitle: task.title, files: task.relevantFiles }), { repoPath: goal.repoPath, goalId: goal.id, taskId: task.id, attemptId: attempt.id });
   const prompt = [
     `# Task (${task.kind}${task.scenario !== 'general' ? `, ${task.scenario}` : ''})\n${task.title}\n\n${task.spec}`,
+    task.adjustment ? renderAdjustment(goal, task.adjustment, engine.config.dataDir, { forReviewer: true }) : '',
     rubric ? `# Rubric (verify each)\n${rubric}${/\bscores\b/i.test(rubric) ? '\nPut the numbers in the JSON `scores` field, one integer per axis, not only in the notes.' : ''}` : '',
     style,
     subjects,

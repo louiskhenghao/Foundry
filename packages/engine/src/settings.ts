@@ -94,6 +94,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'beta.conversation': { name: 'FOUNDRY_BETA_CONVERSATION', parse: bool },
   'beta.motionStudio': { name: 'FOUNDRY_BETA_MOTION_STUDIO', parse: bool },
   'beta.figure': { name: 'FOUNDRY_BETA_FIGURE', parse: bool },
+  'beta.adjust': { name: 'FOUNDRY_BETA_ADJUST', parse: bool },
 };
 
 /** setting path → the environment variable that seeds it (documentation, reference.test.ts) */
@@ -333,6 +334,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('beta.conversation')) config.betaConversation = s.beta.conversation;
   if (on('beta.motionStudio')) config.betaMotionStudio = s.beta.motionStudio;
   if (on('beta.figure')) config.betaFigure = s.beta.figure;
+  if (on('beta.adjust')) config.betaAdjust = s.beta.adjust;
   if (on('reviews.maxFixCycles')) config.maxFixCycles = s.reviews.maxFixCycles;
   if (on('delivery.defaultMode') || on('delivery.defaultUnit') || on('delivery.defaultRemote')) {
     config.defaultDelivery = { ...(config.defaultDelivery ?? {}) };

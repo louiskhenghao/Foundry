@@ -36,6 +36,14 @@ describe('decideNext (continuation vs fresh attempt)', () => {
     expect(continuationMessage('orphaned')).toContain('engine restart');
     expect(continuationMessage('timeout', { timeoutMin: 20 })).toContain('20 min');
     expect(continuationMessage('checks_failed', { report: '- ❌ tests' })).toContain('- ❌ tests');
+    // an Adjustment of the result (ADR-0078): the words, the files by path, and that the earlier work stays
+    const adjust = continuationMessage('adjust', { adjustment: { n: 2, text: 'make the lid red', files: [{ name: 'lid.png', path: '/data/attachments/g/att/lid.png' }], links: ['https://example.com/red'] } });
+    expect(adjust).toContain('adjustment 2');
+    expect(adjust).toContain('make the lid red');
+    expect(adjust).toContain('/data/attachments/g/att/lid.png');
+    expect(adjust).toContain('https://example.com/red');
+    expect(adjust).toContain('do not redo finished work');
+    expect(adjust).not.toContain('# Your task');
   });
 });
 

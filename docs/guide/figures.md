@@ -42,7 +42,7 @@ An iso-glow page loads a web font when it is opened, and its 3D mode loads three
 
 ## Changing a figure
 
-Once the goal is done, ask for the change as a follow-up: **Continue with a follow-up…** on the goal page, with the change in words (*make the door open further*, *add a coin return*). The new goal starts from the finished one, so the worker finds the page and its source where it left them.
+Once the goal is done, small changes go through **Adjust the result** on the goal page (beta, see [Adjusting the result](./getting-the-result.md#adjusting-the-result)): *make the door open further*, *add a coin return*, with a picture if it helps. The session that drew the figure picks up where it left off and redraws; Foundry opens the page headless again, and keeps the earlier page under **Before it**. For a different figure, or once the goal's work was merged, ask as a follow-up: **Continue with a follow-up…**, with the change in words. The new goal starts from the finished one, so the worker finds the page and its source where it left them.
 
 ## Credits
 

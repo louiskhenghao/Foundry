@@ -51,7 +51,7 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 4. [批准 Brief](./approving-the-brief.zh.md)：计划的每个部分，以及你能改什么。
 5. [运行期间](./while-it-runs.zh.md)：goal 页面、任务、日志、进度文件夹、预览和里程碑。
 6. [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md)：它停下来的全部原因，以及该按什么。
-7. [拿到结果](./getting-the-result.zh.md)：分支、推送和 pull request，还有媒体文件。
+7. [拿到结果](./getting-the-result.zh.md)：分支、推送和 pull request，媒体文件，以及调整已完成的结果（beta）。
 8. [Figure goal](./figures.zh.md)（beta）：物件与机器的可交互等轴测图，每张一个网页。
 9. [Schedules](./schedules.zh.md)：自己运行的 goal，每天、每周或每月。
 10. [设置说明](./settings.zh.md)：用大白话讲 Settings 的每一部分。

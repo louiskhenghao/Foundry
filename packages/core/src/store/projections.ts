@@ -477,6 +477,16 @@ function project(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, nature: e.payload.nature, updatedAt: e.ts });
       break;
     }
+    case 'goal.adjusted': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, adjustments: [...(g.adjustments ?? []).filter((a) => a.id !== e.payload.adjustment.id), e.payload.adjustment], updatedAt: e.ts });
+      break;
+    }
+    case 'task.adjustment_set': {
+      const t = getTask(db, e.payload.taskId);
+      if (t) upsertTask(db, { ...t, adjustment: e.payload.adjustment, updatedAt: e.ts });
+      break;
+    }
     case 'goal.figure_pack_set': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, figurePack: e.payload.figurePack, updatedAt: e.ts });
@@ -616,8 +626,8 @@ function project(db: Database, e: EngineEvent): void {
     }
     case 'attempt.continued': {
       const a = getAttempt(db, e.payload.attemptId);
-      // a usage limit's cut, and a wait for the person's answer (ADR-0074), do not count towards the continuation cap
-      if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + (e.payload.reason === 'usage_limit' || e.payload.reason === 'needs_input' ? 0 : 1), endedAt: null, pid: null });
+      // a usage limit's cut, a wait for the person's answer (ADR-0074) and an Adjustment of the result (ADR-0078) do not count towards the continuation cap
+      if (a) upsertAttempt(db, { ...a, state: 'running', continuations: a.continuations + (e.payload.reason === 'usage_limit' || e.payload.reason === 'needs_input' || e.payload.reason === 'adjust' ? 0 : 1), endedAt: null, pid: null });
       break;
     }
     case 'check.finished':
@@ -784,6 +794,7 @@ function normalizeGoal(g: Goal): Goal {
   g.videoPack ??= null;
   if (g.budgets) g.budgets.attemptTimeoutMin ??= null;
   g.figurePack ??= null;
+  g.adjustments ??= [];
   if (g.workflow && g.workflow.ponytail == null) g.workflow.ponytail = 'on';
   g.completion = { ...IDLE_COMPLETION, ...(g.completion ?? {}) };
   // delivery fields added after a goal was written: review rounds (ADR-0053) and reverts (ADR-0059). Readers use them
@@ -819,6 +830,7 @@ function normalizeTask(t: Task): Task {
   t.delegatedGoalId ??= null;
   t.summary ??= null;
   t.needs ??= [];
+  t.adjustment ??= null;
   return t;
 }
 /** rows skip zod on the way back: a Brief from before materials has none, and its tasks need none */

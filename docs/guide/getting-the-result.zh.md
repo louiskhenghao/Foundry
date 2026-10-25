@@ -244,6 +244,22 @@ git merge goal/abc123
 
 它需要：一次通过 Foundry 合并的交付（**Open a PR** 或 **PR + auto-merge**；Local only 的 goal，或你自己标记为已交付的 goal，Foundry 不知道合并了什么，也就没法撤销）、已登录的 GitHub CLI，以及这些合并仍在基础分支上。如果后来的改动碰了同样的行、合并已经没法干净地撤销，它会拒绝并列出冲突的文件：手动撤销，或者开一个 [follow-up](#continue-with-a-follow-up) 来撤掉它。这里没有模型写任何东西，你自己的文件夹也不会被改。要把工作找回来，在 GitHub 上 revert 这个 revert 的 pull request，或者开一个 follow-up goal。
 
+## 调整结果
+
+*Beta：在 [Settings → Beta](./settings.zh.md#beta) 打开。*
+
+goal 完成了，结果差一点点 —— 盖子应该是红的，图表还差一条线，门应该开得更大 —— 不用再开一个 goal。goal 页面上的 **Adjust the result** 卡片接收你对结果的意见：要改什么，需要的话附上图片或文件（粘贴或拖进去，最多 8 个），按 **Adjust**，goal 就重新跑起来。改动由它自己去做，卡片上会说明是哪种方式：
+
+- **只有一个任务的 goal**，接回当初干活的那个会话 —— 它记得自己做过的每个决定 —— 把你的话交给它；
+- **有好几个任务的 goal**，在做完的任务后面加一个任务 —— *Adjustment 1: …* —— 一个新会话，并告诉它每一步交付了什么；
+- **失败的 goal**，带着你的话把失败的任务重新跑一遍。
+
+这期间 goal 显示为 running，和第一次一样：任务在进行，然后检查、任务审查和最终审查都重新跑一遍。改动作为一个独立的提交落在 goal 分支上（*…（adjustment 1）*），所以你已经推送过的分支不会被改写。goal 再次完成时，输出文件夹会拿到新文件，已经推送的分支或已经开出的 pull request 会拿到这个新提交 —— 不用再选任何东西。每次调整的费用都算在 goal 上，在它的预算之内：卡片会显示还剩多少，用完了就会拒绝（先把预算调高）。
+
+在任何东西改变之前，当前的结果会先留一份：artifacts 和 figure 的页面会放进进度文件夹里的 `artifacts/.history/<n>/`，卡片在每次调整下面以 **Before it** 列出它们，你可以打开更早的版本（页面在和当前页面一样的沙箱里打开）。输出文件夹只保留最新的。代码的早期版本一直都在分支的历史里。
+
+它不会做的事：调整工作已经合并的 goal（它的分支已经并进基础分支了；开一个 [follow-up](#continue-with-a-follow-up)）、进度文件夹已经清理掉的 goal、作为历史导入的 goal，以及 Delegated goal（去调整它的主 goal）。goal 还在跑的时候，等它结束。调整要落在 goal 自己的验收检查之内，这些检查会原样重新跑：和它们相悖的调整（给一条检查写着*不要标题*的笔记*加个标题*）会过不了检查，任务会说明 —— 想要另一种结果，开一个 follow-up。一次调整是一条指令，不是一场对话：想问结果的问题，用 [Conversation](./while-it-runs.zh.md#conversation)；要做另一件事，用 follow-up。
+
 ## Continue with a follow-up
 
 Codex 的 follow-up 会保留明确指定的全角色模型覆盖，即使 Settings 中的默认模型后来改变。没有明确覆盖时，会保留预设的各角色独立分配，不把它们压成单一模型。Follow-up 是新 goal，会在创建时保存预设当前的角色表，不会复制前一个 goal 已冻结的角色表。Antigravity 的 follow-up 会预填前一个 goal 的模型，只要它不是 Settings 现在指定的那个。

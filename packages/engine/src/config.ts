@@ -155,6 +155,8 @@ export interface EngineConfig {
   betaMotionStudio: boolean;
   /** figure goals (the Figure nature and pack) are a beta feature behind Settings → Beta (ADR-0076) */
   betaFigure: boolean;
+  /** Adjust the result on finished goals is a beta feature behind Settings → Beta (ADR-0078) */
+  betaAdjust: boolean;
   log: (msg: string) => void;
 }
 
@@ -240,6 +242,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     betaConversation: process.env.FOUNDRY_BETA_CONVERSATION === '1' || process.env.FOUNDRY_BETA_CONVERSATION === 'true',
     betaMotionStudio: process.env.FOUNDRY_BETA_MOTION_STUDIO === '1' || process.env.FOUNDRY_BETA_MOTION_STUDIO === 'true',
     betaFigure: process.env.FOUNDRY_BETA_FIGURE === '1' || process.env.FOUNDRY_BETA_FIGURE === 'true',
+    betaAdjust: process.env.FOUNDRY_BETA_ADJUST === '1' || process.env.FOUNDRY_BETA_ADJUST === 'true',
     log: (m) => console.log(m),
     ...overrides,
   };
