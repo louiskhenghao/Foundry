@@ -192,6 +192,21 @@ describe('skills sources & updates', () => {
 // keep cpSync referenced for future fixtures
 void cpSync;
 
+describe('a source that names no owner/name repository', () => {
+  test('a hand-made Foundry marker with repo "foundry" is listed, not a crash of the whole report', async () => {
+    const fh = makeFakeHome();
+    const dir = join(fh.paths.skillsDir, 'motion-studio');
+    mkdirSync(dir);
+    writeFileSync(join(dir, 'SKILL.md'), skillMd('motion-studio', 'films'));
+    writeFileSync(join(dir, '.foundry.json'), JSON.stringify({ catalogId: 'motion-studio', repo: 'foundry', ref: null, commit: 'abc', path: 'catalog/bundled/motion-studio', installedAt: '2026-10-24T18:51:27.172Z' }));
+    const catalog = loadCatalog(writeCatalog(join(fh.home, 'catalog'), []));
+    const report = await new SkillsUpdateChecker(fh.paths).report(scanSkills(fh.paths), catalog, { offline: true });
+    const src = report.sources.find((s) => s.id === 'foundry:foundry')!;
+    expect(src.skills.map((k) => k.name)).toEqual(['motion-studio']);
+    expect(src.upstream).toBeNull();
+  });
+});
+
 describe('isStaleShadow', () => {
   test('a superseded copy is stale; an unshadowed or current one is not', async () => {
     const { isStaleShadow } = await import('./updates.ts');
