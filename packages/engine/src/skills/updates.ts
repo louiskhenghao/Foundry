@@ -42,6 +42,9 @@ export interface UpdateCheckerOptions {
 
 const BLOB_HISTORY = 80;
 
+/** only an owner/name repository has a cache clone; a hand-made marker or a marketplace may name something else */
+const isOwnerRepo = (repo: string | null): repo is string => !!repo && /^[^/\s]+\/[^/\s]+$/.test(repo);
+
 export class SkillsUpdateChecker {
   private persisted: Persisted;
   private exec: typeof defaultExec;
@@ -129,7 +132,7 @@ export class SkillsUpdateChecker {
     }
 
     // 2. upstream facts per GitHub repo
-    const repos = [...new Set([...groups.values()].map((g) => g.key.repo).filter((r): r is string => !!r))];
+    const repos = [...new Set([...groups.values()].map((g) => g.key.repo).filter(isOwnerRepo))];
     if (needGit) {
       for (const repo of repos) {
         const urlOverride = this.opts.urlFor?.(repo) ?? [...groups.values()].find((g) => g.key.repo === repo && g.key.url?.startsWith('file://'))?.key.url ?? undefined;
@@ -148,7 +151,7 @@ export class SkillsUpdateChecker {
     const shadowed: string[] = [];
     for (const g of groups.values()) {
       const facts = g.key.repo ? this.persisted.repos[g.key.repo] : undefined;
-      const cache = g.key.repo ? this.cacheDir(g.key.repo) : null;
+      const cache = isOwnerRepo(g.key.repo) ? this.cacheDir(g.key.repo) : null;
       const rows: SkillSourceRow[] = [];
       // local git commands on an existing clone are fine offline; only fetching needs the network
       const gitOk = !!cache && existsSync(join(cache, '.git'));
