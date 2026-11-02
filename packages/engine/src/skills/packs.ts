@@ -50,6 +50,12 @@ export const DIAGRAM_PACK_OPTIONS: PackOption[] = [
   { id: 'none', label: 'None', summary: 'No diagram skill is mandated; diagram tasks rely on the worker alone.', homepage: null },
 ];
 
+/** the Deck pack (ADR-0084): which skill makes deck tasks' slide decks, a native PPTX each */
+export const DECK_PACK_OPTIONS: PackOption[] = [
+  { id: 'ppt-master', label: 'PPT Master', summary: "Hugo He's ppt-master: natively editable PPTX decks from a topic or a document — real DrawingML shapes, text, charts and tables, transitions and animations, speaker notes — designed page by page as SVG and compiled by its own scripts. Pinned to one release; its scripts need Python 3.10+ with a set of packages, which Foundry installs into an environment of its own with uv when the pack is installed.", homepage: 'https://github.com/hugohe3/ppt-master' },
+  { id: 'none', label: 'None', summary: 'No deck skill is mandated; deck tasks rely on the worker alone.', homepage: null },
+];
+
 /** Is this entry visible given the chosen pack options? Entries without a pack always are. */
 export function packAllows(entry: Pick<CatalogEntry, 'pack' | 'packOption'>, chosen: Record<string, string | undefined>): boolean {
   if (!entry.pack) return true;

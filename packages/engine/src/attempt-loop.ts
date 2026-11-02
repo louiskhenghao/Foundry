@@ -20,6 +20,7 @@ import { learningsForWorker } from './learnings.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { runFigureCheck } from './checks/figure.ts';
 import { runDiagramCheck } from './checks/diagram.ts';
+import { runDeckCheck } from './checks/deck.ts';
 import { attemptTimeoutMs } from './figure.ts';
 import { renderAdjustment, type AdjustmentContext } from './adjust.ts';
 import { verdictSummary, reviewTaskDiff } from './checks/reviewer.ts';
@@ -215,6 +216,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   // the files the task touches decide some rules (writing for agents when AGENTS.md, CLAUDE.md or a skill is among them)
   const skillsHint = await engine.skillsFor(goal).hints.sectionFor('worker', { packs: engine.packsFor(goal), profile: engine.workflowProfileOf(goal), taskKind: task.kind, scenario: task.scenario, projectSkills: goal.autoskills?.status === 'installed' ? goal.autoskills.skills : [], discipline, files: task.relevantFiles });
   const mandated = await engine.skillsFor(goal).hints.mandatedFor('worker', { packs: engine.packsFor(goal), profile: engine.workflowProfileOf(goal), taskKind: task.kind, scenario: task.scenario, discipline, files: task.relevantFiles });
+  // a deck task (ADR-0084): the deck skill's folder and Python environment, for the worker's conventions, its PATH and the deck check
+  const deck = task.scenario === 'deck' ? await engine.deckInfo(goal) : null;
   const brief = getBrief(store.db, goal.id)?.brief;
   const areaDescription = task.area ? (brief?.areas.find((a) => a.name === task.area)?.description ?? '') : '';
   const decisions = brief ? renderDecisions(brief) : '';
@@ -229,7 +232,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const style = brief && styleApplies(task.scenario) ? chosenStyle(brief) : null;
   // the real things the result depicts, with their pictures (outside the worktree: their folder is added to the session)
   const subjects = renderSubjects(config.dataDir, goal.id, brief, 'worker', task.scenario);
-  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, adjustment: task.adjustment ? renderAdjustment(goal, task.adjustment, config.dataDir) : '', relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), provides: renderProvides(goal, brief, task, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, memory, style, subjects, baseMoved: opts.baseMoved ?? null });
+  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, adjustment: task.adjustment ? renderAdjustment(goal, task.adjustment, config.dataDir) : '', relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), provides: renderProvides(goal, brief, task, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, memory, style, subjects, baseMoved: opts.baseMoved ?? null, deck });
   const prompt = resume ? resume.message : freshPrompt(relevantContext, prevReport);
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection (continuations append)
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });
@@ -257,7 +260,8 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
       timeoutMs: attemptTimeoutMs({ ...config, attemptTimeoutMs: goalSessionTimeoutMs(goal, config) }, task),
       transcriptPath: attempt.transcriptPath!,
       resumeSessionId,
-      env: { FOUNDRY_ATTEMPT_ID: attempt.id, FOUNDRY_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}) },
+      // a deck task finds the deck skill's Python environment first on its PATH (ADR-0084)
+      env: { FOUNDRY_ATTEMPT_ID: attempt.id, FOUNDRY_GOAL_ID: goal.id, ...(config.extraBoundaryPatterns ? { FOUNDRY_EXTRA_PATTERNS: config.extraBoundaryPatterns } : {}), ...(deck?.venv ? engine.deckEnv(deck.venv) : {}) },
       label,
     });
     engine.registerInFlight(task.id, attempt.id, handle);
@@ -381,8 +385,15 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     results.push(r);
     store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
   }
+  // a deck task's decks likewise (ADR-0084), with the deck skill's delivery check from its Python environment
+  for (const c of checks) {
+    if (c.spec.type !== 'deck') continue;
+    const r = await runDeckCheck(engine, goal, task, attempt.id, c, cwd, { python: deck?.venv ? join(deck.venv, 'bin', 'python') : null, skillDir: deck?.skillDir ?? null });
+    results.push(r);
+    store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
+  }
   bumpStat(store.db, 'attempt.cost', result.costUsd);
-  const mustCommand = checks.filter((c) => c.tier === 'must' && (c.spec.type === 'command' || c.spec.type === 'figure' || c.spec.type === 'diagram'));
+  const mustCommand = checks.filter((c) => c.tier === 'must' && (c.spec.type === 'command' || c.spec.type === 'figure' || c.spec.type === 'diagram' || c.spec.type === 'deck'));
   const objectivePassed = mustCommand.every((c) => results.find((r) => r.checkId === c.id)?.status === 'pass');
 
   let reviewerVerdict: ObservationReport['reviewerVerdict'] = null;

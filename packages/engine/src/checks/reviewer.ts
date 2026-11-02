@@ -7,6 +7,8 @@ import { renderStyle } from '../attempt-prompt.ts';
 import { FIGURE_REVIEW_TASK } from '../figure.ts';
 import { DIAGRAM_REVIEW_TASK } from '../diagram.ts';
 import { diagramCheckLines, diagramReviewSection } from './diagram.ts';
+import { DECK_REVIEW_TASK } from '../deck.ts';
+import { deckCheckLines, deckReviewSection } from './deck.ts';
 import { renderAdjustment } from '../adjust.ts';
 import { figureCheckLines, figureReviewSection } from './figure.ts';
 import type { Engine } from '../engine.ts';
@@ -174,12 +176,14 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
           ? figureReviewSection(FIGURE_REVIEW_TASK, figureCheckLines(engine.store.db, goal.id, task.id))
           : task.scenario === 'diagram'
             ? diagramReviewSection(DIAGRAM_REVIEW_TASK, diagramCheckLines(engine.store.db, goal.id, task.id))
-            : '';
+            : task.scenario === 'deck'
+              ? deckReviewSection(DECK_REVIEW_TASK, deckCheckLines(engine.store.db, goal.id, task.id))
+              : '';
   const brief = getBrief(engine.store.db, goal.id)?.brief;
   const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '';
   const subjects = renderSubjects(engine.config.dataDir, goal.id, brief, 'task-reviewer', task.scenario);
   // the Subjects' pictures live outside the worktree, and so do Foundry's screenshots of a figure or diagram task's pages (ADR-0076, ADR-0083)
-  const reviewDirs = [...(subjects ? subjectsAddDirs(engine.config.dataDir, goal.id, brief) : []), ...(task.scenario === 'figure' || task.scenario === 'diagram' ? [screenshotsDir(engine.config.dataDir, goal)] : [])];
+  const reviewDirs = [...(subjects ? subjectsAddDirs(engine.config.dataDir, goal.id, brief) : []), ...(task.scenario === 'figure' || task.scenario === 'diagram' || task.scenario === 'deck' ? [screenshotsDir(engine.config.dataDir, goal)] : [])];
   // what earlier reviews in this repository refused for such a change (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('review_task', memoryQuestion('review_task', { goalTitle: goal.title, taskTitle: task.title, files: task.relevantFiles }), { repoPath: goal.repoPath, goalId: goal.id, taskId: task.id, attemptId: attempt.id });
   const prompt = [

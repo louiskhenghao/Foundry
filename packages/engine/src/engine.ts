@@ -70,10 +70,13 @@ import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-s
 import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
 import { FIGURE_CHECK_NAME } from './checks/figure.ts';
 import { DIAGRAM_CHECK_NAME } from './checks/diagram.ts';
+import { DECK_CHECK_NAME } from './checks/deck.ts';
 import { adjustGoal, adjustView, adjustedSinceDelivery, type AdjustView } from './adjust.ts';
 import type { DoctorCheck } from './skills/types.ts';
 import { isFigureStyle, type FigureInfo } from './figure.ts';
 import type { DiagramInfo } from './diagram.ts';
+import type { DeckInfo } from './deck.ts';
+import { pythonEnvPath, pythonOf } from './skills/installer.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { skillUsage } from './skills/usage.ts';
@@ -514,7 +517,7 @@ export class Engine {
         const { [id]: _, ...rest } = config.suiteReleases ?? {};
         this.updateSettings({ workflow: { suiteReleases: ref ? { ...rest, [id]: ref } : rest } });
       },
-      packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack, figure: config.figurePack, diagram: config.diagramPack }),
+      packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack, figure: config.figurePack, diagram: config.diagramPack, deck: config.deckPack }),
       // a plugin that ships MCP servers (text-to-cad's `cad`) is allowed for sessions as soon as it is installed, under the prefix this coding agent gives it
       onPluginServers: (prefixes) => {
         if (provider !== 'agy') for (const p of prefixes) this.mcpFor(provider).allow(p, true);
@@ -782,6 +785,35 @@ export class Engine {
   /** can diagram goals be made and run here: the beta switch (ADR-0083) */
   diagramAvailable(): boolean {
     return this.config.betaDiagram;
+  }
+
+  /** can deck goals be made and run here: the beta switch (ADR-0084) */
+  deckAvailable(): boolean {
+    return this.config.betaDeck;
+  }
+
+  /**
+   * The deck skill for a goal (ADR-0084): the pack Settings names, whether it is installed for the goal's coding agent
+   * (a copy without its Python environment counts: the worker is told what is missing), where its folder and its
+   * environment are, and whether an image key reaches sessions; null while deck goals are off.
+   */
+  async deckInfo(goal: Goal): Promise<DeckInfo | null> {
+    if (!this.config.betaDeck) return null;
+    const pack = this.config.deckPack as DeckInfo['pack'];
+    const images = this.imageGenAvailable();
+    if (pack === 'none') return { pack, installed: false, skillDir: null, venv: null, images };
+    const skills = this.skillsFor(goal);
+    const statuses = await skills.status().catch(() => []);
+    const s = statuses.find((x) => x.entry.pack === 'deck' && x.entry.packOption === pack);
+    const installed = !!s && (SATISFIED.includes(s.status) || s.status === 'partial');
+    if (!s || !installed) return { pack, installed: false, skillDir: null, venv: null, images };
+    const venv = pythonOf(skills.paths, s.entry.name) ? pythonEnvPath(skills.paths, s.entry.name) : null;
+    return { pack, installed, skillDir: join(skills.paths.skillsDir, s.entry.name), venv, images };
+  }
+
+  /** what a deck task's session gets on top of the usual env (ADR-0084): the skill's Python environment first on PATH, so its `python3` commands run with its packages */
+  deckEnv(venv: string): Record<string, string> {
+    return { PATH: `${join(venv, 'bin')}:${process.env.PATH ?? ''}`, VIRTUAL_ENV: venv };
   }
 
   /**
@@ -2356,6 +2388,7 @@ export class Engine {
     if ((nature === 'figure' || input.figurePack) && !this.config.betaFigure) throw new Error('Figure goals are a beta feature: turn on Settings → Beta → Figure goals first');
     // diagram goals too (ADR-0083)
     if (nature === 'diagram' && !this.config.betaDiagram) throw new Error('Diagram goals are a beta feature: turn on Settings → Beta → Diagram goals first');
+    if (nature === 'deck' && !this.config.betaDeck) throw new Error('Deck goals are a beta feature: turn on Settings → Beta → Deck goals first');
     let codexPreset: CodexModelPreset | undefined;
     const presetId = input.modelPreset ?? (provider === 'codex' && nature !== 'auto' ? this.config.codexNaturePreset[natureKey(nature)] : null);
     if (provider === 'codex') {
@@ -2667,7 +2700,7 @@ export class Engine {
     // the motion-studio engine's tools (ADR-0077), only while its Beta is on
     const motion = this.config.betaMotionStudio ? await this.playwrightStatus().then((pw) => motionStudioCheck({ ffmpeg: Bun.which('ffmpeg'), ffprobe: Bun.which('ffprobe'), browser: pw.browser, browserDetail: pw.detail, platform: process.platform })) : null;
     if (motion?.ok) this.wakeMotionStudioGoals();
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(await this.figureToolsCheck()), ...(await this.diagramToolsCheck()), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(await this.figureToolsCheck()), ...(await this.diagramToolsCheck()), ...(await this.deckToolsCheck(provider)), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
   }
 
   /**
@@ -2701,6 +2734,34 @@ export class Engine {
     return [
       warn('diagram-chromium', 'Diagram goals: Chromium for the render check', pw.browser, pw.browser ? pw.detail : `${pw.detail} — Foundry opens each delivered diagram page headless and renders its PNG; without Chromium the diagram check fails every diagram task`, { url: '/settings#preview' }),
       warn('diagram-python', 'Diagram goals: python3', !!python, python ? python : 'python3 is not on PATH — the diagram skill exports the SVG and checks its page with it (standard library only); install Python 3 or let the worker say so', { url: 'https://www.python.org/downloads/' }),
+    ];
+  }
+
+  /**
+   * The tools deck goals need on this computer (ADR-0084), only while the beta is on and a Deck pack is chosen: uv, which
+   * makes the skill's Python environment when the pack is installed; that environment with the skill's packages in it
+   * (checked by importing python-pptx), once the pack is installed; and Playwright's Chromium, which renders the
+   * per-slide previews (without it the deck check still counts the slides).
+   */
+  private async deckToolsCheck(provider: AgentProvider): Promise<DoctorCheck[]> {
+    if (!this.config.betaDeck || this.config.deckPack === 'none') return [];
+    const warn = (id: string, label: string, ok: boolean, detail: string, fix: DoctorCheck['fix'] = null): DoctorCheck => ({ id, label, ok, severity: 'warn', detail, fix: ok ? null : fix });
+    const uv = Bun.which('uv');
+    const skills = this.skillsForProvider(provider);
+    const statuses = await skills.status().catch(() => []);
+    const s = statuses.find((x) => x.entry.pack === 'deck' && x.entry.packOption === this.config.deckPack);
+    const present = !!s && (SATISFIED.includes(s.status) || s.status === 'partial');
+    const python = s ? pythonOf(skills.paths, s.entry.name) : null;
+    let imports: { ok: boolean; detail: string } | null = null;
+    if (python) {
+      const r = Bun.spawnSync([python, '-I', '-c', 'import pptx, lxml; print(pptx.__version__)'], { timeout: 20_000 });
+      imports = r.exitCode === 0 ? { ok: true, detail: `${python} (python-pptx ${r.stdout.toString().trim()})` } : { ok: false, detail: `${python} cannot import python-pptx (${r.stderr.toString().trim().split('\n').at(-1)?.slice(0, 120) ?? 'no output'}) — Install the Deck pack again` };
+    }
+    const pw = await playwrightStatus();
+    return [
+      warn('deck-uv', 'Deck goals: uv', !!uv, uv ? uv : 'uv is not on PATH — installing the Deck pack makes the skill\'s Python environment with it; install uv (https://docs.astral.sh/uv/) and Install the pack again', { url: 'https://docs.astral.sh/uv/getting-started/installation/' }),
+      ...(present ? [warn('deck-python', "Deck goals: the skill's Python environment", !!imports?.ok, imports ? imports.detail : 'not made — the pack was installed without uv, or its install failed; Install it again under Settings → Skills → Deck skills', { url: '/settings#skills' })] : []),
+      warn('deck-chromium', 'Deck goals: Chromium for the slide previews', pw.browser, pw.browser ? pw.detail : `${pw.detail} — Foundry renders each deck's per-slide previews with it; without Chromium the deck check only counts the slides`, { url: '/settings#preview' }),
     ];
   }
 
@@ -2923,7 +2984,7 @@ export class Engine {
         scenario: t.scenario ?? 'general',
         area: area?.name ?? null,
         // docs, infra, research and media work gets no TDD mandate regardless of the goal's discipline
-        tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video', 'figure', 'diagram'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
+        tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video', 'figure', 'diagram', 'deck'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
         delivers: cleanDeliverables(t.delivers),
@@ -2974,6 +3035,11 @@ export class Engine {
         // a diagram task's pages too (ADR-0083), whatever the goal's nature: a document's diagram is a task like any other
         if (task.scenario === 'diagram') {
           const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: DIAGRAM_CHECK_NAME, tier: 'must', spec: { type: 'diagram' } };
+          this.store.append({ type: 'check.created', goalId, payload: { check } });
+        }
+        // a deck task's decks are opened by Foundry itself when the task lands (ADR-0084)
+        if (task.scenario === 'deck') {
+          const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: DECK_CHECK_NAME, tier: 'must', spec: { type: 'deck' } };
           this.store.append({ type: 'check.created', goalId, payload: { check } });
         }
       }

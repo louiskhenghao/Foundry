@@ -17,6 +17,7 @@ import { attachmentAbsPath } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { FIGURE_CHECK_NAME, figurePages } from './checks/figure.ts';
 import { DIAGRAM_CHECK_NAME, diagramPages } from './checks/diagram.ts';
+import { DECK_CHECK_NAME } from './checks/deck.ts';
 import type { Engine } from './engine.ts';
 import { headRef } from './git/git.ts';
 import { ARTIFACTS_DIR, copyInto, goalWorkspacePath, listArtifacts } from './workspace.ts';
@@ -192,7 +193,7 @@ function scenarioFor(goal: Goal, tasks: Task[]): TaskScenario {
   for (const t of tasks) if (t.origin === 'brief') counts.set(t.scenario, (counts.get(t.scenario) ?? 0) + 1);
   const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   if (top) return top;
-  return goal.nature === 'figure' || goal.nature === 'diagram' || goal.nature === 'image' || goal.nature === 'video' || goal.nature === 'cad' ? goal.nature : 'general';
+  return goal.nature === 'figure' || goal.nature === 'diagram' || goal.nature === 'deck' || goal.nature === 'image' || goal.nature === 'video' || goal.nature === 'cad' ? goal.nature : 'general';
 }
 
 const firstLine = (text: string, max = 60): string => {
@@ -308,6 +309,10 @@ export async function adjustGoal(engine: Engine, goalId: string, textIn: string,
         }
         if (scenario === 'diagram') {
           const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: DIAGRAM_CHECK_NAME, tier: 'must', spec: { type: 'diagram' } };
+          store.append({ type: 'check.created', goalId, payload: { check } });
+        }
+        if (scenario === 'deck') {
+          const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: DECK_CHECK_NAME, tier: 'must', spec: { type: 'deck' } };
           store.append({ type: 'check.created', goalId, payload: { check } });
         }
         break;
