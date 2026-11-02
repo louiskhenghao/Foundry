@@ -239,6 +239,7 @@ export function TaskDrawer({ d, task, onClose, onRestart }: { d: GoalDetail; tas
           )}
           {made && <TaskFiles task={task} files={made.files} />}
           <FigureShots d={d} task={task} />
+          <DiagramShots d={d} task={task} />
         </div>
         <div className="lg:col-span-2 min-w-0 lg:overflow-y-auto lg:pr-1">
           {openEsc.length > 0 && (
@@ -427,6 +428,28 @@ function FigureShots({ d, task }: { d: GoalDetail; task: Task }) {
   return (
     <section>
       <h3 className={cn(LABEL, 'mb-2')}>Figure pages as Foundry opened them{p.status === 'pass' ? '' : ' · errors'}</h3>
+      <div className="grid grid-cols-2 gap-1.5">
+        {shots.map((s) => (
+          <a key={s.file} href={api.screenshotUrl(d.goal.id, s.file)} target="_blank" rel="noreferrer" title={s.caption} className="block overflow-hidden rounded-md border border-line hover:border-line-strong">
+            <img src={api.screenshotUrl(d.goal.id, s.file)} alt={s.caption} loading="lazy" className="w-full object-cover" />
+            <div className="truncate px-1.5 py-1 text-[11px] text-ink-soft">{s.caption}</div>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** a diagram task's pages as Foundry opened them headless (ADR-0083): the newest check's shots */
+function DiagramShots({ d, task }: { d: GoalDetail; task: Task }) {
+  const last = [...d.events].reverse().find((e) => e.type === 'diagram.checked' && (e.payload as { taskId: string }).taskId === task.id);
+  if (!last) return null;
+  const p = last.payload as { status: string; pages: { file: string; screenshot: string | null; png: string | null; errors: string[] }[] };
+  const shots = p.pages.flatMap((pg) => (pg.screenshot ? [{ file: pg.screenshot, caption: pg.file }] : []));
+  if (!shots.length) return null;
+  return (
+    <section>
+      <h3 className={cn(LABEL, 'mb-2')}>Diagram pages as Foundry opened them{p.status === 'pass' ? '' : ' · errors'}</h3>
       <div className="grid grid-cols-2 gap-1.5">
         {shots.map((s) => (
           <a key={s.file} href={api.screenshotUrl(d.goal.id, s.file)} target="_blank" rel="noreferrer" title={s.caption} className="block overflow-hidden rounded-md border border-line hover:border-line-strong">

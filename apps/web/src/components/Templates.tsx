@@ -1,6 +1,6 @@
 import type { TemplateEntry, TemplateInput, TemplateLang, TemplateNature, TemplateVersionView } from '@foundry/core/browser';
 import { bodyWithBlanks, inputRequired, labelOf, renderTemplate, sampleValues } from '@foundry/core/browser';
-import { Box, Clapperboard, CodeXml, Copy, FileText, Image as ImageIcon, Lamp, LayoutTemplate, Pencil, Search, Sparkles, Telescope, X, type LucideIcon } from 'lucide-react';
+import { Box, Clapperboard, CodeXml, Copy, FileText, Image as ImageIcon, Lamp, LayoutTemplate, Pencil, Search, Sparkles, Telescope, Workflow, X, type LucideIcon } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type DraftAsk, type DraftView } from '../api.ts';
@@ -16,6 +16,7 @@ export const NATURE_ICON: Record<TemplateNature, { Icon: LucideIcon; ink: string
   image: { Icon: ImageIcon, ink: code(6).ink },
   video: { Icon: Clapperboard, ink: code(4).ink },
   figure: { Icon: Lamp, ink: code(3).ink },
+  diagram: { Icon: Workflow, ink: code(7).ink },
   cad: { Icon: Box, ink: code(5).ink },
 };
 

@@ -586,6 +586,17 @@ export function SettingsPage() {
               <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on figure tasks (scenario `figure`); a goal may pick the other installed style on the New goal form. Both skills are bundled with Foundry: installing copies the snapshot, nothing is downloaded. Colorfigures builds its page with python3 and checks its own shots in a Chrome on this computer; Foundry's own render check needs Playwright's Chromium (Preview &amp; self-check).</p>
             </div>
           )}
+          {view?.values.beta.diagram && (
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-bold text-ink">Diagram skills</span>
+                <span className="rounded-sm bg-sunken px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line">beta</span>
+                <span className="ml-auto flex items-center gap-1.5">{aside('workflow.diagramPack')}</span>
+              </div>
+              <DesignPacks key={`${modelProvider}:diagram`} provider={modelProvider} compact pack="diagram" />
+              <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on diagram tasks (scenario `diagram`): in diagram goals, and in document or code goals that carry a diagram task. The skill is installed from its repository at one pinned commit; its SVG export and self-check run with python3 (standard library only), and Foundry's own render check needs Playwright's Chromium (Preview &amp; self-check).</p>
+            </div>
+          )}
         </div>
       </Card>
 
@@ -794,6 +805,7 @@ export function SettingsPage() {
         <p className="mb-3 text-xs text-ink-faint">Features on trial: each one stays off until you switch it on, while it settles.</p>
         {bool('beta.conversation', 'Conversation on the goal page', "A bubble at the bottom right of a goal's page (and of its Brief page) opens a Conversation: a read-only Explainer, on the preset's Conversation model, answers your questions about the goal's code and Foundry's records of it, and never changes anything. Its answers cost the goal, outside its budget. Off: no bubble and no Conversation tab.")}
         {bool('beta.motionStudio', 'Motion studio video engine', 'Video goals get an Engine picker on the New goal form: the motion-studio engine (a deterministic seek(t) renderer with a critique loop) beside the Video skills pack, with its bundled skill in the catalog and its doctor checks for ffmpeg and Chromium. Off: the Video skills pack alone, as before.')}
+        {bool('beta.diagram', 'Diagram goals', "A kind of goal of its own: editorial diagrams — architecture, flows, sequences, timelines, charts — one web page with an SVG beside it each, drawn by the Diagram pack (diagram-design) and opened headless by Foundry when a task lands. Document and code goals may carry diagram tasks too. On: Diagrams is among the kinds of goal, Diagram skills sits under Skills, the CLI takes --nature diagram and the doctor checks the tools. Off: none of that shows; diagram goals made before still open.")}
         {bool('beta.figure', 'Figure goals', "A kind of goal of its own: interactive isometric figures of everyday objects and machines, one web page each, drawn by the Figure pack (Colorfigures or iso-glow, bundled with Foundry) and opened headless by Foundry when a task lands. On: Figures is among the kinds of goal, Figure skills sits under Skills, the CLI takes --nature figure and the doctor checks the tools. Off: none of that shows; figure goals made before still open.")}
         {bool('beta.adjust', 'Adjust the result', "A box on a finished goal's page takes your words on its result — what should change, with pictures or files — and the goal carries them out itself: the finished task's session resumes with them, or a task is appended, or a failed goal's failed tasks run again with them. The checks and reviews run again; the output folder and an open pull request get the new result; the earlier result is kept. It costs the goal, inside its budget. Off: no box; adjustments already made stay on the goal.")}
       </Card>
