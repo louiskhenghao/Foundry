@@ -13,6 +13,24 @@ import { foldable, listEntries, memberRole, type GoalChain, type ListEntry } fro
 import { useLive } from '../store.ts';
 import { BOARD_HEAD, BOARD_ROW, Board, Button, EmptyState, Loading, PageHeader, ago, buttonClass, cn, fmtUsd, stateLabel, waited } from '../ui.tsx';
 
+/**
+ * A goal's state in words, in its signal colour with its mark, so it reads at a glance where there is no room for a
+ * plate: the list's rows and a chain's steps. Yellow waits for you, blue is Foundry at work, violet its review, green
+ * done, red failed; cancelled and paused in the quiet inks.
+ */
+function StateWord({ state, className }: { state: string; className?: string }) {
+  const you = state === 'awaiting_brief_approval' || state === 'awaiting_feedback' || state === 'blocked';
+  const busy = state === 'clarifying' || state === 'draft';
+  const Icon = state === 'running' ? Play : state === 'goal_review' ? Eye : busy ? LoaderCircle : state === 'failed' ? X : state === 'cancelled' ? Ban : state === 'paused' ? Clock : you ? Hand : Check;
+  const ink = you ? 'text-you-ink' : state === 'failed' ? 'text-bad-ink' : state === 'cancelled' ? 'text-ink-faint' : state === 'paused' ? 'text-ink-soft' : state === 'running' || busy ? 'text-work-ink' : state === 'goal_review' ? 'text-extra-ink' : 'text-ok-ink';
+  return (
+    <span className={cn('inline-flex items-center gap-1 font-bold', ink, className)}>
+      <Icon size={12} strokeWidth={2.5} aria-hidden="true" className={cn('shrink-0', busy && 'animate-spin')} />
+      <span className="first-letter:uppercase">{stateLabel(state)}</span>
+    </span>
+  );
+}
+
 /** Trait chip (nature, pace, view mode): quiet, so the state and the signs carry the colour. */
 function Chip({ className, children, title }: { className?: string; children: ReactNode; title?: string }) {
   return <span className={cn('inline-flex items-center whitespace-nowrap rounded-sm border border-line-strong/70 px-1.5 py-px text-[10.5px] font-semibold leading-tight text-ink-soft', className)} title={title}>{children}</span>;
@@ -168,7 +186,7 @@ export function GoalsPage() {
         <div className="col-start-2 md:col-start-auto flex flex-wrap items-start gap-x-6 gap-y-2 md:contents">
           <div className="flex flex-col gap-1.5">
             <MiniRail marks={stageMarks(g, total > 0)} />
-            <span className="text-[13px] font-bold leading-none first-letter:uppercase">{stateLabel(g.state)}</span>
+            <StateWord state={g.state} className="text-[13px] leading-none" />
             <span className="flex items-center gap-2 text-xs">
               {total ? (
                 <>
@@ -221,7 +239,7 @@ export function GoalsPage() {
           </div>
           <div className="col-start-2 md:col-start-auto flex flex-wrap items-center gap-x-6 gap-y-1 md:contents">
             <span className="flex items-center gap-2 text-xs">
-              <span className="font-bold first-letter:uppercase">{stateLabel(g.state)}</span>
+              <StateWord state={g.state} />
               {total > 0 && <span className="mono text-ink-soft">{g.taskCounts.done ?? 0}/{total}</span>}
             </span>
             <span className="mono text-xs text-ink-soft">
@@ -288,7 +306,7 @@ export function GoalsPage() {
           <div className="col-start-2 md:col-start-auto flex flex-wrap items-start gap-x-6 gap-y-2 md:contents">
             <div className="flex flex-col gap-1.5">
               <MiniRail marks={stageMarks(latest, total > 0)} />
-              <span className="text-[13px] font-bold leading-none first-letter:uppercase">{stateLabel(latest.state)}</span>
+              <StateWord state={latest.state} className="text-[13px] leading-none" />
             </div>
             <div className="flex flex-col gap-1 text-xs">
               <span className="mono">
