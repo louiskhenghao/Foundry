@@ -19,6 +19,36 @@ const ID = /claude-(fable|mythos|opus|sonnet|haiku)-(\d+(?:-\d+)*)(?![0-9a-z-]*-
  * can name, not what an account may use — the alias probes of a sync tell those apart. Compound ids
  * (claude-fable-5-mythos-5), provider variants (…-v1) and odd tails are dropped.
  */
+/** the known order of effort levels, lowest first, for ranking a level the installed CLI does not take against the ones it does (ADR-0085) */
+export const EFFORT_LADDER = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'] as const;
+
+/**
+ * The effort levels Claude Code takes, read from its own `--help`: the `--effort <level>` option names them in parentheses,
+ * on the same or the following lines. Empty when the help does not say (an older CLI): the caller keeps its known list.
+ */
+export function effortLevelsInHelp(help: string): string[] {
+  const m = /--effort\s+<[^>]*>[\s\S]{0,600}?\(([a-z][a-z0-9 ,|/-]*)\)/i.exec(help);
+  if (!m) return [];
+  const levels = m[1]!.split(/[,|/]/).map((s) => s.trim().toLowerCase()).filter((s) => /^[a-z][a-z0-9-]*$/.test(s));
+  return [...new Set(levels)];
+}
+
+/**
+ * The level to run with when the one asked for is not among the levels the CLI takes: the next one up the ladder that it
+ * does take (a renamed top level — max become ultra — lands on the new name; a dropped middle level on a stronger one),
+ * else the next one down, else the highest it has. A level the ladder does not know maps to the highest.
+ */
+export function nearestEffort(effort: string, levels: readonly string[]): string {
+  if (!levels.length || levels.includes(effort)) return effort;
+  const at = EFFORT_LADDER.indexOf(effort as (typeof EFFORT_LADDER)[number]);
+  if (at >= 0) {
+    for (let i = at + 1; i < EFFORT_LADDER.length; i++) if (levels.includes(EFFORT_LADDER[i]!)) return EFFORT_LADDER[i]!;
+    for (let i = at - 1; i >= 0; i--) if (levels.includes(EFFORT_LADDER[i]!)) return EFFORT_LADDER[i]!;
+  }
+  const ranked = [...levels].sort((a, b) => EFFORT_LADDER.indexOf(a as never) - EFFORT_LADDER.indexOf(b as never));
+  return ranked.at(-1)!;
+}
+
 export function modelsInBinary(binaryPath: string): DiscoveredModel[] {
   let text: string;
   try {

@@ -224,7 +224,8 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     milestonePause: process.env.FOUNDRY_MILESTONE_PAUSE !== '0' && process.env.FOUNDRY_MILESTONE_PAUSE !== 'false',
     // a test run never serves ports on the machine's real tailnet
     tailscaleBin: process.env.NODE_ENV === 'test' ? null : undefined,
-    effort: Effort.options.find((e) => e === process.env.FOUNDRY_EFFORT) ?? null,
+    // any level: the ones the coding agent takes are known once its binary is read (engine.effortLevels, ADR-0085); a goal is refused another at creation
+    effort: process.env.FOUNDRY_EFFORT?.trim() || null,
     codexPresets: {},
     codexNaturePreset: { ...DEFAULT_NATURE_PRESETS },
     codexFallbacks: [],

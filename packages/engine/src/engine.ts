@@ -2,7 +2,7 @@ import type { VideoPack } from '@foundry/core';
 import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, type TaskState, assignMaterials } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
 import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
-import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, TITLE_MAX, effectiveCodexPresets, isHistory, natureKey, repoHere, titleFromPrompt, type CodexModelPreset } from '@foundry/core';
+import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, KNOWN_EFFORTS, TITLE_MAX, effectiveCodexPresets, isHistory, natureKey, repoHere, titleFromPrompt, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { AgyQuotaReader } from './usage/agy-quota.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
@@ -123,7 +123,7 @@ import type { Report } from './usage/types.ts';
 import { smokeScripts } from './deploy/smoke.ts';
 import { DEPLOY_PROVIDERS, PROVIDER_LABEL, configured, deploySteps, redact } from './deploy/providers.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
-import { modelsInBinary } from './models/discover.ts';
+import { modelsInBinary, effortLevelsInHelp } from './models/discover.ts';
 import { EffortRunner } from './effort-runner.ts';
 import { AGY_SEED_MODELS, ModelRegistry, SEED_MODELS, isPinnedId, parseAgyModels, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
@@ -183,7 +183,8 @@ export interface CreateGoalInput {
   /** how deep the interview probes, 0 (none) to 5; wins over `interview`; default = Settings → workflow.interviewDepth */
   interviewDepth?: number;
   /** effort level for every session of this goal; default = Settings → workflow.effort */
-  effort?: CodexEffort | null;
+  /** a level the coding agent takes (engine.effortLevels, ADR-0085); null = the Settings default */
+  effort?: string | null;
   /** model preset for this goal; default = the preset Settings picks for its nature */
   modelPreset?: string | null;
   /** Skip Clarify: one task = the prompt, with these command checks. */
@@ -272,6 +273,9 @@ export function limitPauseUntil(rl: RunResult['rateLimit'], now: number): number
   if (rl.rateLimitType === 'overage' && !rl.isUsingOverage) return null;
   return Math.min(rl.resetsAt * 1000, now + (rl.rateLimitType === 'overage' ? OVERAGE_PAUSE_MS : MAX_PAUSE_MS));
 }
+
+/** the effort levels Antigravity's CLI takes (Settings → models.agyEffort names one) */
+const AGY_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 export class Engine {
   readonly store: EventStore;
@@ -485,7 +489,14 @@ export class Engine {
           this.store.append({ type: 'goal.models_changed', goalId, payload: { tier: null, from, to, reason } });
         },
       });
-      return new EffortRunner(fallback, () => this.store.db, () => (provider === 'codex' ? null : provider === 'agy' ? this.config.agyEffort : this.config.effort));
+      return new EffortRunner(
+        fallback,
+        () => this.store.db,
+        () => (provider === 'codex' ? null : provider === 'agy' ? this.config.agyEffort : this.config.effort),
+        // the levels the Claude Code binary takes, read at each model sync (ADR-0085); Codex and Antigravity keep their fixed sets
+        provider === 'claude' ? () => this.effortLevels('claude') : () => null,
+        (m) => this.config.log(m),
+      );
     };
     this.runner = new ProviderRunner({
       claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, claudeHome: config.claudeHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
@@ -1664,7 +1675,7 @@ export class Engine {
       return { ...r, label: provider === 'codex' ? r.codex?.displayName ?? (r.name === 'codex-default' ? 'CLI default' : null) : seed?.label ?? null, note: provider === 'codex' ? r.codex?.description ?? null : seed?.note ?? null, pinned: isPinnedId(r.name), inUse };
     });
   }
-  private validateCodexChoice(model?: string, effort?: CodexEffort): void {
+  private validateCodexChoice(model?: string, effort?: string): void {
     if (!model || !effort || model === 'codex-default') return;
     const advertised = this.providerModels.codex.get(model)?.codex;
     if (advertised?.available && advertised.reasoningEfforts.length && !advertised.reasoningEfforts.includes(effort)) {
@@ -1672,7 +1683,7 @@ export class Engine {
     }
   }
   /** One minimal session with `name` (user-triggered; costs one short call) to learn what it resolves to. */
-  async probeModel(name: string, provider: AgentProvider = this.config.provider, effort?: CodexEffort): Promise<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable: boolean; error: string | null }> {
+  async probeModel(name: string, provider: AgentProvider = this.config.provider, effort?: string): Promise<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable: boolean; error: string | null }> {
     const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: name, effort, meta: { tier: 'probe', provider }, maxTurns: 1, maxBudgetUsd: 0.5, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 90_000, label: `model probe ${name}` });
     let resolved: string | null = null;
     for await (const ev of handle.events) if (ev.kind === 'init') resolved = ev.model;
@@ -1792,10 +1803,32 @@ export class Engine {
     const resolved: Record<string, string | null> = {};
     if (opts.probe !== false) for (const alias of ['fable', 'opus', 'sonnet', 'haiku']) resolved[alias] = (await this.probeModel(alias, provider).catch(() => null))?.resolvedId ?? null;
     const cliVersion = await this.claudeVersion();
-    registry.noteSync({ cliVersion, at: new Date().toISOString(), found: found.length });
-    this.config.log(`[models] sync: ${found.length} id(s) in the Claude Code binary; ${Object.entries(resolved).map(([a, r]) => `${a} → ${r ?? '?'}`).join(', ')}`);
+    // the effort levels this CLI takes, from its own --help (ADR-0085): a renamed level is known from the next sync on
+    const effortLevels = await this.claudeEffortLevels();
+    registry.noteSync({ cliVersion, at: new Date().toISOString(), found: found.length, ...(effortLevels.length ? { effortLevels } : {}) });
+    this.config.log(`[models] sync: ${found.length} id(s) in the Claude Code binary; ${Object.entries(resolved).map(([a, r]) => `${a} → ${r ?? '?'}`).join(', ')}; effort levels ${effortLevels.join('/') || 'not read'}`);
     return { found: found.length, newest: found.filter((f) => f.newest).map((f) => f.id), resolved, cliVersion };
   }
+  /** the effort levels the installed Claude Code takes (`--effort <level>`), read from its --help; empty when it does not say */
+  private async claudeEffortLevels(): Promise<string[]> {
+    const bin = this.config.claudeBin ?? Bun.which('claude');
+    if (!bin) return [];
+    const r = await exec([bin, '--help'], this.config.dataDir, { timeoutMs: 15_000 }).catch(() => null);
+    return r?.code === 0 ? effortLevelsInHelp(r.stdout) : [];
+  }
+
+  /**
+   * The effort levels a goal on a coding agent may ask for (ADR-0085): Claude's as its binary said at the last model sync
+   * (the known five until then), Codex's fixed set, Antigravity's. The New goal form and Settings offer these; goal
+   * creation refuses another; a goal made before a rename runs with the nearest level the binary takes.
+   */
+  effortLevels(provider: AgentProvider = this.config.provider): string[] {
+    if (provider === 'codex') return [...CodexEffort.options];
+    if (provider === 'agy') return [...AGY_EFFORTS];
+    const synced = this.models.syncState().effortLevels;
+    return synced?.length ? [...synced] : [...KNOWN_EFFORTS];
+  }
+
   private async claudeVersion(): Promise<string | null> {
     const bin = this.config.claudeBin ?? Bun.which('claude');
     if (!bin) return null;
@@ -2357,7 +2390,8 @@ export class Engine {
     // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
     if (provider !== 'claude' && input.models) throw new Error(`${PROVIDER_NAME[provider]} uses its own model settings, not Claude tiers.`);
     if (provider === 'agy' && input.modelPreset) throw new Error('Antigravity has one model setting (Settings → Models & limits), no presets.');
-    if (provider === 'claude' && input.effort != null && !Effort.safeParse(input.effort).success) throw new Error('This reasoning effort is only supported by Codex.');
+    // the levels the coding agent takes (ADR-0085): Claude's as its binary said at the last sync, Antigravity's fixed set; Codex validates against its presets below
+    if (provider !== 'codex' && input.effort != null && !this.effortLevels(provider).includes(input.effort)) throw new Error(`${provider === 'agy' ? 'Antigravity' : 'This Claude Code'} takes --effort ${this.effortLevels(provider).join(', ')}; "${input.effort}" is not one of them`);
     if (input.modelPreset) {
       const known = Object.keys(provider === 'codex' ? effectiveCodexPresets(this.config.codexPresets) : effectivePresets(this.config.modelPresets));
       if (!known.includes(input.modelPreset)) throw new Error(`unknown model preset "${input.modelPreset}"; use one of: ${known.join(', ')}`);

@@ -91,8 +91,8 @@ export const WorkflowSettings = z.object({
   interviewDepth: z.number().int().min(0).max(5).nullable().default(null),
   /** new goals pause at their milestones for "Have a look"; off = they go on and the milestone is only notified */
   milestonePause: z.boolean().default(true),
-  /** effort level new goals hand to every session (`claude --effort`); null = the CLI default */
-  effort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).nullable().default(null),
+  /** effort level new goals hand to every session (`claude --effort`), one the installed CLI takes (ADR-0085); null = the CLI default */
+  effort: z.string().min(1).nullable().default(null),
   /** which image-generation skill set media workers follow (scenario `image`) */
   imagePack: ImagePack.default('gpt-image-2'),
   /** which video skill set media workers follow (scenario `video`) */

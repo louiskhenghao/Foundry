@@ -2,7 +2,7 @@ import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, POOLED_PROVIDERS, isPoo
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
+import { CodexEffort, Brief, EscalationAnswer, isHistory, listFollowUps, getAttempt, getEscalation, getBrief, getGoal, listAttempts, listAttemptsByGoal, listCheckResultsByGoal, listChecks, listEscalations, listGoals, listTasks, depths, taskUsage } from '@foundry/core';
 import { AttachmentError, BrowseError, DECK_PACK_OPTIONS, DESIGN_PACK_OPTIONS, DIAGRAM_PACK_OPTIONS, FIGURE_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openFile, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
@@ -74,7 +74,8 @@ const CreateGoalBody = z.object({
   milestonePause: z.boolean().optional(),
   interview: z.enum(['auto', 'always', 'never']).optional(),
   interviewDepth: z.number().int().min(0).max(5).optional(),
-  effort: CodexEffort.nullable().optional(),
+  /** a level the goal's coding agent takes (engine.effortLevels, ADR-0085); the engine refuses another */
+  effort: z.string().min(1).nullable().optional(),
   modelPreset: z.string().min(1).nullable().optional(),
   /** create the goal as a Follow-up of an earlier finished goal of the same repository */
   follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional(), /** the earlier goal's unfinished tasks to carry over as planned, skipping Clarify (ADR-0081) */ carry: z.array(z.string().min(1)).optional() }).optional(),
@@ -1688,13 +1689,13 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // ---------- models ----------
   app.get('/api/models', (c) => {
     const provider = authProvider(c);
-    return c.json({ models: engine.listModels(provider), fallbacks: provider === 'claude' ? engine.config.modelFallbacks : provider === 'codex' ? engine.config.codexFallbacks : [], current: provider === 'claude' ? engine.config.models : provider === 'agy' ? { strong: engine.config.agyModel, cheap: engine.config.agyModel, worker: engine.config.agyModel } : { strong: engine.config.codexModel, cheap: engine.config.codexModel, worker: engine.config.codexModel }, sync: engine.providerModels[provider].syncState() });
+    return c.json({ effortLevels: engine.effortLevels(provider), models: engine.listModels(provider), fallbacks: provider === 'claude' ? engine.config.modelFallbacks : provider === 'codex' ? engine.config.codexFallbacks : [], current: provider === 'claude' ? engine.config.models : provider === 'agy' ? { strong: engine.config.agyModel, cheap: engine.config.agyModel, worker: engine.config.agyModel } : { strong: engine.config.codexModel, cheap: engine.config.codexModel, worker: engine.config.codexModel }, sync: engine.providerModels[provider].syncState() });
   });
   // model sync: ids from the Claude Code binary (free) + one tiny session per family alias (~$0.04)
   app.post('/api/models/sync', async (c) => c.json(await engine.syncModels({ provider: authProvider(c) })));
   app.post('/api/models/probe', async (c) => {
     const provider = authProvider(c);
-    const { name, effort } = z.object({ name: z.string().trim().min(1).max(200), effort: (provider === 'codex' ? CodexEffort : provider === 'agy' ? z.enum(['low', 'medium', 'high', 'xhigh', 'max']) : Effort).optional() }).parse(await c.req.json());
+    const { name, effort } = z.object({ name: z.string().trim().min(1).max(200), effort: z.string().min(1).optional() }).parse(await c.req.json());
     return c.json(await engine.probeModel(name, provider, effort));
   });
 

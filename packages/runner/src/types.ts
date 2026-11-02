@@ -46,7 +46,8 @@ export interface RunSpec {
   configHome?: string;
   resumeSessionId?: string;
   /** Claude Code effort level (`--effort`); omitted = the CLI default */
-  effort?: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'ultra';
+  /** the reasoning effort (`--effort`): a level the coding agent's binary takes (ADR-0085: the engine reads Claude's from the binary; Codex's are none, minimal, low, medium, high, xhigh, max, ultra) */
+  effort?: string;
   /** Wall clock, default 20 min. */
   timeoutMs?: number;
   /** No stdout activity, default 5 min. */

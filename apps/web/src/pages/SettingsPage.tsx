@@ -1,4 +1,5 @@
 import type { AgentProvider } from '../api.ts';
+import { KNOWN_EFFORTS } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
@@ -103,6 +104,7 @@ export function SettingsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [known, setKnown] = useState<ModelRecordView[] | null>(null);
+  const [effortLevels, setEffortLevels] = useState<string[]>([...KNOWN_EFFORTS]);
   const [probe, setProbe] = useState<Record<string, string>>({});
   const [notifMsg, setNotifMsg] = useState<string | null>(null);
   const [upd, setUpd] = useState<UpdateStatusView | null>(null);
@@ -145,7 +147,15 @@ export function SettingsPage() {
         setDraft(structuredClone(v.values));
       })
       .catch((e) => setErr(e.message));
-  const loadModels = () => api.models().then((m) => setKnown(m.models)).catch(() => setKnown([]));
+  const loadModels = () =>
+    api
+      .models()
+      .then((m) => {
+        setKnown(m.models);
+        // the effort levels this Claude Code takes (ADR-0085): the select below offers these
+        if (m.effortLevels?.length) setEffortLevels(m.effortLevels);
+      })
+      .catch(() => setKnown([]));
   useEffect(() => {
     load();
     loadModels();
@@ -392,11 +402,12 @@ export function SettingsPage() {
               <Field label="Effort for new goals" aside={aside('workflow.effort')} help="An explicit level overrides every role's effort. Default uses each Codex role's preset effort, the Antigravity effort under Models & limits, or the Claude CLI default. Switchable per goal when creating it.">
                 <Select value={(draft.workflow.effort as string | null) ?? ''} onChange={(e) => set('workflow.effort', e.target.value || null)}>
                   <option value="">Role preset / CLI default</option>
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
-                  <option value="xhigh">xhigh</option>
-                  <option value="max">max</option>
+                  {/* the levels the Claude Code binary takes, read at the last model sync (ADR-0085); a saved level it no longer lists stays selectable */}
+                  {[...new Set([...effortLevels, ...((draft.workflow.effort as string | null) ? [draft.workflow.effort as string] : [])])].map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
                 </Select>
               </Field>
               <Field label="TDD for new Expert goals" aside={aside('workflow.tdd')} help="required: workers must invoke tdd and the reviewer is told when they skipped it · preferred: suggested only · off: never mentioned. Simple goals start with preferred; each goal and task can override.">

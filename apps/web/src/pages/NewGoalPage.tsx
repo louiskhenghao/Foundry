@@ -1,4 +1,4 @@
-import { AGENT_PROVIDERS, PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
+import { AGENT_PROVIDERS, KNOWN_EFFORTS, PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment, TemplateEntry, TemplateLang, WorkflowProfile } from '@foundry/core/browser';
 import { ARTIFACT_NATURES, BUDGET_PRESETS, MEDIA_NATURES, renderTemplate } from '@foundry/core/browser';
@@ -50,6 +50,18 @@ const NATURES: { id: Nature; label: string; text: string; Icon: LucideIcon; ink:
   { id: 'deck', label: 'Slides', text: 'Slide decks: a pitch, a lecture, a report, a document turned into slides; a native PPTX each.', Icon: Presentation, ink: code(1).ink },
   { id: 'cad', label: 'CAD', text: '3D parts and assemblies (STEP), drawings, DXF profiles, robot files.', Icon: Box, ink: code(5).ink },
 ];
+/** what the effort levels mean, for the ones that have a word of their own; a level this list does not know is offered under its name alone (ADR-0085) */
+const EFFORT_TITLES: Record<string, string> = {
+  none: 'No extra reasoning',
+  minimal: 'The least reasoning the model offers',
+  low: 'Less reasoning for simple, well-defined goals',
+  xhigh: 'Hard, cross-cutting work',
+  max: 'More reasoning for the hardest problems',
+  ultra: 'The most reasoning the model offers',
+};
+/** Codex's fixed set, shown until the server has answered */
+const CODEX_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
+
 /** the browser remembers the finer delivery options; mode and unit always start from Settings → New goal defaults */
 function loadDraft(): PolicyDraft {
   try {
@@ -194,6 +206,8 @@ export function NewGoalPage() {
   // interview depth, '0'–'5'; starts from Settings
   const [interviewDepth, setInterviewDepth] = useState('3');
   const [effort, setEffort] = useState('');
+  // the effort levels this coding agent takes, as its binary said at the last model sync (ADR-0085); null until read
+  const [effortLevels, setEffortLevels] = useState<string[] | null>(null);
   const [provider, setProvider] = useState<AgentProvider>(initialProvider ?? 'claude');
   // the Figure pack's install state for this coding agent, read when the Figure kind is picked (ADR-0076)
   // and again when the page comes back to the front: a style installed in Settings meanwhile becomes a choice here
@@ -205,6 +219,14 @@ export function NewGoalPage() {
     window.addEventListener('focus', read);
     return () => window.removeEventListener('focus', read);
   }, [nature, provider]);
+  useEffect(() => {
+    let alive = true;
+    setEffortLevels(null);
+    api.models(provider).then((m) => alive && setEffortLevels(m.effortLevels?.length ? m.effortLevels : null)).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [provider]);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountsInfo | null>(null);
   const [codexModel, setCodexModel] = useState('codex-default');
@@ -905,13 +927,8 @@ export function NewGoalPage() {
                   onChange={(value) => { changed.current.add('effort'); setEffort(value); }}
                   options={[
                     { id: '', label: 'Default', title: provider === 'codex' ? 'Use each role’s preset effort' : 'The effort level set in Settings' },
-                    ...(provider === 'codex' ? [{ id: 'none', label: 'none' }, { id: 'minimal', label: 'minimal' }] : []),
-                    { id: 'low', label: 'low', title: 'Less reasoning for simple, well-defined goals' },
-                    { id: 'medium', label: 'medium' },
-                    { id: 'high', label: 'high' },
-                    { id: 'xhigh', label: 'xhigh', title: 'Hard, cross-cutting work' },
-                    { id: 'max', label: 'max', title: 'More reasoning for the hardest problems' },
-                    ...(provider === 'codex' ? [{ id: 'ultra', label: 'ultra' }] : []),
+                    // the levels the coding agent takes (ADR-0085): read from its binary; the known ones until the first sync
+                    ...(effortLevels ?? (provider === 'codex' ? CODEX_EFFORTS : KNOWN_EFFORTS)).map((id) => ({ id, label: id, ...(EFFORT_TITLES[id] ? { title: EFFORT_TITLES[id] } : {}) })),
                   ]}
                 />
               </div>
