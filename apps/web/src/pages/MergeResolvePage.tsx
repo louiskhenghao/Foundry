@@ -1,7 +1,8 @@
-import { AlertTriangle, ArrowLeft, Check, GitMerge, RotateCcw, Undo2, X } from 'lucide-react';
+import { AlertTriangle, Check, GitMerge, RotateCcw, Undo2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, type FinishResult, type GoalDetail, type ResolveFile, type ResolveState } from '../api.ts';
+import { BackBar } from '../components/BackBar.tsx';
 import { OpenMenu } from '../components/OpenMenu.tsx';
 import { markFill } from '../components/progress.tsx';
 import { Badge, Button, Empty, Loading, PageHeader, cn, navItemClass } from '../ui.tsx';
@@ -86,23 +87,11 @@ export function MergeResolvePage() {
   }
   if (!state || !detail) return <Loading size="page" label="Preparing the conflict in a separate worktree…" />;
   const resolvedCount = state.files.length - state.remaining;
-  const repoPath = detail.goal.repoPath;
-  const repoName = repoPath.replace(/\/+$/, '').split('/').pop() || repoPath;
 
   return (
     <div className="max-w-[100rem] mx-auto p-3 sm:p-4 md:p-6 space-y-5">
-      {/* the way back, as on the goal page and the Brief */}
-      <nav aria-label="Breadcrumb" className="flex items-center gap-2.5 text-sm text-ink-faint min-w-0">
-        <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 font-bold text-ink hover:underline underline-offset-[3px]">
-          <ArrowLeft size={14} aria-hidden="true" /> Goals
-        </Link>
-        <span aria-hidden="true">/</span>
-        <span className="mono truncate" title={repoPath}>{repoName}</span>
-        <span aria-hidden="true">/</span>
-        <Link to={`/goals/${id}#tasks`} className="shrink-0 font-bold text-ink hover:underline underline-offset-[3px]" title="Back to the goal">
-          Goal
-        </Link>
-      </nav>
+      {/* the way back, stuck to the top as on the Brief */}
+      <BackBar to={`/goals/${id}#tasks`} title={detail.goal.title} />
       {/* heading: the task, where its branch lands, how far along; the actions on the right */}
       <PageHeader
         title={task?.title ?? taskId}
