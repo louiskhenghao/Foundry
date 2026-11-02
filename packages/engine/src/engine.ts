@@ -2,7 +2,7 @@ import type { VideoPack } from '@foundry/core';
 import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, assignMaterials } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
 import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
-import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, effectiveCodexPresets, isHistory, natureKey, repoHere, type CodexModelPreset } from '@foundry/core';
+import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, TITLE_MAX, effectiveCodexPresets, isHistory, natureKey, repoHere, titleFromPrompt, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { AgyQuotaReader } from './usage/agy-quota.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
@@ -898,6 +898,15 @@ export class Engine {
   setMilestonePause(goalId: string, on: boolean): void {
     if (this.mustGoal(goalId).milestonePause === on) return;
     this.store.append({ type: 'goal.milestone_pause_set', goalId, payload: { on } });
+  }
+
+  /** give the goal a new name (Rename… on its page, or the Clarifier's short one); the progress folder keeps the name it was made with */
+  renameGoal(goalId: string, title: string, by: 'person' | 'clarifier' = 'person'): void {
+    const goal = this.mustGoal(goalId);
+    const next = title.replace(/\s+/g, ' ').trim().slice(0, TITLE_MAX);
+    if (!next) throw new Error('A goal needs a name');
+    if (next === goal.title) return;
+    this.store.append({ type: 'goal.renamed', goalId, payload: { title: next, by } });
   }
 
   /** run the investigation of a goal's references in the background, once at a time; the tick goes on when it ends */
@@ -2299,8 +2308,8 @@ export class Engine {
     // anyone-facing default: prose and media goals open in the plain-language view; cad is code work with a geometry kernel and keeps the default
     const mode: GoalMode = input.mode ?? (nature !== 'auto' && nature !== 'code' && nature !== 'cad' ? 'simple' : this.config.defaultGoalMode);
     const issue = input.issue ? GoalIssue.parse(input.issue) : null;
-    // the first line names the goal: a Markdown heading mark or emphasis around it is not part of the name
-    const title = input.title?.trim() || issue?.title.trim() || input.prompt.trim().split('\n')[0]!.replace(/^#{1,6}\s+/, '').replace(/^\*\*(.+)\*\*$/, '$1').trim().slice(0, 80);
+    // the first line names the goal until the Clarifier gives it a short name of its own (clarify.ts nameGoal)
+    const title = input.title?.trim() || issue?.title.trim() || titleFromPrompt(input.prompt);
     // the video engine, frozen at creation like the suite: the goal's own pick, else the Settings pack of the day (ADR-0077)
     const videoPack = input.videoPack ?? (nature === 'video' ? (this.config.videoPack as Goal['videoPack']) : null);
     const motion = videoPack === MOTION_STUDIO;

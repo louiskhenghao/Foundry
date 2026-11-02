@@ -492,6 +492,12 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     engine.setMilestonePause(goalOr404(c).id, on);
     return c.json({ ok: true });
   });
+  // Rename… on the goal page: the name alone changes; the progress folder keeps the one it was made with
+  app.post('/api/goals/:id/rename', async (c) => {
+    const { title } = z.object({ title: z.string() }).parse(await c.req.json());
+    engine.renameGoal(goalOr404(c).id, title);
+    return c.json({ ok: true });
+  });
   // study the goal's references again with REA: the report is replaced; the Brief changes only with Re-run Clarify
   app.post('/api/goals/:id/investigate', (c) => {
     engine.investigate(goalOr404(c).id);

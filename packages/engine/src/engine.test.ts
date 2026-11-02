@@ -1177,6 +1177,21 @@ describe('milestones', () => {
     expect(getGoal(engine.store.db, goal.id)!.milestonePause).toBe(false);
   });
 
+  test('Rename… gives the goal a new name and nothing else; an empty name is refused', async () => {
+    const engine = track(new Engine(cfg(), worker()));
+    const goal = await engine.createGoal({ prompt: 'two steps', repoPath: repo, brief: brief(null) });
+    const before = getGoal(engine.store.db, goal.id)!;
+    engine.renameGoal(goal.id, '  Two  steps,\nrenamed ');
+    const after = getGoal(engine.store.db, goal.id)!;
+    expect(after.title).toBe('Two steps, renamed');
+    // the folder was named after the first name and stays; a name is not progress
+    expect(after.workspaceDir).toBe(before.workspaceDir);
+    expect(after.updatedAt).toBe(before.updatedAt);
+    expect(() => engine.renameGoal(goal.id, '   ')).toThrow('A goal needs a name');
+    engine.renameGoal(goal.id, 'Two steps, renamed'); // the same name again: nothing written
+    expect(engine.store.listByGoal(goal.id).filter((e) => e.type === 'goal.renamed').map((e) => e.payload)).toEqual([{ title: 'Two steps, renamed', by: 'person' }]);
+  });
+
   test('feedback with a fix plan spawns a feedback-fix task, hints the remaining ones, and re-opens the milestone once', async () => {
     const engine = track(new Engine(cfg(), worker()));
     const goal = await engine.createGoal({ prompt: 'two steps', repoPath: repo, brief: brief('look'), workflow: { pace: 'fast' } });
