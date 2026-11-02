@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
 import { renderCompanions } from './companions.ts';
-import { jsonSchemaFor, BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getBrief, getGoal, interviewAnswers, interviewDepth, interviewNotes, mergeSubjects, newId, noteQuestion, planOutputSchema, uncoveredAreas, assignMaterials } from '@foundry/core';
+import { jsonSchemaFor, BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getBrief, getGoal, interviewAnswers, interviewDepth, interviewNotes, mergeSubjects, newId, noteQuestion, planOutputSchema, titleFromPrompt, uncoveredAreas, assignMaterials } from '@foundry/core';
 import { delegationContext } from './delegation.ts';
 import { learningsContext } from './learnings.ts';
 import type { RunHandle, RunResult } from '@foundry/runner';
@@ -364,6 +364,19 @@ function finishInterview(engine: Engine, goal: Goal): void {
 }
 
 /**
+ * The Clarifier's short name for the goal takes the place of a name cut from the first line of its words (the goal's
+ * name until now). A name the person typed, an issue's or a template's stays, and so does one the Clarifier gave
+ * before (Re-run Clarify): only the cut line is ever replaced.
+ */
+function nameGoal(engine: Engine, goal: Goal, name: string | null | undefined): void {
+  const short = name?.replace(/\s+/g, ' ').trim().slice(0, 60);
+  if (!short) return;
+  const now = getGoal(engine.store.db, goal.id) ?? goal;
+  if (now.title !== titleFromPrompt(now.prompt)) return;
+  engine.renameGoal(goal.id, short, 'clarifier');
+}
+
+/**
  * Skeleton first (ADR-0046): the Clarifier's Brief without its tasks is stored and shown at once, editable while the
  * planner splits the goal into tasks; the plan is then filled into the Brief as it stands, the person's edits kept.
  * null when the goal moved on meanwhile (cancelled): nothing is written then.
@@ -371,6 +384,7 @@ function finishInterview(engine: Engine, goal: Goal): void {
 async function planSkeleton(engine: Engine, goal: Goal, ctx: ClarifyContext, skeleton: BriefSkeleton, decisions: Brief['questions']): Promise<Brief | null> {
   const { store } = engine;
   settleNature(engine, goal, ctx, skeleton);
+  nameGoal(engine, goal, skeleton.name);
   const provisional = toBrief(goal, mergePlan(skeleton, EMPTY_PLAN), decisions);
   provisional.subjects = subjectsFor(engine, goal, skeleton);
   // nothing more is asked once the skeleton is written: the interview is over before the plan
@@ -602,6 +616,7 @@ async function settle(engine: Engine, goal: Goal, ctx: ClarifyContext, first: Ru
     }
     if (!brief) {
       settleNature(engine, goal, ctx, parsed);
+      nameGoal(engine, goal, parsed.name);
       brief = toBrief(goal, parsed, decisions);
       brief.subjects = subjectsFor(engine, goal, parsed);
     }

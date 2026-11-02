@@ -277,6 +277,7 @@ const OutputCheck = z.object({
 
 export const BriefOutput = z.object({
   title: z.string().describe('One Conventional Commits header for the whole goal, e.g. "feat(site): add resort landing page". ≤ 72 chars. Used as the pull request title.'),
+  name: z.string().nullish().describe('A short name for the goal as a person reads it in a list: what is fixed or built, 2-8 words, ≤ 60 chars, in the language of the goal\'s own words, e.g. "Bulk discount charged twice". Not a commit header (that is `title`).'),
   understanding: z.string().describe('Your understanding of the goal in 3-8 sentences.'),
   nature: z
     .enum(['code', 'docs', 'research', 'image', 'video', 'figure', 'cad'])
