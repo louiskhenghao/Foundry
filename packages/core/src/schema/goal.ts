@@ -91,12 +91,12 @@ export type GoalMode = z.infer<typeof GoalMode>;
  * geometry kernel, keeps the default) and completion defaults.
  * `auto` = the user did not say; the Clarifier decides from the prompt and the engine records its verdict.
  */
-export const GoalNature = z.enum(['auto', 'code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'cad']);
+export const GoalNature = z.enum(['auto', 'code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'deck', 'cad']);
 export type GoalNature = z.infer<typeof GoalNature>;
 /** natures judged by eye: the fast pace by default, image tools writing into artifacts/ (delivery reads ARTIFACT_NATURES) */
-export const MEDIA_NATURES: GoalNature[] = ['image', 'video', 'figure', 'diagram'];
+export const MEDIA_NATURES: GoalNature[] = ['image', 'video', 'figure', 'diagram', 'deck'];
 /** natures whose deliverables are files under artifacts/ (kept out of git, delivered to the output folder) */
-export const ARTIFACT_NATURES: GoalNature[] = ['image', 'video', 'figure', 'diagram', 'cad'];
+export const ARTIFACT_NATURES: GoalNature[] = ['image', 'video', 'figure', 'diagram', 'deck', 'cad'];
 
 /**
  * The figure skill a figure goal's workers follow (the Figure pack, ADR-0076): Colorfigures' hand-inked colour or

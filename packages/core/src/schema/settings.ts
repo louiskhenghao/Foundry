@@ -4,9 +4,9 @@ import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
 import { Discipline, FigurePack, GoalMode, PonytailSwitch, WorkflowProfile } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
-import { DesignPack, DiagramPack, ImagePack, VideoPack } from './packs.ts';
+import { DeckPack, DesignPack, DiagramPack, ImagePack, VideoPack } from './packs.ts';
 
-export { DesignPack, DiagramPack, ImagePack, VideoPack } from './packs.ts';
+export { DeckPack, DesignPack, DiagramPack, ImagePack, VideoPack } from './packs.ts';
 
 /**
  * User-editable engine settings (Settings page, `data/settings.json`). Every field has a default so a
@@ -101,6 +101,8 @@ export const WorkflowSettings = z.object({
   figurePack: FigurePack.default('colorfigures'),
   /** which diagram skill diagram workers follow (scenario `diagram`, ADR-0083): diagram-design or none */
   diagramPack: DiagramPack.default('diagram-design'),
+  /** which deck skill deck workers follow (scenario `deck`, ADR-0084): ppt-master or none */
+  deckPack: DeckPack.default('ppt-master'),
   /** run `npx autoskills` in each goal's workspace to install skills matching the repository's stack */
   autoskills: z.boolean().default(true),
   /** when a goal ends, a cheap session adds what it taught about the repository to the folder's Learnings (ADR-0040); the notebook is given to later goals either way */
@@ -275,6 +277,8 @@ export const BetaSettings = z.object({
   figure: z.boolean().default(false),
   /** diagram goals (ADR-0083): the Diagram nature and the Diagram pack — editorial diagrams (architecture, flows, sequences, timelines, charts), one HTML page with an SVG each, drawn with diagram-design; diagram tasks inside document and code goals too */
   diagram: z.boolean().default(false),
+  /** deck goals (ADR-0084): the Deck nature and the Deck pack — slide decks as native PPTX files, made with ppt-master in a Python environment Foundry keeps */
+  deck: z.boolean().default(false),
   /** Adjust the result (ADR-0078): a finished goal takes the person's words on its result and carries them out itself — the finished task's session resumed, or a task appended */
   adjust: z.boolean().default(false),
 });

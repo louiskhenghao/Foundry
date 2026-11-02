@@ -188,6 +188,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('figure.checked', { taskId: z.string(), attemptId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), pages: z.array(z.object({ file: z.string(), screenshot: z.string().nullable(), inside: z.string().nullable(), errors: z.array(z.string()) })), summary: z.string() }),
   /** a diagram task's pages were opened headless by Foundry (ADR-0083): per page its screenshot in the goal's screenshots folder, the PNG it rendered under artifacts/ (workspace-relative) and what went wrong */
   ev('diagram.checked', { taskId: z.string(), attemptId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), pages: z.array(z.object({ file: z.string(), screenshot: z.string().nullable(), png: z.string().nullable(), errors: z.array(z.string()) })), summary: z.string() }),
+  /** a deck task's decks were opened by Foundry (ADR-0084): per deck its slide count, the per-slide previews the skill left beside it with the PNG Foundry rendered of each (in the goal's screenshots folder) and what went wrong */
+  ev('deck.checked', { taskId: z.string(), attemptId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), decks: z.array(z.object({ file: z.string(), slides: z.number().int(), previews: z.array(z.object({ file: z.string(), shot: z.string().nullable() })), errors: z.array(z.string()) })), summary: z.string() }),
   /** media artifacts were copied from the goal workspace to the goal's output folder at done; `startedAt`: when the copy
    * began (a file written after it may not be what the folder received), and `startedAfter` the id of the goal's last
    * state change then (a run again after it is delivered again); `copies`: each copy's identity in the output folder as

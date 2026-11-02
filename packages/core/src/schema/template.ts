@@ -16,7 +16,7 @@ export type TemplateLang = z.infer<typeof TemplateLang>;
 export const TEMPLATE_LANGS: TemplateLang[] = ['en', 'zh'];
 
 /** what a template makes: every nature but auto — a template always knows */
-export const TemplateNature = z.enum(['code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'cad']);
+export const TemplateNature = z.enum(['code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'deck', 'cad']);
 export type TemplateNature = z.infer<typeof TemplateNature>;
 
 export const TemplateInputType = z.enum(['text', 'textarea', 'choice']);
