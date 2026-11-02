@@ -325,6 +325,9 @@ export function PageHeader({ title, help, summary, actions, className }: { title
 /** a page's own title where it is not a PageHeader (a goal, a Brief, a session): the theme's display font, poster or compact */
 export const PAGE_TITLE = 'font-display text-[1.75rem] sm:text-4xl lg:text-[2.75rem] font-extrabold leading-[1.05] tracking-[-0.035em] break-words header-compact:text-xl header-compact:sm:text-2xl header-compact:font-bold header-compact:tracking-tight';
 
+/** a goal's name at the head of its page and its Brief: two lines at most, and smaller than a page's title, so a long name leaves a phone room for the rest */
+export const GOAL_TITLE = 'font-display text-xl sm:text-2xl lg:text-[1.875rem] font-extrabold leading-[1.15] tracking-[-0.025em] break-words line-clamp-2 header-compact:text-lg header-compact:sm:text-xl header-compact:font-bold header-compact:tracking-tight';
+
 /**
  * Which of a page's folding groups are open (Board's `onToggle`, a source of skills): every one closed until `auto` (a
  * search or a filter is on) opens them all, or you open or close one yourself; `auto` starting or ending hands them back.
