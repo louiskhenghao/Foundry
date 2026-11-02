@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import { reportsDollars, parseNeedsBlock, withoutNeedsBlock } from '@foundry/core';
 import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@foundry/core';
 import type { EngineConfig } from './config.ts';
-import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
+import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getGoal, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
 import { LIMIT_TEXT, resumeRefused, type RunResult } from '@foundry/runner';
 import { attachmentsDir, markitdownHint, renderAttachments } from './attachments.ts';
 import { buildAttemptPrompt, styleApplies, summarizeReport, renderProvides } from './attempt-prompt.ts';
@@ -39,10 +39,12 @@ export interface AttemptOutcome {
   committed: boolean;
   /** the worker stopped to ask the person for something (ADR-0074); the task waits for the answer */
   needs: NeedsBlock | null;
+  /** the person paused or cancelled the goal while the session ran (ADR-0080): the attempt waits as interrupted and its session resumes with the goal */
+  halted?: boolean;
 }
 
-/** Why an attempt's session is resumed instead of a new attempt being started (`adjust`: a passed session, for an Adjustment of the result, ADR-0078). */
-export type ContinueReason = 'orphaned' | 'max_turns' | 'max_budget' | 'timeout' | 'checks_failed' | 'usage_limit' | 'needs_input' | 'adjust';
+/** Why an attempt's session is resumed instead of a new attempt being started (`adjust`: a passed session, for an Adjustment of the result, ADR-0078; `paused`: the person paused or cancelled the goal and resumed it, ADR-0080). */
+export type ContinueReason = 'orphaned' | 'max_turns' | 'max_budget' | 'timeout' | 'checks_failed' | 'usage_limit' | 'needs_input' | 'adjust' | 'paused';
 
 /** what the person answered a Request with (ADR-0074), for the session that asked */
 export interface RequestAnswer {
@@ -70,6 +72,8 @@ export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: 
       return 'Your session was stopped by a usage limit before you finished. The workspace is exactly as you left it (uncommitted edits were snapshotted). Continue from where you stopped; do not redo finished steps. When done, reply with the usual short summary.';
     case 'orphaned':
       return 'You were interrupted by an engine restart. The workspace is exactly as you left it (uncommitted edits were snapshotted). Continue from where you stopped; do not redo finished steps. When done, reply with the usual short summary.';
+    case 'paused':
+      return 'The person paused the goal while you worked and has resumed it now. The workspace is exactly as you left it (uncommitted edits were snapshotted). Continue from where you stopped; do not redo finished steps. When done, reply with the usual short summary.';
     case 'max_turns':
       return 'Your session hit its turn cap before finishing; you have a fresh allowance now. Finish the task — fewer, larger edits; run the narrow test once and the full suite only at the end. Then reply with the usual short summary.';
     case 'max_budget':
@@ -304,6 +308,22 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
 
   const commit = await commitAll(cwd, taskCommitMessage(goal, task, { attempt: index }));
   if (commit.committed) store.append({ type: 'workspace.committed', goalId: goal.id, payload: { taskId: task.id, attemptId: attempt.id, ref: commit.ref } });
+  // the person paused or cancelled the goal while the session ran (ADR-0080): what it did is committed, the attempt waits
+  // as interrupted (no retry spent) and its session resumes when the goal does; nothing is checked now. So too for a
+  // session that ended on its own after the goal stopped: nothing lands on a paused or cancelled goal
+  const halt = getGoal(store.db, goal.id)?.state;
+  if (halt === 'paused' || halt === 'cancelled') {
+    const soFarHalt = resume ? (getAttempt(store.db, attempt.id) ?? attempt) : null;
+    store.append({
+      type: 'attempt.finished',
+      goalId: goal.id,
+      payload: { attemptId: attempt.id, state: 'interrupted', resultSubtype: halt, costUsd: (soFarHalt?.costUsd ?? 0) + result.costUsd, numTurns: (soFarHalt?.numTurns ?? 0) + result.numTurns, endRef: commit.ref, permissionDenials: [], skillsUsed: result.skillsUsed ?? [], toolsUsed: result.toolsUsed ?? {} },
+    });
+    const report: ObservationReport = { attemptId: attempt.id, taskId: task.id, goalId: goal.id, results: [], reviewerVerdict: null, changedFiles: [], summary: `The goal was ${halt} by the person while this session ran. Its work so far is committed; the session resumes with the goal.`, allMustPassed: false, failedCount: 0 };
+    store.append({ type: 'observation.reported', goalId: goal.id, payload: { report } });
+    store.append({ type: 'attempt.concluded', goalId: goal.id, payload: { attemptId: attempt.id, state: 'interrupted', reason: `${halt} by the person — its session resumes with the goal` } });
+    return { attempt: getAttempt(store.db, attempt.id) ?? attempt, report, result, passed: false, nonBoundaryDenials: [], committed: commit.committed, needs: null, halted: true };
+  }
   // the worker stopped to ask the person for something it cannot finish without (ADR-0074): what it did is committed,
   // the attempt waits as interrupted (no retry spent) and its session resumes with the answer; nothing is checked now
   const needs = !limited && !result.isError && result.subtype === 'success' ? parseNeedsBlock(result.finalText) : null;

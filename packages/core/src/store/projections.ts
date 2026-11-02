@@ -45,8 +45,11 @@ function project(db: Database, e: EngineEvent): void {
       const g = getGoal(db, e.goalId!);
       if (!g) return;
       const stateBeforeBlock = e.payload.to === 'blocked' ? e.payload.from : e.payload.from === 'blocked' ? null : g.stateBeforeBlock;
+      // a paused goal remembers where it was, to go back there on Resume (ADR-0080); a pause asked for is over once it is paused
+      const pausedFrom = e.payload.to === 'paused' ? e.payload.from : e.payload.from === 'paused' ? null : (g.pausedFrom ?? null);
+      const pausing = e.payload.to === 'paused' ? false : (g.pausing ?? false);
       const runningSince = e.payload.to === 'running' && !g.runningSince ? e.ts : g.runningSince;
-      upsertGoal(db, { ...g, state: e.payload.to, stateBeforeBlock, runningSince, updatedAt: e.ts });
+      upsertGoal(db, { ...g, state: e.payload.to, stateBeforeBlock, pausedFrom, pausing, runningSince, updatedAt: e.ts });
       break;
     }
     case 'goal.budgets_changed': {
@@ -418,6 +421,11 @@ function project(db: Database, e: EngineEvent): void {
       const g = getGoal(db, e.goalId!);
       // a new name is not progress: updatedAt stays, as for an attachment
       if (g) upsertGoal(db, { ...g, title: e.payload.title });
+      break;
+    }
+    case 'goal.pausing_set': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, pausing: e.payload.on, updatedAt: e.ts });
       break;
     }
     case 'milestone.final_walk': {
@@ -802,6 +810,8 @@ function normalizeGoal(g: Goal): Goal {
   g.figurePack ??= null;
   g.adjustments ??= [];
   g.template ??= null;
+  g.pausedFrom ??= null;
+  g.pausing ??= false;
   if (g.workflow && g.workflow.ponytail == null) g.workflow.ponytail = 'on';
   g.completion = { ...IDLE_COMPLETION, ...(g.completion ?? {}) };
   // delivery fields added after a goal was written: review rounds (ADR-0053) and reverts (ADR-0059). Readers use them

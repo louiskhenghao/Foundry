@@ -15,6 +15,8 @@ describe('what waits for you hangs as a sign', () => {
     expect(needOf(goal({ id: 'c', state: 'awaiting_feedback' }))).toMatchObject({ action: 'Have a look', href: '/goals/c' });
     expect(needOf(goal({ id: 'd', openEscalations: 2 }))).toMatchObject({ action: 'Open Inbox', href: '/inbox', say: expect.stringContaining('2 things') });
     expect(needOf(goal({ id: 'e', state: 'blocked' }))).toMatchObject({ action: 'See why' });
+    // paused by the person (ADR-0080): only they can let it go on, so it hangs with what waits for them
+    expect(needOf(goal({ id: 'p', state: 'paused' }))).toMatchObject({ action: 'Resume', href: '/goals/p' });
   });
   test('a goal at work, or one clarifying on its own, needs nothing', () => {
     expect(needOf(goal({ id: 'a' }))).toBeNull();
@@ -45,6 +47,9 @@ describe('the five stages and the task squares', () => {
     expect(at('running')).toEqual(['done', 'done', 'run', 'next', 'next']);
     expect(at('awaiting_feedback')).toEqual(['done', 'done', 'you', 'next', 'next']);
     expect(at('goal_review')).toEqual(['done', 'done', 'done', 'run', 'next']);
+    // paused where it was: that stage hollow, waiting for Resume
+    expect(at('paused', { pausedFrom: 'running' } as Partial<GoalRow>)).toEqual(['done', 'done', 'next', 'next', 'next']);
+    expect(at('paused', { pausedFrom: 'clarifying' } as Partial<GoalRow>)).toEqual(['next', 'next', 'next', 'next', 'next']);
   });
   test('a finished goal is delivered, being delivered, or kept on its branch when it delivers locally', () => {
     expect(at('done', { delivery: { status: 'running', policy: { mode: 'pr' } } as GoalRow['delivery'] })).toEqual(['done', 'done', 'done', 'done', 'run']);

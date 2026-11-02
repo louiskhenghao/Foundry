@@ -23,6 +23,8 @@ export const GoalState = z.enum([
   'blocked',
   /** paused at a milestone for the human to look at the work and continue or give feedback */
   'awaiting_feedback',
+  /** paused by the person (ADR-0080); Resume takes it back to where it was */
+  'paused',
   'done',
   'over_delivered',
   'failed',
@@ -295,6 +297,8 @@ export const GoalFollows = z.object({
   style: BriefStyleOption.nullable(),
   /** A's Subjects with their pictures (copied into B's subjects folder): B's Brief starts with them */
   subjects: z.array(BriefSubject).optional(),
+  /** the unfinished tasks of A that B was made to finish (their ids on A), carried over as planned (ADR-0081); absent otherwise */
+  carried: z.array(z.string()).optional(),
   at: z.string(),
 });
 export type GoalFollows = z.infer<typeof GoalFollows>;
@@ -447,6 +451,10 @@ export const Goal = z.object({
   state: GoalState,
   /** state to return to when an escalation is answered */
   stateBeforeBlock: GoalState.nullable(),
+  /** where the goal was when the person paused it (ADR-0080), to go back to on Resume; absent on goals from before, read as null */
+  pausedFrom: GoalState.nullable().optional(),
+  /** the person asked for a pause: nothing more starts, and the goal is paused once its work in flight has landed; absent on goals from before, read as false */
+  pausing: z.boolean().optional(),
   costUsd: z.number().nonnegative(),
   /** the share of costUsd the goal's Conversations spent (ADR-0073): in the total, outside the budget; absent on goals from before, read as 0 */
   conversationCostUsd: z.number().nonnegative().optional(),

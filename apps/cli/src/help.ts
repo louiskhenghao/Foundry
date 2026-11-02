@@ -40,6 +40,11 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
                                           --new starts another Conversation instead of going on with the newest
   diff <goalId>                           print the goal branch diff
   cancel <goalId>
+  pause <goalId> [--now]                  pause a goal at work: nothing more starts and it pauses once its work in flight has
+                                          landed; --now stops the sessions (they resume with the goal)
+  resume <goalId> [--hint "..."] [--max-cost N] [--max-min N]
+                                          resume a paused, cancelled, failed or blocked goal from where it stopped: done tasks
+                                          stay, the rest run (failed ones once more); --hint tells them something, the limits raise its budget
   replay --verify                         rebuild read models from the event log and compare
   doctor [--provider claude|codex|agy] [--json]                         environment check: selected agent, login, git, bun, required skills
   skills list [--scope user|plugin|project|all] [--repo <path>] [--json]

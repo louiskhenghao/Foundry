@@ -514,6 +514,8 @@ export interface FollowUpDraft {
   start: { recommended: 'base' | 'previous'; onBase: boolean; detail: string; baseBranch: string; previousBranch: string | null };
   attachments: Attachment[];
   style: BriefStyleOption | null;
+  /** the earlier goal's tasks in planned order: the unfinished ones can be carried over (ADR-0081) */
+  tasks: { id: string; title: string; state: Task['state']; dependsOn: string[] }[];
 }
 
 export interface UpdateReportView {
@@ -739,6 +741,10 @@ export function apiForProvider(provider?: AgentProvider) {
   reviseCancel: (id: string) => req<{ ok: true }>(`/api/goals/${id}/brief/revise/cancel`, { method: 'POST' }),
   approveBrief: (id: string, brief?: Brief, budgets?: Partial<Budgets>, completion?: { graphRefresh: boolean; docs: DocType[]; audit?: boolean }) => req<{ ok: true }>(`/api/goals/${id}/brief/approve`, { method: 'POST', body: brief || budgets || completion ? JSON.stringify({ ...(brief ?? {}), ...(budgets ? { budgets } : {}), ...(completion ? { completion } : {}) }) : '' }),
   cancelGoal: (id: string) => req<{ ok: true }>(`/api/goals/${id}/cancel`, { method: 'POST' }),
+  /** Pause (ADR-0080): gently by default; now = the sessions are stopped, to resume with the goal */
+  pauseGoal: (id: string, opts: { now?: boolean } = {}) => req<{ ok: true }>(`/api/goals/${id}/pause`, { method: 'POST', body: JSON.stringify(opts) }),
+  /** Resume (ADR-0080): a paused goal goes back to where it was; a cancelled, failed or blocked one goes on from where it stopped */
+  resumeGoal: (id: string, body: { hint?: string | null; budgets?: { maxCostUsd?: number | null; maxDurationMin?: number | null } }) => req<{ ok: true }>(`/api/goals/${id}/resume`, { method: 'POST', body: JSON.stringify(body) }),
   styleSample: (id: string, styleKey: string) => req<{ started: true; channel: string; file: string }>(`/api/goals/${id}/brief/style-sample`, { method: 'POST', body: JSON.stringify({ styleKey }) }),
   styleSampleUrl: (id: string, file: string) => `/api/goals/${id}/brief/style-sample/${encodeURIComponent(file.split('/').pop()!)}`,
   addSubject: (id: string, body: { name: string; lookFor?: string; search?: boolean }) => req<BriefSubject>(`/api/goals/${id}/brief/subjects`, { method: 'POST', body: JSON.stringify(body) }),

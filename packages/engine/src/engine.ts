@@ -1,5 +1,5 @@
 import type { VideoPack } from '@foundry/core';
-import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, assignMaterials } from '@foundry/core';
+import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, type TaskState, assignMaterials } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
 import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
 import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, TITLE_MAX, effectiveCodexPresets, isHistory, natureKey, repoHere, titleFromPrompt, type CodexModelPreset } from '@foundry/core';
@@ -2005,6 +2005,8 @@ export class Engine {
         return;
       case 'awaiting_feedback':
         return; // the human continues or gives feedback (escalation answer); nothing to schedule
+      case 'paused':
+        return; // the person paused it (ADR-0080); Resume ticks it again
       case 'clarifying': {
         if (this.clarifying.has(goalId)) return;
         // a cad goal needs text-to-cad: it waits (the goal page offers the install) until the plugin is in
@@ -2248,7 +2250,7 @@ export class Engine {
     const provider = input.provider ?? this.config.provider;
     if (!AgentProvider.safeParse(provider).success) throw new Error('Unknown coding agent');
     // the investigation runs before Clarify: a goal that skips Clarify has nowhere to learn from a reference
-    if ((input.autoBrief || input.brief) && input.references?.some((r) => r.target.trim())) throw new Error('A goal that skips Clarify cannot learn from a reference: the investigation runs before Clarify.');
+    if ((input.autoBrief || input.brief || input.follows?.carry?.length) && input.references?.some((r) => r.target.trim())) throw new Error('A goal that skips Clarify cannot learn from a reference: the investigation runs before Clarify.');
     // a cad goal that skips Clarify skips the wait for text-to-cad too: refused here, not in paid attempts
     if (input.nature === 'cad' && (input.autoBrief || input.brief) && !(await this.cadAvailable({ provider, repoPath: input.repoPath }))) throw new Error('text-to-cad is not installed for this coding agent: install it on the Setup page (3D models) before creating a CAD goal with a ready Brief.');
     const codexModel = input.codexModel?.trim() || this.config.codexModel;
@@ -2390,15 +2392,32 @@ export class Engine {
     // a goal starting in the folder refreshes its exported Learnings skill (ADR-0050)
     void exportLearningsSkill(this, goal.repoPath);
     for (const a of goal.attachments) this.staged.delete(a.id);
-    if (input.autoBrief || input.brief) {
-      this.store.append({ type: 'goal.state_changed', goalId: id, payload: { from: 'draft', to: 'clarifying', reason: 'auto brief' } });
-      const brief = input.brief ? BriefSchema.parse({ ...input.brief, goalId: id }) : autoBrief(goal, input.autoBrief!.mustChecks, input.autoBrief!.stretchChecks ?? []);
+    // the tasks carried over from the earlier goal (ADR-0081) are its Brief, written at once; the person confirms it
+    const carried = followUp?.brief ?? null;
+    if (input.autoBrief || input.brief || carried) {
+      const why = carried ? 'carried over from the previous goal' : 'auto brief';
+      this.store.append({ type: 'goal.state_changed', goalId: id, payload: { from: 'draft', to: 'clarifying', reason: why } });
+      const brief = carried ? BriefSchema.parse({ ...carried, goalId: id }) : input.brief ? BriefSchema.parse({ ...input.brief, goalId: id }) : autoBrief(goal, input.autoBrief!.mustChecks, input.autoBrief!.stretchChecks ?? []);
       this.store.append({ type: 'brief.proposed', goalId: id, payload: { brief } });
-      this.store.append({ type: 'goal.state_changed', goalId: id, payload: { from: 'clarifying', to: 'awaiting_brief_approval', reason: 'auto brief' } });
-      // Auto preset: no human sees the Brief here, so the engine adopts the proposed budget itself
-      // an Auto budget comes from the estimate as earlier goals in this folder corrected it (ADR-0056)
-      // approved by whoever asked for it (ADR-0061)
-      await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(this, goal)), budgetStatus(goal)) : undefined, undefined, input.by ?? null);
+      this.store.append({ type: 'goal.state_changed', goalId: id, payload: { from: 'clarifying', to: 'awaiting_brief_approval', reason: why } });
+      if (carried) {
+        // the tasks are the earlier goal's no more: skipped there, with where they went
+        const path: Record<string, TaskState[]> = { pending: ['skipped'], ready: ['skipped'], failed: ['skipped'], blocked: ['skipped'], running: ['ready', 'skipped'], observing: ['ready', 'skipped'], merging: ['observing', 'ready', 'skipped'] };
+        for (const taskId of followUp!.follows.carried ?? []) {
+          const t = getTask(this.store.db, taskId);
+          if (!t) continue;
+          let from: TaskState = t.state;
+          for (const to of path[from] ?? []) {
+            this.store.append({ type: 'task.state_changed', goalId: t.goalId, payload: { taskId, from, to, reason: `carried over to the goal "${title}" (${id})` } });
+            from = to;
+          }
+        }
+      } else {
+        // Auto preset: no human sees the Brief here, so the engine adopts the proposed budget itself
+        // an Auto budget comes from the estimate as earlier goals in this folder corrected it (ADR-0056)
+        // approved by whoever asked for it (ADR-0061)
+        await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(this, goal)), budgetStatus(goal)) : undefined, undefined, input.by ?? null);
+      }
     }
     return getGoal(this.store.db, id)!;
   }
@@ -3066,7 +3085,102 @@ export class Engine {
     if (['done', 'over_delivered', 'failed', 'cancelled'].includes(goal.state)) return;
     this.killGoal(goalId, 'cancelled');
     this.cancelDelivery(goalId);
+    if (goal.pausing) this.store.append({ type: 'goal.pausing_set', goalId, payload: { on: false } });
+    // the state is written before the killed sessions report back: the attempt loop reads it and keeps their attempts
+    // resumable (ADR-0080), so Resume takes the goal on from here
     this.store.append({ type: 'goal.state_changed', goalId, payload: { from: goal.state, to: 'cancelled', reason: 'cancelled by user' } });
+    // what waited for the person in the Inbox is moot: the goal is over (Resume opens the tasks again)
+    for (const esc of listEscalations(this.store.db, { goalId, openOnly: true })) this.store.append({ type: 'escalation.answered', goalId, payload: { escalationId: esc.id, answer: { action: 'abort_goal' } } });
+  }
+
+  /**
+   * Pause a goal at work (ADR-0080). A running goal pauses gently by default: nothing more starts, and it is paused once
+   * the work in flight has landed; `now` stops the sessions instead, their attempts waiting to resume with the goal. A
+   * Clarify is always stopped now (its session is spent either way; Resume runs it again). A goal review is not paused:
+   * its session cannot be reached, and it is over in minutes.
+   */
+  pauseGoal(goalId: string, opts: { now?: boolean } = {}): void {
+    const goal = this.mustGoal(goalId);
+    if (goal.state === 'paused' || goal.pausing) return;
+    if (goal.state !== 'running' && goal.state !== 'clarifying') throw new Error(`goal is ${goal.state.replace(/_/g, ' ')}; only a goal at work (running or clarifying) can be paused`);
+    if (goal.state === 'running' && !opts.now) {
+      this.store.append({ type: 'goal.pausing_set', goalId, payload: { on: true } });
+      this.tick(goalId);
+      return;
+    }
+    this.killGoal(goalId, 'paused');
+    this.store.append({ type: 'goal.state_changed', goalId, payload: { from: goal.state, to: 'paused', reason: goal.state === 'clarifying' ? 'paused by you' : 'paused by you (stop now)' } });
+  }
+
+  /**
+   * Resume a goal (ADR-0080). A paused goal goes back to where it was; a cancelled, failed or blocked one goes on from
+   * where it stopped: done tasks stay done, pending and ready ones run, and the failed, blocked or half-landed ones run
+   * again with one more attempt. `hint`: the person's words for the remaining work, given to every task not done.
+   * `budgets`: higher limits, when the budget held the goal. While a gentle pause still waits for its work to land, Resume
+   * withdraws it.
+   */
+  async resumeGoal(goalId: string, opts: { hint?: string | null; budgets?: { maxCostUsd?: number | null; maxDurationMin?: number | null }; by?: string | null } = {}): Promise<void> {
+    const goal = this.mustGoal(goalId);
+    if (goal.pausing && goal.state === 'running') {
+      this.store.append({ type: 'goal.pausing_set', goalId, payload: { on: false } });
+      this.tick(goalId);
+      return;
+    }
+    if (!['paused', 'cancelled', 'failed', 'blocked'].includes(goal.state)) throw new Error(`goal is ${goal.state.replace(/_/g, ' ')}; only a paused, cancelled, failed or blocked goal can be resumed`);
+    if (this.removingFolders.has(goalId)) throw new Error("the goal's folders are being removed (Clean up anyway); resume it once that has finished");
+    const hint = opts.hint?.trim() || null;
+    if (opts.budgets && (opts.budgets.maxCostUsd !== undefined || opts.budgets.maxDurationMin !== undefined)) {
+      const budgets = { ...goal.budgets, ...(opts.budgets.maxCostUsd !== undefined ? { maxCostUsd: reportsDollars(goal.provider) ? opts.budgets.maxCostUsd : null } : {}), ...(opts.budgets.maxDurationMin !== undefined ? { maxDurationMin: opts.budgets.maxDurationMin } : {}) };
+      this.store.append({ type: 'goal.budgets_changed', goalId, payload: { budgets, reason: 'human: raised on resume' } });
+    }
+    if (goal.state !== 'paused') {
+      // a commit a merge attempt left that git would not take back goes first, or the resume is refused with what is left to do
+      for (const stuck of stuckCommits(this, goalId, { all: true })) {
+        const left = await takeBackStuck(this, goal, stuck);
+        if (left) throw new Error(left);
+      }
+      // what waited in the Inbox is moot: the tasks run again. A Request for something only the person can give stays open
+      for (const esc of listEscalations(this.store.db, { goalId, openOnly: true })) {
+        if (esc.trigger === 'needs_input') continue;
+        this.store.append({ type: 'escalation.answered', goalId, payload: { escalationId: esc.id, answer: { action: 'retry_with_hint', ...(hint ? { hint } : {}) }, by: opts.by ?? null } });
+      }
+    }
+    const tasks = listTasks(this.store.db, goalId);
+    const byId = new Map(tasks.map((t) => [t.id, t]));
+    const satisfied = (t: Task) => t.dependsOn.every((d) => ['done', 'skipped'].includes(byId.get(d)?.state ?? ''));
+    const words = hint ? `The person resumed the goal and says: ${hint}` : null;
+    for (const t of tasks) {
+      if (t.state === 'done' || t.state === 'skipped') continue;
+      // a session that did not stop when asked (a hung process) is still at work: left alone, its end is handled as any
+      // session's once the goal runs again
+      if (this.isInFlight(t.id)) continue;
+      let again = false;
+      if (t.state === 'merging') {
+        // half-landed: it runs again and lands once its checks pass (as after an engine restart)
+        this.store.append({ type: 'task.state_changed', goalId, payload: { taskId: t.id, from: 'merging', to: 'observing', reason: 'resumed by you' } });
+        this.store.append({ type: 'task.state_changed', goalId, payload: { taskId: t.id, from: 'observing', to: 'ready', reason: 'resumed by you: it runs again and lands once its checks pass' } });
+        again = true;
+      } else if (t.state === 'running' || t.state === 'observing') {
+        // cut without the engine's knowledge (a cancel of before): its attempt is over, resumable when its session is known
+        for (const a of listAttempts(this.store.db, t.id)) {
+          if (!['created', 'running', 'observing'].includes(a.state)) continue;
+          const resumable = a.kind === 'work' && !!a.sessionId;
+          this.store.append({ type: 'attempt.finished', goalId, payload: { attemptId: a.id, state: resumable ? 'interrupted' : 'error', resultSubtype: 'paused', costUsd: a.costUsd, numTurns: a.numTurns, endRef: a.endRef, permissionDenials: [], skillsUsed: [], toolsUsed: {} } });
+          this.store.append({ type: 'attempt.concluded', goalId, payload: { attemptId: a.id, state: resumable ? 'interrupted' : 'error', reason: 'the goal stopped while it ran; resumed by you' } });
+        }
+        this.store.append({ type: 'task.state_changed', goalId, payload: { taskId: t.id, from: t.state, to: 'ready', reason: 'resumed by you' } });
+        again = true;
+      } else if (t.state === 'failed' || t.state === 'blocked') {
+        this.store.append({ type: 'task.state_changed', goalId, payload: { taskId: t.id, from: t.state, to: satisfied(t) ? 'ready' : 'pending', reason: 'resumed by you: one more attempt' } });
+        again = true;
+      }
+      if (again || words) this.store.append({ type: 'task.hint_set', goalId, payload: { taskId: t.id, hint: words ? (t.hint ? `${t.hint}\n${words}` : words) : t.hint, extraAttempts: again ? 1 : 0 } });
+    }
+    // where it goes on: where it was paused; where it was blocked; else its tasks, its Brief awaiting approval, or Clarify
+    const back = goal.stateBeforeBlock && ['running', 'clarifying', 'goal_review', 'awaiting_feedback'].includes(goal.stateBeforeBlock) ? goal.stateBeforeBlock : 'running';
+    const to = goal.state === 'paused' ? (goal.pausedFrom === 'clarifying' ? 'clarifying' : 'running') : goal.state === 'blocked' ? back : tasks.length ? 'running' : getBrief(this.store.db, goalId) ? 'awaiting_brief_approval' : 'clarifying';
+    this.store.append({ type: 'goal.state_changed', goalId, payload: { from: goal.state, to, reason: 'resumed by you' } });
+    this.tick(goalId);
   }
 
   /**

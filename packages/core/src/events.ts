@@ -129,6 +129,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.milestone_pause_set', { on: z.boolean() }),
   /** the goal got a new name: typed by the person (Rename…), or the Clarifier's short name for a goal named by the first line of its words */
   ev('goal.renamed', { title: z.string(), by: z.enum(['person', 'clarifier']) }),
+  /** the person asked for a pause (ADR-0080): nothing more starts and the goal is paused once its work in flight has landed; off = withdrawn, or paused */
+  ev('goal.pausing_set', { on: z.boolean() }),
   /** the human switched Ponytail (the lazy senior dev) on or off for the goal; applies from its next session */
   ev('goal.ponytail_set', { on: z.boolean() }),
   /** a milestone landed in a goal that does not pause for it: the human is told, the goal goes on */

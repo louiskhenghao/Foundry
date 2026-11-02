@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import type { Brief, BriefOutput } from '@foundry/core';
-import { Goal, getBrief, getGoal, listFollowUps, upsertGoal } from '@foundry/core';
+import { Goal, getBrief, getGoal, listFollowUps, listTasks, upsertGoal } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
 import { linkAttachment, stageFile } from './attachments.ts';
 import { defaultConfig } from './config.ts';
@@ -239,5 +239,62 @@ describe('follow-up goals', () => {
     // the link is an event: replay rebuilds it
     engine.store.replay();
     expect(getGoal(engine.store.db, y.id)!.follows?.goalId).toBe(x.id);
+  }, 30_000);
+
+  test("Carry over (ADR-0081): B takes A's unfinished tasks as planned with their checks, skips Clarify and waits for its Brief; A's tasks are skipped with where they went", async () => {
+    const runner = new HybridRunner();
+    const engine = track(new Engine(cfg(), runner));
+    engine.beginUpdateDrain(); // nothing runs: A keeps its tasks as planned
+    const t = (key: string, title: string, deps: string[]) => ({ key, title, spec: `write ${title}`, kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: 'A1', tdd: 'off' as const, dependsOnKeys: deps, parallelizable: false, relevantFiles: [`${title}.txt`], milestone: null });
+    const a = await engine.createGoal({
+      prompt: 'three files',
+      repoPath: repo,
+      brief: {
+        title: 'feat: three files',
+        understanding: 'Three files, one after the other.',
+        areas: [{ key: 'A1', name: 'Files', slug: 'files', description: '' }],
+        assumptions: [],
+        questions: [],
+        styleOptions: [],
+        checks: [
+          { key: 'C1', name: 'a exists', tier: 'must', taskKey: 'T1', areaKey: null, spec: { type: 'command', cmd: 'test -f a.txt', timeoutMs: 60_000, expectExitCode: 0 } },
+          { key: 'C3', name: 'c exists', tier: 'must', taskKey: 'T3', areaKey: null, spec: { type: 'command', cmd: 'test -f c.txt', timeoutMs: 60_000, expectExitCode: 0 } },
+          { key: 'G1', name: 'the suite', tier: 'must', taskKey: null, areaKey: 'A1', spec: { type: 'command', cmd: 'true', timeoutMs: 60_000, expectExitCode: 0 } },
+        ],
+        costEstimateUsd: 6,
+        timeEstimateMin: 60,
+        tasks: [t('T1', 'a', []), t('T2', 'b', ['T1']), t('T3', 'c', ['T2'])],
+      },
+    });
+    const [ta, tb, tc] = listTasks(engine.store.db, a.id);
+    engine.cancelGoal(a.id);
+    expect(getGoal(engine.store.db, a.id)!.state).toBe('cancelled');
+    const draft = await engine.followUpDraft(a.id);
+    expect(draft.tasks.map((x) => [x.title, x.state])).toEqual([['a', 'pending'], ['b', 'pending'], ['c', 'pending']]);
+
+    await expect(engine.createGoal({ prompt: 'finish', repoPath: repo, follows: { goalId: a.id, carry: ['t_nope'] } })).rejects.toThrow(/not a task of/);
+    const b = await engine.createGoal({ prompt: 'finish the rest', repoPath: repo, follows: { goalId: a.id, carry: [tb!.id, tc!.id] } });
+    // no Clarify: the Brief is written from A's tasks and waits for the person
+    expect(getGoal(engine.store.db, b.id)!.state).toBe('awaiting_brief_approval');
+    expect(runner.calls.filter((c) => c.label?.startsWith('clarify'))).toHaveLength(0);
+    // A never ran, so its branch holds nothing beyond the base: B starts from the base
+    expect(b.follows).toMatchObject({ goalId: a.id, via: 'created', startFrom: 'base', carried: [tb!.id, tc!.id] });
+    const brief = getBrief(engine.store.db, b.id)!.brief;
+    expect(brief.tasks.map((x) => [x.key, x.title, x.spec, x.dependsOnKeys, x.areaKey, x.relevantFiles])).toEqual([
+      ['T1', 'b', 'write b', [], 'A1', ['b.txt']],
+      ['T2', 'c', 'write c', ['T1'], 'A1', ['c.txt']],
+    ]);
+    // C1 belonged to the task left behind; c's check follows c, and A's goal-level check comes along
+    expect(brief.checks.map((c) => [c.name, c.taskKey])).toEqual([['c exists', 'T2'], ['the suite', null]]);
+    expect(brief.areas.map((ar) => ar.key)).toEqual(['A1']);
+    expect(brief.understanding).toContain('Three files, one after the other.');
+    expect(brief.understanding).toContain('2 of its 3 tasks');
+    expect(brief.costEstimateUsd).toBe(4);
+    expect(brief.timeEstimateMin).toBe(40);
+    // A's carried tasks are A's no more; the one left behind stays as it was
+    const after = listTasks(engine.store.db, a.id);
+    expect(after.map((x) => x.state)).toEqual(['pending', 'skipped', 'skipped']);
+    expect(engine.store.listByGoal(a.id).filter((e) => e.type === 'task.state_changed' && (e.payload as { to: string }).to === 'skipped').map((e) => (e.payload as { reason: string }).reason)).toEqual([expect.stringContaining(b.id), expect.stringContaining(b.id)]);
+    expect(ta!.state).toBe('pending');
   }, 30_000);
 });

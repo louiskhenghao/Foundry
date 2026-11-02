@@ -29,12 +29,18 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 
 从 **Goals**（第一个页面，顶栏上也有）打开一个 goal。页面顶部有：
 
-- goal 的状态牌，用它的信号色：Foundry 在干活时是蓝色（**running**；澄清时是浅蓝），审查时（**reviewing**）是紫色，完成（**done**）后是绿色，等你时是黄色（**awaiting approval**、**awaiting feedback**、**blocked**），失败时是红色（**failed**）。旁边写着完成或正在运行的任务数，以及 Foundry 已经工作了多久。
+- goal 的状态牌，用它的信号色：Foundry 在干活时是蓝色（**running**；澄清时是浅蓝），审查时（**reviewing**）是紫色，完成（**done**）后是绿色，等你时是黄色（**awaiting approval**、**awaiting feedback**、**blocked**），失败时是红色（**failed**），你暂停时是空心的 **paused**。旁边写着完成或正在运行的任务数，以及 Foundry 已经工作了多久。
 - 标题最多两行，下面是你描述的开头几行；任一处被截断时，**Show more** 打开完整描述。没有自己起名的 goal 先用描述的第一行当标题，Brief 到达时 Clarifier 会给它一个简短的名字；随时可以用 **⋯** 里的 **Rename…** 改名。标题下面是基本信息：项目文件夹（**copy** 复制它的路径）、分支（goal 起步的分支 → goal 自己的分支）、编码智能体（**Claude Code**、**Codex** 或 **Antigravity**）、workflow 套件、goal 以 fast 模式运行时的 **pace fast**，以及交付方式。手机上这些信息折叠在 **Details** 下面。
 - **time** 显示已用分钟数对比时间上限；Claude 还显示 **cost** 对比美元预算。后面的黄色圆点表示有会话在 Claude Code 回报费用之前就结束了（超时、被终止、崩溃）：鼠标停在上面，或在手机上点它，就能看到有几个、大约花了多少。这个估算（≈）按同一个模型在已回报费用的会话里的单价计算它们的 token；它不计入总数，也不占用预算。它们的轮数和 token 照常统计，美元数绝不记为 $0。Codex 美元费用不可用。
 - **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)），或者用 **VS Code (web)** 打开：浏览器标签里的 VS Code，经 Tailscale 在手机上也能打开。第一次使用时启动（先在 [Settings → Tools & keys](./settings.zh.md#tools--keys) 装一次），只在这台电脑上运行，闲置两小时后停止。它的登录页要输入密码，菜单里会显示这个密码并带复制按钮；浏览器会记住它。编码智能体写过的文件夹会以受限模式打开，直到你选择信任它。在里面的修改是真实修改：goal 运行时，菜单会提醒你在它的文件夹里改动可能和编码智能体的冲突，并被带进它们的下一个提交。
-- 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
-- **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal**、**Rename…**、**Save as template…**、**Delete goal…**，视情况出现。
+- 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，工作中是 **Pause…**，暂停、取消、失败或 blocked 时是 **Resume…**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
+- **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal…**、**Rename…**、**Save as template…**、**Delete goal…**，视情况出现。
+
+### 暂停与继续
+
+**Pause…** 让正在工作的 goal 停下来。默认先让正在跑的任务做完并落地——不再开始新任务，状态行写着 **pausing**，按钮变成 **Keep going** 以便你改主意——然后 goal 显示 **paused**，那些任务已完成，后面的任务没有动。弹窗里的 **Stop now** 会立刻停掉正在跑的会话；它们到目前为止做的都保留，继续时每个会话从停下的地方接着来。正在 clarifying 的 goal 总是立刻停，继续时 Clarify 重新跑一遍。goal 暂停期间计时停止，在 Goals 页面它挂成一块写着 **Resume** 的指示牌。
+
+**Resume…** 让暂停的 goal 回到它原来的位置，让取消、失败或 blocked 的 goal 从停下的地方接着做：做完的任务保持完成，没开始的任务开始跑，失败、等你或被打断的任务再跑一次，多给一次尝试。弹窗会说明各有几个，可以写一句给剩余任务的话（每个未完成的任务都会收到），当 goal 因预算或时间用完而停下时，还可以在这里提高上限——不提高的话它会马上再停。**Cancel goal…**（在 ⋯ 里）是干净的停止：会话停下，已做的工作保留，这个 goal 的 Inbox 事项关闭，之后用 **Resume…** 可以重新打开。想改用新 goal 接着做，见 [Continue with a follow-up](./getting-the-result.zh.md#continue-with-a-follow-up)。
 
 页面顶部下方横排着五个阶段：**Clarify**、**Brief**、**Run**、**Review** 和 **Deliver**。完成的阶段带一圈墨色边框，勾在一个绿色的小方块上；当前阶段加粗描边（Foundry 正在做时是蓝色），上方标着 **Now**；等你时变成黄色并标 **You**，失败时变成红色并标 **Failed**。在手机或小平板上，阶段是一排细长的色段，完成的是绿色，下面一行写着当前阶段的名字和说明；Ledger 和 Classic 把它们画成一条带编号的步骤线。每个阶段用几个字说明情况，比如“approved”“3 of 4 tasks”“a pull request”。goal 运行时，Run 阶段上有一条它的任务进度条。在 Expert view 里，点一个阶段就打开显示它工作内容的地方：Clarify 和 Review 打开 Activity 标签，Brief 打开 Brief 页面，Run 打开 Tasks 标签，Deliver 打开 Delivery 标签。
 

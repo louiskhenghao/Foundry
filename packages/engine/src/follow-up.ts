@@ -8,7 +8,7 @@
 import type { AgentProvider } from '@foundry/core';
 import { cpSync, existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
-import type { Attachment, BriefStyleOption, DeliveryPolicy, CodexEffort, Goal, GoalFollows, GoalMode, GoalNature, GoalState, WorkflowProfile } from '@foundry/core';
+import type { Attachment, Brief, BriefCheck, BriefStyleOption, BriefTask, DeliveryPolicy, CodexEffort, Goal, GoalFollows, GoalMode, GoalNature, GoalState, Task, TaskState, WorkflowProfile } from '@foundry/core';
 import { ATTACHMENT_LIMITS, FOLLOWABLE_STATES, GoalWorkflow, IdPrefix, chosenStyle, getBrief, getGoal, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { renderStyle } from './attempt-prompt.ts';
 import { attachmentsDir } from './attachments.ts';
@@ -36,6 +36,8 @@ export interface FollowUpInput {
   attachments?: boolean;
   /** keep A's chosen style direction and its reference sample (default true) */
   style?: boolean;
+  /** A's unfinished tasks (their ids) B is made to finish, carried over as planned with their checks: B skips Clarify and waits for its Brief to be approved (ADR-0081) */
+  carry?: string[];
 }
 
 /** Everything the New goal form (and `goal new --follows`) needs to prefill a follow-up of A. */
@@ -57,6 +59,8 @@ export interface FollowUpDraft {
   };
   attachments: Attachment[];
   style: BriefStyleOption | null;
+  /** A's tasks in planned order, for the Carry over card: the unfinished ones can be carried into B (ADR-0081) */
+  tasks: { id: string; title: string; state: TaskState; dependsOn: string[] }[];
 }
 
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n).trimEnd()} …(truncated)` : s);
@@ -116,6 +120,55 @@ export async function followUpDraft(engine: Engine, goalId: string): Promise<Fol
     start: { recommended: w.onBase ? 'base' : 'previous', onBase: w.onBase, detail: w.detail, baseBranch: a.baseBranch, previousBranch: w.branchExists ? a.branch : null },
     attachments: a.attachments,
     style: styleOf(engine, a),
+    tasks: listTasks(engine.store.db, a.id).filter((t) => t.origin !== 'merge').map((t) => ({ id: t.id, title: t.title, state: t.state, dependsOn: t.dependsOn })),
+  };
+}
+
+/**
+ * The Brief of a goal made to finish what an earlier one left (ADR-0081): A's chosen unfinished tasks as they were
+ * planned — their specs, files, order among themselves, Areas and acceptance checks, with A's goal-level checks — so B
+ * needs no Clarify; the person confirms the Brief on its page. A task done already cannot be carried.
+ */
+export function carryTasks(engine: Engine, a: Goal, ids: string[]): { ids: string[]; brief: Omit<Brief, 'goalId'> } {
+  const db = engine.store.db;
+  const all = listTasks(db, a.id);
+  const chosen = ids.map((id) => {
+    const t = all.find((x) => x.id === id);
+    if (!t) throw new FollowUpError(`task ${id} is not a task of "${a.title}"`, 404);
+    if (t.state === 'done') throw new FollowUpError(`"${t.title}" is done; only an unfinished task can be carried over`);
+    return t;
+  });
+  if (!chosen.length) throw new FollowUpError('no tasks to carry over');
+  const key = new Map(chosen.map((t, i) => [t.id, `T${i + 1}`]));
+  const prev = getBrief(db, a.id)?.brief;
+  const areas = (prev?.areas ?? []).filter((ar) => chosen.some((t) => t.area === ar.name));
+  const tasks: BriefTask[] = chosen.map((t: Task) => ({
+    key: key.get(t.id)!,
+    title: t.title,
+    spec: t.spec,
+    // a Delegated goal's step is B's own work: B may not delegate
+    kind: t.kind === 'goal' ? 'feature' : t.kind,
+    scope: t.scope,
+    scenario: t.scenario,
+    areaKey: areas.find((ar) => ar.name === t.area)?.key ?? null,
+    tdd: t.tdd,
+    dependsOnKeys: t.dependsOn.filter((d) => key.has(d)).map((d) => key.get(d)!),
+    parallelizable: t.parallelizable,
+    relevantFiles: t.relevantFiles,
+    delivers: t.delivers,
+    difficulty: t.difficulty,
+    milestone: t.milestone,
+    milestoneScript: t.milestoneScript ?? null,
+  }));
+  const checks: BriefCheck[] = listChecks(db, a.id)
+    .filter((c) => c.taskId === null || key.has(c.taskId))
+    .map((c, i) => ({ key: `C${i + 1}`, name: c.name, tier: c.tier, taskKey: c.taskId ? key.get(c.taskId)! : null, areaKey: null, spec: c.spec }));
+  const share = all.length ? chosen.length / all.length : 1;
+  const left = `This goal finishes what "${a.title}" (${a.state.replace(/_/g, '-')}) left: ${chosen.length} of its ${all.length} task${all.length === 1 ? '' : 's'} — ${chosen.map((t) => `"${clip(t.title, 80)}"`).join(', ')}. They are carried over as they were planned, with their acceptance checks; nothing else is redone.`;
+  const understanding = prev?.understanding?.trim() ? `${clip(prev.understanding.trim(), 1500)}\n\n${left}` : left;
+  return {
+    ids: chosen.map((t) => t.id),
+    brief: { title: prev?.title ?? '', understanding, areas, assumptions: [], checks, tasks, costEstimateUsd: Math.round((prev?.costEstimateUsd ?? 0) * share * 100) / 100, timeEstimateMin: Math.round((prev?.timeEstimateMin ?? 0) * share), questions: [], styleOptions: [], run: prev?.run ?? null, apps: prev?.apps ?? null },
   };
 }
 
@@ -185,9 +238,10 @@ function styleSampleAttachment(dataDir: string, from: Goal, style: BriefStyleOpt
  * Validate and snapshot a follow-up at creation: A must exist, be finished and belong to the same repository.
  * Returns B's `follows`, the attachments copied from A, and A's base branch (B delivers to it too).
  */
-export async function prepareFollowUp(engine: Engine, input: FollowUpInput, repoPath: string, toGoalId: string, ownAttachments: number): Promise<{ follows: GoalFollows; attachments: Attachment[]; baseBranch: string }> {
+export async function prepareFollowUp(engine: Engine, input: FollowUpInput, repoPath: string, toGoalId: string, ownAttachments: number): Promise<{ follows: GoalFollows; attachments: Attachment[]; baseBranch: string; /** B's Brief when it carries A's unfinished tasks (ADR-0081); null = B is clarified */ brief: Omit<Brief, 'goalId'> | null }> {
   const a = mustFollowable(engine, input.goalId);
   if (!samePath(a.repoPath, repoPath)) throw new FollowUpError(`goal "${a.title}" belongs to ${a.repoPath}; a follow-up must use the same repository`);
+  const carried = input.carry?.length ? carryTasks(engine, a, input.carry) : null;
   const w = await previousWorkOnBase(a.repoPath, a.baseBranch, a.branch);
   const startFrom = input.startFrom ?? (w.onBase ? 'base' : 'previous');
   if (startFrom === 'previous' && !w.branchExists) throw new FollowUpError(`the goal branch ${a.branch} no longer exists; start from ${a.baseBranch} instead`);
@@ -206,9 +260,10 @@ export async function prepareFollowUp(engine: Engine, input: FollowUpInput, repo
     style: style ? { ...style, samples: [], chosenSample: null } : null,
     // A's Subjects, their pictures copied into B's folder: B's Brief starts with them
     subjects: inheritSubjects(engine.config.dataDir, a.id, toGoalId, getBrief(engine.store.db, a.id)?.brief.subjects ?? []),
+    ...(carried ? { carried: carried.ids } : {}),
     at: new Date().toISOString(),
   };
-  return { follows, attachments, baseBranch: a.baseBranch };
+  return { follows, attachments, baseBranch: a.baseBranch, brief: carried?.brief ?? null };
 }
 
 /** The sentence Clarify gets about where B's checkout starts (from the recorded Base Sync). */

@@ -226,6 +226,8 @@ const STATE_COLORS: Record<string, string> = {
   goal_review: SIGNAL_CHIP.extra,
   awaiting_feedback: SIGNAL_CHIP.you,
   blocked: SIGNAL_CHIP.you,
+  // paused by the person (ADR-0080): nobody is waited for, nothing is at work
+  paused: SIGNAL_CHIP.quiet,
   done: SIGNAL_CHIP.ok,
   over_delivered: SIGNAL_CHIP.ok,
   failed: SIGNAL_CHIP.bad,
