@@ -39,7 +39,16 @@ export const FigureCheckSpec = z.object({
   type: z.literal('figure'),
 });
 
-export const CheckSpec = z.discriminatedUnion('type', [CommandCheckSpec, ReviewerCheckSpec, LlmJudgeCheckSpec, SelfCheckSpec, FigureCheckSpec]);
+/**
+ * the engine opens each diagram page the task delivered (its `.html` Deliverables, committed under docs/diagrams/) in headless
+ * Chromium, screenshots it, renders its SVG to a PNG under artifacts/ and runs the diagram skill's own self-check; it fails on
+ * script errors, a page with no SVG or a self-check that refuses the page (task-level, no LLM; ADR-0083)
+ */
+export const DiagramCheckSpec = z.object({
+  type: z.literal('diagram'),
+});
+
+export const CheckSpec = z.discriminatedUnion('type', [CommandCheckSpec, ReviewerCheckSpec, LlmJudgeCheckSpec, SelfCheckSpec, FigureCheckSpec, DiagramCheckSpec]);
 export type CheckSpec = z.infer<typeof CheckSpec>;
 
 export const Check = z.object({

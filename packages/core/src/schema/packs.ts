@@ -10,3 +10,6 @@ export const VideoPack = z.enum(['web-video-presentation', 'mmx-cli', 'hyperfram
 export type DesignPack = z.infer<typeof DesignPack>;
 export type ImagePack = z.infer<typeof ImagePack>;
 export type VideoPack = z.infer<typeof VideoPack>;
+/** the Diagram pack (ADR-0083): the skill that draws diagram tasks' editorial diagrams, one self-contained HTML page with an inline SVG each; `none` = no diagram skill is mandated */
+export const DiagramPack = z.enum(['diagram-design', 'none']);
+export type DiagramPack = z.infer<typeof DiagramPack>;
