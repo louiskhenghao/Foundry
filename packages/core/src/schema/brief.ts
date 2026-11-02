@@ -231,8 +231,8 @@ const outputTaskSchema = (delegation: boolean) => z.object({
   kind: taskKindField(delegation),
   scope: z.string().nullish().describe('Conventional Commits scope (e.g. "quotes", "api", "ui"); null = use the Area slug.'),
   scenario: z
-    .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'cad', 'general'])
-    .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation/prose writing; research = investigation whose output is a cited report; image = generating or editing images; video = generating or editing video/audio; figure = an interactive isometric figure of an object or machine, one self-contained HTML page; diagram = an editorial diagram (architecture, flow, sequence, timeline, chart) as one self-contained HTML page with an SVG beside it; cad = 3D parts and assemblies, drawings, DXF profiles, robot description files; general = anything else.'),
+    .enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'deck', 'cad', 'general'])
+    .describe('Where the work happens: frontend = UI, pages, styling, components; backend = APIs, services, database; fullstack = substantial changes on both sides; data = data processing, scripts, analysis; mobile = native/mobile app; infra = CI, build, deploy, configuration; docs = documentation/prose writing; research = investigation whose output is a cited report; image = generating or editing images; video = generating or editing video/audio; figure = an interactive isometric figure of an object or machine, one self-contained HTML page; diagram = an editorial diagram (architecture, flow, sequence, timeline, chart) as one self-contained HTML page with an SVG beside it; deck = a slide deck as a native PPTX file; cad = 3D parts and assemblies, drawings, DXF profiles, robot description files; general = anything else.'),
   areaKey: z.string().describe('Key of the Area this task belongs to.'),
   dependsOnKeys: z.array(z.string()),
   needs: z.array(z.string()).optional().describe('Keys of the Brief\'s `provides` (things the person will provide later) this task cannot be finished without. Leave out for most tasks.'),
@@ -280,9 +280,9 @@ export const BriefOutput = z.object({
   name: z.string().nullish().describe('A short name for the goal as a person reads it in a list: what is fixed or built, 2-8 words, ≤ 60 chars, in the language of the goal\'s own words, e.g. "Bulk discount charged twice". Not a commit header (that is `title`).'),
   understanding: z.string().describe('Your understanding of the goal in 3-8 sentences.'),
   nature: z
-    .enum(['code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'cad'])
+    .enum(['code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'deck', 'cad'])
     .default('code')
-    .describe('What the goal produces: code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio; figure = interactive isometric figures of everyday objects and machines, one HTML page each; diagram = editorial diagrams (architecture, flows, sequences, timelines, charts), one HTML page with an SVG each; cad = 3D parts and assemblies, drawings, robot description files. Pick the dominant one for mixed goals.'),
+    .describe('What the goal produces: code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio; figure = interactive isometric figures of everyday objects and machines, one HTML page each; diagram = editorial diagrams (architecture, flows, sequences, timelines, charts), one HTML page with an SVG each; deck = slide decks (a presentation, a lecture, a pitch), one native PPTX file each; cad = 3D parts and assemblies, drawings, robot description files. Pick the dominant one for mixed goals.'),
   figurePack: z
     .enum(['colorfigures', 'iso-glow'])
     .nullish()

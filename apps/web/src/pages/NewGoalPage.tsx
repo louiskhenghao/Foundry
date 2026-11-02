@@ -1,4 +1,4 @@
-import { AGENT_PROVIDERS, PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
+import { AGENT_PROVIDERS, KNOWN_EFFORTS, PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment, TemplateEntry, TemplateLang, WorkflowProfile } from '@foundry/core/browser';
 import { ARTIFACT_NATURES, BUDGET_PRESETS, MEDIA_NATURES, renderTemplate } from '@foundry/core/browser';
@@ -6,7 +6,7 @@ import { DraftBox, TemplateGallery, TemplatePanel, useDraft } from '../component
 import { formPatch, initialValues, loadTemplateLang, missingLabels, missingStyle, offeredTemplates, saveTemplateLang, shownVersion, fallbackStyle } from './new-goal-template.ts';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Lamp, LayoutTemplate, Send, Shapes, Target, Telescope, Wallet, WandSparkles, Workflow, X, type LucideIcon } from 'lucide-react';
+import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Lamp, LayoutTemplate, Presentation, Send, Shapes, Target, Telescope, Wallet, WandSparkles, Workflow, X, type LucideIcon } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
 import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type PackGroupView, type PacksView, type RepoInfo } from '../api.ts';
 import { CompanionFolders } from '../components/CompanionFolders.tsx';
@@ -30,7 +30,7 @@ const DELIVERY_KEY = 'foundry.delivery';
 const BUDGET_KEY = 'foundry.budget';
 const NATURE_KEY = 'foundry.nature';
 
-type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video' | 'figure' | 'diagram' | 'cad';
+type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video' | 'figure' | 'diagram' | 'deck' | 'cad';
 /**
  * The kinds of goal, each with an icon in a category colour of its own (ADR-0067) so they tell apart at a glance. Auto is
  * no kind (the system decides), so its icon stays in ink.
@@ -46,8 +46,22 @@ const NATURES: { id: Nature; label: string; text: string; Icon: LucideIcon; ink:
   { id: 'figure', label: 'Figures', text: 'Interactive isometric figures of objects and machines, one web page each.', Icon: Lamp, ink: code(3).ink },
   // beta (ADR-0083): shown only while Settings → Beta → Diagram goals is on
   { id: 'diagram', label: 'Diagrams', text: 'Editorial diagrams: architecture, flows, sequences, timelines, charts; one web page with an SVG each.', Icon: Workflow, ink: code(7).ink },
+  // beta (ADR-0084): shown only while Settings → Beta → Deck goals is on
+  { id: 'deck', label: 'Slides', text: 'Slide decks: a pitch, a lecture, a report, a document turned into slides; a native PPTX each.', Icon: Presentation, ink: code(1).ink },
   { id: 'cad', label: 'CAD', text: '3D parts and assemblies (STEP), drawings, DXF profiles, robot files.', Icon: Box, ink: code(5).ink },
 ];
+/** what the effort levels mean, for the ones that have a word of their own; a level this list does not know is offered under its name alone (ADR-0085) */
+const EFFORT_TITLES: Record<string, string> = {
+  none: 'No extra reasoning',
+  minimal: 'The least reasoning the model offers',
+  low: 'Less reasoning for simple, well-defined goals',
+  xhigh: 'Hard, cross-cutting work',
+  max: 'More reasoning for the hardest problems',
+  ultra: 'The most reasoning the model offers',
+};
+/** Codex's fixed set, shown until the server has answered */
+const CODEX_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
+
 /** the browser remembers the finer delivery options; mode and unit always start from Settings → New goal defaults */
 function loadDraft(): PolicyDraft {
   try {
@@ -178,6 +192,8 @@ export function NewGoalPage() {
   const [betaFigure, setBetaFigure] = useState(false);
   // diagram goals too (ADR-0083)
   const [betaDiagram, setBetaDiagram] = useState(false);
+  // deck goals too (ADR-0084)
+  const [betaDeck, setBetaDeck] = useState(false);
   /** the Figure pack this goal follows; '' = Settings' default (the Clarifier may pick the other installed style from the goal's words) */
   const [figurePack, setFigurePack] = useState<'' | 'colorfigures' | 'iso-glow'>('');
   const [figurePacks, setFigurePacks] = useState<PacksView['figure'] | null>(null);
@@ -190,6 +206,8 @@ export function NewGoalPage() {
   // interview depth, '0'–'5'; starts from Settings
   const [interviewDepth, setInterviewDepth] = useState('3');
   const [effort, setEffort] = useState('');
+  // the effort levels this coding agent takes, as its binary said at the last model sync (ADR-0085); null until read
+  const [effortLevels, setEffortLevels] = useState<string[] | null>(null);
   const [provider, setProvider] = useState<AgentProvider>(initialProvider ?? 'claude');
   // the Figure pack's install state for this coding agent, read when the Figure kind is picked (ADR-0076)
   // and again when the page comes back to the front: a style installed in Settings meanwhile becomes a choice here
@@ -201,6 +219,14 @@ export function NewGoalPage() {
     window.addEventListener('focus', read);
     return () => window.removeEventListener('focus', read);
   }, [nature, provider]);
+  useEffect(() => {
+    let alive = true;
+    setEffortLevels(null);
+    api.models(provider).then((m) => alive && setEffortLevels(m.effortLevels?.length ? m.effortLevels : null)).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [provider]);
   const [accountError, setAccountError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AccountsInfo | null>(null);
   const [codexModel, setCodexModel] = useState('codex-default');
@@ -280,7 +306,7 @@ export function NewGoalPage() {
   };
 
   // ---- templates (ADR-0079) ----
-  const beta = { figure: betaFigure, motionStudio: betaMotionStudio, diagram: betaDiagram };
+  const beta = { figure: betaFigure, motionStudio: betaMotionStudio, diagram: betaDiagram, deck: betaDeck };
   const offered = offeredTemplates(templates ?? [], beta);
   const templateVersion = template ? shownVersion(template, templateLang) : null;
   const setTemplateLang = (l: TemplateLang) => {
@@ -393,6 +419,8 @@ export function NewGoalPage() {
         if (!d.beta?.figure && nature === 'figure') setNature('auto');
         setBetaDiagram(!!d.beta?.diagram);
         if (!d.beta?.diagram && nature === 'diagram') setNature('auto');
+        setBetaDeck(!!d.beta?.deck);
+        if (!d.beta?.deck && nature === 'deck') setNature('auto');
         // media goals default to fast on top of the Settings pace, as when the goal type is picked by hand
         if (!paceTouched.current) setPace(MEDIA_NATURES.includes(nature) ? 'fast' : d.workflow.defaultPace);
         setDefaultRemote(d.delivery.defaultRemote);
@@ -745,7 +773,7 @@ export function NewGoalPage() {
           </Card>
           <Card id={SECTIONS.kind.id} className={SEC} title={withHelp('kind', 'What kind of goal is this?', 'your-first-goal#what-kind-of-goal-is-this')}>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {NATURES.filter((n) => (n.id !== 'figure' || betaFigure) && (n.id !== 'diagram' || betaDiagram)).map((n) => (
+              {NATURES.filter((n) => (n.id !== 'figure' || betaFigure) && (n.id !== 'diagram' || betaDiagram) && (n.id !== 'deck' || betaDeck)).map((n) => (
                 <button
                   key={n.id}
                   type="button"
@@ -899,13 +927,8 @@ export function NewGoalPage() {
                   onChange={(value) => { changed.current.add('effort'); setEffort(value); }}
                   options={[
                     { id: '', label: 'Default', title: provider === 'codex' ? 'Use each role’s preset effort' : 'The effort level set in Settings' },
-                    ...(provider === 'codex' ? [{ id: 'none', label: 'none' }, { id: 'minimal', label: 'minimal' }] : []),
-                    { id: 'low', label: 'low', title: 'Less reasoning for simple, well-defined goals' },
-                    { id: 'medium', label: 'medium' },
-                    { id: 'high', label: 'high' },
-                    { id: 'xhigh', label: 'xhigh', title: 'Hard, cross-cutting work' },
-                    { id: 'max', label: 'max', title: 'More reasoning for the hardest problems' },
-                    ...(provider === 'codex' ? [{ id: 'ultra', label: 'ultra' }] : []),
+                    // the levels the coding agent takes (ADR-0085): read from its binary; the known ones until the first sync
+                    ...(effortLevels ?? (provider === 'codex' ? CODEX_EFFORTS : KNOWN_EFFORTS)).map((id) => ({ id, label: id, ...(EFFORT_TITLES[id] ? { title: EFFORT_TITLES[id] } : {}) })),
                   ]}
                 />
               </div>

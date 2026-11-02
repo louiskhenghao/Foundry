@@ -8,7 +8,7 @@
 import type { AgentProvider } from '@foundry/core';
 import { cpSync, existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { basename, join, relative, resolve } from 'node:path';
-import type { Attachment, Brief, BriefCheck, BriefStyleOption, BriefTask, DeliveryPolicy, CodexEffort, Goal, GoalFollows, GoalMode, GoalNature, GoalState, Task, TaskState, WorkflowProfile } from '@foundry/core';
+import type { Attachment, Brief, BriefCheck, BriefStyleOption, BriefTask, DeliveryPolicy, Goal, GoalFollows, GoalMode, GoalNature, GoalState, Task, TaskState, WorkflowProfile } from '@foundry/core';
 import { ATTACHMENT_LIMITS, FOLLOWABLE_STATES, GoalWorkflow, IdPrefix, chosenStyle, getBrief, getGoal, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { renderStyle } from './attempt-prompt.ts';
 import { attachmentsDir } from './attachments.ts';
@@ -46,7 +46,7 @@ export interface FollowUpDraft {
   /** false = A is not finished; `reason` says why */
   followable: boolean;
   reason: string | null;
-  prefill: { provider: AgentProvider; codexModel?: string; agyModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: CodexEffort | null; pace: 'thorough' | 'fast'; profile: WorkflowProfile; tdd: Goal['workflow']['tdd']; ponytail: Goal['workflow']['ponytail']; mode: GoalMode; delivery: DeliveryPolicy };
+  prefill: { provider: AgentProvider; codexModel?: string; agyModel?: string; repoPath: string; baseBranch: string; nature: GoalNature; modelPreset: string | null; effort: string | null; pace: 'thorough' | 'fast'; profile: WorkflowProfile; tdd: Goal['workflow']['tdd']; ponytail: Goal['workflow']['ponytail']; mode: GoalMode; delivery: DeliveryPolicy };
   start: {
     /** where B starts unless the human picks the other one */
     recommended: 'base' | 'previous';

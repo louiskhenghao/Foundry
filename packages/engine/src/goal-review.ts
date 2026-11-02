@@ -8,6 +8,8 @@ import { FIGURE_REVIEW_GOAL } from './figure.ts';
 import { figureCheckLines, figureReviewSection } from './checks/figure.ts';
 import { DIAGRAM_REVIEW_GOAL } from './diagram.ts';
 import { diagramCheckLines, diagramReviewSection } from './checks/diagram.ts';
+import { DECK_REVIEW_GOAL } from './deck.ts';
+import { deckCheckLines, deckReviewSection } from './checks/deck.ts';
 import { renderAdjustments } from './adjust.ts';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
@@ -157,7 +159,9 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
         ? figureReviewSection(FIGURE_REVIEW_GOAL, figureCheckLines(engine.store.db, goal.id))
         : scenario === 'diagram'
           ? diagramReviewSection(DIAGRAM_REVIEW_GOAL, diagramCheckLines(engine.store.db, goal.id))
-          : '';
+          : scenario === 'deck'
+            ? deckReviewSection(DECK_REVIEW_GOAL, deckCheckLines(engine.store.db, goal.id))
+            : '';
   // what earlier goal reviews in this repository found (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('review_goal', memoryQuestion('review_goal', { goalTitle: goal.title }), { repoPath: goal.repoPath, goalId: goal.id });
   const prompt = [
@@ -199,7 +203,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     settings: boundarySettings(engine.config.hooksDir),
     settingSources: engine.config.settingSources,
     // a figure or diagram goal's reviewer may open Foundry's screenshots of the pages (ADR-0076, ADR-0083)
-    addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(engine.config.dataDir, goal.id)] : []), ...subjectsAddDirs(engine.config.dataDir, goal.id, brief), ...(scenario === 'figure' || scenario === 'diagram' ? [screenshotsDir(engine.config.dataDir, goal)] : [])]),
+    addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(engine.config.dataDir, goal.id)] : []), ...subjectsAddDirs(engine.config.dataDir, goal.id, brief), ...(scenario === 'figure' || scenario === 'diagram' || scenario === 'deck' ? [screenshotsDir(engine.config.dataDir, goal)] : [])]),
     transcriptPath,
   };
   const handle = await engine.runner.run({ ...base, prompt, maxTurns: 80, maxBudgetUsd: cap, appendSystemPromptFile: engine.roles.path('reviewer-goal'), timeoutMs: 30 * 60_000, label: `goal review ${goal.title}` });

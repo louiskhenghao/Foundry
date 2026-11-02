@@ -1,6 +1,5 @@
 import { AgentProvider } from './provider.ts';
 import { z } from 'zod';
-import { CodexEffort } from './codex-presets.ts';
 import { DeliveryPolicy } from './delivery.ts';
 import { BudgetPreset, Budgets, GoalMode, GoalNature, GoalWorkflow } from './goal.ts';
 
@@ -30,7 +29,8 @@ export const GoalRecipe = z.object({
   budgets: Budgets.partial().optional(),
   budgetPreset: BudgetPreset.optional(),
   modelPreset: z.string().min(1).nullable().optional(),
-  effort: CodexEffort.nullable().optional(),
+  /** a level the coding agent takes (ADR-0085) */
+  effort: z.string().min(1).nullable().optional(),
   nature: GoalNature.optional(),
   mode: GoalMode.optional(),
   workflow: GoalWorkflow.partial().optional(),

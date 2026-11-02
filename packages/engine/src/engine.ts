@@ -2,7 +2,7 @@ import type { VideoPack } from '@foundry/core';
 import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, type TaskState, assignMaterials } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
 import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
-import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, Effort, TITLE_MAX, effectiveCodexPresets, isHistory, natureKey, repoHere, titleFromPrompt, type CodexModelPreset } from '@foundry/core';
+import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, KNOWN_EFFORTS, TITLE_MAX, effectiveCodexPresets, isHistory, natureKey, repoHere, titleFromPrompt, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { AgyQuotaReader } from './usage/agy-quota.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
@@ -70,10 +70,13 @@ import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-s
 import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
 import { FIGURE_CHECK_NAME } from './checks/figure.ts';
 import { DIAGRAM_CHECK_NAME } from './checks/diagram.ts';
+import { DECK_CHECK_NAME } from './checks/deck.ts';
 import { adjustGoal, adjustView, adjustedSinceDelivery, type AdjustView } from './adjust.ts';
 import type { DoctorCheck } from './skills/types.ts';
 import { isFigureStyle, type FigureInfo } from './figure.ts';
 import type { DiagramInfo } from './diagram.ts';
+import type { DeckInfo } from './deck.ts';
+import { pythonEnvPath, pythonOf } from './skills/installer.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { skillUsage } from './skills/usage.ts';
@@ -120,7 +123,7 @@ import type { Report } from './usage/types.ts';
 import { smokeScripts } from './deploy/smoke.ts';
 import { DEPLOY_PROVIDERS, PROVIDER_LABEL, configured, deploySteps, redact } from './deploy/providers.ts';
 import { ModelFallbackRunner } from './models/fallback-runner.ts';
-import { modelsInBinary } from './models/discover.ts';
+import { modelsInBinary, effortLevelsInHelp } from './models/discover.ts';
 import { EffortRunner } from './effort-runner.ts';
 import { AGY_SEED_MODELS, ModelRegistry, SEED_MODELS, isPinnedId, parseAgyModels, type ModelRecord } from './models/registry.ts';
 import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps } from './skills/autoskills.ts';
@@ -180,7 +183,8 @@ export interface CreateGoalInput {
   /** how deep the interview probes, 0 (none) to 5; wins over `interview`; default = Settings → workflow.interviewDepth */
   interviewDepth?: number;
   /** effort level for every session of this goal; default = Settings → workflow.effort */
-  effort?: CodexEffort | null;
+  /** a level the coding agent takes (engine.effortLevels, ADR-0085); null = the Settings default */
+  effort?: string | null;
   /** model preset for this goal; default = the preset Settings picks for its nature */
   modelPreset?: string | null;
   /** Skip Clarify: one task = the prompt, with these command checks. */
@@ -269,6 +273,9 @@ export function limitPauseUntil(rl: RunResult['rateLimit'], now: number): number
   if (rl.rateLimitType === 'overage' && !rl.isUsingOverage) return null;
   return Math.min(rl.resetsAt * 1000, now + (rl.rateLimitType === 'overage' ? OVERAGE_PAUSE_MS : MAX_PAUSE_MS));
 }
+
+/** the effort levels Antigravity's CLI takes (Settings → models.agyEffort names one) */
+const AGY_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 export class Engine {
   readonly store: EventStore;
@@ -482,7 +489,14 @@ export class Engine {
           this.store.append({ type: 'goal.models_changed', goalId, payload: { tier: null, from, to, reason } });
         },
       });
-      return new EffortRunner(fallback, () => this.store.db, () => (provider === 'codex' ? null : provider === 'agy' ? this.config.agyEffort : this.config.effort));
+      return new EffortRunner(
+        fallback,
+        () => this.store.db,
+        () => (provider === 'codex' ? null : provider === 'agy' ? this.config.agyEffort : this.config.effort),
+        // the levels the Claude Code binary takes, read at each model sync (ADR-0085); Codex and Antigravity keep their fixed sets
+        provider === 'claude' ? () => this.effortLevels('claude') : () => null,
+        (m) => this.config.log(m),
+      );
     };
     this.runner = new ProviderRunner({
       claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, claudeHome: config.claudeHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
@@ -514,7 +528,7 @@ export class Engine {
         const { [id]: _, ...rest } = config.suiteReleases ?? {};
         this.updateSettings({ workflow: { suiteReleases: ref ? { ...rest, [id]: ref } : rest } });
       },
-      packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack, figure: config.figurePack, diagram: config.diagramPack }),
+      packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack, figure: config.figurePack, diagram: config.diagramPack, deck: config.deckPack }),
       // a plugin that ships MCP servers (text-to-cad's `cad`) is allowed for sessions as soon as it is installed, under the prefix this coding agent gives it
       onPluginServers: (prefixes) => {
         if (provider !== 'agy') for (const p of prefixes) this.mcpFor(provider).allow(p, true);
@@ -782,6 +796,35 @@ export class Engine {
   /** can diagram goals be made and run here: the beta switch (ADR-0083) */
   diagramAvailable(): boolean {
     return this.config.betaDiagram;
+  }
+
+  /** can deck goals be made and run here: the beta switch (ADR-0084) */
+  deckAvailable(): boolean {
+    return this.config.betaDeck;
+  }
+
+  /**
+   * The deck skill for a goal (ADR-0084): the pack Settings names, whether it is installed for the goal's coding agent
+   * (a copy without its Python environment counts: the worker is told what is missing), where its folder and its
+   * environment are, and whether an image key reaches sessions; null while deck goals are off.
+   */
+  async deckInfo(goal: Goal): Promise<DeckInfo | null> {
+    if (!this.config.betaDeck) return null;
+    const pack = this.config.deckPack as DeckInfo['pack'];
+    const images = this.imageGenAvailable();
+    if (pack === 'none') return { pack, installed: false, skillDir: null, venv: null, images };
+    const skills = this.skillsFor(goal);
+    const statuses = await skills.status().catch(() => []);
+    const s = statuses.find((x) => x.entry.pack === 'deck' && x.entry.packOption === pack);
+    const installed = !!s && (SATISFIED.includes(s.status) || s.status === 'partial');
+    if (!s || !installed) return { pack, installed: false, skillDir: null, venv: null, images };
+    const venv = pythonOf(skills.paths, s.entry.name) ? pythonEnvPath(skills.paths, s.entry.name) : null;
+    return { pack, installed, skillDir: join(skills.paths.skillsDir, s.entry.name), venv, images };
+  }
+
+  /** what a deck task's session gets on top of the usual env (ADR-0084): the skill's Python environment first on PATH, so its `python3` commands run with its packages */
+  deckEnv(venv: string): Record<string, string> {
+    return { PATH: `${join(venv, 'bin')}:${process.env.PATH ?? ''}`, VIRTUAL_ENV: venv };
   }
 
   /**
@@ -1632,7 +1675,7 @@ export class Engine {
       return { ...r, label: provider === 'codex' ? r.codex?.displayName ?? (r.name === 'codex-default' ? 'CLI default' : null) : seed?.label ?? null, note: provider === 'codex' ? r.codex?.description ?? null : seed?.note ?? null, pinned: isPinnedId(r.name), inUse };
     });
   }
-  private validateCodexChoice(model?: string, effort?: CodexEffort): void {
+  private validateCodexChoice(model?: string, effort?: string): void {
     if (!model || !effort || model === 'codex-default') return;
     const advertised = this.providerModels.codex.get(model)?.codex;
     if (advertised?.available && advertised.reasoningEfforts.length && !advertised.reasoningEfforts.includes(effort)) {
@@ -1640,7 +1683,7 @@ export class Engine {
     }
   }
   /** One minimal session with `name` (user-triggered; costs one short call) to learn what it resolves to. */
-  async probeModel(name: string, provider: AgentProvider = this.config.provider, effort?: CodexEffort): Promise<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable: boolean; error: string | null }> {
+  async probeModel(name: string, provider: AgentProvider = this.config.provider, effort?: string): Promise<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable: boolean; error: string | null }> {
     const handle = await this.runner.run({ prompt: 'Reply with the single word OK.', cwd: this.config.dataDir, model: name, effort, meta: { tier: 'probe', provider }, maxTurns: 1, maxBudgetUsd: 0.5, permissionMode: 'dontAsk', allowedTools: [], timeoutMs: 90_000, label: `model probe ${name}` });
     let resolved: string | null = null;
     for await (const ev of handle.events) if (ev.kind === 'init') resolved = ev.model;
@@ -1760,10 +1803,32 @@ export class Engine {
     const resolved: Record<string, string | null> = {};
     if (opts.probe !== false) for (const alias of ['fable', 'opus', 'sonnet', 'haiku']) resolved[alias] = (await this.probeModel(alias, provider).catch(() => null))?.resolvedId ?? null;
     const cliVersion = await this.claudeVersion();
-    registry.noteSync({ cliVersion, at: new Date().toISOString(), found: found.length });
-    this.config.log(`[models] sync: ${found.length} id(s) in the Claude Code binary; ${Object.entries(resolved).map(([a, r]) => `${a} → ${r ?? '?'}`).join(', ')}`);
+    // the effort levels this CLI takes, from its own --help (ADR-0085): a renamed level is known from the next sync on
+    const effortLevels = await this.claudeEffortLevels();
+    registry.noteSync({ cliVersion, at: new Date().toISOString(), found: found.length, ...(effortLevels.length ? { effortLevels } : {}) });
+    this.config.log(`[models] sync: ${found.length} id(s) in the Claude Code binary; ${Object.entries(resolved).map(([a, r]) => `${a} → ${r ?? '?'}`).join(', ')}; effort levels ${effortLevels.join('/') || 'not read'}`);
     return { found: found.length, newest: found.filter((f) => f.newest).map((f) => f.id), resolved, cliVersion };
   }
+  /** the effort levels the installed Claude Code takes (`--effort <level>`), read from its --help; empty when it does not say */
+  private async claudeEffortLevels(): Promise<string[]> {
+    const bin = this.config.claudeBin ?? Bun.which('claude');
+    if (!bin) return [];
+    const r = await exec([bin, '--help'], this.config.dataDir, { timeoutMs: 15_000 }).catch(() => null);
+    return r?.code === 0 ? effortLevelsInHelp(r.stdout) : [];
+  }
+
+  /**
+   * The effort levels a goal on a coding agent may ask for (ADR-0085): Claude's as its binary said at the last model sync
+   * (the known five until then), Codex's fixed set, Antigravity's. The New goal form and Settings offer these; goal
+   * creation refuses another; a goal made before a rename runs with the nearest level the binary takes.
+   */
+  effortLevels(provider: AgentProvider = this.config.provider): string[] {
+    if (provider === 'codex') return [...CodexEffort.options];
+    if (provider === 'agy') return [...AGY_EFFORTS];
+    const synced = this.models.syncState().effortLevels;
+    return synced?.length ? [...synced] : [...KNOWN_EFFORTS];
+  }
+
   private async claudeVersion(): Promise<string | null> {
     const bin = this.config.claudeBin ?? Bun.which('claude');
     if (!bin) return null;
@@ -2325,7 +2390,8 @@ export class Engine {
     // an unknown preset would silently fall back to the Settings pick while the goal still shows the typo
     if (provider !== 'claude' && input.models) throw new Error(`${PROVIDER_NAME[provider]} uses its own model settings, not Claude tiers.`);
     if (provider === 'agy' && input.modelPreset) throw new Error('Antigravity has one model setting (Settings → Models & limits), no presets.');
-    if (provider === 'claude' && input.effort != null && !Effort.safeParse(input.effort).success) throw new Error('This reasoning effort is only supported by Codex.');
+    // the levels the coding agent takes (ADR-0085): Claude's as its binary said at the last sync, Antigravity's fixed set; Codex validates against its presets below
+    if (provider !== 'codex' && input.effort != null && !this.effortLevels(provider).includes(input.effort)) throw new Error(`${provider === 'agy' ? 'Antigravity' : 'This Claude Code'} takes --effort ${this.effortLevels(provider).join(', ')}; "${input.effort}" is not one of them`);
     if (input.modelPreset) {
       const known = Object.keys(provider === 'codex' ? effectiveCodexPresets(this.config.codexPresets) : effectivePresets(this.config.modelPresets));
       if (!known.includes(input.modelPreset)) throw new Error(`unknown model preset "${input.modelPreset}"; use one of: ${known.join(', ')}`);
@@ -2356,6 +2422,7 @@ export class Engine {
     if ((nature === 'figure' || input.figurePack) && !this.config.betaFigure) throw new Error('Figure goals are a beta feature: turn on Settings → Beta → Figure goals first');
     // diagram goals too (ADR-0083)
     if (nature === 'diagram' && !this.config.betaDiagram) throw new Error('Diagram goals are a beta feature: turn on Settings → Beta → Diagram goals first');
+    if (nature === 'deck' && !this.config.betaDeck) throw new Error('Deck goals are a beta feature: turn on Settings → Beta → Deck goals first');
     let codexPreset: CodexModelPreset | undefined;
     const presetId = input.modelPreset ?? (provider === 'codex' && nature !== 'auto' ? this.config.codexNaturePreset[natureKey(nature)] : null);
     if (provider === 'codex') {
@@ -2667,7 +2734,7 @@ export class Engine {
     // the motion-studio engine's tools (ADR-0077), only while its Beta is on
     const motion = this.config.betaMotionStudio ? await this.playwrightStatus().then((pw) => motionStudioCheck({ ffmpeg: Bun.which('ffmpeg'), ffprobe: Bun.which('ffprobe'), browser: pw.browser, browserDetail: pw.detail, platform: process.platform })) : null;
     if (motion?.ok) this.wakeMotionStudioGoals();
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(await this.figureToolsCheck()), ...(await this.diagramToolsCheck()), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(await this.figureToolsCheck()), ...(await this.diagramToolsCheck()), ...(await this.deckToolsCheck(provider)), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
   }
 
   /**
@@ -2701,6 +2768,34 @@ export class Engine {
     return [
       warn('diagram-chromium', 'Diagram goals: Chromium for the render check', pw.browser, pw.browser ? pw.detail : `${pw.detail} — Foundry opens each delivered diagram page headless and renders its PNG; without Chromium the diagram check fails every diagram task`, { url: '/settings#preview' }),
       warn('diagram-python', 'Diagram goals: python3', !!python, python ? python : 'python3 is not on PATH — the diagram skill exports the SVG and checks its page with it (standard library only); install Python 3 or let the worker say so', { url: 'https://www.python.org/downloads/' }),
+    ];
+  }
+
+  /**
+   * The tools deck goals need on this computer (ADR-0084), only while the beta is on and a Deck pack is chosen: uv, which
+   * makes the skill's Python environment when the pack is installed; that environment with the skill's packages in it
+   * (checked by importing python-pptx), once the pack is installed; and Playwright's Chromium, which renders the
+   * per-slide previews (without it the deck check still counts the slides).
+   */
+  private async deckToolsCheck(provider: AgentProvider): Promise<DoctorCheck[]> {
+    if (!this.config.betaDeck || this.config.deckPack === 'none') return [];
+    const warn = (id: string, label: string, ok: boolean, detail: string, fix: DoctorCheck['fix'] = null): DoctorCheck => ({ id, label, ok, severity: 'warn', detail, fix: ok ? null : fix });
+    const uv = Bun.which('uv');
+    const skills = this.skillsForProvider(provider);
+    const statuses = await skills.status().catch(() => []);
+    const s = statuses.find((x) => x.entry.pack === 'deck' && x.entry.packOption === this.config.deckPack);
+    const present = !!s && (SATISFIED.includes(s.status) || s.status === 'partial');
+    const python = s ? pythonOf(skills.paths, s.entry.name) : null;
+    let imports: { ok: boolean; detail: string } | null = null;
+    if (python) {
+      const r = Bun.spawnSync([python, '-I', '-c', 'import pptx, lxml; print(pptx.__version__)'], { timeout: 20_000 });
+      imports = r.exitCode === 0 ? { ok: true, detail: `${python} (python-pptx ${r.stdout.toString().trim()})` } : { ok: false, detail: `${python} cannot import python-pptx (${r.stderr.toString().trim().split('\n').at(-1)?.slice(0, 120) ?? 'no output'}) — Install the Deck pack again` };
+    }
+    const pw = await playwrightStatus();
+    return [
+      warn('deck-uv', 'Deck goals: uv', !!uv, uv ? uv : 'uv is not on PATH — installing the Deck pack makes the skill\'s Python environment with it; install uv (https://docs.astral.sh/uv/) and Install the pack again', { url: 'https://docs.astral.sh/uv/getting-started/installation/' }),
+      ...(present ? [warn('deck-python', "Deck goals: the skill's Python environment", !!imports?.ok, imports ? imports.detail : 'not made — the pack was installed without uv, or its install failed; Install it again under Settings → Skills → Deck skills', { url: '/settings#skills' })] : []),
+      warn('deck-chromium', 'Deck goals: Chromium for the slide previews', pw.browser, pw.browser ? pw.detail : `${pw.detail} — Foundry renders each deck's per-slide previews with it; without Chromium the deck check only counts the slides`, { url: '/settings#preview' }),
     ];
   }
 
@@ -2923,7 +3018,7 @@ export class Engine {
         scenario: t.scenario ?? 'general',
         area: area?.name ?? null,
         // docs, infra, research and media work gets no TDD mandate regardless of the goal's discipline
-        tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video', 'figure', 'diagram'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
+        tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video', 'figure', 'diagram', 'deck'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
         delivers: cleanDeliverables(t.delivers),
@@ -2974,6 +3069,11 @@ export class Engine {
         // a diagram task's pages too (ADR-0083), whatever the goal's nature: a document's diagram is a task like any other
         if (task.scenario === 'diagram') {
           const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: DIAGRAM_CHECK_NAME, tier: 'must', spec: { type: 'diagram' } };
+          this.store.append({ type: 'check.created', goalId, payload: { check } });
+        }
+        // a deck task's decks are opened by Foundry itself when the task lands (ADR-0084)
+        if (task.scenario === 'deck') {
+          const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: DECK_CHECK_NAME, tier: 'must', spec: { type: 'deck' } };
           this.store.append({ type: 'check.created', goalId, payload: { check } });
         }
       }

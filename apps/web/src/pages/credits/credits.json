@@ -1272,6 +1272,17 @@
       "featured": false
     },
     {
+      "project": "hugohe3/ppt-master",
+      "name": "hugohe3/ppt-master",
+      "url": "https://github.com/hugohe3/ppt-master",
+      "license": "MIT",
+      "kinds": [
+        "Skills"
+      ],
+      "ref": "v6.8.0",
+      "featured": false
+    },
+    {
       "project": "https://isoglow.dev",
       "name": "iso-glow",
       "url": "https://isoglow.dev",

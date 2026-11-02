@@ -307,7 +307,7 @@ The history endpoint returns the last 400 events, slimmed the same way, includin
 | Tick and per-state dispatch | `engine/src/engine.ts` (`tick`, `runTick`) |
 | Scheduling, parallelism, file-overlap waits | `engine/src/scheduler.ts`, `engine/src/catchup.ts` |
 | Attempt loop, Continuations, Observation Report | `engine/src/attempt-loop.ts`, `engine/src/attempt-prompt.ts` |
-| Command checks, Task reviewer, baseline, Self-check, the figure check (a figure task's pages opened headless, ADR-0076), the diagram check (a diagram task's pages opened headless, their SVG rendered to a PNG, the skill's self-check run, ADR-0083) | `engine/src/checks/{command,reviewer,baseline,selfcheck,figure,diagram}.ts` |
+| Command checks, Task reviewer, baseline, Self-check, the figure check (a figure task's pages opened headless, ADR-0076), the diagram check (a diagram task's pages opened headless, their SVG rendered to a PNG, the skill's self-check run, ADR-0083), the deck check (a deck task's PPTX read as a zip, the skill's delivery check run, the slide previews rendered, ADR-0084) | `engine/src/checks/{command,reviewer,baseline,selfcheck,figure,diagram,deck,zip}.ts` |
 | Clarify, Interview, Brief output schema | `engine/src/clarify.ts`, `core/src/schema/{brief,interview}.ts` |
 | Draft / Revise on the Brief page | `engine/src/brief-draft.ts`, `core/src/machine/brief-decisions.ts` |
 | Brief coverage (every Area has a task) | `core/src/machine/brief-coverage.ts` |

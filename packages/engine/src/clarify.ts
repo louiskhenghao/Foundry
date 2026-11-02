@@ -21,28 +21,29 @@ import { renderReferences } from './references.ts';
 import { subjectsFromClarifier } from './subjects.ts';
 import { FIGURE_PLAN, figureClarifySection, type FigureInfo } from './figure.ts';
 import { DIAGRAM_PLAN, diagramClarifySection, diagramTasksNote, type DiagramInfo } from './diagram.ts';
+import { DECK_PLAN, deckClarifySection, type DeckInfo } from './deck.ts';
 
 /** Files that do not make a repository "have code": a freshly initialised repo may carry any of these. */
 const EMPTY_REPO_IGNORE = new Set(['.git', '.claude', '.agents', '.DS_Store', 'graphify-out', 'CLAUDE.md', 'AGENTS.md', 'README.md', '.gitignore', '.gitattributes', 'LICENSE', 'docs']);
 
 /** The scenario that filters clarifier/planner skill hints for a nature; undefined = no filter (code and unclassified goals). */
 export function natureScenario(nature: GoalNature): TaskScenario | undefined {
-  return nature === 'docs' || nature === 'research' || nature === 'image' || nature === 'video' || nature === 'figure' || nature === 'diagram' || nature === 'cad' ? nature : undefined;
+  return nature === 'docs' || nature === 'research' || nature === 'image' || nature === 'video' || nature === 'figure' || nature === 'diagram' || nature === 'deck' || nature === 'cad' ? nature : undefined;
 }
 
-const NatureVerdict = z.object({ nature: z.enum(['code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'cad']) });
+const NatureVerdict = z.object({ nature: z.enum(['code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'deck', 'cad']) });
 
 /**
  * One cheap single-turn call that classifies an `auto` goal's nature BEFORE the Clarify prompt is built,
  * so the prompt sections and skill hints match the goal (a poster goal should never be handed
  * codebase-design). Null on any failure — Clarify then runs with the judge-it-yourself sections.
  */
-async function classifyNature(engine: Engine, goal: Goal, ws: string, cad: boolean, figure: boolean, diagram: boolean): Promise<GoalNature | null> {
+async function classifyNature(engine: Engine, goal: Goal, ws: string, cad: boolean, figure: boolean, diagram: boolean, deck: boolean): Promise<GoalNature | null> {
   try {
     // cad is offered only where text-to-cad is installed: a goal that needs it on another machine is code work
     const { handle, untrack } = await startSession(engine, goal, 'clarifying', () =>
       engine.runner.run({
-      prompt: `Classify what this goal produces. code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio${cad ? '; cad = 3D parts or assemblies (STEP/STL/3MF), engineering drawings, DXF cut profiles or robot description files (URDF/SDF)' : ''}${figure ? '; figure = an interactive isometric figure of an everyday object, device, machine or building (one HTML page with working parts), including "how does X work" or "what is inside X" asked as a figure' : ''}${diagram ? '; diagram = editorial diagrams as web pages with an SVG each — an architecture, a flowchart, a sequence, a state machine, a timeline, an org chart, a chart (bar, line, Gantt, Sankey…), or a draw.io, Mermaid or Excalidraw file redrawn — when the drawings are the deliverable' : ''}. Pick the dominant one for mixed goals.\n\n# Goal\n${goal.prompt.slice(0, 4000)}`,
+      prompt: `Classify what this goal produces. code = software changes; docs = prose/documents; research = an investigation ending in a cited report; image = generated/edited images; video = generated/edited video or audio${cad ? '; cad = 3D parts or assemblies (STEP/STL/3MF), engineering drawings, DXF cut profiles or robot description files (URDF/SDF)' : ''}${figure ? '; figure = an interactive isometric figure of an everyday object, device, machine or building (one HTML page with working parts), including "how does X work" or "what is inside X" asked as a figure' : ''}${diagram ? '; diagram = editorial diagrams as web pages with an SVG each — an architecture, a flowchart, a sequence, a state machine, a timeline, an org chart, a chart (bar, line, Gantt, Sankey…), or a draw.io, Mermaid or Excalidraw file redrawn — when the drawings are the deliverable' : ''}${deck ? '; deck = a slide deck as a native PPTX file — a presentation, PPT, 幻灯片, 课件, a pitch or a lecture to present, or a document turned into slides' : ''}. Pick the dominant one for mixed goals.\n\n# Goal\n${goal.prompt.slice(0, 4000)}`,
       cwd: ws,
       model: goal.models.cheap,
       meta: { goalId: goal.id, tier: 'cheap' },
@@ -63,7 +64,7 @@ async function classifyNature(engine: Engine, goal: Goal, ws: string, cad: boole
       engine.recordSessionUsage(r, { goalId: goal.id, kind: 'clarify', model: goal.models.cheap });
       const parsed = NatureVerdict.safeParse(r.structuredOutput ?? tryJson(r.finalText));
       if (!parsed.success) return null;
-      return parsed.data.nature === 'cad' && !cad ? 'code' : parsed.data.nature === 'figure' && !figure ? 'image' : parsed.data.nature === 'diagram' && !diagram ? 'docs' : parsed.data.nature;
+      return parsed.data.nature === 'cad' && !cad ? 'code' : parsed.data.nature === 'figure' && !figure ? 'image' : parsed.data.nature === 'diagram' && !diagram ? 'docs' : parsed.data.nature === 'deck' && !deck ? 'docs' : parsed.data.nature;
     } finally {
       untrack();
     }
@@ -100,6 +101,8 @@ interface ClarifyContext {
   figure: FigureInfo | null;
   /** the diagram skill for this goal (ADR-0083), null while diagram goals are off: a diagram verdict then is document work, and no goal carries diagram tasks */
   diagram: DiagramInfo | null;
+  /** the deck skill for this goal (ADR-0084), null while deck goals are off: a deck verdict then is document work */
+  deck: DeckInfo | null;
   /** engine-made questions (dirty repo …) that ride into the Brief */
   extraQuestions: Brief['questions'];
   run: (p: string, resume?: string) => Promise<RunHandle>;
@@ -130,12 +133,14 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const figure = await engine.figureInfo(goal);
   // diagram goals (ADR-0083): the diagram skill this goal would draw with, null while the beta is off
   const diagram = await engine.diagramInfo(goal);
+  // deck goals (ADR-0084): the deck skill this goal would make slides with, null while the beta is off
+  const deck = await engine.deckInfo(goal);
   // auto goals: settle the nature BEFORE building the prompt, so its sections and skill hints match the goal. The
   // classification (a short model call) and the repository overview (graphify may build its graph first) run side by side.
   const wasAuto = goal.nature === 'auto';
   let nature = goal.nature;
   const [verdict, base, log] = await Promise.all([
-    wasAuto ? classifyNature(engine, goal, ws, cadAvailable, !!figure, !!diagram) : Promise.resolve(null),
+    wasAuto ? classifyNature(engine, goal, ws, cadAvailable, !!figure, !!diagram, !!deck) : Promise.resolve(null),
     engine.context
       .prepare(ws)
       .catch((err) => config.log(`[clarify] context prepare failed: ${err}`))
@@ -169,7 +174,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
     engine.memory.reflectPerson(memoryQuestion('person', { goalTitle: goal.title, goalPrompt: goal.prompt }), { repoPath: goal.repoPath, goalId: goal.id }),
   ]);
   const previous = [followUp, delegationContext(engine, goal), learningsContext(engine, goal), recalled ? memorySection(recalled.text, { tools: false, kind: recalled.kind }) : '', aboutPerson ? memorySection(aboutPerson.text, { tools: false, about: 'person', kind: aboutPerson.kind }) : ''].filter(Boolean).join('\n\n');
-  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable, figure, diagram);
+  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable, figure, diagram, deck);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = clarifySchema(!!goal.interview);
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
@@ -208,7 +213,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
     model: plannerModel.model,
     run: (skeleton: BriefSkeleton, resume?: { sessionId: string; message: string }) =>
       engine.runner.run({
-        prompt: resume ? resume.message : buildPlannerPrompt({ ...goal, nature }, skeleton, { overview, attachments: renderAttachments(goal, config.dataDir), decisions, interview: goal.interview, emptyRepo: isEmptyRepo(ws), imageGen: engine.imageGenAvailable(), previous, plannerHint, delegation: goal.delegation.allow, diagram }),
+        prompt: resume ? resume.message : buildPlannerPrompt({ ...goal, nature }, skeleton, { overview, attachments: renderAttachments(goal, config.dataDir), decisions, interview: goal.interview, emptyRepo: isEmptyRepo(ws), imageGen: engine.imageGenAvailable(), previous, plannerHint, delegation: goal.delegation.allow, diagram, deck }),
         cwd: ws,
         model: plannerModel.model,
         meta: metaFor(goal.id, plannerModel),
@@ -232,7 +237,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
         lane: 'interactive',
       }),
   };
-  return { ws, prompt, wasAuto, nature, cadAvailable, figure, diagram, extraQuestions, run, planner };
+  return { ws, prompt, wasAuto, nature, cadAvailable, figure, diagram, deck, extraQuestions, run, planner };
 }
 
 /**
@@ -348,6 +353,8 @@ function settleNature(engine: Engine, goal: Goal, ctx: ClarifyContext, o: Pick<B
   if (o.nature === 'figure' && !ctx.figure) o.nature = 'image';
   // diagram goals too (ADR-0083): off, a diagram verdict is document work
   if (o.nature === 'diagram' && !ctx.diagram) o.nature = 'docs';
+  // deck goals too (ADR-0084): off, a deck verdict is document work
+  if (o.nature === 'deck' && !ctx.deck) o.nature = 'docs';
   // the Clarifier read a style from the goal's words: the goal follows it when the person chose none and it is installed
   if (o.nature === 'figure' && o.figurePack && !goal.figurePack && ctx.figure?.installed.includes(o.figurePack) && o.figurePack !== ctx.figure.pack) {
     engine.store.append({ type: 'goal.figure_pack_set', goalId: goal.id, payload: { figurePack: o.figurePack, reason: "clarifier verdict from the goal's words" } });
@@ -713,7 +720,7 @@ function mediaConventions(kind: 'image' | 'video', ffprobe: boolean): string {
  * The nature rules that shape a plan, for the planner: how tasks are cut and checked per kind of goal. The Clarifier's
  * own decisions (the nature, style directions, a stack question) are settled in the Brief it receives.
  */
-function plannerNatureSection(goal: Goal, emptyRepo: boolean, diagram: DiagramInfo | null = null): string {
+function plannerNatureSection(goal: Goal, emptyRepo: boolean, diagram: DiagramInfo | null = null, deck: DeckInfo | null = null): string {
   const ffprobe = Bun.which('ffprobe') != null;
   const scaffold = '# Empty repository\nThere is no code yet. The Brief records the tech stack (as a question or an assumption): make the FIRST task scaffold that stack (package manifest, build and test commands) and make every other task depend on it. Checks may only use commands that exist once it is done.';
   const docs = '# Documents\nOne writing task per document or chapter (scenario `docs`). Checks are reviewer rubrics (audience, structure, tone, completeness, factual grounding) or objective file checks; never build/test/lint.';
@@ -729,8 +736,9 @@ function plannerNatureSection(goal: Goal, emptyRepo: boolean, diagram: DiagramIn
   if (nature === 'cad') return CAD_PLAN;
   if (nature === 'figure') return FIGURE_PLAN;
   if (nature === 'diagram') return DIAGRAM_PLAN;
+  if (nature === 'deck') return DECK_PLAN;
   if (nature === 'code') return [emptyRepo ? scaffold : '', diagrams].filter(Boolean).join('\n\n');
-  return [`# Plan by the Brief's nature\nThe Brief sets \`nature\`; follow the rules below that match it.`, emptyRepo ? scaffold : '', docs, research, media('image'), media('video'), CAD_PLAN, FIGURE_PLAN, ...(diagram ? [DIAGRAM_PLAN] : []), diagrams].filter(Boolean).join('\n\n');
+  return [`# Plan by the Brief's nature\nThe Brief sets \`nature\`; follow the rules below that match it.`, emptyRepo ? scaffold : '', docs, research, media('image'), media('video'), CAD_PLAN, FIGURE_PLAN, ...(diagram ? [DIAGRAM_PLAN] : []), ...(deck ? [DECK_PLAN] : []), diagrams].filter(Boolean).join('\n\n');
 }
 
 /** how a cad goal is cut: one task per part or assembly, geometry checks first, the robot files after the parts they describe */
@@ -738,7 +746,7 @@ const CAD_PLAN =
   '# CAD\nOne task per part or assembly (scenario `cad`); robot description files (URDF, SRDF, SDF) and drawings are tasks of their own, after the parts they describe. Each task delivers its build123d source in the repository (the repository\'s own layout, else `cad/`), its exports under `artifacts/` (STEP always; STL, 3MF, GLB, DXF or a drawing PDF when the Brief asks), front, top, right and isometric snapshots next to them, and a manifest entry under `docs/artifacts/` with the dimensions, process, material, checks and files. Exports and snapshots live only under `artifacts/`, kept out of git: this overrides the cad skill\'s example layout (`STEP/`, `STL/`, `snapshots/` beside the source), so checks name `artifacts/<part>.step` and never a tracked export folder. Checks: Python geometry checks (key dimensions, interference, wall thickness) as command checks, a DfAM or DFM check for the process the Brief names, and a reviewer rubric against the Brief\'s dimensions. A check or a committed script never reaches into the coding agent\'s plugin folder (`~/.claude/plugins/…`, `~/.codex/plugins/…`): that path carries the plugin\'s version and differs per machine, so a check that needs one of the skills\' tools (the DfAM measurer) runs a copy the task puts in the repository, licence kept. No web tech stacks; no build/test/lint checks beyond the geometry checks.';
 
 /** Nature-specific planning rules. Auto goals get the conditional form: judge the nature first, then apply its rules. */
-function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvailable = false, figure: FigureInfo | null = null, diagram: DiagramInfo | null = null): string {
+function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvailable = false, figure: FigureInfo | null = null, diagram: DiagramInfo | null = null, deck: DeckInfo | null = null): string {
   const ffprobe = Bun.which('ffprobe') != null;
   const styleAsk = `\nAlso output 2–4 \`styleOptions\` — distinct visual directions the human can SEE before any generation starts: real hex palette, 1–3 typefaces, 3–6 style keywords, one or two sentences on feel/composition; YOUR recommendation FIRST (the human's pick from the interview, if any, marked \`chosen: true\`). Plan the tasks assuming the first direction.`;
   const noBackend = `\n- IMPORTANT: no image-generation backend is configured on this machine (sessions have no OPENAI_API_KEY), so workers cannot call a generation API — at best they hand-author SVG/HTML and render it, at noticeably lower fidelity. Record this as an explicit assumption (e.g. "No AI image backend is configured; image deliverables will be hand-authored SVG renders") so the human can reject it and configure a key in Settings → Tools before approving the plan.`;
@@ -762,6 +770,8 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
       return [figureClarifySection(figure), subjectsSection(goal)].join('\n\n');
     case 'diagram':
       return diagramClarifySection(diagram);
+    case 'deck':
+      return deckClarifySection(deck);
     case 'cad':
       return [cad, subjectsSection(goal)].join('\n\n');
     case 'code':
@@ -770,7 +780,7 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
         .join('\n\n');
     case 'auto':
       return [
-        `# Judge the nature first\nThe user did not say what kind of goal this is. Decide from the prompt and set \`nature\` accordingly: code (software), docs (prose), research (a cited report), image or video (media files)${cadAvailable ? ', cad (parts, drawings, robot description files)' : ''}${figure ? ', figure (an interactive isometric figure of an object or machine, one HTML page)' : ''}${diagram ? ', diagram (editorial diagrams — an architecture, a flow, a timeline, a chart — as web pages with an SVG each, when the drawings are the deliverable)' : ''}. Then follow the matching rules:\n- code${emptyRepo ? `, empty repository: ${TECH_STACK_SECTION}` : ': explore the repo as below.'}\n- docs / research / image / video${cadAvailable ? ' / cad' : ''}${figure ? ' / figure' : ''}${diagram ? ' / diagram' : ''}: apply the corresponding section below and ignore build/test/stack concerns entirely.`,
+        `# Judge the nature first\nThe user did not say what kind of goal this is. Decide from the prompt and set \`nature\` accordingly: code (software), docs (prose), research (a cited report), image or video (media files)${cadAvailable ? ', cad (parts, drawings, robot description files)' : ''}${figure ? ', figure (an interactive isometric figure of an object or machine, one HTML page)' : ''}${diagram ? ', diagram (editorial diagrams — an architecture, a flow, a timeline, a chart — as web pages with an SVG each, when the drawings are the deliverable)' : ''}${deck ? ', deck (a slide deck — a presentation, a lecture, a pitch, a document turned into slides — as a native PPTX file)' : ''}. Then follow the matching rules:\n- code${emptyRepo ? `, empty repository: ${TECH_STACK_SECTION}` : ': explore the repo as below.'}\n- docs / research / image / video${cadAvailable ? ' / cad' : ''}${figure ? ' / figure' : ''}${diagram ? ' / diagram' : ''}${deck ? ' / deck' : ''}: apply the corresponding section below and ignore build/test/stack concerns entirely.`,
         docs,
         research,
         media('image'),
@@ -778,20 +788,21 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
         ...(cadAvailable ? [cad] : []),
         ...(figure ? [figureClarifySection(figure)] : []),
         ...(diagram ? [diagramClarifySection(diagram)] : []),
+        ...(deck ? [deckClarifySection(deck)] : []),
         diagrams,
         `${subjectsSection(goal)}\nThis applies to code (a user interface), image, video${figure ? ', figure' : ''}${cadAvailable ? ' and cad' : ''} goals; docs and research goals name no Subjects.`,
       ].join('\n\n');
   }
 }
 
-function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true, interview: number | null = null, previous = '', cadAvailable = false, figure: FigureInfo | null = null, diagram: DiagramInfo | null = null): string {
+function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: string | null = null, attachments = '', decisions = '', emptyRepo = false, imageGen = true, interview: number | null = null, previous = '', cadAvailable = false, figure: FigureInfo | null = null, diagram: DiagramInfo | null = null, deck: DeckInfo | null = null): string {
   return [
     interview ? interviewSection(interview) : '',
     `# Goal from the user\n${goal.prompt}`,
     decisions ? `${decisions}\nTreat these as settled: plan with them, record them as assumptions, and do not ask about them again.` : '',
     previous,
     goal.references.length ? `${renderReferences(goal)}\nGround the Brief in the report: what the reference does becomes the understanding and the acceptance checks, in the person's words. A goal that only asks to understand the reference, not to change this repository, is of nature research: its deliverable is the report under docs/, and its tasks analyse rather than build. Never plan copying the reference's code or assets.` : '',
-    natureSection(goal, emptyRepo, imageGen, cadAvailable, figure, diagram),
+    natureSection(goal, emptyRepo, imageGen, cadAvailable, figure, diagram, deck),
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
     renderCompanions(goal),
@@ -811,7 +822,7 @@ Before you carve tasks, check what already exists: a helper, component, service 
 const DELEGATE_SECTION = `# Delegated goals (allowed on this goal)
 A task of kind \`goal\` is not done by one worker session: Foundry makes a goal of its own for it — its own Clarify, plan and tasks, on this goal's branch — and its result lands here as that task's commit, its files under artifacts/ with it, before the tasks that depend on it start. Use it for a step that is itself a project: research that must come first and shape the rest, a craft of its own next to the code (a 3D model, a video, a set of images), or a part so large that one plan for everything would stay shallow. Do not use it for ordinary tasks: a goal task costs a whole Clarify. Its \`spec\` is the prompt that goal gets, so write it the way the human wrote this goal — what to make, for whom, what must and must not happen, and what the other steps expect back from it; its \`scenario\` says what it produces (image, video, cad, research, docs, or a code scenario). Give it \`dependsOnKeys\` on what it needs first, and make the tasks that use its result depend on it. Goal tasks with no dependency between them run in parallel, as many as the goal's parallel limit allows; give each a \`budgetUsd\` share of the whole estimate when you can say, else they share what is left evenly.`;
 
-export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { overview: string | null; attachments: string; decisions: string; interview: Interview | null; emptyRepo: boolean; imageGen: boolean; previous: string; plannerHint: string | null; delegation?: boolean; diagram?: DiagramInfo | null }): string {
+export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { overview: string | null; attachments: string; decisions: string; interview: Interview | null; emptyRepo: boolean; imageGen: boolean; previous: string; plannerHint: string | null; delegation?: boolean; diagram?: DiagramInfo | null; deck?: DeckInfo | null }): string {
   const { planningNotes, ...brief } = skeleton;
   const answers = c.interview ? interviewAnswers(c.interview) : [];
   return [
@@ -821,7 +832,7 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
     answers.length ? `# The human's answers in the interview (settled)\n${answers.map(({ question, answer }) => `- ${question.text}\n  A: ${answer}`).join('\n')}` : '',
     c.previous,
     renderReferences(goal),
-    plannerNatureSection({ ...goal, nature: skeleton.nature ?? goal.nature }, c.emptyRepo, c.diagram ?? null),
+    plannerNatureSection({ ...goal, nature: skeleton.nature ?? goal.nature }, c.emptyRepo, c.diagram ?? null, c.deck ?? null),
     c.delegation ? DELEGATE_SECTION : '',
     c.attachments,
     c.overview ? `# Repository overview\n${c.overview}` : '',

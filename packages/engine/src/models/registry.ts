@@ -39,6 +39,8 @@ export interface ModelSyncState {
   cliVersion: string | null;
   at: string | null;
   found: number;
+  /** the effort levels the Claude Code binary took at that sync (`--effort`, from its --help; ADR-0085); absent = not read */
+  effortLevels?: string[];
 }
 
 /**

@@ -268,6 +268,11 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
       throw new InstallError(`${entry.name} already exists in ${ctx.paths.skillsDir} and was not installed by foundry`, 'conflict', { name: entry.name, path: dest, managed: marker ? 'foundry' : 'other' });
     }
     if (marker?.catalogId === entry.id && !opts.force && !opts.refresh) {
+      // the copy is current; its Python environment may still be missing (uv was not there, or the install failed): make it now (ADR-0084)
+      if (entry.source.python && !pythonOf(ctx.paths, entry.name)) {
+        const python = await installPython(entry.name, entry.source.python, dest, ctx);
+        if (python) writeFileSync(join(dest, MARKER_FILE), JSON.stringify({ ...marker, python }, null, 2));
+      }
       return { ok: true, id: entry.id, name: entry.name, path: dest, commit: marker.commit, manual: null, error: null };
     }
   }
@@ -278,6 +283,8 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
   if (existing) trashSkill(entry.name, ctx.paths, opts.force ? 'replaced by forced install' : 'replaced by update');
   mkdirSync(ctx.paths.skillsDir, { recursive: true });
   cpSync(srcDir, dest, { recursive: true, dereference: true });
+  // the skill's own Python packages, in an environment Foundry keeps for it (ADR-0084)
+  const python = entry.source.python ? await installPython(entry.name, entry.source.python, dest, ctx) : undefined;
   const marker: FoundryMarker = {
     catalogId: entry.id,
     repo: entry.source.repo,
@@ -287,10 +294,64 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
     path: relative(cache, srcDir),
     installedAt: prev?.installedAt ?? new Date().toISOString(),
     updatedAt: prev ? new Date().toISOString() : undefined,
+    ...(python ? { python } : {}),
   };
   writeFileSync(join(dest, MARKER_FILE), JSON.stringify(marker, null, 2));
   ctx.log?.(`[skills] installed ${entry.name} from ${entry.source.repo}${commit ? ' @ ' + commit.slice(0, 7) : ''}`);
   return { ok: true, id: entry.id, name: entry.name, path: dest, commit, manual: null, error: null };
+}
+
+/** where a skill's Python environment lives (ADR-0084): <dataDir>/python/<skill name> */
+export const pythonEnvPath = (paths: Pick<SkillsPaths, 'pythonDir'>, name: string): string => join(paths.pythonDir, name);
+
+/** the python of a skill's environment, when the environment is there */
+export function pythonOf(paths: Pick<SkillsPaths, 'pythonDir'>, name: string): string | null {
+  const bin = join(pythonEnvPath(paths, name), 'bin', 'python');
+  return existsSync(bin) ? bin : null;
+}
+
+/**
+ * A Python environment for a skill whose scripts need packages (ADR-0084): made with uv at the pinned Python version under
+ * <dataDir>/python/<name> (uv fetches that Python itself), the skill's requirements installed into it. Without uv, or when
+ * a step fails, the skill stays installed and the environment is reported missing: the doctor and the pack's status say
+ * so, and Install again makes it once uv is there. Returns what the marker records, or undefined when it was not made.
+ */
+export async function installPython(name: string, spec: { requirements: string; version: string }, skillDir: string, ctx: InstallContext): Promise<FoundryMarker['python'] | undefined> {
+  const req = join(skillDir, spec.requirements);
+  const say = (l: string) => {
+    ctx.onLine?.(l);
+    ctx.log?.(l);
+  };
+  if (!existsSync(req)) {
+    say(`[skills] ${name}: ${spec.requirements} is not in the skill; no Python environment made`);
+    return undefined;
+  }
+  const uv = Bun.which('uv');
+  if (!uv) {
+    say(`[skills] ${name}: uv is not on PATH (https://docs.astral.sh/uv/) — the skill is installed, its Python environment is not; Install again once uv is there`);
+    return undefined;
+  }
+  // tests inject a spawner; every install path otherwise streams the real one (imported late: updaters.ts imports this module)
+  const spawn = ctx.spawn ?? (await import('./updaters.ts')).spawnStreaming;
+  const venv = pythonEnvPath(ctx.paths, name);
+  mkdirSync(ctx.paths.pythonDir, { recursive: true });
+  rmSync(venv, { recursive: true, force: true });
+  say(`[skills] ${name}: making a Python ${spec.version} environment at ${venv}`);
+  const made = await spawn([uv, 'venv', '--python', spec.version, venv], skillDir, say, { timeoutMs: 10 * 60_000 });
+  if (made.code !== 0) {
+    say(`[skills] ${name}: uv venv failed (${made.code}): ${made.tail.slice(-400)}`);
+    rmSync(venv, { recursive: true, force: true });
+    return undefined;
+  }
+  say(`[skills] ${name}: installing ${spec.requirements} into it`);
+  const got = await spawn([uv, 'pip', 'install', '--python', join(venv, 'bin', 'python'), '-r', req], skillDir, say, { timeoutMs: 30 * 60_000 });
+  if (got.code !== 0) {
+    say(`[skills] ${name}: uv pip install failed (${got.code}): ${got.tail.slice(-400)}`);
+    rmSync(venv, { recursive: true, force: true });
+    return undefined;
+  }
+  say(`[skills] ${name}: Python environment ready`);
+  return { venv, version: spec.version, requirements: createHash('sha256').update(readFileSync(req)).digest('hex') };
 }
 
 /** Re-install from a refreshed cache (or Foundry's bundled folder). Returns from/to commits. */

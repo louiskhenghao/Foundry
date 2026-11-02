@@ -87,9 +87,10 @@ Foundry 在一个*仓库*（repository）里工作：也就是由 git 保存历�
 | **Video** | 生成的视频或带旁白的演示。 |
 | **Figures** | 物件与机器的可交互等轴测图，每张一个网页。Beta：Settings → Beta → Figure goals 打开后才显示；见 [Figure goal](./figures.zh.md)。 |
 | **Diagrams** | 编辑风格的图：架构、流程、时序、时间线、图表；每张一个网页加一份 SVG。Beta：Settings → Beta → Diagram goals 打开后才显示；见 [Diagram goal](./diagrams.zh.md)。 |
+| **Slides** | 幻灯片：路演、课件、汇报、文档变幻灯片；每套一个原生 PPTX。Beta：Settings → Beta → Deck goals 打开后才显示；见 [Deck goal](./decks.zh.md)。 |
 | **CAD** | 3D 零件和装配体（STEP，按需也出 STL、3MF 或 GLB）、工程图、DXF 切割轮廓、URDF/SRDF/SDF 机器人文件。需要 text-to-cad，在 Setup 页安装。 |
 
-选 **Documents**、**Research**、**Images**、**Video**、**Figures** 或 **Diagrams** 会把视图切到 **Simple**。选 **Images**、**Video**、**Figures** 或 **Diagrams** 还会勾上 **Fast mode**，除非你已经自己改过它。**Figures** 会多出一行 **Style**：Settings 里的默认风格，或两个 figure 技能之一。**CAD** 保留你的默认值：它是带几何内核的代码工作，所以 Brief 的检查很要紧；它的 TDD 要求是 *preferred*（几何检查写在模型之前），Ponytail 也适用。
+选 **Documents**、**Research**、**Images**、**Video**、**Figures**、**Diagrams** 或 **Slides** 会把视图切到 **Simple**。选 **Images**、**Video**、**Figures**、**Diagrams** 或 **Slides** 还会勾上 **Fast mode**，除非你已经自己改过它。**Figures** 会多出一行 **Style**：Settings 里的默认风格，或两个 figure 技能之一。**CAD** 保留你的默认值：它是带几何内核的代码工作，所以 Brief 的检查很要紧；它的 TDD 要求是 *preferred*（几何检查写在模型之前），Ponytail 也适用。
 
 选 **Images**、**Video**、**Figures**、**Diagrams** 和 **CAD** 时会多出一个字段：**Output folder**。goal 完成后，做好的文件会复制到那里。按 **Choose…** 选一个文件夹。这是可选的；不选的话文件就留在进度文件夹里。图片类 goal 还需要图片 key，见 [费用与用量](./costs-and-usage.zh.md#图片类-goal-需要图片-key)。
 
@@ -130,7 +131,7 @@ Foundry 写 Brief 之前问你问得多深：**Skip**，然后是 **1** 到 **5*
 
 ### Effort
 
-这个 goal 的会话思考得有多用力。明确选择一个值会覆盖所有角色。Codex 的 **Default** 使用预设中各角色的强度；当模型支持时，也可选择 **none**、**minimal** 或 **ultra**。表单初始填入 Settings 中配置的强度；主动选 **Default** 会恢复 Codex 角色设置。已知不兼容的模型与强度组合必须修正后才能创建任务。
+这个 goal 的会话思考得有多用力。明确选择一个值会覆盖所有角色。可选的档位就是你的 coding agent 接受的那些：Claude Code 的档位由 Foundry 在每次模型同步时从已安装的 CLI 读出来，新版 Claude Code 新增或改名的档位会自己出现在这里，用旧档位创建的 goal 会以 CLI 还接受的最接近档位运行。Codex 的 **Default** 使用预设中各角色的强度；当模型支持时，也可选择 **none**、**minimal** 或 **ultra**。表单初始填入 Settings 中配置的强度；主动选 **Default** 会恢复 Codex 角色设置。已知不兼容的模型与强度组合必须修正后才能创建任务。
 
 | 选项 | 什么时候用 |
 |---|---|

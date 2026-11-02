@@ -18,9 +18,13 @@ export const isFigureStyle = (v: unknown): v is FigureStyle => FIGURE_STYLES.inc
  */
 export const FIGURE_SESSION_MIN = 45;
 
-/** the session cap for one attempt: the Settings cap, raised to FIGURE_SESSION_MIN for a figure task (ADR-0076) */
+/** a deck task's floor (ADR-0084): ppt-master plans, draws every page as SVG and compiles the deck in long turns */
+export const DECK_SESSION_MIN = 60;
+
+/** the session cap for one attempt: the Settings cap, raised to FIGURE_SESSION_MIN for a figure task (ADR-0076) and to DECK_SESSION_MIN for a deck task (ADR-0084) */
 export function attemptTimeoutMs(config: { attemptTimeoutMs: number }, task: { scenario?: string }): number {
-  return task.scenario === 'figure' ? Math.max(config.attemptTimeoutMs, FIGURE_SESSION_MIN * 60_000) : config.attemptTimeoutMs;
+  const floor = task.scenario === 'figure' ? FIGURE_SESSION_MIN : task.scenario === 'deck' ? DECK_SESSION_MIN : 0;
+  return Math.max(config.attemptTimeoutMs, floor * 60_000);
 }
 
 /** the figure skills as a goal sees them: the pack it follows (its own choice, else Settings') and which styles are installed for its coding agent */

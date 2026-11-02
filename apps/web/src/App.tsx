@@ -1,5 +1,5 @@
 import { AccountsPage } from './pages/AccountsPage.tsx';
-import { ArrowLeftRight, ArrowUpCircle, BarChart3, Bot, Inbox, LayoutTemplate, ListTodo, LogOut, Menu, Moon, Network, NotebookPen, Palette, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
+import { ArrowLeftRight, ArrowUpCircle, BarChart3, RefreshCw, Bot, Inbox, LayoutTemplate, ListTodo, LogOut, Menu, Moon, Network, NotebookPen, Palette, Plus, Puzzle, Radio, Settings2, Sun, Wrench, X, HelpCircle, AlarmClock } from 'lucide-react';
 import { HelpPage } from './pages/HelpPage.tsx';
 import { TransferPage } from './pages/TransferPage.tsx';
 import { PortsPage } from './pages/PortsPage.tsx';
@@ -284,6 +284,9 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
           </MenuItem>
           <MenuItem icon={<HelpCircle size={13} />} hint="How to use Foundry" onClick={() => go(close, '/help')}>
             Help
+          </MenuItem>
+          <MenuItem icon={<RefreshCw size={13} />} hint="Load the app again; the installed app has no reload button" onClick={() => location.reload()}>
+            Reload
           </MenuItem>
           {me?.enabled && me.person && (
             <MenuItem icon={<LogOut size={13} />} onClick={() => api.accessLogout().catch(() => {}).then(() => location.assign('/login'))} title="Forget this browser's token; sign in again with it or another">

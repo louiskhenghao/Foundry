@@ -23,6 +23,8 @@ export interface SkillsPaths {
   marketplacesFile: string;
   /** the workflow suites' store: <dataDir>/suites/<id>/{clone,plugin} (ADR-0049) */
   suitesDir: string;
+  /** the Python environments Foundry keeps for skills that need one: <dataDir>/python/<skill> (ADR-0084) */
+  pythonDir: string;
   /** Codex only: Claude Code's skills folder, to keep shared skills Claude links to from being removed under it */
   claudeSkillsDir?: string;
 }
@@ -45,6 +47,7 @@ export function skillsPaths(claudeHome: string, dataDir: string, provider: Agent
     releasesFile: join(dataDir, 'skills-releases.json'),
     marketplacesFile: join(claudeHome, 'plugins', 'known_marketplaces.json'),
     suitesDir: join(dataDir, 'suites'),
+    pythonDir: join(dataDir, 'python'),
   };
 }
 

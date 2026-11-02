@@ -48,7 +48,16 @@ export const DiagramCheckSpec = z.object({
   type: z.literal('diagram'),
 });
 
-export const CheckSpec = z.discriminatedUnion('type', [CommandCheckSpec, ReviewerCheckSpec, LlmJudgeCheckSpec, SelfCheckSpec, FigureCheckSpec, DiagramCheckSpec]);
+/**
+ * the engine opens each deck the task delivered (its `.pptx` Deliverables under artifacts/): counts its slides, refuses an
+ * empty one, runs the deck skill's own delivery check when its Python environment is there, and renders the per-slide
+ * previews the skill left beside it to PNGs for the person (task-level, no LLM; ADR-0084)
+ */
+export const DeckCheckSpec = z.object({
+  type: z.literal('deck'),
+});
+
+export const CheckSpec = z.discriminatedUnion('type', [CommandCheckSpec, ReviewerCheckSpec, LlmJudgeCheckSpec, SelfCheckSpec, FigureCheckSpec, DiagramCheckSpec, DeckCheckSpec]);
 export type CheckSpec = z.infer<typeof CheckSpec>;
 
 export const Check = z.object({

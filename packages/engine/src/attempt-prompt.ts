@@ -3,6 +3,7 @@ import type { BriefStyleOption, Check, Goal, ObservationReport, Task, Brief } fr
 import { renderReferences } from './references.ts';
 import { FIGURE_WORKER_CONVENTIONS } from './figure.ts';
 import { DIAGRAM_WORKER_CONVENTIONS } from './diagram.ts';
+import { deckWorkerConventions, type DeckInfo } from './deck.ts';
 import { skillMatches } from './skills/usage.ts';
 
 /** Scenarios whose deliverables have no look — the chosen Style Proposal is noise to them. Everything else (UI, mobile, media, general) must follow it. */
@@ -38,6 +39,8 @@ export interface AttemptPromptInput {
   relevantContext: string | null;
   /** one line from SkillsHints, or null */
   skillsHint?: string | null;
+  /** a deck task's skill folder, Python environment and whether an image key is set (ADR-0084); null = no deck skill */
+  deck?: Pick<DeckInfo, 'skillDir' | 'venv' | 'images'> | null;
   /** rendered `# Attachments from the user` section (see attachments.ts), or '' */
   attachments?: string;
   /** rendered `# You will provide` section (renderProvides): the materials the person promised that this task needs, or '' (ADR-0074) */
@@ -133,6 +136,8 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
     lines.push(FIGURE_WORKER_CONVENTIONS);
   } else if (i.task.scenario === 'diagram') {
     lines.push(DIAGRAM_WORKER_CONVENTIONS);
+  } else if (i.task.scenario === 'deck') {
+    lines.push(deckWorkerConventions(i.deck ?? null));
   } else if (i.task.scenario === 'image' || i.task.scenario === 'video') {
     lines.push(
       `# Media conventions\n- Every generated file goes into \`artifacts/\` in this workspace. That folder never reaches git — the engine delivers it to the user when the goal finishes.\n- Keep the manifest named in your task spec (\`docs/artifacts/…\`) up to date: one bullet per artifact — file name, what it shows, and the prompt/parameters used. The manifest is committed and is what the reviewer reads first.\n- Codebase conventions and test suites do not apply here; the craft is the artifacts themselves and an honest manifest.`,

@@ -13,3 +13,6 @@ export type VideoPack = z.infer<typeof VideoPack>;
 /** the Diagram pack (ADR-0083): the skill that draws diagram tasks' editorial diagrams, one self-contained HTML page with an inline SVG each; `none` = no diagram skill is mandated */
 export const DiagramPack = z.enum(['diagram-design', 'none']);
 export type DiagramPack = z.infer<typeof DiagramPack>;
+/** the Deck pack (ADR-0084): the skill that makes deck tasks' slide decks, a native PPTX each; `none` = no deck skill is mandated */
+export const DeckPack = z.enum(['ppt-master', 'none']);
+export type DeckPack = z.infer<typeof DeckPack>;

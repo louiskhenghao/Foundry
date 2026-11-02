@@ -85,9 +85,10 @@ Pick what the goal produces. If you are not sure, leave it on **Auto**.
 | **Video** | Generated video or narrated presentations. |
 | **Figures** | Interactive isometric figures of objects and machines, one web page each. Beta: shown while Settings → Beta → Figure goals is on; see [Figure goals](./figures.md). |
 | **Diagrams** | Editorial diagrams: architecture, flows, sequences, timelines, charts; one web page with an SVG each. Beta: shown while Settings → Beta → Diagram goals is on; see [Diagram goals](./diagrams.md). |
+| **Slides** | Slide decks: a pitch, a lecture, a report, a document turned into slides; a native PPTX each. Beta: shown while Settings → Beta → Deck goals is on; see [Deck goals](./decks.md). |
 | **CAD** | 3D parts and assemblies (STEP, and STL, 3MF or GLB on request), engineering drawings, DXF cut profiles, URDF/SRDF/SDF robot files. Needs text-to-cad, installed on the Setup page. |
 
-Picking **Documents**, **Research**, **Images**, **Video**, **Figures** or **Diagrams** switches the view to **Simple**. Picking **Images**, **Video**, **Figures** or **Diagrams** also ticks **Fast mode**, unless you already changed it yourself. **Figures** adds a **Style** row: the default from Settings, or one of the two figure skills. **CAD** keeps your defaults: it is code work with a geometry kernel, so the Brief's checks matter; its TDD mandate is *preferred* (the geometry checks are written before the model) and Ponytail applies.
+Picking **Documents**, **Research**, **Images**, **Video**, **Figures**, **Diagrams** or **Slides** switches the view to **Simple**. Picking **Images**, **Video**, **Figures**, **Diagrams** or **Slides** also ticks **Fast mode**, unless you already changed it yourself. **Figures** adds a **Style** row: the default from Settings, or one of the two figure skills. **CAD** keeps your defaults: it is code work with a geometry kernel, so the Brief's checks matter; its TDD mandate is *preferred* (the geometry checks are written before the model) and Ponytail applies.
 
 For **Images**, **Video**, **Figures**, **Diagrams** and **CAD** a field appears: **Output folder**. When the goal finishes, the finished files are copied there. Press **Choose…** to pick a folder. It is optional; without it the files stay in the progress folder. Image goals also need an image key, see [Costs and usage](./costs-and-usage.md#image-goals-need-an-image-key).
 
@@ -128,7 +129,7 @@ Tick **Approve delegated goals' Briefs for me** and their Briefs are approved as
 
 ### Effort
 
-How hard sessions of this goal think. An explicit value overrides every role. For Codex, **Default** uses the selected preset's role efforts; **none**, **minimal** and **ultra** are also available when supported by the chosen models. The form starts with the effort configured in Settings; selecting **Default** explicitly restores the Codex role settings. A known incompatible model/effort combination must be corrected before creating the goal.
+How hard sessions of this goal think. An explicit value overrides every role. The levels offered are the ones your coding agent takes: for Claude Code, Foundry reads them from the installed CLI at every model sync, so a level a new Claude Code adds or renames appears here by itself, and a goal made with a level the CLI no longer takes runs with the nearest one it does. For Codex, **Default** uses the selected preset's role efforts; **none**, **minimal** and **ultra** are also available when supported by the chosen models. The form starts with the effort configured in Settings; selecting **Default** explicitly restores the Codex role settings. A known incompatible model/effort combination must be corrected before creating the goal.
 
 | Choice | When |
 |---|---|

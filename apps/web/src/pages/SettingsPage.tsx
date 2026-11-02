@@ -1,4 +1,5 @@
 import type { AgentProvider } from '../api.ts';
+import { KNOWN_EFFORTS } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
@@ -103,6 +104,7 @@ export function SettingsPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [known, setKnown] = useState<ModelRecordView[] | null>(null);
+  const [effortLevels, setEffortLevels] = useState<string[]>([...KNOWN_EFFORTS]);
   const [probe, setProbe] = useState<Record<string, string>>({});
   const [notifMsg, setNotifMsg] = useState<string | null>(null);
   const [upd, setUpd] = useState<UpdateStatusView | null>(null);
@@ -145,7 +147,15 @@ export function SettingsPage() {
         setDraft(structuredClone(v.values));
       })
       .catch((e) => setErr(e.message));
-  const loadModels = () => api.models().then((m) => setKnown(m.models)).catch(() => setKnown([]));
+  const loadModels = () =>
+    api
+      .models()
+      .then((m) => {
+        setKnown(m.models);
+        // the effort levels this Claude Code takes (ADR-0085): the select below offers these
+        if (m.effortLevels?.length) setEffortLevels(m.effortLevels);
+      })
+      .catch(() => setKnown([]));
   useEffect(() => {
     load();
     loadModels();
@@ -392,11 +402,12 @@ export function SettingsPage() {
               <Field label="Effort for new goals" aside={aside('workflow.effort')} help="An explicit level overrides every role's effort. Default uses each Codex role's preset effort, the Antigravity effort under Models & limits, or the Claude CLI default. Switchable per goal when creating it.">
                 <Select value={(draft.workflow.effort as string | null) ?? ''} onChange={(e) => set('workflow.effort', e.target.value || null)}>
                   <option value="">Role preset / CLI default</option>
-                  <option value="low">low</option>
-                  <option value="medium">medium</option>
-                  <option value="high">high</option>
-                  <option value="xhigh">xhigh</option>
-                  <option value="max">max</option>
+                  {/* the levels the Claude Code binary takes, read at the last model sync (ADR-0085); a saved level it no longer lists stays selectable */}
+                  {[...new Set([...effortLevels, ...((draft.workflow.effort as string | null) ? [draft.workflow.effort as string] : [])])].map((l) => (
+                    <option key={l} value={l}>
+                      {l}
+                    </option>
+                  ))}
                 </Select>
               </Field>
               <Field label="TDD for new Expert goals" aside={aside('workflow.tdd')} help="required: workers must invoke tdd and the reviewer is told when they skipped it · preferred: suggested only · off: never mentioned. Simple goals start with preferred; each goal and task can override.">
@@ -595,6 +606,17 @@ export function SettingsPage() {
               </div>
               <DesignPacks key={`${modelProvider}:diagram`} provider={modelProvider} compact pack="diagram" />
               <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on diagram tasks (scenario `diagram`): in diagram goals, and in document or code goals that carry a diagram task. The skill is installed from its repository at one pinned commit; its SVG export and self-check run with python3 (standard library only), and Foundry's own render check needs Playwright's Chromium (Preview &amp; self-check).</p>
+            </div>
+          )}
+          {view?.values.beta.deck && (
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="text-sm font-bold text-ink">Deck skills</span>
+                <span className="rounded-sm bg-sunken px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line">beta</span>
+                <span className="ml-auto flex items-center gap-1.5">{aside('workflow.deckPack')}</span>
+              </div>
+              <DesignPacks key={`${modelProvider}:deck`} provider={modelProvider} compact pack="deck" />
+              <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on deck tasks (scenario `deck`). Installing clones the skill at one pinned release and makes a Python environment for its scripts with uv (needs uv on PATH; the Setup page's doctor says when it is missing); deck sessions find that Python first. AI pictures in a deck need an image key under Tools &amp; keys; Foundry's slide previews need Playwright's Chromium (Preview &amp; self-check).</p>
             </div>
           )}
         </div>
@@ -805,6 +827,7 @@ export function SettingsPage() {
         <p className="mb-3 text-xs text-ink-faint">Features on trial: each one stays off until you switch it on, while it settles.</p>
         {bool('beta.conversation', 'Conversation on the goal page', "A bubble at the bottom right of a goal's page (and of its Brief page) opens a Conversation: a read-only Explainer, on the preset's Conversation model, answers your questions about the goal's code and Foundry's records of it, and never changes anything. Its answers cost the goal, outside its budget. Off: no bubble and no Conversation tab.")}
         {bool('beta.motionStudio', 'Motion studio video engine', 'Video goals get an Engine picker on the New goal form: the motion-studio engine (a deterministic seek(t) renderer with a critique loop) beside the Video skills pack, with its bundled skill in the catalog and its doctor checks for ffmpeg and Chromium. Off: the Video skills pack alone, as before.')}
+        {bool('beta.deck', 'Deck goals', "A kind of goal of its own: slide decks as native, editable PPTX files — a pitch, a lecture, a report, a document turned into slides — made by the Deck pack (ppt-master) in a Python environment Foundry keeps, with the Brief standing in for the skill's two confirmation stages. When a task lands Foundry counts the slides, runs the skill's delivery check and renders the per-slide previews. On: Slides is among the kinds of goal, Deck skills sits under Skills, the CLI takes --nature deck and the doctor checks uv, the environment and Chromium. Off: none of that shows; deck goals made before still open.")}
         {bool('beta.diagram', 'Diagram goals', "A kind of goal of its own: editorial diagrams — architecture, flows, sequences, timelines, charts — one web page with an SVG beside it each, drawn by the Diagram pack (diagram-design) and opened headless by Foundry when a task lands. Document and code goals may carry diagram tasks too. On: Diagrams is among the kinds of goal, Diagram skills sits under Skills, the CLI takes --nature diagram and the doctor checks the tools. Off: none of that shows; diagram goals made before still open.")}
         {bool('beta.figure', 'Figure goals', "A kind of goal of its own: interactive isometric figures of everyday objects and machines, one web page each, drawn by the Figure pack (Colorfigures or iso-glow, bundled with Foundry) and opened headless by Foundry when a task lands. On: Figures is among the kinds of goal, Figure skills sits under Skills, the CLI takes --nature figure and the doctor checks the tools. Off: none of that shows; figure goals made before still open.")}
         {bool('beta.adjust', 'Adjust the result', "A box on a finished goal's page takes your words on its result — what should change, with pictures or files — and the goal carries them out itself: the finished task's session resumes with them, or a task is appended, or a failed goal's failed tasks run again with them. The checks and reviews run again; the output folder and an open pull request get the new result; the earlier result is kept. It costs the goal, inside its budget. Off: no box; adjustments already made stay on the goal.")}
