@@ -6,7 +6,7 @@ import { DraftBox, TemplateGallery, TemplatePanel, useDraft } from '../component
 import { formPatch, initialValues, loadTemplateLang, missingLabels, missingStyle, offeredTemplates, saveTemplateLang, shownVersion, fallbackStyle } from './new-goal-template.ts';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Lamp, LayoutTemplate, Send, Shapes, Target, Telescope, Wallet, WandSparkles, Workflow, X, type LucideIcon } from 'lucide-react';
+import { Bot, Box, Clapperboard, CodeXml, CornerDownRight, Eye, FastForward, FileText, FolderGit2, Github, Image as ImageIcon, Lamp, LayoutTemplate, Presentation, Send, Shapes, Target, Telescope, Wallet, WandSparkles, Workflow, X, type LucideIcon } from 'lucide-react';
 import { ACTION_INFO, CODEX_MODEL_ACTIONS, effectiveCodexPresets, effectivePresets, natureKey, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core/browser';
 import { api, apiForProvider, type AccountsInfo, type AgentProvider, type FollowUpDraft, type GoalRow, type ModelRecordView, type PackGroupView, type PacksView, type RepoInfo } from '../api.ts';
 import { CompanionFolders } from '../components/CompanionFolders.tsx';
@@ -30,7 +30,7 @@ const DELIVERY_KEY = 'foundry.delivery';
 const BUDGET_KEY = 'foundry.budget';
 const NATURE_KEY = 'foundry.nature';
 
-type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video' | 'figure' | 'diagram' | 'cad';
+type Nature = 'auto' | 'code' | 'docs' | 'research' | 'image' | 'video' | 'figure' | 'diagram' | 'deck' | 'cad';
 /**
  * The kinds of goal, each with an icon in a category colour of its own (ADR-0067) so they tell apart at a glance. Auto is
  * no kind (the system decides), so its icon stays in ink.
@@ -46,6 +46,8 @@ const NATURES: { id: Nature; label: string; text: string; Icon: LucideIcon; ink:
   { id: 'figure', label: 'Figures', text: 'Interactive isometric figures of objects and machines, one web page each.', Icon: Lamp, ink: code(3).ink },
   // beta (ADR-0083): shown only while Settings → Beta → Diagram goals is on
   { id: 'diagram', label: 'Diagrams', text: 'Editorial diagrams: architecture, flows, sequences, timelines, charts; one web page with an SVG each.', Icon: Workflow, ink: code(7).ink },
+  // beta (ADR-0084): shown only while Settings → Beta → Deck goals is on
+  { id: 'deck', label: 'Slides', text: 'Slide decks: a pitch, a lecture, a report, a document turned into slides; a native PPTX each.', Icon: Presentation, ink: code(1).ink },
   { id: 'cad', label: 'CAD', text: '3D parts and assemblies (STEP), drawings, DXF profiles, robot files.', Icon: Box, ink: code(5).ink },
 ];
 /** the browser remembers the finer delivery options; mode and unit always start from Settings → New goal defaults */
@@ -178,6 +180,8 @@ export function NewGoalPage() {
   const [betaFigure, setBetaFigure] = useState(false);
   // diagram goals too (ADR-0083)
   const [betaDiagram, setBetaDiagram] = useState(false);
+  // deck goals too (ADR-0084)
+  const [betaDeck, setBetaDeck] = useState(false);
   /** the Figure pack this goal follows; '' = Settings' default (the Clarifier may pick the other installed style from the goal's words) */
   const [figurePack, setFigurePack] = useState<'' | 'colorfigures' | 'iso-glow'>('');
   const [figurePacks, setFigurePacks] = useState<PacksView['figure'] | null>(null);
@@ -280,7 +284,7 @@ export function NewGoalPage() {
   };
 
   // ---- templates (ADR-0079) ----
-  const beta = { figure: betaFigure, motionStudio: betaMotionStudio, diagram: betaDiagram };
+  const beta = { figure: betaFigure, motionStudio: betaMotionStudio, diagram: betaDiagram, deck: betaDeck };
   const offered = offeredTemplates(templates ?? [], beta);
   const templateVersion = template ? shownVersion(template, templateLang) : null;
   const setTemplateLang = (l: TemplateLang) => {
@@ -393,6 +397,8 @@ export function NewGoalPage() {
         if (!d.beta?.figure && nature === 'figure') setNature('auto');
         setBetaDiagram(!!d.beta?.diagram);
         if (!d.beta?.diagram && nature === 'diagram') setNature('auto');
+        setBetaDeck(!!d.beta?.deck);
+        if (!d.beta?.deck && nature === 'deck') setNature('auto');
         // media goals default to fast on top of the Settings pace, as when the goal type is picked by hand
         if (!paceTouched.current) setPace(MEDIA_NATURES.includes(nature) ? 'fast' : d.workflow.defaultPace);
         setDefaultRemote(d.delivery.defaultRemote);
@@ -745,7 +751,7 @@ export function NewGoalPage() {
           </Card>
           <Card id={SECTIONS.kind.id} className={SEC} title={withHelp('kind', 'What kind of goal is this?', 'your-first-goal#what-kind-of-goal-is-this')}>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {NATURES.filter((n) => (n.id !== 'figure' || betaFigure) && (n.id !== 'diagram' || betaDiagram)).map((n) => (
+              {NATURES.filter((n) => (n.id !== 'figure' || betaFigure) && (n.id !== 'diagram' || betaDiagram) && (n.id !== 'deck' || betaDeck)).map((n) => (
                 <button
                   key={n.id}
                   type="button"

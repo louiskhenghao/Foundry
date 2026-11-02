@@ -246,6 +246,8 @@ export interface PacksView {
   figure: PackGroupView;
   /** the Diagram pack (ADR-0083) */
   diagram: PackGroupView;
+  /** the Deck pack (ADR-0084) */
+  deck: PackGroupView;
 }
 
 export interface LastGoalWorkflow {

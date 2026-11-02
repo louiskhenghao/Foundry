@@ -21,7 +21,7 @@ export function saveTemplateLang(lang: TemplateLang): void {
 export const shownVersion = (t: TemplateEntry, lang: TemplateLang): TemplateVersionView => t[lang] ?? t.en ?? t.zh!;
 
 /** the kinds of goal, in the order the form lists them */
-export const TEMPLATE_NATURES: TemplateNature[] = ['code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'cad'];
+export const TEMPLATE_NATURES: TemplateNature[] = ['code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'deck', 'cad'];
 
 /** the Beta switches the form reads: a kind or an engine behind one is offered only while it is on */
 export interface TemplateBeta {
@@ -29,11 +29,13 @@ export interface TemplateBeta {
   motionStudio: boolean;
   /** diagram goals (ADR-0083); unset = off */
   diagram?: boolean;
+  /** deck goals (ADR-0084); unset = off */
+  deck?: boolean;
 }
 
 /** what the form shows of the templates: the figure, diagram and motion-studio ones only while their Beta is on */
 export function offeredTemplates(all: TemplateEntry[], beta: TemplateBeta): TemplateEntry[] {
-  return all.filter((t) => (t.nature !== 'figure' || beta.figure) && (t.nature !== 'diagram' || !!beta.diagram) && (!t.settings.videoPack || beta.motionStudio));
+  return all.filter((t) => (t.nature !== 'figure' || beta.figure) && (t.nature !== 'diagram' || !!beta.diagram) && (t.nature !== 'deck' || !!beta.deck) && (!t.settings.videoPack || beta.motionStudio));
 }
 
 /** the templates of each kind, kinds with none left out */
@@ -117,7 +119,7 @@ export function fallbackStyle(packs: PackGroupView | null): string | null {
 }
 
 /** the kinds in words, as the form names them */
-export const NATURE_WORD: Record<TemplateNature, string> = { code: 'Code', docs: 'Documents', research: 'Research', image: 'Images', video: 'Video', figure: 'Figures', diagram: 'Diagrams', cad: 'CAD' };
+export const NATURE_WORD: Record<TemplateNature, string> = { code: 'Code', docs: 'Documents', research: 'Research', image: 'Images', video: 'Video', figure: 'Figures', diagram: 'Diagrams', deck: 'Slides', cad: 'CAD' };
 
 /** is every required input of a template answered */
 export const complete = (v: Pick<TemplateVersionView, 'inputs'>, values: Record<string, string>): boolean => v.inputs.every((i) => !inputRequired(i) || !!(values[i.key]?.trim() || i.default));
