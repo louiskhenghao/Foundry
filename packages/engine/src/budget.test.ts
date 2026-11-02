@@ -58,4 +58,11 @@ describe('budget presets', () => {
     expect(proposeBudgetFromEstimate({ costEstimateUsd: 4.2, timeEstimateMin: 47 })).toEqual({ maxCostUsd: 8.5, maxDurationMin: 100 });
     expect(proposeBudgetFromEstimate({ costEstimateUsd: 0, timeEstimateMin: 0 })).toEqual({ maxCostUsd: 3, maxDurationMin: 30 });
   });
+
+  test('the proposal adds what Clarify already spent, so the work keeps its whole share (a live goal spent $2.83 on Clarify and hit a $3 limit at once)', () => {
+    expect(proposeBudgetFromEstimate({ costEstimateUsd: 0.6, timeEstimateMin: 6 }, { costUsd: 2.83, elapsedMin: 2.4 })).toEqual({ maxCostUsd: 6, maxDurationMin: 40 });
+    expect(proposeBudgetFromEstimate({ costEstimateUsd: 4.2, timeEstimateMin: 47 }, { costUsd: 1.97, elapsedMin: 14 })).toEqual({ maxCostUsd: 10.5, maxDurationMin: 120 });
+    // nothing spent: as before
+    expect(proposeBudgetFromEstimate({ costEstimateUsd: 4.2, timeEstimateMin: 47 }, { costUsd: 0, elapsedMin: 0 })).toEqual({ maxCostUsd: 8.5, maxDurationMin: 100 });
+  });
 });

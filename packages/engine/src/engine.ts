@@ -2389,7 +2389,7 @@ export class Engine {
       // Auto preset: no human sees the Brief here, so the engine adopts the proposed budget itself
       // an Auto budget comes from the estimate as earlier goals in this folder corrected it (ADR-0056)
       // approved by whoever asked for it (ADR-0061)
-      await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(this, goal))) : undefined, undefined, input.by ?? null);
+      await this.approveBrief(id, brief, goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(this, goal)), budgetStatus(goal)) : undefined, undefined, input.by ?? null);
     }
     return getGoal(this.store.db, id)!;
   }

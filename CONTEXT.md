@@ -43,7 +43,7 @@ A pattern the New goal form starts from (ADR-0079): a goal description with `{{p
 _Avoid_: recipe (what a Schedule keeps of the form), preset (a Model Preset), starter, boilerplate, prompt (the description a Template writes)
 
 **Calibration**
-How far earlier Goals ran from their Brief's estimate, as a cost factor and a time factor: each the median of actual over estimate across finished Goals with an approved Brief, from the Goal's folder when it has three, else from every folder's Goals of the same nature, else none. The Brief shows the estimate as written and what it likely comes to; an Auto budget proposes twice the calibrated estimate. The Clarifier's estimate is never rewritten.
+How far earlier Goals ran from their Brief's estimate, as a cost factor and a time factor: each the median of actual over estimate across finished Goals with an approved Brief, from the Goal's folder when it has three, else from every folder's Goals of the same nature, else none. The Brief shows the estimate as written and what it likely comes to; an Auto budget proposes twice the calibrated estimate, on top of what the Goal already spent. The Clarifier's estimate is never rewritten.
 _Avoid_: correction, learning rate
 
 **Learnings**
