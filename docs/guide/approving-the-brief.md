@@ -20,11 +20,11 @@ When a Brief is ready you get a **Brief ready** message, if notifications are se
 The Brief opens in the view you chose on the New goal form. Switch with **Expert view** or **Simple view** at the top; the choice is remembered for this goal in this browser.
 
 - **Simple view** shows what you need to decide: what Foundry understood, its questions, its assumptions, what you will get, and the price. See [The Simple view of the Brief](#the-simple-view-of-the-brief) at the end of this page.
-- **Expert view** shows everything, in this order: the header, **Understanding**, **Questions**, **Assumptions**, **Decisions**, **Areas**, **Plan**, **Goal acceptance**, **How to run it**, **Completion**, the estimate and budget, and the buttons. The rest of this page follows that order. A list of these sections runs down the left (on a phone, a row of tabs at the top): click one to jump there. **Back to goal** above them (**Goal**, first in the row on a phone) returns to the goal's page from wherever you have scrolled to. The one you are reading is highlighted, and each says how it stands, for example **Questions 1 blocking**, **Assumptions 2/2** or **Plan 36 tasks**, marked in yellow when it needs you.
+- **Expert view** shows everything, in this order: the header, **Understanding**, **Questions**, **Assumptions**, **Decisions**, **Areas**, **Plan**, **Goal acceptance**, **How to run it**, **Completion**, the estimate and budget, and the buttons. The rest of this page follows that order. A list of these sections runs down the left (on a phone, a row of tabs at the top): click one to jump there. A bar at the very top of the page, **← Back to goal** with the goal's name, stays in view wherever you have scrolled to and returns to the goal's page. The one you are reading is highlighted, and each says how it stands, for example **Questions 1 blocking**, **Assumptions 2/2** or **Plan 36 tasks**, marked in yellow when it needs you.
 
 ## The top of the page
 
-- At the very top, **← Goals** goes back to the list of goals, and **Goal** to this goal's page.
+- At the very top, a bar that stays in view as you scroll: **← Back to goal** returns to this goal's page, and **Goals** at its right to the list of goals.
 - Above the title, a yellow plate reads **awaiting approval** while the Brief waits for you.
 - Under the title, small plates: the project folder, the branch the goal starts from → the goal's own branch, the coding agent, the workflow suite (**Powered by**), the pace and the delivery.
 - Under those, the goal's five stages, as on the goal page: **Brief** is yellow and marked **You** while it waits for you.

@@ -6,11 +6,13 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, type GoalDetail } from '../../api.ts';
 import { FollowLinks } from '../goal/FollowUps.tsx';
+import { GoalTitle, HeaderDetails } from '../goal/GoalHead.tsx';
+import { BackBar } from '../../components/BackBar.tsx';
 import { OpenFull } from '../../components/FullTextDialog.tsx';
 import { MarkdownPanel } from '../../components/Markdown.tsx';
 import { StageRail, StatePlate, markFill, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { useLive } from '../../store.ts';
-import { Button, Card, CopyButton, EmptyState, Input, Loading, PAGE_TITLE, Textarea, buttonClass, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
+import { Button, Card, CopyButton, EmptyState, Input, Loading, Textarea, buttonClass, cn, fmtLimitMin, fmtLimitUsd, stateLabel } from '../../ui.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { ReferenceCard } from './ReferenceCard.tsx';
 import { AreasCard } from './AreasCard.tsx';
@@ -253,16 +255,17 @@ export function BriefPage() {
     { id: 'brief-completion', label: 'Completion' },
     { id: 'brief-budget', label: 'Estimate & budget', status: skeleton ? 'with the plan' : `${costAvailable ? `${brief.costEstimateUsd} · ` : ''}${brief.timeEstimateMin}m`, warn: editable && !skeleton && (overCost || overTime), ...(skeleton ? { tone: 'work' as const } : {}) },
   ];
-  const sec = 'scroll-mt-14 lg:scroll-mt-4';
+  // a section jumped to stops under the way-back bar and, on a narrow screen, the row of chips under it
+  const sec = 'scroll-mt-23 lg:scroll-mt-13';
 
   return (
     <div className="max-w-6xl mx-auto p-3 sm:p-4 md:p-6 space-y-6">
       <ConversationBubble goalId={id} />
       <Header detail={detail} onView={() => setView(false)} beforeReclarify={dirty ? save : undefined} />
       <div className="grid lg:grid-cols-[12rem_minmax(0,1fr)] gap-x-8">
-        <BriefSideNav items={navItems} goalId={id} />
+        <BriefSideNav items={navItems} />
         <div className="min-w-0 space-y-4">
-          <BriefChipNav items={navItems} goalId={id} />
+          <BriefChipNav items={navItems} />
           {/* each card's "?" stays beside its title: a title that wraps never leaves it alone on a line */}
           <section id="brief-understanding" className={sec}>
             <Card title={<span className="flex items-start gap-1.5"><SectionTitle section="understanding">Understanding</SectionTitle><HelpLink to="approving-the-brief#understanding" className="mt-0.5 shrink-0" /></span>}>
@@ -504,9 +507,10 @@ function Figure({ label, value, note, dim }: { label: string; value: string; not
 }
 
 /**
- * The Brief's head, read as the goal page's: the way back, the goal's state as a plate, its title in large type, its facts
- * as small plates, how the Brief was made, the view switch and Re-run Clarify on the right; then the five stages, and the
- * goal as it was asked.
+ * The Brief's head, read as the goal page's: the way back as a bar stuck to the top of the page, the goal's state as a
+ * plate, its name, its facts as small plates (folded on a phone), how the Brief was made, the view switch and Re-run
+ * Clarify on the right; then the five stages, and the goal as it was asked. Rendered straight into the page's box, so
+ * the bar can stick.
  */
 function Header({ detail, simple = false, onView, beforeReclarify }: { detail: GoalDetail; /** the Brief shows in its Simple view: the switch leads to Expert, and the stages lead nowhere (the goal page shows no tabs then) */ simple?: boolean; /** switches between the views; none while there is no Brief to show */ onView?: () => void; /** saves the page's edits first, so answers and notes typed here reach the new Clarify as Decisions */ beforeReclarify?: () => Promise<void> }) {
   const g = detail.goal;
@@ -544,27 +548,17 @@ function Header({ detail, simple = false, onView, beforeReclarify }: { detail: G
   /** a fact about the goal, as a small plate in the row under its title (as on the goal page) */
   const fact = 'inline-flex items-center gap-1.5 min-w-0 max-w-full rounded-md bg-panel px-2.5 py-1 text-[13px] font-semibold text-ink-soft ring-1 ring-inset ring-line';
   return (
+    <>
+    <BackBar to={`/goals/${g.id}`} title={g.title} />
     <div className="space-y-5">
-      <nav aria-label="Breadcrumb" className="flex items-center gap-2.5 text-sm text-ink-faint min-w-0">
-        <Link to="/" className="inline-flex shrink-0 items-center gap-1.5 font-bold text-ink hover:underline underline-offset-[3px]">
-          <ArrowLeft size={14} aria-hidden="true" /> Goals
-        </Link>
-        <span aria-hidden="true">/</span>
-        <span className="mono truncate" title={g.repoPath}>{repoName}</span>
-        <span aria-hidden="true">/</span>
-        <Link to={`/goals/${g.id}`} className="shrink-0 font-bold text-ink hover:underline underline-offset-[3px]" title="Back to the goal's run view">
-          Goal
-        </Link>
-      </nav>
       <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:gap-8 md:items-start">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mb-3">
             <StatePlate state={g.state} label={stateLabel(g.state)} />
             <HelpLink to="approving-the-brief" label="How to read and approve the Brief (new tab)" />
           </div>
-          <h1 className={cn(PAGE_TITLE, 'line-clamp-3')} title={g.title}>
-            {g.title}
-          </h1>
+          <GoalTitle goal={g} />
+          <HeaderDetails>
           <ul className="mt-4 flex flex-wrap gap-2" aria-label="About this goal">
             <li className={fact}>
               <Folder size={13} className="shrink-0" aria-hidden="true" />
@@ -615,6 +609,7 @@ function Header({ detail, simple = false, onView, beforeReclarify }: { detail: G
             </p>
           )}
           <FollowLinks d={detail} />
+          </HeaderDetails>
           {err && <div className="text-xs text-bad-ink mt-1.5">{err}</div>}
         </div>
         {(onView || canReclarify) && (
@@ -640,5 +635,6 @@ function Header({ detail, simple = false, onView, beforeReclarify }: { detail: G
       <StageRail marks={marks} notes={stageNotes(g, detail.tasks, marks, g.state === 'clarifying' && !!detail.brief?.skeleton)} tasks={detail.tasks.map((t) => taskMark(t.state))} links={links} />
       <MarkdownPanel title="goal" source={g.prompt} maxHeight={220} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />
     </div>
+    </>
   );
 }

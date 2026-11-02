@@ -356,6 +356,15 @@ export const GoalTransfer = z.object({
 });
 export type GoalTransfer = z.infer<typeof GoalTransfer>;
 
+/** how much of the first line of a goal's words names it when neither the person nor an issue did */
+export const TITLE_CUT = 80;
+/** a name the person types (Rename…) or the Clarifier gives is at most this long */
+export const TITLE_MAX = 120;
+/** the goal's name from the first line of its words: a Markdown heading mark or emphasis around it is not part of the name */
+export function titleFromPrompt(prompt: string): string {
+  return prompt.trim().split('\n')[0]!.replace(/^#{1,6}\s+/, '').replace(/^\*\*(.+)\*\*$/, '$1').trim().slice(0, TITLE_CUT);
+}
+
 /** An Imported Goal not Reattached yet: readable history the engine never acts on by itself */
 export function isHistory(g: { transfer?: GoalTransfer | null }): boolean {
   return !!g.transfer && !g.transfer.reattachedAt;

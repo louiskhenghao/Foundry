@@ -1,9 +1,9 @@
 import { isHistory, reportsDollars, taskUsage } from '@foundry/core/browser';
-import { ArrowLeft, Ban, Brain, CircleAlert, CornerDownRight, Folder, GitBranch, GitMerge, LayoutTemplate, Link2, NotebookPen, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Brain, CircleAlert, CornerDownRight, Folder, GitBranch, GitMerge, LayoutTemplate, Link2, NotebookPen, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { goalExcerpt } from './excerpt.ts';
+import { GoalTitle, HeaderDetails, RenameDialog } from './GoalHead.tsx';
 import { FollowLinks, MarkFollowUpDialog } from './FollowUps.tsx';
 import { IssueLink, ScheduleLink } from './IssueLink.tsx';
 import { DelegationLinks } from './Delegations.tsx';
@@ -13,7 +13,7 @@ import { MilestoneCard } from './MilestoneCard.tsx';
 import { ImportedCard } from './ImportedCard.tsx';
 import { api, type GoalDetail } from '../../api.ts';
 import { useLive } from '../../store.ts';
-import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, EmptyState, Loading, PAGE_TITLE, Tabs, buttonClass, cn, stateLabel } from '../../ui.tsx';
+import { Button, ButtonGroup, Card, ConfirmDialog, CopyButton, EmptyState, Loading, Tabs, buttonClass, cn, stateLabel } from '../../ui.tsx';
 import { StatePlate, StageRail, stageMarks, stageNotes, taskMark } from '../../components/progress.tsx';
 import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { MoreMenu, type MoreItem } from '../../components/MoreMenu.tsx';
@@ -62,6 +62,7 @@ export function GoalPage() {
   const [restart, setRestart] = useState<boolean | string>(false);
   const [delBranch, setDelBranch] = useState(false);
   const [markFollow, setMarkFollow] = useState(false);
+  const [rename, setRename] = useState(false);
   const [expert, setExpert] = useState<boolean | null>(() => {
     const v = localStorage.getItem(`foundry.expert.${id}`);
     return v === null ? null : v === '1';
@@ -163,6 +164,7 @@ export function GoalPage() {
     ...(!terminal && awaiting ? [{ label: 'Cancel goal', icon: <Ban size={13} />, onClick: () => api.cancelGoal(id) }] : []),
     ...(!g.follows ? [{ label: 'Mark as follow-up of…', icon: <Link2 size={13} />, onClick: () => setMarkFollow(true), title: 'Record that this goal continues an earlier goal of the same repository' }] : []),
     ...(terminal && g.state !== 'cancelled' ? [{ label: 'Learn from this goal again', icon: <NotebookPen size={13} />, onClick: () => api.learnFrom(id).catch((e) => setErr(e.message)), title: "A short session reads how this goal went and updates this folder's Learnings" }] : []),
+    { label: 'Rename…', icon: <Pencil size={13} />, onClick: () => setRename(true), title: 'Give the goal a new name; its progress folder keeps the one it was made with' },
     { label: 'Save as template…', icon: <LayoutTemplate size={13} />, onClick: () => nav(`/templates/new?from=${id}`), title: 'A template of your own from the words and settings of this goal, to start the next one from (ADR-0079)' },
     { label: 'Delete goal…', icon: <Trash2 size={13} />, onClick: () => setDel(true), danger: true },
   ];
@@ -201,11 +203,10 @@ export function GoalPage() {
             {g.transfer && <span className="text-[11px] font-semibold rounded-sm bg-code-1/12 ring-1 ring-inset ring-code-1/45 text-code-1-ink px-1.5 py-0.5" title={`came from ${g.transfer.from.hostname}`}>imported</span>}
             {g.delivery.reverts[g.delivery.reverts.length - 1]?.status === 'merged' && <span className="text-[11px] font-semibold rounded-sm ring-1 ring-inset ring-bad/45 text-bad-ink px-1.5 py-0.5" title="Its merge was undone by a revert pull request (Delivery tab)">reverted</span>}
           </div>
-          <h1 className={cn(PAGE_TITLE, 'line-clamp-3')} title={g.title}>
-            {g.title}
-          </h1>
-          {/* what was asked, in its first lines: the Overview's Goal card holds all of it */}
-          {g.prompt && goalExcerpt(g.prompt, g.title) && <p className="mt-3 max-w-[72ch] text-[17px] leading-relaxed text-ink-soft line-clamp-2 header-compact:text-sm" title={g.prompt}>{goalExcerpt(g.prompt, g.title)}</p>}
+          {/* the name, then what was asked in its first lines (Show more opens all of it; the Overview's Goal card holds it too) */}
+          <GoalTitle goal={g} excerpt />
+          {/* the facts and links: on a phone folded under "Details", so the tabs come into view */}
+          <HeaderDetails>
           <ul className="mt-4 flex flex-wrap gap-2" aria-label="About this goal">
             <li className={fact}>
               <Folder size={13} className="shrink-0" aria-hidden="true" />
@@ -270,6 +271,7 @@ export function GoalPage() {
               </span>
             </div>
           )}
+          </HeaderDetails>
         </div>
         {/* the goal's actions, large: what it spent and how long it worked are the Overview's Budget & time. Under the
             title below 1024 px; beside it, a row wide enough for every state's actions but a finished goal's, which wrap
@@ -324,6 +326,7 @@ export function GoalPage() {
       <StageRail marks={marks} notes={stageNotes(g, d.tasks, marks)} tasks={d.tasks.map((t) => taskMark(t.state))} links={stageLinks} />
       {history && <ImportedCard goal={g} onChanged={() => api.goal(id).then(setD).catch((e) => setErr(e.message))} />}
       <MarkFollowUpDialog d={d} open={markFollow} onClose={() => setMarkFollow(false)} />
+      <RenameDialog goal={g} open={rename} onClose={() => setRename(false)} />
       {restart !== false && <RestartDialog goalId={id} tasks={d.tasks} initial={typeof restart === 'string' ? restart : null} open onClose={() => setRestart(false)} onDone={() => { setRestart(false); setTab('tasks'); }} />}
       <ConfirmDialog
         open={del}

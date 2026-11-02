@@ -30,11 +30,11 @@ Brief 批准后，Foundry 就自己干活。你可以关掉浏览器，工作会
 从 **Goals**（第一个页面，顶栏上也有）打开一个 goal。页面顶部有：
 
 - goal 的状态牌，用它的信号色：Foundry 在干活时是蓝色（**running**；澄清时是浅蓝），审查时（**reviewing**）是紫色，完成（**done**）后是绿色，等你时是黄色（**awaiting approval**、**awaiting feedback**、**blocked**），失败时是红色（**failed**）。旁边写着完成或正在运行的任务数，以及 Foundry 已经工作了多久。
-- 标题，以及标题下面的基本信息：项目文件夹（**copy** 复制它的路径）、分支（goal 起步的分支 → goal 自己的分支）、编码智能体（**Claude Code**、**Codex** 或 **Antigravity**）、workflow 套件、goal 以 fast 模式运行时的 **pace fast**，以及交付方式。
+- 标题最多两行，下面是你描述的开头几行；任一处被截断时，**Show more** 打开完整描述。没有自己起名的 goal 先用描述的第一行当标题，Brief 到达时 Clarifier 会给它一个简短的名字；随时可以用 **⋯** 里的 **Rename…** 改名。标题下面是基本信息：项目文件夹（**copy** 复制它的路径）、分支（goal 起步的分支 → goal 自己的分支）、编码智能体（**Claude Code**、**Codex** 或 **Antigravity**）、workflow 套件、goal 以 fast 模式运行时的 **pace fast**，以及交付方式。手机上这些信息折叠在 **Details** 下面。
 - **time** 显示已用分钟数对比时间上限；Claude 还显示 **cost** 对比美元预算。后面的黄色圆点表示有会话在 Claude Code 回报费用之前就结束了（超时、被终止、崩溃）：鼠标停在上面，或在手机上点它，就能看到有几个、大约花了多少。这个估算（≈）按同一个模型在已回报费用的会话里的单价计算它们的 token；它不计入总数，也不占用预算。它们的轮数和 token 照常统计，美元数绝不记为 $0。Codex 美元费用不可用。
 - **Open ▾**：在你的电脑上打开项目或进度文件夹（见 [进度文件夹](#进度文件夹)），或者用 **VS Code (web)** 打开：浏览器标签里的 VS Code，经 Tailscale 在手机上也能打开。第一次使用时启动（先在 [Settings → Tools & keys](./settings.zh.md#tools--keys) 装一次），只在这台电脑上运行，闲置两小时后停止。它的登录页要输入密码，菜单里会显示这个密码并带复制按钮；浏览器会记住它。编码智能体写过的文件夹会以受限模式打开，直到你选择信任它。在里面的修改是真实修改：goal 运行时，菜单会提醒你在它的文件夹里改动可能和编码智能体的冲突，并被带进它们的下一个提交。
 - 一个随状态变化的主按钮：Brief 等你时是 **Review brief →**，运行时是 **Cancel**，完成后是 **Deliver…**、**Delivering…** 或 **Delivery**。
-- **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal**、**Delete goal…**，视情况出现。
+- **⋯**（More actions）：**Restart…**、**Re-run Clarify**、**Cancel goal**、**Rename…**、**Save as template…**、**Delete goal…**，视情况出现。
 
 页面顶部下方横排着五个阶段：**Clarify**、**Brief**、**Run**、**Review** 和 **Deliver**。完成的阶段带一圈墨色边框，勾在一个绿色的小方块上；当前阶段加粗描边（Foundry 正在做时是蓝色），上方标着 **Now**；等你时变成黄色并标 **You**，失败时变成红色并标 **Failed**。在手机或小平板上，阶段是一排细长的色段，完成的是绿色，下面一行写着当前阶段的名字和说明；Ledger 和 Classic 把它们画成一条带编号的步骤线。每个阶段用几个字说明情况，比如“approved”“3 of 4 tasks”“a pull request”。goal 运行时，Run 阶段上有一条它的任务进度条。在 Expert view 里，点一个阶段就打开显示它工作内容的地方：Clarify 和 Review 打开 Activity 标签，Brief 打开 Brief 页面，Run 打开 Tasks 标签，Deliver 打开 Delivery 标签。
 

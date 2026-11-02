@@ -194,7 +194,7 @@ Only software you are allowed to examine. The goal builds its own version from t
 
 ### Title
 
-Optional. Without it, the first line of your description becomes the title. The title also names the progress folder.
+Optional. Without it, the first line of your description is the title until the Clarifier gives the goal a short name of its own when the Brief arrives; a title you type here stays. The title also names the progress folder, which keeps that name if the goal is renamed later.
 
 ### Repository
 

@@ -782,6 +782,7 @@ export function apiForProvider(provider?: AgentProvider) {
   investigate: (id: string) => req<{ ok: true }>(`/api/goals/${id}/investigate`, { method: 'POST' }),
   setPonytail: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/ponytail`, { method: 'POST', body: JSON.stringify({ on }) }),
   setMilestonePause: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/milestone-pause`, { method: 'POST', body: JSON.stringify({ on }) }),
+  renameGoal: (id: string, title: string) => req<{ ok: true }>(`/api/goals/${id}/rename`, { method: 'POST', body: JSON.stringify({ title }) }),
   setSelfCheck: (id: string, on: boolean) => req<{ ok: true }>(`/api/goals/${id}/selfcheck`, { method: 'POST', body: JSON.stringify({ on }) }),
   feedbackClassify: (id: string, text: string) => req<{ plan: FeedbackPlan }>(`/api/goals/${id}/feedback/classify`, { method: 'POST', body: JSON.stringify({ text }) }),
   screenshots: (id: string) => req<{ screenshots: { at: string; taskId: string | null; status: string; url: string | null; screenshot: string | null; errors: string[]; summary: string }[] }>(`/api/goals/${id}/screenshots`),

@@ -790,3 +790,45 @@ describe('figure goals (ADR-0076)', () => {
     await Bun.sleep(150);
   }, 20_000);
 });
+
+describe('the Clarifier names the goal', () => {
+  const line = 'Bug: a cart with 10 or more of one item is charged too little: the bulk discount comes off twice';
+  const both = () => briefWith([task('T1', 'A1', 'fix the discount'), task('T2', 'A2', 'tell the teachers', ['T1'])], [check('C1', 'T1'), check('C2', 'T2')]);
+  const renames = (engine: Engine, id: string) => engine.store.listByGoal(id).filter((e) => e.type === 'goal.renamed').map((e) => e.payload);
+
+  test('a goal named by the cut first line of its words takes the short name; one the person named keeps its own', async () => {
+    const runner = new StructuredRunner(() => ({ ...both(), name: '  Bulk discount\ncharged twice ' }));
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: `${line}\n\nHow to see it: call totalCents with ten of one item.`, repoPath: repo });
+    expect(goal.title).toBe(line.slice(0, 80));
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    expect(getGoal(engine.store.db, goal.id)!.title).toBe('Bulk discount charged twice');
+    expect(renames(engine, goal.id)).toEqual([{ title: 'Bulk discount charged twice', by: 'clarifier' }]);
+
+    const named = await engine.createGoal({ prompt: `${line}\n\nHow to see it.`, repoPath: repo, title: 'My own name' });
+    await waitFor(() => getGoal(engine.store.db, named.id)!.state === 'awaiting_brief_approval');
+    expect(getGoal(engine.store.db, named.id)!.title).toBe('My own name');
+    expect(renames(engine, named.id)).toEqual([]);
+  }, 20_000);
+
+  test('the name comes with the skeleton, before the plan; a Clarifier that gives none leaves the first line', async () => {
+    const skeleton = (): BriefSkeleton => ({ title: 'fix(cart): charge the bulk discount once', name: 'Bulk discount charged twice', understanding: 'One bug.', nature: 'code', areas, assumptions: [], openQuestions: [], styleOptions: [], run: null, apps: null, goalChecks: [], planningNotes: 'notes' });
+    const plan = (): PlanOutput => ({ tasks: [task('T1', 'A1', 'fix the discount'), task('T2', 'A2', 'tell the teachers', ['T1'])], checks: [{ ...check('C1', 'T1'), taskKey: 'T1' }], costEstimateUsd: 1, timeEstimateMin: 5 });
+    const runner = new StructuredRunner((spec) => (spec.label?.startsWith('planner') ? plan() : skeleton()));
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: `${line}\n\nmore`, repoPath: repo, interview: 'never' });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    const types = engine.store.listByGoal(goal.id).map((e) => e.type);
+    expect(types.indexOf('goal.renamed')).toBeLessThan(types.indexOf('brief.skeleton_proposed'));
+    expect(getGoal(engine.store.db, goal.id)!.title).toBe('Bulk discount charged twice');
+  }, 20_000);
+
+  test('a Clarifier that gives no name leaves the first line as it was', async () => {
+    const runner = new StructuredRunner(() => both());
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: `${line}\n\nmore`, repoPath: repo });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    expect(getGoal(engine.store.db, goal.id)!.title).toBe(line.slice(0, 80));
+    expect(renames(engine, goal.id)).toEqual([]);
+  }, 20_000);
+});

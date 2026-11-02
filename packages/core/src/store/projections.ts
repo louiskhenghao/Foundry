@@ -414,6 +414,12 @@ function project(db: Database, e: EngineEvent): void {
       if (g) upsertGoal(db, { ...g, milestonePause: e.payload.on, updatedAt: e.ts });
       break;
     }
+    case 'goal.renamed': {
+      const g = getGoal(db, e.goalId!);
+      // a new name is not progress: updatedAt stays, as for an attachment
+      if (g) upsertGoal(db, { ...g, title: e.payload.title });
+      break;
+    }
     case 'milestone.final_walk': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, finalWalk: { ranAt: e.ts, passed: e.payload.passed, looks: g.finalWalk?.looks ?? 0 }, updatedAt: e.ts });
