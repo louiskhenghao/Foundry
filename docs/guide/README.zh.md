@@ -54,13 +54,14 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 6. [Foundry 什么时候需要你](./when-foundry-needs-you.zh.md)：它停下来的全部原因，以及该按什么。
 7. [拿到结果](./getting-the-result.zh.md)：分支、推送和 pull request，媒体文件，以及调整已完成的结果（beta）。
 8. [Figure goal](./figures.zh.md)（beta）：物件与机器的可交互等轴测图，每张一个网页。
-9. [Schedules](./schedules.zh.md)：自己运行的 goal，每天、每周或每月。
-10. [设置说明](./settings.zh.md)：用大白话讲 Settings 的每一部分。
-11. [主题](./themes.zh.md)：选择 Foundry 的样子，以及做一个自己的主题。
-12. [模版](./templates.zh.md)：每种 goal 的起步模式、让 AI 填写，以及你自己的模版。
-13. [费用与用量](./costs-and-usage.zh.md)：哪些要花钱，怎样少花钱。
-14. [搬到新电脑](./moving-to-a-new-computer.zh.md)：把设置、key 和 goal 带到另一个 Foundry。
-15. [端口](./ports.zh.md)：哪些端口正在被使用、被谁占着，以及怎样释放。
-16. [常见问题](./faq.zh.md)：常见问题的简短回答。
+9. [Diagram goal](./diagrams.zh.md)（beta）：编辑风格的图 —— 架构、流程、时间线、图表 —— 每张一个网页加一份 SVG，可以单独要，也可以在文档里。
+10. [Schedules](./schedules.zh.md)：自己运行的 goal，每天、每周或每月。
+11. [设置说明](./settings.zh.md)：用大白话讲 Settings 的每一部分。
+12. [主题](./themes.zh.md)：选择 Foundry 的样子，以及做一个自己的主题。
+13. [模版](./templates.zh.md)：每种 goal 的起步模式、让 AI 填写，以及你自己的模版。
+14. [费用与用量](./costs-and-usage.zh.md)：哪些要花钱，怎样少花钱。
+15. [搬到新电脑](./moving-to-a-new-computer.zh.md)：把设置、key 和 goal 带到另一个 Foundry。
+16. [端口](./ports.zh.md)：哪些端口正在被使用、被谁占着，以及怎样释放。
+17. [常见问题](./faq.zh.md)：常见问题的简短回答。
 
 顶栏右侧 ⚙ 菜单里的 **Help** 在 Foundry 里面直接显示本指南。同一个菜单里还有 **Settings**、**Setup**、**Transfer**、**Ports**、浅色／深色模式、**Appearance**（主题，见 [主题](./themes.zh.md)），以及你运行的版本：⚙ 按钮上的红点表示有新版本，按版本号会打开 **About & updates**。

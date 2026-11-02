@@ -54,13 +54,14 @@ The full glossary, for the curious, is `CONTEXT.md` in the Foundry repository.
 6. [When Foundry needs you](./when-foundry-needs-you.md): the only reasons it stops, and what to press.
 7. [Getting the result](./getting-the-result.md): branches, pushes and pull requests, media files, and adjusting a finished result (beta).
 8. [Figure goals](./figures.md) (beta): interactive isometric figures of objects and machines, one web page each.
-9. [Schedules](./schedules.md): goals that run on their own, every day, week or month.
-10. [Settings explained](./settings.md): every Settings section in plain words.
-11. [Themes](./themes.md): choosing how Foundry looks, and making a theme of your own.
-12. [Templates](./templates.md): a pattern for each kind of goal to start from, filling in with AI, and templates of your own.
-13. [Costs and usage](./costs-and-usage.md): what costs money and how to spend less.
-14. [Moving to a new computer](./moving-to-a-new-computer.md): carrying settings, keys and goals to another Foundry.
-15. [Ports](./ports.md): which ports are in use, who holds them, and freeing one.
-16. [FAQ](./faq.md): short answers to common questions.
+9. [Diagram goals](./diagrams.md) (beta): editorial diagrams — architecture, flows, timelines, charts — one web page with an SVG each, on their own or inside a document.
+10. [Schedules](./schedules.md): goals that run on their own, every day, week or month.
+11. [Settings explained](./settings.md): every Settings section in plain words.
+12. [Themes](./themes.md): choosing how Foundry looks, and making a theme of your own.
+13. [Templates](./templates.md): a pattern for each kind of goal to start from, filling in with AI, and templates of your own.
+14. [Costs and usage](./costs-and-usage.md): what costs money and how to spend less.
+15. [Moving to a new computer](./moving-to-a-new-computer.md): carrying settings, keys and goals to another Foundry.
+16. [Ports](./ports.md): which ports are in use, who holds them, and freeing one.
+17. [FAQ](./faq.md): short answers to common questions.
 
 **Help** in the ⚙ menu at the right of the top bar shows this guide inside Foundry. The same menu holds **Settings**, **Setup**, **Transfer**, **Ports**, **Learnings**, **Schedules**, the light or dark mode, **Appearance** (the theme; see [Themes](./themes.md)), and the version you run: a red dot on the ⚙ button marks a newer one, and pressing the version opens **About & updates**.
