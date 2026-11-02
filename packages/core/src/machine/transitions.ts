@@ -8,30 +8,35 @@ export class IllegalTransition extends Error {
 
 const GOAL: Record<GoalState, GoalState[]> = {
   draft: ['clarifying', 'cancelled'],
-  clarifying: ['awaiting_brief_approval', 'blocked', 'failed', 'cancelled'],
+  clarifying: ['awaiting_brief_approval', 'blocked', 'failed', 'cancelled', 'paused'],
   awaiting_brief_approval: ['running', 'clarifying', 'cancelled'],
-  running: ['goal_review', 'blocked', 'failed', 'cancelled', 'done', 'awaiting_feedback'],
+  running: ['goal_review', 'blocked', 'failed', 'cancelled', 'done', 'awaiting_feedback', 'paused'],
   goal_review: ['done', 'over_delivered', 'running', 'blocked', 'failed', 'cancelled'],
   blocked: ['running', 'goal_review', 'clarifying', 'awaiting_feedback', 'failed', 'cancelled'],
   awaiting_feedback: ['running', 'blocked', 'failed', 'cancelled'],
-  // terminal goals can be restarted by the human (tasks are reset first)
+  // the person paused it (ADR-0080): Resume takes it back to where it was
+  paused: ['running', 'clarifying', 'cancelled', 'failed'],
+  // terminal goals can be restarted by the human (tasks are reset first), and a failed or cancelled one resumed where it
+  // stopped (ADR-0080): with its tasks, before its Brief was approved, or before it had one
   done: ['running'],
   over_delivered: ['running'],
-  failed: ['running'],
-  cancelled: ['running'],
+  failed: ['running', 'awaiting_brief_approval', 'clarifying'],
+  cancelled: ['running', 'awaiting_brief_approval', 'clarifying'],
 };
 
 const TASK: Record<TaskState, TaskState[]> = {
-  pending: ['ready', 'failed'],
-  ready: ['running', 'failed', 'pending'],
+  // skipped: carried over to a goal made to finish it (ADR-0081)
+  pending: ['ready', 'failed', 'skipped'],
+  ready: ['running', 'failed', 'pending', 'skipped'],
   running: ['observing', 'ready', 'blocked', 'failed'],
   observing: ['merging', 'ready', 'blocked', 'failed', 'done'],
   merging: ['done', 'blocked', 'failed', 'observing'],
   blocked: ['ready', 'failed', 'done', 'merging', 'skipped'],
   // a finished task runs again for an Adjustment of the goal's result (ADR-0078): its session resumed with the person's words
   done: ['ready'],
-  // a failed upstream task is treated as skipped when the human restarts from a task below it
-  failed: ['skipped'],
+  // a failed upstream task is treated as skipped when the human restarts from a task below it; it runs again (ready, or
+  // pending while what it waits for is not done) when the person resumes the goal (ADR-0080)
+  failed: ['skipped', 'ready', 'pending'],
   skipped: [],
 };
 
