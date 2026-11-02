@@ -8,7 +8,7 @@ This page says where Foundry keeps its state, how to back it up and restore it, 
 
 | What | Local install | Docker | Back it up? |
 |---|---|---|---|
-| **Data folder**: event log, settings, transcripts, uploads | `data/` for the Claude launch profile; `data-codex/` for Codex; `FOUNDRY_DATA_DIR` overrides either | `/app/data` (`engine-data`) or `/app/data-codex` (`codex-data`) | **yes**, every instance’s active directory |
+| **Data folder**: event log, settings, transcripts, uploads | `data/` for the Claude launch profile; `data-codex/` for Codex; the folder chosen in Settings → Engine (install), remembered in `~/.foundry/config.json`; `FOUNDRY_DATA_DIR` overrides all of them | `/app/data` (`engine-data`) or `/app/data-codex` (`codex-data`) | **yes**, every instance’s active directory (`foundry serve` prints it) |
 | **Claude home**: Claude Code login, sessions, skills, plugins | `~/.claude` (or `CLAUDE_CONFIG_DIR`) | `/home/node/.claude`, volume `claude-home` | **yes** |
 | **Codex home**: native login/configuration, sessions, skills, plugins | `~/.codex`, or the configured Codex home (`FOUNDRY_CODEX_HOME`, then `CODEX_HOME`) | `/home/node/.codex`, volume `codex-home` | **yes**; re-login may still be needed when credentials use a host credential store |
 | **Shared skills** | `~/.agents/skills` | wherever you explicitly mount shared skills | if you customized them |

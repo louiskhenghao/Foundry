@@ -142,7 +142,7 @@ These numbered steps use the Claude launch profile. For Codex, use `codex login`
 
    It prints `foundry listening on http://127.0.0.1:4111  (data: …/data)`. Open <http://127.0.0.1:4111>.
 
-Foundry’s instance data lives in `data/` (Claude launch profile), `data-codex/` (Codex launch profile), or `FOUNDRY_DATA_DIR`. Native account/configuration files stay in the selected CLI’s home, and goal work stays beside the target repositories. See
+Foundry’s instance data lives in `data/` (Claude launch profile), `data-codex/` (Codex launch profile), the folder chosen under **Settings → Engine (install) → Data folder** (kept in `~/.foundry/config.json`, or under `FOUNDRY_HOME`), or `FOUNDRY_DATA_DIR`, which wins over the choice. Native account/configuration files stay in the selected CLI’s home, and goal work stays beside the target repositories. See
 [updates-and-backup.md](./updates-and-backup.md).
 
 To keep Foundry running after you close the terminal (launchd on macOS, systemd on Linux), see
