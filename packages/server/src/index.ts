@@ -65,3 +65,4 @@ export function startServer(engine: Engine, opts: ServeOptions = {}) {
 }
 
 export { createApp };
+export { serveLoop, type ServeLoop, type ServeLoopOptions } from './serve-loop.ts';
