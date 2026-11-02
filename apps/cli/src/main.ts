@@ -391,8 +391,8 @@ switch (cmd) {
   case 'pause': {
     const id = positional()[0];
     if (!id) return usage();
-    await api(`/api/goals/${id}/pause`, { method: 'POST', body: JSON.stringify({ now: has('--now') }) });
-    console.log(has('--now') ? 'paused' : 'pausing — the work in flight lands first');
+    const paused = await api(`/api/goals/${id}/pause`, { method: 'POST', body: JSON.stringify({ now: has('--now') }) });
+    console.log(paused.state === 'paused' ? 'paused' : 'pausing — the work in flight lands first');
     break;
   }
   case 'resume': {

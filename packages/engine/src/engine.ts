@@ -49,7 +49,7 @@ import { answerInterview, continueInterview, runClarify } from './clarify.ts';
 import { type DraftProposal, type DraftRequest, type ReviseAnswer, answerRevise, cancelRevise, runDraft } from './brief-draft.ts';
 import { runSuggest } from './escalation-suggest.ts';
 import { claudeConfigEnv, type EngineConfig } from './config.ts';
-import { HOME_CONFIG_FILE, RestartGate, defaultDataDir, productVersion, readHomeConfig, testDataDir, writeVersionMarker, type DataDirNotice, type DataDirStatus, type DataDirTest } from './data-dir.ts';
+import { HOME_CONFIG_FILE, RestartGate, defaultDataDir, folderBytesAsync, productVersion, readHomeConfig, testDataDir, writeVersionMarker, type DataDirNotice, type DataDirStatus, type DataDirTest } from './data-dir.ts';
 import { GrepContextProvider } from './context/grep-provider.ts';
 import { GraphifyContextProvider } from './context/graphify-provider.ts';
 import { summarizeOutput } from './distill/summarize.ts';
@@ -872,9 +872,9 @@ export class Engine {
     };
   }
   /** the checks another data folder passes before a switch: read-only, nothing is made or changed */
-  testDataDir(path: string): DataDirTest {
+  async testDataDir(path: string): Promise<DataDirTest> {
     const now = Date.now();
-    if (!this.dataDirBytes || now - this.dataDirBytes.at > 60_000) this.dataDirBytes = { at: now, bytes: testDataDir('', { current: this.config.dataDir, provider: this.config.provider }).current.bytes };
+    if (!this.dataDirBytes || now - this.dataDirBytes.at > 60_000) this.dataDirBytes = { at: now, bytes: await folderBytesAsync(this.config.dataDir) };
     return testDataDir(path, { current: this.config.dataDir, provider: this.config.provider, currentBytes: this.dataDirBytes.bytes });
   }
   /** goals a restart would interrupt: at work in Clarify, running, or in their goal review (a paused, blocked or waiting one is not) */

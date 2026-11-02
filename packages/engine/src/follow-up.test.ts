@@ -286,6 +286,10 @@ describe('follow-up goals', () => {
     ]);
     // C1 belonged to the task left behind; c's check follows c, and A's goal-level check comes along
     expect(brief.checks.map((c) => [c.name, c.taskKey])).toEqual([['c exists', 'T2'], ['the suite', null]]);
+    // a left unticked, and the goal-level check speaks for the whole of A: a must would have the review do a after all
+    expect(brief.checks.map((c) => c.tier)).toEqual(['must', 'stretch']);
+    expect(brief.understanding).toContain('Left out on purpose');
+    expect(brief.understanding).toContain('"a"');
     expect(brief.areas.map((ar) => ar.key)).toEqual(['A1']);
     expect(brief.understanding).toContain('Three files, one after the other.');
     expect(brief.understanding).toContain('2 of its 3 tasks');
@@ -296,5 +300,10 @@ describe('follow-up goals', () => {
     expect(after.map((x) => x.state)).toEqual(['pending', 'skipped', 'skipped']);
     expect(engine.store.listByGoal(a.id).filter((e) => e.type === 'task.state_changed' && (e.payload as { to: string }).to === 'skipped').map((e) => (e.payload as { reason: string }).reason)).toEqual([expect.stringContaining(b.id), expect.stringContaining(b.id)]);
     expect(ta!.state).toBe('pending');
+    // everything unfinished carried: nothing is left out, and the goal-level checks stay what they were
+    const whole = await engine.createGoal({ prompt: 'the last one', repoPath: repo, follows: { goalId: a.id, carry: [ta!.id] } });
+    const wholeBrief = getBrief(engine.store.db, whole.id)!.brief;
+    expect(wholeBrief.checks.find((c) => c.name === 'the suite')?.tier).toBe('must');
+    expect(wholeBrief.understanding).not.toContain('Left out on purpose');
   }, 30_000);
 });

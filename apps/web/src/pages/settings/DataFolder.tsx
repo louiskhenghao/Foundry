@@ -28,7 +28,7 @@ const refusal = (e: unknown): { goals: { id: string; title: string; state: strin
 
 /** goals a restart was refused for, each a link, so the person can pause them */
 function Refused({ goals, sessions }: { goals: { id: string; title: string; state: string }[]; sessions: number }) {
-  if (!goals.length) return <span>{plural(sessions, 'session')} in flight: wait until {sessions === 1 ? 'it has' : 'they have'} finished.</span>;
+  if (!goals.length) return <span>Foundry is still at work (a session, a review or a delivery): wait until it has finished.</span>;
   return (
     <span>
       Pause or wait for:{' '}

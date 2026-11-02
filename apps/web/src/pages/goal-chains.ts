@@ -10,6 +10,13 @@ export interface GoalChain {
   latest: GoalRow;
 }
 
+/** What a chain's member is to the chain: its first goal, a goal that took over tasks of an earlier one, or a follow-up. */
+export function memberRole(g: GoalRow, index: number): string {
+  if (index === 0) return 'Original';
+  const carried = g.follows?.carried?.length ?? 0;
+  return carried ? `Carried over ${carried} task${carried === 1 ? '' : 's'}` : 'Follow-up';
+}
+
 export type ListEntry = { kind: 'goal'; goal: GoalRow } | { kind: 'chain'; chain: GoalChain };
 
 /** what the list can fold, by the id each fold is kept under: every chain of follow-ups, and every main goal with Delegated goals under it */

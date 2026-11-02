@@ -244,7 +244,7 @@ try {
         for (let n = walker.nextNode(); n; n = walker.nextNode()) for (const [a, b] of pairs) if (n.nodeValue?.includes(a)) n.nodeValue = n.nodeValue.split(a).join(b);
         for (const i of Array.from(document.querySelectorAll('input'))) for (const [a, b] of pairs) if (i.value.includes(a)) i.value = i.value.split(a).join(b);
       },
-      { pairs: [[tmpdir(), '/Volumes/Work']] },
+      { pairs: [[tmpdir(), '/Volumes/Work']] as [string, string][] },
     );
     await card.scrollIntoViewIfNeeded();
     await page.waitForTimeout(300);

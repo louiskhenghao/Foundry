@@ -166,7 +166,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const previous = [followUp, delegationContext(engine, goal), learningsContext(engine, goal), recalled ? memorySection(recalled.text, { tools: false, kind: recalled.kind }) : '', aboutPerson ? memorySection(aboutPerson.text, { tools: false, about: 'person', kind: aboutPerson.kind }) : ''].filter(Boolean).join('\n\n');
   const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable, figure);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
-  const schema = jsonSchemaFor(goal.interview ? InterviewOutput : BriefSkeleton);
+  const schema = clarifySchema(!!goal.interview);
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
   const classifiedGoal = { ...goal, nature };
   const clarifierModel = modelFor(config, classifiedGoal, 'clarifier');
@@ -361,6 +361,13 @@ function finishInterview(engine: Engine, goal: Goal): void {
   const iv = goal.interview;
   if (!iv || iv.status === 'done') return;
   engine.store.append({ type: 'interview.finished', goalId: goal.id, payload: { rounds: iv.rounds.length, reason: iv.rounds.at(-1)?.finish ? 'human' : iv.rounds.length === 0 ? 'nothing_to_ask' : iv.rounds.length >= INTERVIEW_MAX_ROUNDS ? 'cap' : 'brief' } });
+}
+
+/** What the Clarifier answers in. `name` is asked for outright: left optional in the schema, a model leaves it out and the goal keeps its cut first line. */
+export function clarifySchema(interview: boolean): Record<string, unknown> {
+  if (interview) return jsonSchemaFor(InterviewOutput);
+  const schema = jsonSchemaFor(BriefSkeleton) as { required?: string[] };
+  return { ...schema, required: [...new Set([...(schema.required ?? []), 'name'])] };
 }
 
 /**

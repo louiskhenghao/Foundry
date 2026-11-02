@@ -9,7 +9,7 @@ import { SetupBanner } from '../components/SetupBanner.tsx';
 import { UsagePausedBanner } from '../components/UsageBanner.tsx';
 import { ProviderBadge, shortCwd } from './agents/rows.tsx';
 import { boardOf, isFinished, needOf, type Need } from './goal-boards.ts';
-import { foldable, listEntries, type GoalChain, type ListEntry } from './goal-chains.ts';
+import { foldable, listEntries, memberRole, type GoalChain, type ListEntry } from './goal-chains.ts';
 import { useLive } from '../store.ts';
 import { BOARD_HEAD, BOARD_ROW, Board, Button, EmptyState, Loading, PageHeader, ago, buttonClass, cn, fmtUsd, stateLabel, waited } from '../ui.tsx';
 
@@ -140,9 +140,9 @@ export function GoalsPage() {
 
   /**
    * One goal on a board: its tile, what and where, then the stage and tasks, the spend and time, and when it last moved.
-   * On a phone the columns after the title wrap into one line under it. `depth` indents a chain's member or a Delegated goal.
+   * On a phone the columns after the title wrap into one line under it. `depth` indents a Delegated goal.
    */
-  const row = (g: GoalRow, depth: 0 | 1 | 2, mark: 'delegated' | 'follow-up' | null, note: ReactNode = followsTag(g)) => {
+  const row = (g: GoalRow, depth: 0 | 1 | 2, mark: 'delegated' | null, note: ReactNode = followsTag(g)) => {
     const total = Object.values(g.taskCounts).reduce((n, v) => n + v, 0);
     const done = g.taskCounts.done ?? 0;
     return (
@@ -152,7 +152,6 @@ export function GoalsPage() {
           {/* the title link covers the whole row */}
           <Link to={href(g)} className="text-[15px] sm:text-base font-bold leading-snug text-ink group-hover:underline decoration-2 underline-offset-[3px] after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-accent">
             {mark === 'delegated' && <CornerDownRight size={13} className="inline mr-1 text-code-7-ink" aria-label="delegated goal" />}
-            {mark === 'follow-up' && <CornerDownRight size={13} className="inline mr-1 text-code-1-ink" aria-label="follow-up" />}
             {g.title}
           </Link>
           <div className="flex items-center gap-2 min-w-0 flex-wrap text-xs text-ink-faint">
@@ -190,11 +189,58 @@ export function GoalsPage() {
     );
   };
   /** a goal's row, then its Delegated goals when they are folded out */
-  const withDelegated = (g: GoalRow, depth: 0 | 1, mark: 'follow-up' | null, note?: ReactNode) => [row(g, depth, mark, note), ...(expanded.has(g.id) ? (children.get(g.id) ?? []).map((c) => row(c, depth === 0 ? 1 : 2, 'delegated')) : [])];
+  const withDelegated = (g: GoalRow) => [row(g, 0, null), ...(expanded.has(g.id) ? (children.get(g.id) ?? []).map((c) => row(c, 1, 'delegated')) : [])];
+
+  /**
+   * One step of an open chain: a line runs from the chain's tile through the numbered steps, oldest first. What every step
+   * shares (the folder, a coding agent they all use) is the chain's; a step says what it is to the chain and how it stands.
+   */
+  const chainMember = (c: GoalChain, g: GoalRow, i: number) => {
+    const total = Object.values(g.taskCounts).reduce((n, v) => n + v, 0);
+    const last = i === c.members.length - 1;
+    const elsewhere = i > 0 && g.follows?.goalId !== c.members[i - 1]!.id;
+    return (
+      <li key={g.id} className="relative">
+        {/* to the step's number on the last one, on through its Delegated goals on the others */}
+        <span aria-hidden="true" className={cn('absolute left-[33px] md:left-[37px] top-0 w-0.5 bg-line-strong', last ? 'h-6' : 'bottom-0')} />
+        <div className={MEMBER_ROW}>
+          <span className="relative justify-self-center grid h-7 w-7 place-items-center rounded-full bg-panel ring-[1.5px] ring-inset ring-line-strong mono text-xs font-bold text-ink-soft" aria-label={`step ${i + 1} of ${c.members.length}`}>
+            {i + 1}
+          </span>
+          <div className="min-w-0 flex flex-col gap-1">
+            <Link to={href(g)} className="text-sm font-semibold leading-snug text-ink group-hover:underline decoration-2 underline-offset-[3px] after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-accent">
+              {g.title}
+            </Link>
+            <div className="flex items-center gap-2 min-w-0 flex-wrap text-xs text-ink-faint">
+              <span className="font-semibold text-ink-soft">{memberRole(g, i)}</span>
+              {new Set(c.members.map((m) => m.provider ?? 'claude')).size > 1 && <ProviderBadge provider={g.provider} />}
+            </div>
+            {/* a follow-up names its goal only when that is not the step above */}
+            {elsewhere && followsTag(g)}
+            {delegationTag(g)}
+          </div>
+          <div className="col-start-2 md:col-start-auto flex flex-wrap items-center gap-x-6 gap-y-1 md:contents">
+            <span className="flex items-center gap-2 text-xs">
+              <span className="font-bold first-letter:uppercase">{stateLabel(g.state)}</span>
+              {total > 0 && <span className="mono text-ink-soft">{g.taskCounts.done ?? 0}/{total}</span>}
+            </span>
+            <span className="mono text-xs text-ink-soft">
+              {reportsDollars(g.provider) ? `${fmtUsd(g.costUsd)} · ` : ''}
+              {g.budget.elapsedMin.toFixed(0)} min
+            </span>
+            <time className="mono text-xs text-ink-faint md:text-right" dateTime={g.updatedAt} title={new Date(g.updatedAt).toLocaleString()}>
+              {ago(g.updatedAt)}
+            </time>
+          </div>
+        </div>
+        {expanded.has(g.id) && <ul className="divide-y divide-line">{(children.get(g.id) ?? []).map((d) => row(d, 2, 'delegated'))}</ul>}
+      </li>
+    );
+  };
 
   /**
    * A goal and its follow-ups as one entry: the first goal names it, the newest says where the work stands, the spend
-   * and time are the chain's. Open, it lists each goal's own row, oldest first.
+   * and time are the chain's. Open, it lists its goals as numbered steps, oldest first.
    */
   const chainItem = (c: GoalChain) => {
     const open = isOpen(c);
@@ -208,6 +254,8 @@ export function GoalsPage() {
     return (
       <li key={`chain:${c.id}`}>
         <div className={ROW}>
+          {/* open, the line of its steps starts at this tile */}
+          {open && <span aria-hidden="true" className="absolute left-[33px] md:left-[37px] top-[3.25rem] bottom-0 w-0.5 bg-line-strong" />}
           <span className="grid h-9 w-9 place-items-center rounded-lg ring-[1.5px] ring-inset ring-line-strong text-ink-soft" aria-hidden="true">
             <Link2 size={16} />
           </span>
@@ -261,15 +309,14 @@ export function GoalsPage() {
           </div>
         </div>
         {open && (
-          <ul id={panel} className="border-t border-line divide-y divide-line bg-sunken/60">
-            {/* the first goal's follows line is in the header; a follow-up names its goal only when that is not the row above */}
-            {c.members.flatMap((m, i) => withDelegated(m, 1, i === 0 ? null : 'follow-up', i === 0 || m.follows?.goalId === c.members[i - 1]!.id ? null : followsTag(m)))}
+          <ul id={panel} className="border-t border-line bg-sunken/60">
+            {c.members.map((m, i) => chainMember(c, m, i))}
           </ul>
         )}
       </li>
     );
   };
-  const items = (list: ListEntry[]) => list.flatMap((e) => (e.kind === 'chain' ? [chainItem(e.chain)] : withDelegated(e.goal, 0, null)));
+  const items = (list: ListEntry[]) => list.flatMap((e) => (e.kind === 'chain' ? [chainItem(e.chain)] : withDelegated(e.goal)));
 
   return (
     <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16">
@@ -384,7 +431,10 @@ export function GoalsPage() {
 }
 
 /** a board row's grid: tile, goal, then stage, spend and time, updated (from md up; a phone wraps them under the title) */
-const ROW = cn(BOARD_ROW, 'grid grid-cols-[2.25rem_minmax(0,1fr)] md:grid-cols-[2.25rem_minmax(0,1fr)_10rem_9rem_4.5rem] items-start gap-x-4 gap-y-3 px-4 md:px-5 py-4');
+const ROW_GRID = 'grid grid-cols-[2.25rem_minmax(0,1fr)] md:grid-cols-[2.25rem_minmax(0,1fr)_10rem_9rem_4.5rem] items-start gap-x-4 px-4 md:px-5';
+const ROW = cn(BOARD_ROW, ROW_GRID, 'gap-y-3 py-4');
+/** a step of an open chain: under the goal it belongs to, on the same columns, and tighter */
+const MEMBER_ROW = cn(BOARD_ROW, ROW_GRID, 'gap-y-1.5 py-2.5');
 /** the boards' column labels */
 const HEAD = (
   <div aria-hidden="true" className={cn(BOARD_HEAD, 'hidden md:grid grid-cols-[2.25rem_minmax(0,1fr)_10rem_9rem_4.5rem] gap-x-4')}>

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { BriefOutput, BUILTIN_CODEX_PRESETS, getBrief, getGoal, type Goal } from '@foundry/core';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
+import { clarifySchema } from './clarify.ts';
 import { defaultConfig, type EngineConfig } from './config.ts';
 import { Engine } from './engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS } from './guards/boundary.ts';
@@ -76,6 +77,10 @@ function setup(runner: ScriptedRunner, overrides: Partial<EngineConfig> = {}): E
   }), runner);
   return engine;
 }
+
+test("the Clarifier's schema asks for the goal's short name outright: left optional, a model leaves it out", () => {
+  expect((clarifySchema(false) as { required: string[] }).required).toContain('name');
+});
 
 describe('Clarify writes the Brief, a planner session writes its plan', () => {
   test.each(['codex', 'claude'] as const)('%s: one Clarifier turn, then one read-only planner session whose plan goes into the Brief as written', async (provider) => {

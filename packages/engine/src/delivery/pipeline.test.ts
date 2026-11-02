@@ -355,6 +355,21 @@ describe('delivery pipeline', () => {
       writeFileSync(join(spec.cwd, `${title}.txt`), 'ok');
     });
 
+  test("unit=task on a Follow-up started from an undelivered goal's branch: one PR, so that goal's commits reach the base too", async () => {
+    const gh = new FakeGh(bare);
+    const engine = new Engine(cfg(), titleWorker(), gh);
+    const a = await engine.createGoal({ prompt: 'the earlier goal', repoPath: repo, brief: twoTasks(), delivery: { mode: 'local' } });
+    await waitFor(() => ['done', 'over_delivered', 'failed'].includes(getGoal(engine.store.db, a.id)!.state), 30_000);
+    const b = await engine.createGoal({ prompt: 'the follow-up', repoPath: repo, follows: { goalId: a.id, startFrom: 'previous' }, brief: { ...twoTasks(), tasks: [t('T1', 'add third', []), t('T2', 'fix fourth', ['T1'], 'bug')] }, delivery: { mode: 'pr', unit: 'task' } });
+    expect(b.follows?.startFrom).toBe('previous');
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, b.id).status), 30_000);
+    expect(deliveredStatus(engine, b.id).error).toBeNull();
+    expect(gh.calls.filter((x) => x[0] === 'prCreate').map((x) => [x[2], x[3]])).toEqual([[b.branch, 'main']]);
+    const delivered = (await sh(`git log --format=%s main..${b.branch}`, bare)).split('\n');
+    expect(delivered).toEqual(expect.arrayContaining(['feat: add first', 'fix: fix second', 'feat: add third', 'fix: fix fourth']));
+    expect(engine.store.listByGoal(b.id, 5000).some((e) => e.type === 'delivery.note' && /one PR/.test((e.payload as { message: string }).message))).toBe(true);
+  }, 60_000);
+
   test('unit=task, mode=pr: one stacked branch + PR per task commit, titles are the commit headers', async () => {
     const gh = new FakeGh(bare);
     const engine = new Engine(cfg(), titleWorker(), gh);
