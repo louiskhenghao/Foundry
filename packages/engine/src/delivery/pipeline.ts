@@ -292,6 +292,13 @@ async function buildStack(ctx: Ctx, step: StepFn): Promise<StackBranch[] | null>
       return { status: 'skipped', detail: `remote has no ${ctx.base} yet`, value: null };
     }
     const baseRef = `${ctx.remote}/${ctx.base}`;
+    // a Follow-up started from an earlier goal's branch stands on that goal's commits, and a stack replays this goal's
+    // tasks alone: while those commits are not on the base, only the whole branch delivers them
+    const earlier = goal.follows?.startFrom === 'previous' ? goal.follows.branch : null;
+    if (earlier && (await git(['rev-parse', '--verify', '--quiet', `${earlier}^{commit}`], ctx.repoPath)).code === 0 && (await git(['merge-base', '--is-ancestor', earlier, baseRef], ctx.repoPath)).code !== 0) {
+      note(`this goal stands on ${earlier}, which is not on ${ctx.base} yet; delivering the whole branch as one PR so that its work is not left behind`);
+      return { status: 'skipped', detail: `stands on ${earlier}, not on ${ctx.base} yet`, value: null };
+    }
     const nameOf = (t: { task: Task; index: number }) => stackBranchName(goal.branch, t.index, branchSlug(headerOf(t.task.commitMessage ?? t.task.title)));
     const expected = tasks.map(nameOf);
     const baseFor = (i: number) => (i === 0 ? ctx.base : expected[i - 1]!);
