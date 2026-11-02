@@ -1156,8 +1156,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   // now = the sessions are stopped, their attempts resuming with the goal
   app.post('/api/goals/:id/pause', async (c) => {
     const body = await c.req.json().catch(() => ({}));
-    engine.pauseGoal(goalOr404(c).id, { now: body?.now === true });
-    return c.json({ ok: true });
+    const { id } = goalOr404(c);
+    engine.pauseGoal(id, { now: body?.now === true });
+    return c.json({ ok: true, state: getGoal(engine.store.db, id)?.state });
   });
   // Resume (ADR-0080): a paused goal goes back to where it was; a cancelled, failed or blocked one goes on from where it stopped
   app.post('/api/goals/:id/resume', async (c) => {
@@ -1723,7 +1724,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (!goals.length && !sessions) return;
     const error = goals.length
       ? `${goals.length} goal${goals.length === 1 ? ' is' : 's are'} at work: pause ${goals.length === 1 ? 'it' : 'them'} or wait until ${goals.length === 1 ? 'it has' : 'they have'} finished — ${goals.map((g) => `"${g.title}"`).join(', ')}`
-      : `${sessions} session${sessions === 1 ? ' is' : 's are'} in flight: wait until ${sessions === 1 ? 'it has' : 'they have'} finished`;
+      : `Foundry is still at work (${sessions === 1 ? 'a session, a review or a delivery' : `${sessions} sessions, reviews or deliveries`}): wait until it has finished`;
     throw new HttpError(409, { error, goals, sessions });
   };
   const refuseWithoutLoop = () => {
@@ -1732,7 +1733,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/data-dir', (c) => c.json(engine.dataDirStatus()));
   app.post('/api/data-dir/test', async (c) => {
     const { path } = z.object({ path: z.string() }).parse(await c.req.json());
-    return c.json(engine.testDataDir(path));
+    return c.json(await engine.testDataDir(path));
   });
   app.post('/api/data-dir/switch', async (c) => {
     const { path, mode } = z.object({ path: z.string(), mode: z.enum(['open', 'blank', 'clone']) }).parse(await c.req.json());
@@ -1740,7 +1741,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (status.readOnly) throw new HttpError(403, { error: status.readOnly.detail, code: status.readOnly.reason });
     refuseWithoutLoop();
     // tested again here: what was on the disk when the page tested it may have changed
-    const test = engine.testDataDir(path);
+    const test = await engine.testDataDir(path);
     if (!test.ok) throw new HttpError(422, { error: `${test.path || path} did not pass: ${test.checks.filter((k) => !k.ok).map((k) => `${k.label}: ${k.detail}`).join('; ')}`, test });
     if (!test.modes.includes(mode)) throw new HttpError(422, { error: `${test.path} cannot be opened that way (${mode}); it takes ${test.modes.join(' or ')}`, test });
     refuseWhileAtWork();

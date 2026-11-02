@@ -161,6 +161,17 @@ export function folderBytes(dir: string): number {
   return total;
 }
 
+/** the same off the event loop: a real data folder holds hundreds of thousands of files, and goals may be at work meanwhile */
+export async function folderBytesAsync(dir: string): Promise<number> {
+  try {
+    const p = Bun.spawn(['du', '-sk', dir], { stdout: 'pipe', stderr: 'ignore' });
+    const [out] = await Promise.all([new Response(p.stdout).text(), p.exited]);
+    const kb = Number(out.trim().split(/\s/)[0]);
+    if (Number.isFinite(kb) && kb >= 0 && out.trim()) return kb * 1024;
+  } catch {}
+  return folderBytes(dir);
+}
+
 const nearestExisting = (p: string): string => {
   let cur = p;
   while (!existsSync(cur)) {

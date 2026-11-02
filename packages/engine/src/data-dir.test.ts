@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { defaultConfig } from './config.ts';
-import { RestartGate, prepareDataDir, readHomeConfig, rememberRecent, resolveDataDir, rewriteDataDirPaths, testDataDir, writeHomeConfig } from './data-dir.ts';
+import { RestartGate, folderBytesAsync, prepareDataDir, readHomeConfig, rememberRecent, resolveDataDir, rewriteDataDirPaths, testDataDir, writeHomeConfig } from './data-dir.ts';
 
 const ROOT = resolve(import.meta.dir, '../../..');
 const tmp = () => mkdtempSync(join(tmpdir(), 'foundry-data-dir-'));
@@ -232,6 +232,18 @@ describe('the copy a switch makes', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+});
+
+test('the size of a folder is measured off the event loop, as the walk measures it to the kilobyte', async () => {
+  const dir = tmp();
+  try {
+    writeFileSync(join(dir, 'a'), 'x'.repeat(50_000));
+    const measured = await folderBytesAsync(dir);
+    expect(measured).toBeGreaterThanOrEqual(50_000);
+    expect(measured).toBeLessThan(200_000);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 describe('the restart gate', () => {
