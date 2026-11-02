@@ -34,7 +34,7 @@ function opts(name: string): string[] {
 }
 const has = (name: string) => rest.includes(name);
 const positional = () => rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && !FLAGS.has(rest[i - 1]!)));
-const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--templates', '--dry-run', '--password-stdin', '--all', '--new']);
+const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--templates', '--dry-run', '--password-stdin', '--all', '--new', '--now']);
 const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
 
 async function api(path: string, init?: RequestInit): Promise<any> {
@@ -389,6 +389,21 @@ switch (cmd) {
     if (!id) return usage();
     await api(`/api/goals/${id}/cancel`, { method: 'POST' });
     console.log('cancelled');
+    break;
+  }
+  case 'pause': {
+    const id = positional()[0];
+    if (!id) return usage();
+    await api(`/api/goals/${id}/pause`, { method: 'POST', body: JSON.stringify({ now: has('--now') }) });
+    console.log(has('--now') ? 'paused' : 'pausing — the work in flight lands first');
+    break;
+  }
+  case 'resume': {
+    const id = positional()[0];
+    if (!id) return usage();
+    const budgets = opt('--max-cost') || opt('--max-min') ? { ...(opt('--max-cost') ? { maxCostUsd: Number(opt('--max-cost')) } : {}), ...(opt('--max-min') ? { maxDurationMin: Number(opt('--max-min')) } : {}) } : undefined;
+    await api(`/api/goals/${id}/resume`, { method: 'POST', body: JSON.stringify({ hint: opt('--hint') ?? null, budgets }) });
+    console.log('resumed');
     break;
   }
   case 'replay': {

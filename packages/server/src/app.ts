@@ -77,7 +77,7 @@ const CreateGoalBody = z.object({
   effort: CodexEffort.nullable().optional(),
   modelPreset: z.string().min(1).nullable().optional(),
   /** create the goal as a Follow-up of an earlier finished goal of the same repository */
-  follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional() }).optional(),
+  follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional(), /** the earlier goal's unfinished tasks to carry over as planned, skipping Clarify (ADR-0081) */ carry: z.array(z.string().min(1)).optional() }).optional(),
   /** may the planner delegate steps to goals of their own, and are their Briefs approved without the human (both off by default) */
   delegation: z.object({ allow: z.boolean().optional(), autoApprove: z.boolean().optional() }).optional(),
   /** the GitHub issue the goal is made from, as POST /api/issues/read returned it (ADR-0052) */
@@ -1150,6 +1150,19 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
 
   app.post('/api/goals/:id/cancel', (c) => {
     engine.cancelGoal(c.req.param('id'));
+    return c.json({ ok: true });
+  });
+  // Pause (ADR-0080): gently by default — nothing more starts and the goal is paused once its work in flight has landed;
+  // now = the sessions are stopped, their attempts resuming with the goal
+  app.post('/api/goals/:id/pause', async (c) => {
+    const body = await c.req.json().catch(() => ({}));
+    engine.pauseGoal(goalOr404(c).id, { now: body?.now === true });
+    return c.json({ ok: true });
+  });
+  // Resume (ADR-0080): a paused goal goes back to where it was; a cancelled, failed or blocked one goes on from where it stopped
+  app.post('/api/goals/:id/resume', async (c) => {
+    const body = z.object({ hint: z.string().nullable().optional(), budgets: z.object({ maxCostUsd: z.number().positive().nullable().optional(), maxDurationMin: z.number().positive().nullable().optional() }).optional() }).parse(await c.req.json().catch(() => ({})));
+    await engine.resumeGoal(goalOr404(c).id, { hint: body.hint ?? null, budgets: body.budgets });
     return c.json({ ok: true });
   });
   // the Ports page: every port in use, who holds it, and releasing the ones that can be

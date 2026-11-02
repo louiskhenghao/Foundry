@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Check, CheckResult, Goal } from '@foundry/core';
-import { jsonSchemaFor, IdPrefix, chosenStyle, getBrief, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
+import { jsonSchemaFor, IdPrefix, chosenStyle, getBrief, getGoal, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { renderStyle, styleApplies } from './attempt-prompt.ts';
 import { FIGURE_REVIEW_GOAL } from './figure.ts';
@@ -98,6 +98,8 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
   const stretchChecksAll = checks.filter((c) => c.tier === 'stretch');
   const stretchPassed = stretchChecksAll.length > 0 && stretchResults.length > 0 && stretchResults.every((r) => r.status === 'pass') && (review ? review.stretchVerdicts.every((v) => v.pass) : true);
 
+  // the goal moved on while the review ran (cancelled by the person): its verdict is not written over that
+  if (getGoal(store.db, goal.id)?.state !== 'goal_review') return;
   if (mustPassed) {
     store.append({ type: 'review.goal.finished', goalId: goal.id, payload: { passed: true, overDelivered: stretchPassed, mustResults, stretchResults, fixTaskIds: [], notes: review?.notes ?? '' } });
     // docs are generated before the goal turns done so their commit lands on the goal branch and ships with the code

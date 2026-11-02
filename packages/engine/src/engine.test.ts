@@ -1287,3 +1287,167 @@ describe('doctor', () => {
     await next;
   });
 });
+
+describe('pause and resume (ADR-0080)', () => {
+  const { writeFileSync: write } = require('node:fs') as typeof import('node:fs');
+  const t = (key: string, title: string, deps: string[]) => ({ key, title, spec: `do ${title}`, kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'off' as const, dependsOnKeys: deps, parallelizable: false, relevantFiles: [], milestone: null });
+  type Check = { key: string; name: string; tier: 'must'; taskKey: string; areaKey: null; spec: { type: 'command'; cmd: string; timeoutMs: number; expectExitCode: number } };
+  const brief = (checks: Check[] = []) => ({ title: 'feat(demo): three steps', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], checks, costEstimateUsd: 0, timeEstimateMin: 0, tasks: [t('T1', 'first step', []), t('T2', 'second step', ['T1']), t('T3', 'third step', ['T2'])] });
+  /** the file a worker leaves, named after its task */
+  const file = (spec: RunSpec) => `${spec.label!.replace(/^attempt /, '').replace(/ #\d+.*$/, '').replace(/\s+/g, '-')}.txt`;
+  const taskNamed = (engine: Engine, goalId: string, title: string) => listTasks(engine.store.db, goalId).find((x) => x.title === title)!;
+
+  /** workers leave their file; a first session of the `held` task hangs until it is killed (Stop now) or let go (its work lands) */
+  class HeldRunner extends FakeRunner {
+    held: RegExp | null = null;
+    killed = 0;
+    private end: ((r: RunResult) => void) | null = null;
+    private base: RunResult | null = null;
+    constructor() {
+      super((spec) => {
+        if (spec.label?.startsWith('attempt')) write(join(spec.cwd, file(spec)), 'ok');
+      });
+    }
+    override async run(spec: RunSpec): Promise<RunHandle> {
+      const h = await super.run(spec);
+      if (!this.held || !spec.label?.startsWith('attempt') || !this.held.test(spec.label) || spec.resumeSessionId) return h;
+      const base = (this.base = await h.result);
+      const result = new Promise<RunResult>((r) => (this.end = r));
+      const events = (async function* (): AsyncGenerator<RunnerEvent> {
+        yield { kind: 'hook', name: 'SessionStart:startup', outcome: 'success' };
+        yield { kind: 'init', sessionId: base.sessionId!, model: 'fake', tools: [], raw: {} };
+        const r = await result;
+        yield { kind: 'result', result: r };
+      })();
+      return {
+        pid: null,
+        events,
+        result,
+        kill: () => {
+          this.killed++;
+          this.end?.({ ...base, subtype: 'killed_manual', isError: true, finalText: null });
+        },
+      };
+    }
+    /** the held session finishes on its own, as a worker let land */
+    release() {
+      this.end?.(this.base!);
+    }
+  }
+
+  const start = async (runner: FakeRunner, checks?: Check[]) => {
+    const engine = track(new Engine(cfg(), runner));
+    const goal = await engine.createGoal({ prompt: 'three steps', repoPath: repo, brief: brief(checks), workflow: { pace: 'fast' }, milestonePause: false, budgets: { attemptsPerTask: 1 } });
+    return { engine, goal };
+  };
+
+  test('Stop now: the running session is stopped, its attempt waits, and Resume takes the session up where it was', async () => {
+    const runner = new HeldRunner();
+    runner.held = /second step/;
+    const { engine, goal } = await start(runner);
+    await waitFor(() => taskNamed(engine, goal.id, 'second step')?.state === 'running' && engine.taskLiveness(taskNamed(engine, goal.id, 'second step').id).session, 20_000);
+    engine.pauseGoal(goal.id, { now: true });
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('paused');
+    expect(runner.killed).toBe(1);
+    await waitFor(() => taskNamed(engine, goal.id, 'second step').state === 'ready');
+    const held = listAttempts(engine.store.db, taskNamed(engine, goal.id, 'second step').id).filter((a) => a.kind === 'work');
+    expect(held).toHaveLength(1);
+    expect(held[0]).toMatchObject({ state: 'interrupted', resultSubtype: 'paused' });
+    expect(getGoal(engine.store.db, goal.id)!.pausedFrom).toBe('running');
+    // paused: nothing starts, and the clock stopped
+    await Bun.sleep(300);
+    expect(engine.inFlightForGoal(goal.id)).toHaveLength(0);
+    expect(taskNamed(engine, goal.id, 'third step').state).toBe('pending');
+    expect(getGoal(engine.store.db, goal.id)!.activeSince).toBeNull();
+    expect(() => engine.pauseGoal(goal.id)).not.toThrow(); // already paused: nothing happens
+
+    runner.held = null;
+    await engine.resumeGoal(goal.id);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('running');
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    const calls = runner.calls.filter((c) => c.label?.startsWith('attempt second step'));
+    expect(calls).toHaveLength(2);
+    expect(calls[1]!.resumeSessionId).toBe(held[0]!.sessionId!); // the same session, taken up where it was
+    expect(calls[1]!.prompt).toContain('paused the goal');
+    expect(listAttempts(engine.store.db, taskNamed(engine, goal.id, 'second step').id).filter((a) => a.kind === 'work')).toHaveLength(1);
+  }, 40_000);
+
+  test('Pause lets the running work land first and pauses then; Keep going withdraws the pause', async () => {
+    const runner = new HeldRunner();
+    runner.held = /second step/;
+    const { engine, goal } = await start(runner);
+    await waitFor(() => taskNamed(engine, goal.id, 'second step')?.state === 'running' && engine.taskLiveness(taskNamed(engine, goal.id, 'second step').id).session, 20_000);
+    engine.pauseGoal(goal.id);
+    let g = getGoal(engine.store.db, goal.id)!;
+    expect([g.state, g.pausing]).toEqual(['running', true]);
+    expect(runner.killed).toBe(0);
+    // withdrawn: the goal goes on as if nothing had been asked
+    await engine.resumeGoal(goal.id);
+    g = getGoal(engine.store.db, goal.id)!;
+    expect([g.state, g.pausing]).toEqual(['running', false]);
+    // asked again, then the running work lands: the goal pauses with it done and the next task untouched
+    engine.pauseGoal(goal.id);
+    runner.release();
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'paused', 20_000);
+    expect(taskNamed(engine, goal.id, 'second step').state).toBe('done');
+    expect(taskNamed(engine, goal.id, 'third step').state).toBe('pending');
+    expect(getGoal(engine.store.db, goal.id)!.pausing).toBe(false);
+    runner.held = null;
+    await engine.resumeGoal(goal.id);
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+  }, 40_000);
+
+  test('a cancelled goal resumes where it stopped: done tasks stay, a failed one runs once more with the hint, the Inbox is cleared', async () => {
+    // the second step passes its check only once the person's hint is in its prompt
+    const runner = new FakeRunner((spec) => {
+      if (!spec.label?.startsWith('attempt')) return;
+      if (/second step/.test(spec.label) && !/resumed the goal/.test(spec.prompt)) return;
+      write(join(spec.cwd, file(spec)), 'ok');
+    });
+    const { engine, goal } = await start(runner, [{ key: 'C2', name: 'second', tier: 'must', taskKey: 'T2', areaKey: null, spec: { type: 'command', cmd: 'test -f second-step.txt', timeoutMs: 60_000, expectExitCode: 0 } }]);
+    await waitFor(() => taskNamed(engine, goal.id, 'second step')?.state === 'blocked', 20_000);
+    expect(listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })).toHaveLength(1);
+    engine.cancelGoal(goal.id);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('cancelled');
+    expect(listEscalations(engine.store.db, { goalId: goal.id, openOnly: true })).toHaveLength(0);
+    expect(taskNamed(engine, goal.id, 'first step').state).toBe('done');
+
+    await engine.resumeGoal(goal.id, { hint: 'write the file this time' });
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('running');
+    const second = taskNamed(engine, goal.id, 'second step');
+    expect(second.hint).toContain('resumed the goal and says: write the file this time');
+    expect(second.extraAttempts).toBe(1);
+    expect(taskNamed(engine, goal.id, 'third step').hint).toContain('write the file this time'); // every task not done hears it
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    expect(listAttempts(engine.store.db, second.id).filter((a) => a.kind === 'work')).toHaveLength(2);
+    expect(runner.calls.filter((c) => c.label?.startsWith('attempt first step'))).toHaveLength(1); // done stays done
+  }, 40_000);
+
+  test('only a goal at work pauses, only a stopped one resumes, and a raised budget comes along', async () => {
+    const runner = new HeldRunner();
+    const { engine, goal } = await start(runner);
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    expect(() => engine.pauseGoal(goal.id)).toThrow(/only a goal at work/);
+    await expect(engine.resumeGoal(goal.id)).rejects.toThrow(/only a paused, cancelled, failed or blocked goal/);
+    engine.cancelGoal(goal.id); // done: nothing to cancel
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    // a cancelled goal resumed with more time
+    const hold = new HeldRunner();
+    hold.held = /second step/;
+    // its own data folder: the first engine must not pick the goal up
+    const engine2 = track(new Engine(cfg({ dataDir: join(dataDir, 'two') }), hold));
+    const g2 = await engine2.createGoal({ prompt: 'three steps', repoPath: repo, brief: brief(), workflow: { pace: 'fast' }, milestonePause: false, budgets: { maxDurationMin: 30 } });
+    await waitFor(() => taskNamed(engine2, g2.id, 'second step')?.state === 'running' && engine2.taskLiveness(taskNamed(engine2, g2.id, 'second step').id).session, 20_000);
+    engine2.cancelGoal(g2.id);
+    await waitFor(() => taskNamed(engine2, g2.id, 'second step').state === 'ready');
+    hold.held = null;
+    await engine2.resumeGoal(g2.id, { budgets: { maxDurationMin: 240 } });
+    expect(getGoal(engine2.store.db, g2.id)!.budgets.maxDurationMin).toBe(240);
+    expect(engine2.store.listByGoal(g2.id).filter((e) => e.type === 'goal.budgets_changed').at(-1)!.payload).toMatchObject({ reason: 'human: raised on resume' });
+    await waitFor(() => terminal(getGoal(engine2.store.db, g2.id)!.state), 20_000);
+    expect(getGoal(engine2.store.db, g2.id)!.state).toBe('done');
+  }, 40_000);
+});
