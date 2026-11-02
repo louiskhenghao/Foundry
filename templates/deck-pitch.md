@@ -59,6 +59,6 @@ Make a pitch deck for {{pitch}}.
 {{language}}
 
 ## Already decided
-- A native PPTX, editable in PowerPoint, 16:9, with speaker notes; delivered as a file, not committed.
+- A native PPTX, editable in PowerPoint, 16:9, with speaker notes; committed in the repository under decks/, with the drawings of its pages beside it so it can be rebuilt.
 - One message per slide, the ask stated on its own slide, numbers drawn as charts where they carry the argument.
 - The attached documents are the facts; nothing is invented to fill a slide.

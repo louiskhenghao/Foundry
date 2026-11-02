@@ -32,7 +32,7 @@ export const WORKER_TASK_KINDS = ['feature', 'bug', 'refactor', 'research', 'cho
 export const TaskScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'deck', 'cad', 'general']);
 export type TaskScenario = z.infer<typeof TaskScenario>;
 export const TASK_SCENARIOS = TaskScenario.options;
-/** tasks whose deliverables are files under artifacts/ (a model and its snapshots, images, video, a figure's shots, a diagram's PNG, a deck's PPTX): kept out of git, carried between workspaces, shown by their milestone */
+/** tasks whose deliverables are files under artifacts/ (a model and its snapshots, images, video, a figure's shots, a diagram's PNG) or files Foundry shows as a milestone of files (a deck, committed with its previews): kept out of git where under artifacts/, carried between workspaces, shown by their milestone */
 export const ARTIFACT_SCENARIOS: readonly TaskScenario[] = ['image', 'video', 'figure', 'diagram', 'deck', 'cad'];
 
 export const Task = z.object({

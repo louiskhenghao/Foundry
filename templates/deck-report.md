@@ -58,6 +58,6 @@ Make a report deck on {{subject}}.
 {{language}}
 
 ## Already decided
-- A native PPTX, editable in PowerPoint, 16:9, with speaker notes; delivered as a file, not committed.
+- A native PPTX, editable in PowerPoint, 16:9, with speaker notes; committed in the repository under decks/, with the drawings of its pages beside it so it can be rebuilt.
 - A summary slide first; every number drawn as a chart or a table with its source and period; risks and asks on slides of their own.
 - Numbers are the ones given; nothing is rounded into a better story.

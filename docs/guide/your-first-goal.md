@@ -90,7 +90,7 @@ Pick what the goal produces. If you are not sure, leave it on **Auto**.
 
 Picking **Documents**, **Research**, **Images**, **Video**, **Figures**, **Diagrams** or **Slides** switches the view to **Simple**. Picking **Images**, **Video**, **Figures**, **Diagrams** or **Slides** also ticks **Fast mode**, unless you already changed it yourself. **Figures** adds a **Style** row: the default from Settings, or one of the two figure skills. **CAD** keeps your defaults: it is code work with a geometry kernel, so the Brief's checks matter; its TDD mandate is *preferred* (the geometry checks are written before the model) and Ponytail applies.
 
-For **Images**, **Video**, **Figures**, **Diagrams**, **Slides** and **CAD** a field appears: **Output folder**. When the goal finishes, the finished files are copied there. Press **Choose…** to pick a folder. It is optional; without it the files stay in the progress folder. Image goals also need an image key, see [Costs and usage](./costs-and-usage.md#image-goals-need-an-image-key).
+For **Images**, **Video**, **Figures**, **Diagrams** and **CAD** a field appears: **Output folder**. When the goal finishes, the finished files are copied there. Press **Choose…** to pick a folder. It is optional; without it the files stay in the progress folder. Image goals also need an image key, see [Costs and usage](./costs-and-usage.md#image-goals-need-an-image-key).
 
 A **CAD** goal needs the text-to-cad plugin for the coding agent you picked. The tile says when it is missing; the goal still saves, and waits on its page, with an **Install text-to-cad** button, until the plugin is in (the Setup page has the same install, with uv and slicer detection). Without the plugin, **Auto** never judges a goal to be CAD: it is treated as code work.
 
@@ -129,7 +129,7 @@ Tick **Approve delegated goals' Briefs for me** and their Briefs are approved as
 
 ### Effort
 
-How hard sessions of this goal think. An explicit value overrides every role. For Codex, **Default** uses the selected preset's role efforts; **none**, **minimal** and **ultra** are also available when supported by the chosen models. The form starts with the effort configured in Settings; selecting **Default** explicitly restores the Codex role settings. A known incompatible model/effort combination must be corrected before creating the goal.
+How hard sessions of this goal think. An explicit value overrides every role. The levels offered are the ones your coding agent takes: for Claude Code, Foundry reads them from the installed CLI at every model sync, so a level a new Claude Code adds or renames appears here by itself, and a goal made with a level the CLI no longer takes runs with the nearest one it does. For Codex, **Default** uses the selected preset's role efforts; **none**, **minimal** and **ultra** are also available when supported by the chosen models. The form starts with the effort configured in Settings; selecting **Default** explicitly restores the Codex role settings. A known incompatible model/effort combination must be corrected before creating the goal.
 
 | Choice | When |
 |---|---|

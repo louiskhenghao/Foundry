@@ -56,6 +56,6 @@ Make a teaching deck on {{topic}}.
 {{language}}
 
 ## Already decided
-- A native PPTX, editable in PowerPoint, 16:9, with speaker notes that say what to tell and ask on each slide; delivered as a file, not committed.
+- A native PPTX, editable in PowerPoint, 16:9, with speaker notes that say what to tell and ask on each slide; committed in the repository under decks/, with the drawings of its pages beside it so it can be rebuilt.
 - One idea per slide, built up in the order a learner needs; a recap slide per outcome, and a closing slide that names where to look next.
 - Examples come from the materials named, never invented.

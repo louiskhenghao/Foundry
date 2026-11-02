@@ -11,7 +11,14 @@ import { Interview, ReviseState } from './interview.ts';
 import { VideoPack } from './packs.ts';
 
 /** Claude Code effort level handed to every session of a goal; null = the CLI default */
-export const Effort = z.enum(['low', 'medium', 'high', 'xhigh', 'max']);
+/**
+ * The effort levels Claude Code took when this was written (ADR-0085). The ones the installed Claude Code takes are read
+ * from its own --help at every model sync (engine.effortLevels), so a goal may carry any level the CLI offers and a level a
+ * newer CLI renames is mapped to its nearest neighbour when the session runs; this list is only the fallback before the
+ * first sync and the order the levels are ranked in.
+ */
+export const KNOWN_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
+export const Effort = z.string().min(1);
 export type Effort = z.infer<typeof Effort>;
 
 export const GoalState = z.enum([
@@ -96,7 +103,7 @@ export type GoalNature = z.infer<typeof GoalNature>;
 /** natures judged by eye: the fast pace by default, image tools writing into artifacts/ (delivery reads ARTIFACT_NATURES) */
 export const MEDIA_NATURES: GoalNature[] = ['image', 'video', 'figure', 'diagram', 'deck'];
 /** natures whose deliverables are files under artifacts/ (kept out of git, delivered to the output folder) */
-export const ARTIFACT_NATURES: GoalNature[] = ['image', 'video', 'figure', 'diagram', 'deck', 'cad'];
+export const ARTIFACT_NATURES: GoalNature[] = ['image', 'video', 'figure', 'diagram', 'cad'];
 
 /**
  * The figure skill a figure goal's workers follow (the Figure pack, ADR-0076): Colorfigures' hand-inked colour or
@@ -435,7 +442,8 @@ export const Goal = z.object({
   /** a Revise that asked the human back before proposing; null until one does */
   revise: ReviseState.nullable().default(null),
   /** effort level for every session of this goal; null = Settings default / CLI default */
-  effort: CodexEffort.nullable().default(null),
+  /** the effort level every session of the goal asks for, one the coding agent took when the goal was made (ADR-0085); null = the Settings default */
+  effort: Effort.nullable().default(null),
   /** the video engine (pack option) this goal's sessions follow; null = Settings → workflow.videoPack (ADR-0077) */
   videoPack: VideoPack.nullable().default(null),
   /** the model preset this goal uses; null = the preset Settings picks for its nature */

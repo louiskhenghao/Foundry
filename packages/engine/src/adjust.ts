@@ -17,7 +17,7 @@ import { attachmentAbsPath } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { FIGURE_CHECK_NAME, figurePages } from './checks/figure.ts';
 import { DIAGRAM_CHECK_NAME, diagramPages } from './checks/diagram.ts';
-import { DECK_CHECK_NAME } from './checks/deck.ts';
+import { DECK_CHECK_NAME, deckFiles } from './checks/deck.ts';
 import type { Engine } from './engine.ts';
 import { headRef } from './git/git.ts';
 import { ARTIFACTS_DIR, copyInto, goalWorkspacePath, listArtifacts } from './workspace.ts';
@@ -225,8 +225,10 @@ export async function adjustGoal(engine: Engine, goalId: string, textIn: string,
     const id = newId(IdPrefix.adjust);
     const at = new Date().toISOString();
     const ws = goalWorkspacePath(config.dataDir, goal);
-    // the result as it stands is kept before anything changes: the artifacts, and a figure's or a diagram's committed pages
-    const pages = tasks.filter((t) => t.state === 'done' && (t.scenario === 'figure' || t.scenario === 'diagram')).flatMap((t) => (t.scenario === 'figure' ? figurePages(ws, t) : diagramPages(ws, t)).map((p) => relative(ws, p)));
+    // the result as it stands is kept before anything changes: the artifacts, a figure's or a diagram's committed pages, a deck's committed PPTX
+    const pages = tasks
+      .filter((t) => t.state === 'done' && (t.scenario === 'figure' || t.scenario === 'diagram' || t.scenario === 'deck'))
+      .flatMap((t) => (t.scenario === 'figure' ? figurePages(ws, t) : t.scenario === 'diagram' ? diagramPages(ws, t) : deckFiles(ws, t).filter((p) => !relative(ws, p).startsWith('artifacts/'))).map((p) => relative(ws, p)));
     try {
       await snapshotResult(ws, n, { adjustment: { id, text, at }, pages });
     } catch (err) {

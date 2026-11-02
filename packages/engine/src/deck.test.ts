@@ -19,7 +19,8 @@ describe('deck goals (ADR-0084)', () => {
   test('the Clarifier is told the deck is one task, where it goes, that the Brief answers the confirmations, and about pictures', () => {
     const on = deckClarifySection({ pack: 'ppt-master', installed: true, skillDir: '/s', venv: '/v', images: true });
     expect(on).toContain('The deck skill in use is ppt-master');
-    expect(on).toContain('artifacts/decks/<name>.pptx');
+    expect(on).toContain('decks/<name>.pptx');
+    expect(on).toContain('.gitignore');
     expect(on).toContain('never split into slides');
     expect(on).toContain('answered by the Brief');
     expect(on).toContain('An image-generation key is set');
@@ -34,11 +35,12 @@ describe('deck goals (ADR-0084)', () => {
     expect(c).toContain('Generate PPTX — ordinary Default');
     expect(c).toContain('`SKILL_DIR` — is `/home/x/.claude/skills/ppt-master`');
     expect(c).toContain('explicitly delegated both confirmation stages');
-    expect(c).toContain('--dir artifacts/decks');
+    expect(c).toContain('--dir decks');
+    expect(c).toContain('exports/ backup/ validation/ analysis/ live_preview/ sources/');
     expect(c).toContain('/data/python/ppt-master');
     expect(c).toContain('No AI-generated pictures');
     expect(deckWorkerConventions({ skillDir: '/s', venv: null, images: true })).toContain('was not made');
     expect(deckWorkerConventions({ skillDir: '/s', venv: '/v', images: true })).toContain('export `IMAGE_BACKEND`');
-    expect(DECK_PLAN).toContain('test -f artifacts/decks/<name>.pptx');
+    expect(DECK_PLAN).toContain('test -f decks/<name>.pptx');
   });
 });

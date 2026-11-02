@@ -9,6 +9,8 @@ type Item = { file: string; caption: string };
 export type Evidence = {
   /** a figure task's pages committed in the repository (repo-relative), opened sandboxed from the task's commit (ADR-0076) */
   pages?: string[];
+  /** a deck task's decks committed in the repository (repo-relative), downloaded from the task's commit (ADR-0084) */
+  decks?: string[];
   taskId: string;
   video: string | null;
   shots: Item[];
@@ -126,6 +128,16 @@ export function EvidenceView({ goalId, evidence, taskId }: { goalId: string; evi
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
           {evidence.files!.map((f) => (
             <a key={f} href={api.artifactUrl(goalId, f)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 max-sm:min-h-8 font-semibold text-work-ink hover:underline mono" title={`${f}: opens or downloads in a new tab`}>
+              <FileDown size={11} /> {f}
+            </a>
+          ))}
+        </div>
+      )}
+      {taskId && (evidence.decks ?? []).length > 0 && (
+        // a deck task's PPTX files, committed in the repository: each downloads from the task's commit (ADR-0084)
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+          {evidence.decks!.map((f) => (
+            <a key={f} href={`${fileUrl({ goal: goalId, task: taskId, rel: f })}&download=1`} className="inline-flex items-center gap-1 max-sm:min-h-8 font-semibold text-work-ink hover:underline mono" title={`${f}: the deck, downloaded from the task's commit; open it in PowerPoint or Keynote`}>
               <FileDown size={11} /> {f}
             </a>
           ))}

@@ -83,7 +83,7 @@ describe.skipIf(!python)('the deck check', () => {
     events.length = 0;
     const r = await runDeckCheck(engine, goal, task(['artifacts/decks/missing.pptx']), 'a1', check, join(home, 'empty-ws'));
     expect(r.status).toBe('fail');
-    expect(r.summary).toContain('no deck was delivered');
+    expect(r.summary).toContain('no deck was delivered: no .pptx under decks/');
     expect(events.map((e) => e.type)).toEqual(['deck.checked']);
   });
 

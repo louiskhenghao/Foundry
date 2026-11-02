@@ -37,6 +37,8 @@ export type WalkPlan = z.infer<typeof WalkPlan>;
 export interface MilestoneEvidence {
   /** a figure task's pages committed in the repository (repo-relative), opened sandboxed from the task's commit (ADR-0076) */
   pages?: string[];
+  /** a deck task's decks committed in the repository (repo-relative), downloaded from the task's commit (ADR-0084) */
+  decks?: string[];
   taskId: string;
   /** file names under the goal's screenshots folder */
   video: string | null;
@@ -328,6 +330,9 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
     // a figure or diagram task's pages live in the repository (ADR-0076, ADR-0083): the ones its Deliverables name, as the landing left them
     const pages = pageTask ? (task.delivers ?? []).filter((d) => /\.html?$/i.test(d) && !d.startsWith('artifacts/') && existsSync(join(ws, d))) : [];
     if (pages.length) evidence.pages = pages;
+    // a deck task's decks live in the repository too (ADR-0084): the PPTX files its Deliverables name, as the landing left them
+    const decks = task.scenario === 'deck' ? (task.delivers ?? []).filter((d) => /\.pptx$/i.test(d) && !d.startsWith('artifacts/') && existsSync(join(ws, d))) : [];
+    if (decks.length) evidence.decks = decks;
     const shown = evidence.shots.length + shownClips.length;
     const uncopied = missed.images + missed.clips;
     // what the shots and clips do not say; the files themselves are listed apart (the card links them)
@@ -356,7 +361,7 @@ async function captureFiles(engine: Engine, goal: Goal, task: Task, opts: Captur
             : task.scenario === 'diagram'
               ? 'the task left no diagram page: there is nothing to look at'
               : task.scenario === 'deck'
-                ? 'the task left no deck under artifacts/decks/: there is nothing to look at'
+                ? 'the task left no deck under decks/: there is nothing to look at'
             : 'the task left no images or video under artifacts/';
     }
   } catch (err) {

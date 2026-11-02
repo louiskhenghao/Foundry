@@ -45,7 +45,10 @@ export const DECK_CHECK_NAME = 'Deck opens and has its slides';
 /** the most previews rendered for one deck */
 const MAX_PREVIEWS = 60;
 
-/** the decks a task delivered: its `.pptx` Deliverables under the workspace, else the decks under artifacts/decks/, else any .pptx under artifacts/ (four levels deep, dot folders left out) */
+/** where a deck is looked for when the task names none: the repository's decks folder, then the worker's artifacts */
+const DECK_DIRS = ['decks', `${ARTIFACTS_DIR}/decks`];
+
+/** the decks a task delivered: its `.pptx` Deliverables under the workspace, else the decks under decks/ or artifacts/decks/, else any .pptx under artifacts/ (four levels deep, dot folders left out) */
 export function deckFiles(cwd: string, task: Pick<Task, 'delivers'>): string[] {
   const named = (task.delivers ?? []).filter((p) => /\.pptx$/i.test(p) && !p.split('/').includes('..')).map((p) => join(cwd, p)).filter((p) => existsSync(p));
   if (named.length) return named;
@@ -59,8 +62,10 @@ export function deckFiles(cwd: string, task: Pick<Task, 'delivers'>): string[] {
       } else if (e.isFile() && /\.pptx$/i.test(e.name)) found.push(p);
     }
   };
-  const top = join(cwd, ARTIFACTS_DIR, 'decks');
-  if (existsSync(top)) for (const e of readdirSync(top, { withFileTypes: true })) if (e.isFile() && /\.pptx$/i.test(e.name)) found.push(join(top, e.name));
+  for (const dir of DECK_DIRS) {
+    const top = join(cwd, dir);
+    if (existsSync(top)) for (const e of readdirSync(top, { withFileTypes: true })) if (e.isFile() && /\.pptx$/i.test(e.name)) found.push(join(top, e.name));
+  }
   if (found.length) return found.sort();
   if (existsSync(join(cwd, ARTIFACTS_DIR))) walk(join(cwd, ARTIFACTS_DIR), 1);
   return found.sort();
@@ -136,7 +141,7 @@ export async function runDeckCheck(engine: Engine, goal: Goal, task: Task, attem
   };
   if (!decks.length) {
     status = 'fail';
-    summary = `no deck was delivered: no .pptx under ${ARTIFACTS_DIR}/decks/ (the task's \`delivers\` names where the deck goes)`;
+    summary = `no deck was delivered: no .pptx under decks/ or ${ARTIFACTS_DIR}/decks/ (the task's \`delivers\` names where the deck goes)`;
     return done();
   }
   const script = opts.skillDir ? join(opts.skillDir, 'scripts', 'pptx_delivery_check.py') : null;

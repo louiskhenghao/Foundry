@@ -27,12 +27,17 @@ the ones that shape the system are here. The feature ships as a **beta** behind 
   what the Brief settles (audience and occasion, purpose and core message, page range, canvas, language, sources,
   speaker notes, animations, AI pictures only when an image key is set) and 2–4 style options, since a deck's look is a
   real choice. No build or test checks.
-- **The deck is an Artifact; the project folder lives beside it.** The finished deck is `artifacts/decks/<name>.pptx`,
-  named in `delivers`, kept out of git and delivered to the Output Folder like images and video: a deck is a binary of
-  some megabytes, and the repository is not the place for it. The skill's project folder goes to
-  `artifacts/decks/<name>/` (the skill's `project_manager.py init <name> --dir artifacts/decks`), so its design spec,
-  page SVGs, previews and timestamped exports never reach git either; the worker copies the final export to the named
-  path. The committed manifest under `docs/artifacts/` describes the deck slide by slide.
+- **The deck is committed, with the drawings of its pages.** The finished deck is `decks/<name>.pptx` in the
+  repository (or where it keeps decks), named in `delivers`, and the skill's project folder sits beside it at
+  `decks/<name>/` (the skill's `project_manager.py init <name> --dir decks`): the design spec and lock, every page's
+  drawing (`svg_output/`), the per-slide previews (`svg_final/`), notes, images and icons are committed, so anyone with
+  the skill can rebuild the deck and the repository shows every slide; the project's working folders (`exports/`,
+  `backup/`, `validation/`, `analysis/`, `live_preview/`, `sources/`) are kept out by a `.gitignore` the task writes.
+  The first design kept the deck an Artifact for the Output Folder alone, as images are; the live run delivered a
+  repository holding nothing but a manifest — text about a deck nobody could rebuild or see — which is not what a person
+  who asked for a deck in their project expects (the lesson ADR-0076 had drawn for figures). A deck is small (tens of
+  kilobytes to a few megabytes) and its sources are text; it belongs in the repository like a document does. The deck
+  nature is therefore a media nature but not an artifact one: no Output Folder; the deck comes with the branch.
 - **A Python environment Foundry keeps.** A `git` catalog source may declare `python: { requirements, version }`. On
   install Foundry runs `uv venv --python <version>` under `<dataDir>/python/<skill>` — uv fetches that Python itself,
   so the system's Python does not matter — and `uv pip install -r <requirements>` into it; the marker records the
@@ -64,8 +69,8 @@ the ones that shape the system are here. The feature ships as a **beta** behind 
 ## Consequences
 
 - A person on any coding agent can ask for a deck — a pitch, a lecture, a report, a document turned into slides — and
-  get an editable PPTX in the output folder with its slides previewed in Foundry, for the worker's tokens and time
-  (a deck is a long task: tens of pages drawn as SVG). Four templates start it.
+  get an editable PPTX committed with its sources, its slides previewed in Foundry and visible in the repository, for the
+  worker's tokens and time (a deck is a long task: tens of pages drawn as SVG). Four templates start it.
 - The `python` field on git sources is a platform piece: any later skill with Python requirements uses it. Foundry
   now manages Python environments under its data folder, one per skill, replaced on every install of that skill.
 - The skill's packages (PyMuPDF is AGPL) are installed by the person's own install into their data folder, never into
@@ -74,8 +79,7 @@ the ones that shape the system are here. The feature ships as a **beta** behind 
   objective (a zip that opens, slides that exist and are not empty); the content is the reviewer's and the person's.
 - Not done: narration audio and video (the skill can; a deck goal does not), the skill's template mode from a person's
   own `.pptx` (the Brief may name one, the worker follows), a per-goal pack choice (one member), Adjust re-entering a
-  finished deck's project (an adjustment resumes the task's session, which finds the project folder under artifacts/
-  when the workspace is kept).
+  finished deck's project (an adjustment resumes the task's session, which finds the project folder in the repository).
 
 ## Alternatives considered
 
@@ -84,8 +88,9 @@ the ones that shape the system are here. The feature ships as a **beta** behind 
 - **Asking the person to install the Python packages** (the doctor showing the pip command). Rejected: the Mac's
   Python is 3.9, the packages need 3.10+, and the Docker user would have to run pip inside the container; uv makes the
   environment, Python included, in one step on both.
-- **Committing the PPTX** like a figure's page. Rejected: a binary of megabytes per deck, rewritten on every change, is
-  what the artifacts folder and the Output Folder exist for.
+- **The deck as an Artifact for the Output Folder alone** (the first design, as for images). Rejected after the live
+  run: the repository and its pull request carried only the manifest. Committing the PPTX with its page drawings makes
+  the repository the place the deck is rebuilt from; a change rewrites a small binary, which git takes in its stride.
 - **The skill's own `.env` for the image keys.** Rejected: the keys already reach every session from Settings, and the
   skill reads the process environment first.
 - **Converting the PPTX to images with LibreOffice** for the previews. Rejected: the skill's default route already leaves

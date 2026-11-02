@@ -45,6 +45,6 @@ Turn {{document}} into a slide deck.
 {{language}}
 
 ## Already decided
-- A native PPTX, editable in PowerPoint, 16:9, with speaker notes that carry what the slide leaves out; delivered as a file, not committed.
+- A native PPTX, editable in PowerPoint, 16:9, with speaker notes that carry what the slide leaves out; committed in the repository under decks/, with the drawings of its pages beside it so it can be rebuilt.
 - The document's facts, numbers and order are kept; tables and figures that matter become slides of their own.
 - Nothing the document does not say is added.
