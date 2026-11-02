@@ -573,10 +573,14 @@ export interface UpdateStatusView extends UpdateReportView {
 }
 
 /**
- * A file the UI can open: an absolute path (the live log, the progress folder), or a task's file by its path in the
- * repository — read from the task's worktree while it runs and from its commit once its folders are gone.
+ * A file the UI can open: an absolute path (the live log, the progress folder), a task's file by its path in the
+ * repository — read from the task's worktree while it runs and from its commit once its folders are gone — or one of
+ * Foundry's own screenshots of a goal (a figure's or a diagram's page, a deck's slide), by its name in the goal's
+ * screenshots folder.
  */
-export type FileRef = string | { path: string } | { goal: string; task: string; rel: string };
+export type FileRef = string | { path: string } | { goal: string; task: string; rel: string } | { goal: string; shot: string };
+/** is this a screenshot of the goal's (Foundry's own, served from its screenshots folder) */
+export const isShot = (ref: FileRef): ref is { goal: string; shot: string } => typeof ref !== 'string' && 'shot' in ref;
 
 /** A file as /api/files/stat describes it. */
 export interface FileInfo {
@@ -604,8 +608,8 @@ const fileQuery = (ref: FileRef) => {
   const r = typeof ref === 'string' ? { path: ref } : ref;
   return new URLSearchParams(r as Record<string, string>).toString();
 };
-/** where the browser loads a file (served only inside a goal's folders or its task commits) */
-export const fileUrl = (ref: FileRef) => `/api/files?${fileQuery(ref)}`;
+/** where the browser loads a file (served only inside a goal's folders or its task commits; a screenshot from the goal's screenshots folder) */
+export const fileUrl = (ref: FileRef) => (isShot(ref) ? `/api/goals/${ref.goal}/screenshots/${encodeURIComponent(ref.shot)}` : `/api/files?${fileQuery(ref)}`);
 /** a stable string for a FileRef (React keys, comparisons) */
 export const fileKey = (ref: FileRef) => fileQuery(ref);
 
@@ -840,7 +844,8 @@ export function apiForProvider(provider?: AgentProvider) {
   reclarify: (id: string, reason?: string) => req<{ ok: true }>(`/api/goals/${id}/reclarify`, { method: 'POST', body: JSON.stringify({ reason }) }),
   streamHistory: (id: string) => req<{ events: any[] }>(`/api/stream/${encodeURIComponent(id)}/history`),
   /** one live-log event in full, read back from the transcript line its `ref` names */
-  fileStat: (ref: FileRef) => req<FileInfo>(`/api/files/stat?${fileQuery(ref)}`),
+  // a screenshot of Foundry's is always a PNG: nothing to ask the server
+  fileStat: (ref: FileRef) => (isShot(ref) ? Promise.resolve<FileInfo>({ path: null, name: ref.shot, rel: ref.shot, kind: 'image', size: 0 }) : req<FileInfo>(`/api/files/stat?${fileQuery(ref)}`)),
   taskFiles: (goalId: string, taskId: string) => req<{ files: TaskFile[]; relevant: { rel: string; open: FileRef | null }[]; delivers?: { rel: string; open: FileRef | null }[] }>(`/api/goals/${goalId}/tasks/${taskId}/files`),
   streamEvent: (ref: { file: string; line: number; block: number }) => req<{ event: any }>(`/api/transcripts/${encodeURIComponent(ref.file)}/event?line=${ref.line}&block=${ref.block}`),
   workspace: (id: string) => req<{ path: string; exists: boolean; branch: string; head: string | null; packageManager: string | null; install: string | null; scripts: { name: string; command: string }[]; baseSync: Goal['baseSync']; upstream: BaseSync | null; tasks: { id: string; title: string; path: string; branch: string | null }[] }>(`/api/goals/${id}/workspace`),
@@ -917,7 +922,7 @@ export function apiForProvider(provider?: AgentProvider) {
   updateRuns: () => req<(EngineEvent & { seq: number })[]>('/api/skills/update-runs'),
   doctor: () => req<DoctorReport>('/api/doctor'),
   packs: () => req<PacksView>('/api/skills/packs'),
-  models: (provider: AgentProvider = 'claude') => req<{ models: ModelRecordView[]; fallbacks: string[]; current: { strong: string; cheap: string; worker: string }; sync: { at: string | null; cliVersion: string | null; found: number } | null }>(`/api/models?provider=${provider}`),
+  models: (provider: AgentProvider = 'claude') => req<{ models: ModelRecordView[]; fallbacks: string[]; current: { strong: string; cheap: string; worker: string }; sync: { at: string | null; cliVersion: string | null; found: number; effortLevels?: string[] } | null; /** the effort levels this coding agent takes (ADR-0085): the New goal form and Settings offer these */ effortLevels: string[] }>(`/api/models?provider=${provider}`),
   syncModels: (provider: AgentProvider = 'claude') => req<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }>(`/api/models/sync?provider=${provider}`, { method: 'POST' }),
   probeModel: (name: string, provider: AgentProvider = 'claude', effort?: string) => req<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable?: boolean; error: string | null }>(`/api/models/probe?provider=${provider}`, { method: 'POST', body: JSON.stringify({ name, effort }) }),
   installPack: (pack: string, option: string) => req<{ started: true; channel: string }>('/api/skills/install-pack', { method: 'POST', body: JSON.stringify({ pack, option }) }),

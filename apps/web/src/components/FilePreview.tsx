@@ -168,7 +168,7 @@ export function FilePreviewHost() {
     return () => window.removeEventListener('keydown', onKey, true);
   }, [key, close, at, list]);
   // what the header names: the path asked for, or the file's path in the repository
-  const shown = !file ? '' : typeof file === 'string' ? file : 'path' in file ? file.path : file.rel;
+  const shown = !file ? '' : typeof file === 'string' ? file : 'shot' in file ? file.shot : 'path' in file ? file.path : file.rel;
   // a picture or a clip steps from under it (and with a swipe on a phone); code and documents keep the arrows on top.
   // Until the next one's details come, its name tells which it is
   const media = info ? info.kind === 'image' || info.kind === 'video' : MEDIA_NAME.test(shown);

@@ -431,10 +431,10 @@ function FigureShots({ d, task }: { d: GoalDetail; task: Task }) {
       <h3 className={cn(LABEL, 'mb-2')}>Figure pages as Foundry opened them{p.status === 'pass' ? '' : ' · errors'}</h3>
       <div className="grid grid-cols-2 gap-1.5">
         {shots.map((s) => (
-          <a key={s.file} href={api.screenshotUrl(d.goal.id, s.file)} target="_blank" rel="noreferrer" title={s.caption} className="block overflow-hidden rounded-md border border-line hover:border-line-strong">
+          <button key={s.file} type="button" onClick={() => openFile({ goal: d.goal.id, shot: s.file }, shots.map((x) => ({ goal: d.goal.id, shot: x.file })))} title={s.caption} className="block w-full overflow-hidden rounded-md border border-line text-left hover:border-line-strong">
             <img src={api.screenshotUrl(d.goal.id, s.file)} alt={s.caption} loading="lazy" className="w-full object-cover" />
             <div className="truncate px-1.5 py-1 text-[11px] text-ink-soft">{s.caption}</div>
-          </a>
+          </button>
         ))}
       </div>
     </section>
@@ -453,10 +453,10 @@ function DiagramShots({ d, task }: { d: GoalDetail; task: Task }) {
       <h3 className={cn(LABEL, 'mb-2')}>Diagram pages as Foundry opened them{p.status === 'pass' ? '' : ' · errors'}</h3>
       <div className="grid grid-cols-2 gap-1.5">
         {shots.map((s) => (
-          <a key={s.file} href={api.screenshotUrl(d.goal.id, s.file)} target="_blank" rel="noreferrer" title={s.caption} className="block overflow-hidden rounded-md border border-line hover:border-line-strong">
+          <button key={s.file} type="button" onClick={() => openFile({ goal: d.goal.id, shot: s.file }, shots.map((x) => ({ goal: d.goal.id, shot: x.file })))} title={s.caption} className="block w-full overflow-hidden rounded-md border border-line text-left hover:border-line-strong">
             <img src={api.screenshotUrl(d.goal.id, s.file)} alt={s.caption} loading="lazy" className="w-full object-cover" />
             <div className="truncate px-1.5 py-1 text-[11px] text-ink-soft">{s.caption}</div>
-          </a>
+          </button>
         ))}
       </div>
     </section>
@@ -479,10 +479,10 @@ function DeckSlides({ d, task }: { d: GoalDetail; task: Task }) {
       {shots.length > 0 && (
         <div className="grid grid-cols-3 gap-1.5">
           {shots.map((s) => (
-            <a key={s.file} href={api.screenshotUrl(d.goal.id, s.file)} target="_blank" rel="noreferrer" title={s.caption} className="block overflow-hidden rounded-md border border-line hover:border-line-strong">
+            <button key={s.file} type="button" onClick={() => openFile({ goal: d.goal.id, shot: s.file }, shots.map((x) => ({ goal: d.goal.id, shot: x.file })))} title={s.caption} className="block w-full overflow-hidden rounded-md border border-line text-left hover:border-line-strong">
               <img src={api.screenshotUrl(d.goal.id, s.file)} alt={s.caption} loading="lazy" className="w-full object-cover" />
               <div className="truncate px-1.5 py-1 text-[11px] text-ink-soft">{s.caption}</div>
-            </a>
+            </button>
           ))}
         </div>
       )}
