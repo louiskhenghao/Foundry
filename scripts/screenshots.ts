@@ -7,6 +7,7 @@
  * Uses the system Chrome through Playwright (channel "chrome"); falls back to Playwright's own Chromium when installed.
  */
 import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { buildTimeline, getGoal, type EngineEvent } from '@foundry/core';
 import { addSubject, addSubjectPicture, subjectsDir } from '../packages/engine/src/subjects.ts';
@@ -225,6 +226,31 @@ try {
   });
   // Settings → Appearance (ADR-0066): the built-in themes, light or dark, and how to make your own
   await partShot('appearance', '/settings#appearance', () => page.locator('#appearance'));
+  // Settings → Engine (install) → Data folder (ADR-0082): a folder typed and tested, ready for Save & restart. The demo's
+  // own folder reads ~/Projects/data (mask), the one typed is shown on a disk
+  {
+    const typed = join(tmpdir(), 'foundry-data');
+    await page.goto('about:blank');
+    await page.goto(demo.url + '/settings#engine', { waitUntil: 'networkidle' });
+    await page.waitForTimeout(600);
+    await mask();
+    const card = page.locator('#engine');
+    await card.getByLabel('Another data folder').fill(typed);
+    await card.getByRole('button', { name: 'Test', exact: true }).click();
+    await card.getByText('Disk space:').waitFor();
+    await page.evaluate(
+      ({ pairs }) => {
+        const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+        for (let n = walker.nextNode(); n; n = walker.nextNode()) for (const [a, b] of pairs) if (n.nodeValue?.includes(a)) n.nodeValue = n.nodeValue.split(a).join(b);
+        for (const i of Array.from(document.querySelectorAll('input'))) for (const [a, b] of pairs) if (i.value.includes(a)) i.value = i.value.split(a).join(b);
+      },
+      { pairs: [[tmpdir(), '/Volumes/Work']] },
+    );
+    await card.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+    await card.screenshot({ path: join(OUT, 'settings-data-folder.png') });
+    console.log('  settings-data-folder.png');
+  }
   await shot('usage', '/usage');
   // Reports (ADR-0060): the demo's goals and their sessions over the last 30 days
   await shot('reports', '/reports');
