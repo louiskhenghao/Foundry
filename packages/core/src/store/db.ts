@@ -13,6 +13,9 @@ export function openDatabase(path: string): Database {
   return db;
 }
 
+/** the migrations this build knows: a database that records one more was written by a newer Foundry */
+export const knownMigrationIds = (): string[] => MIGRATIONS.map((m) => m.id);
+
 export function migrate(db: Database): void {
   db.exec('CREATE TABLE IF NOT EXISTS _migrations (id TEXT PRIMARY KEY, applied_at TEXT NOT NULL);');
   const applied = new Set(

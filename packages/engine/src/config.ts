@@ -2,9 +2,16 @@ import { AgentProvider } from '@foundry/core';
 import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { foundryHome, resolveDataDir, type DataDirSource } from './data-dir.ts';
 
 export interface EngineConfig {
   provider: AgentProvider;
+  /** ~/.foundry (FOUNDRY_HOME): the person's own folder, where the data folder chosen in Settings is kept (ADR-0082); null = none is read or written (tests) */
+  foundryHome: string | null;
+  /** where dataDir came from: the environment, the choice kept under foundryHome, the checkout's default, or a caller's override */
+  dataDirSource: DataDirSource | 'override';
+  /** the folder chosen under foundryHome that was not there at this start (a disk not mounted?), so the default is open instead */
+  dataDirMissing: string | null;
   codexBin?: string;
   codexHome: string;
   /** the Antigravity CLI binary; undefined = `agy` on PATH */
@@ -174,16 +181,22 @@ export function claudeConfigEnv(claudeHome: string | null | undefined): { CLAUDE
 
 export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {}): EngineConfig {
   const provider = overrides.provider ?? (AgentProvider.safeParse(process.env.FOUNDRY_PROVIDER).success ? (process.env.FOUNDRY_PROVIDER as AgentProvider) : 'claude');
+  // a test run never reads the person's own ~/.foundry
+  const home = overrides.foundryHome !== undefined ? overrides.foundryHome : process.env.NODE_ENV === 'test' ? null : foundryHome();
+  const data = resolveDataDir({ root: resolve(root), provider, home, log: overrides.log });
   return {
     rootDir: resolve(root),
     provider,
+    foundryHome: home,
+    dataDirSource: overrides.dataDir ? 'override' : data.source,
+    dataDirMissing: overrides.dataDir ? null : data.missing,
     codexBin: process.env.FOUNDRY_CODEX_BIN,
     codexHome: process.env.FOUNDRY_CODEX_HOME ?? process.env.CODEX_HOME ?? join(homedir(), '.codex'),
     codexModel: process.env.FOUNDRY_CODEX_MODEL ?? 'codex-default',
     agyBin: process.env.FOUNDRY_AGY_BIN,
     agyModel: process.env.FOUNDRY_AGY_MODEL ?? 'agy-default',
     agyEffort: 'high',
-    dataDir: resolve(process.env.FOUNDRY_DATA_DIR ?? resolve(root, provider === 'claude' ? 'data' : `data-${provider}`)),
+    dataDir: data.path,
     claudeHome: process.env.FOUNDRY_CLAUDE_HOME ?? process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'),
     catalogPath: resolve(root, 'catalog/skills.json'),
     rolesDir: resolve(root, 'roles'),

@@ -129,23 +129,20 @@ const scoped = (path: string) => provider ? `${path}${path.includes('?') ? '&' :
 const providerApi = (path: string, init?: RequestInit) => api(scoped(path), init);
 switch (cmd) {
   case 'serve': {
-    const { Engine, adoptLocalBin, defaultConfig } = await import('@foundry/engine');
-    const { startServer } = await import('@foundry/server');
+    const { adoptLocalBin } = await import('@foundry/engine');
+    const { serveLoop } = await import('@foundry/server');
     // a natively installed claude lives in ~/.local/bin, which launchd/systemd PATHs often lack
     adoptLocalBin();
-    const engine = new Engine(defaultConfig(ROOT));
-    const server = startServer(engine, { webDist: resolve(ROOT, 'apps/web/dist') });
-    console.log(`foundry listening on http://${engine.config.host}:${server.port}  (data: ${engine.config.dataDir})`);
-    engine.updater.startSchedule();
-    await engine.start();
+    // the engine and the server start again in this process when Settings asks: a restart, or another data folder (ADR-0082)
+    const loop = serveLoop({ root: ROOT, webDist: resolve(ROOT, 'apps/web/dist'), onListening: (engine) => engine.updater.startSchedule() });
     const shutdown = async () => {
       console.log('\nshutting down…');
-      await engine.stop();
-      server.stop(true);
+      await loop.shutdown();
       process.exit(0);
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
+    await loop.done;
     break;
   }
   case 'goal': {

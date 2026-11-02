@@ -1,4 +1,5 @@
 export * from './config.ts';
+export * from './data-dir.ts';
 export * from './engine.ts';
 export * from './types.ts';
 export * from './budget.ts';

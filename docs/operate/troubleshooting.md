@@ -93,7 +93,8 @@ Choose **Coding agent → Codex** in Setup, Settings, Extensions or Usage before
 | A discovered model cannot run | Discovery describes CLI capabilities, not account entitlement. Test the model and effort under the correct account; invalid effort/auth/quota errors do not trigger model fallback. |
 | MCP tool denied | Open the goal’s Inbox and allow that server for Codex only if intended. Claude’s allowlist is separate; plugin installation does not grant permission. |
 | Account or extension change returns `409` | Wait for Foundry’s active sessions/goals to finish, then retry. Native account changes affect the shared CLI home. |
-| Data directory belongs to another backend | Keep the original launch profile and choose Codex per goal, or use a distinct `FOUNDRY_DATA_DIR`. Do not erase the ownership marker to force a migration. |
+| Data directory belongs to another backend | Keep the original launch profile and choose Codex per goal, or use a distinct data folder (`FOUNDRY_DATA_DIR`, or Settings → Engine (install) → Data folder). Do not erase the ownership marker to force a migration. |
+| Foundry started on the default data folder, with a notice that the chosen one is not there | The folder chosen in Settings was not found at start (an external disk not mounted, a path renamed). Mount it and restart, or press **Keep this folder** to make the default the choice. The choice lives in `~/.foundry/config.json`. |
 
 See [Codex setup and limits](codex.md) and [mixed-provider upgrades](updates-and-backup.md#upgrading-to-mixed-provider-goals).
 

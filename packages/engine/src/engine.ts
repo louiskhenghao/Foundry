@@ -49,6 +49,7 @@ import { answerInterview, continueInterview, runClarify } from './clarify.ts';
 import { type DraftProposal, type DraftRequest, type ReviseAnswer, answerRevise, cancelRevise, runDraft } from './brief-draft.ts';
 import { runSuggest } from './escalation-suggest.ts';
 import { claudeConfigEnv, type EngineConfig } from './config.ts';
+import { HOME_CONFIG_FILE, RestartGate, defaultDataDir, productVersion, readHomeConfig, testDataDir, writeVersionMarker, type DataDirNotice, type DataDirStatus, type DataDirTest } from './data-dir.ts';
 import { GrepContextProvider } from './context/grep-provider.ts';
 import { GraphifyContextProvider } from './context/graphify-provider.ts';
 import { summarizeOutput } from './distill/summarize.ts';
@@ -388,6 +389,13 @@ export class Engine {
   readonly discord: DiscordBot;
   /** version self-knowledge, the daily update check, and the self-update pipeline (ADR-0010) */
   readonly updater: UpdateManager;
+  /** the serve loop waits here for a restart, on this data folder or another (ADR-0082) */
+  readonly restart = new RestartGate();
+  /** what the serve loop left about the data folder for the Settings page to show (ADR-0082) */
+  dataDirNotice: DataDirNotice | null = null;
+  readonly startedAt = new Date().toISOString();
+  /** the size of the data folder, measured for a Test and kept a minute (a big folder takes seconds to walk) */
+  private dataDirBytes: { at: number; bytes: number } | null = null;
   /** dev servers started in progress folders (Goal page, milestones, integrations) */
   readonly preview: PreviewManager;
   /** this computer on the person's tailnet: links that open on their phone */
@@ -425,6 +433,7 @@ export class Engine {
     if (previousProvider !== config.provider) throw new Error(`This data directory belongs to ${previousProvider}. Set FOUNDRY_DATA_DIR to a separate directory for ${config.provider}; session IDs cannot be migrated between backends.`);
     mkdirSync(config.dataDir, { recursive: true });
     writeFileSync(providerFile, config.provider);
+    writeVersionMarker(config.dataDir, productVersion(config.rootDir));
     this.mmxReady = writeMmxConfig(config.dataDir, this.minimaxKey(), config.log);
     this.gh = gh ?? new CliGh({ onCommand: (cmd, cwd, r, ms) => config.log(`[gh] ${cmd.slice(0, 4).join(' ')} → ${r.code} (${ms}ms) ${cwd}`) });
     this.access = new Access(config.dataDir);
@@ -836,6 +845,45 @@ export class Engine {
     this.applySettingsChange([...new Set(changed)]);
     return this.settings.view();
   }
+  // ---------- the data folder (ADR-0082) ----------
+
+  /** where this Foundry's data lives, and whether another folder may be chosen here */
+  dataDirStatus(): DataDirStatus {
+    const c = this.config;
+    const docker = !!process.env.FOUNDRY_DOCKER || existsSync('/.dockerenv');
+    const readOnly: DataDirStatus['readOnly'] = docker
+      ? { reason: 'docker', detail: 'In the Docker image the data folder is the volume mounted at /app/data (engine-data in docker-compose.yml; /app/data-codex for the Codex profile): change the mount there, not here.' }
+      : c.dataDirSource === 'env'
+        ? { reason: 'env', detail: 'FOUNDRY_DATA_DIR is set in the environment Foundry was started with, and it wins over a choice made here. Unset it to choose a folder here.' }
+        : null;
+    const recent = c.foundryHome ? readHomeConfig(c.foundryHome, c.log).recent.filter((p) => p !== c.dataDir && existsSync(p)) : [];
+    return {
+      current: c.dataDir,
+      source: c.dataDirSource,
+      default: defaultDataDir(c.rootDir, c.provider),
+      provider: c.provider,
+      version: this.updater.current(),
+      startedAt: this.startedAt,
+      readOnly,
+      recent,
+      configFile: c.foundryHome ? join(c.foundryHome, HOME_CONFIG_FILE) : null,
+      notice: this.dataDirNotice,
+      restart: { attached: this.restart.attached, pending: this.restart.pendingRequest() },
+    };
+  }
+  /** the checks another data folder passes before a switch: read-only, nothing is made or changed */
+  testDataDir(path: string): DataDirTest {
+    const now = Date.now();
+    if (!this.dataDirBytes || now - this.dataDirBytes.at > 60_000) this.dataDirBytes = { at: now, bytes: testDataDir('', { current: this.config.dataDir, provider: this.config.provider }).current.bytes };
+    return testDataDir(path, { current: this.config.dataDir, provider: this.config.provider, currentBytes: this.dataDirBytes.bytes });
+  }
+  /** goals a restart would interrupt: at work in Clarify, running, or in their goal review (a paused, blocked or waiting one is not) */
+  goalsAtWork(): { id: string; title: string; state: Goal['state'] }[] {
+    return listGoals(this.store.db)
+      .filter((g) => !isHistory(g) && ['clarifying', 'running', 'goal_review'].includes(g.state))
+      .map(({ id, title, state }) => ({ id, title, state }));
+  }
+
   private applySettingsChange(changed: string[]): void {
     if (!changed.length) return;
     const modelsBefore = { ...this.config.models };

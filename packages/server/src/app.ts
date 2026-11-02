@@ -6,7 +6,7 @@ import { CodexEffort, Effort, Brief, EscalationAnswer, isHistory, listFollowUps,
 import { AttachmentError, BrowseError, DESIGN_PACK_OPTIONS, FIGURE_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openFile, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
-import { delegationNeedsHuman } from '@foundry/engine';
+import { delegationNeedsHuman, readHomeConfig, writeHomeConfig } from '@foundry/engine';
 import { AdjustError, ConversationError } from '@foundry/engine';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, VideoPack, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
@@ -1714,6 +1714,60 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
   });
   app.post('/api/settings/reset', (c) => c.json(engine.resetSettings()));
+
+  // ---------- the data folder (ADR-0082): where this Foundry's data lives; another one tested, then switched to ----------
+  /** a restart would interrupt goals at work and sessions in flight: the person pauses or waits first */
+  const refuseWhileAtWork = () => {
+    const goals = engine.goalsAtWork();
+    const sessions = engine.busy().total;
+    if (!goals.length && !sessions) return;
+    const error = goals.length
+      ? `${goals.length} goal${goals.length === 1 ? ' is' : 's are'} at work: pause ${goals.length === 1 ? 'it' : 'them'} or wait until ${goals.length === 1 ? 'it has' : 'they have'} finished — ${goals.map((g) => `"${g.title}"`).join(', ')}`
+      : `${sessions} session${sessions === 1 ? ' is' : 's are'} in flight: wait until ${sessions === 1 ? 'it has' : 'they have'} finished`;
+    throw new HttpError(409, { error, goals, sessions });
+  };
+  const refuseWithoutLoop = () => {
+    if (!engine.restart.attached) throw new HttpError(409, { error: 'this Foundry was not started with `foundry serve`: it cannot start itself again' });
+  };
+  app.get('/api/data-dir', (c) => c.json(engine.dataDirStatus()));
+  app.post('/api/data-dir/test', async (c) => {
+    const { path } = z.object({ path: z.string() }).parse(await c.req.json());
+    return c.json(engine.testDataDir(path));
+  });
+  app.post('/api/data-dir/switch', async (c) => {
+    const { path, mode } = z.object({ path: z.string(), mode: z.enum(['open', 'blank', 'clone']) }).parse(await c.req.json());
+    const status = engine.dataDirStatus();
+    if (status.readOnly) throw new HttpError(403, { error: status.readOnly.detail, code: status.readOnly.reason });
+    refuseWithoutLoop();
+    // tested again here: what was on the disk when the page tested it may have changed
+    const test = engine.testDataDir(path);
+    if (!test.ok) throw new HttpError(422, { error: `${test.path || path} did not pass: ${test.checks.filter((k) => !k.ok).map((k) => `${k.label}: ${k.detail}`).join('; ')}`, test });
+    if (!test.modes.includes(mode)) throw new HttpError(422, { error: `${test.path} cannot be opened that way (${mode}); it takes ${test.modes.join(' or ')}`, test });
+    refuseWhileAtWork();
+    engine.restart.request({ kind: 'data-dir', to: test.path, mode });
+    return c.json({ started: true, to: test.path, mode }, 202);
+  });
+  // the folder chosen before is not there and the default is open: keep the default from now on
+  app.post('/api/data-dir/keep', (c) => {
+    const status = engine.dataDirStatus();
+    if (status.readOnly) throw new HttpError(403, { error: status.readOnly.detail, code: status.readOnly.reason });
+    if (!engine.config.foundryHome) throw new HttpError(409, { error: 'this Foundry keeps no choice of data folder' });
+    const home = readHomeConfig(engine.config.foundryHome, engine.config.log);
+    writeHomeConfig(engine.config.foundryHome, { ...home, dataDirs: { ...home.dataDirs, [engine.config.provider]: engine.config.dataDir } });
+    engine.dataDirNotice = null;
+    return c.json({ ok: true, current: engine.config.dataDir });
+  });
+  app.post('/api/data-dir/notice/dismiss', (c) => {
+    engine.dataDirNotice = null;
+    return c.json({ ok: true });
+  });
+  // the Settings marked restart apply when the engine starts again: here, in the same process, once nothing is at work
+  app.post('/api/engine/restart', (c) => {
+    refuseWithoutLoop();
+    refuseWhileAtWork();
+    engine.restart.request({ kind: 'restart', why: 'asked for in Settings' });
+    return c.json({ started: true }, 202);
+  });
   // ---- themes (ADR-0066): the built-in ones and the JSON files in the data folder's themes/ ----
   const themes = () => listThemes(themesDir(engine.config.dataDir));
   app.get('/api/themes', (c) => c.json(themes()));

@@ -10,6 +10,9 @@ The provider chosen for a Goal: Claude Code, Codex or Antigravity (the `agy` CLI
 **Launch profile**
 The coding agent selected when Foundry starts. It determines defaults and the data directory’s ownership marker, not the coding agent of every Goal. One instance can run both coding agents; changing the profile does not migrate existing state.
 
+**Data folder**
+The one folder a Foundry keeps everything in: the event log, Settings, transcripts, uploads, access tokens, the coding agents' added accounts, Templates and Themes. Repositories and progress folders are outside it. Each Launch profile opens one: the environment's (`FOUNDRY_DATA_DIR`), else the one the user chose in Settings (kept in the user's own `~/.foundry/config.json`, never inside a Data folder), else the checkout's default. Another folder is tested first (empty or a Foundry Data folder of the same coding agent, writable, room on the disk, not written by a newer Foundry), then opened, started blank, or given a copy of the current data, and the engine starts again on it in the same process — never while a Goal is at work. The folder left is never removed; a chosen folder that is not there at a start leaves the default open with a notice.
+
 **Goal**
 A user-set objective stated in natural language against a repository. A Goal is finished when all of its Must Checks pass; it is *over-delivered* when its Stretch Checks pass as well. A Goal's output is a local branch. The engine only pushes, opens or merges under the Delivery Policy the user chose. Native inference and connected tools still communicate with their services.
 

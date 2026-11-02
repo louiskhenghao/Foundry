@@ -16,7 +16,7 @@ Open the ⚙ menu at the right of the top bar and choose **Settings**. The secti
 ## How Settings works
 
 - Change what you want, then press **Save** in the bar at the top (it says **N unsaved**). **Discard** throws your changes away. One exception: choosing a skill pack under [Skills](#skills) saves the moment you click it.
-- Most changes apply at once. A few are marked **restart**: they apply after Foundry restarts.
+- Most changes apply at once. A few are marked **restart**: they apply after Foundry restarts. A banner at the top then offers **Restart now**: Foundry stops and starts again by itself, once no goal is at work, and the page reloads when it is back.
 - Each setting has a small badge: **default** (never changed), **saved** (you changed it here) or **env** (set by whoever installed Foundry). The ↺ arrow next to a saved value forgets it and goes back to the default.
 
 ## New goal defaults
@@ -354,6 +354,9 @@ Features on trial. Each is off until you switch it on here, may change or go awa
 
 Settings for whoever installed Foundry. Leave them unless you know why.
 
+![Settings, Engine (install): the data folder in use, a folder typed and tested, and Save & restart](images/settings-data-folder.png)
+
+- **Data folder**: where this Foundry keeps everything — goals and their history, Settings, access tokens, the coding agents' added accounts, templates, themes, Memory's records. Repositories and progress folders are not in it. To move to another folder (a bigger disk, a second set of goals): type its path or **Browse…**, press **Test**, and read the checks — the folder must be empty or a Foundry data folder of the same coding agent, writable, with room on the disk, and not written by a newer Foundry. An empty folder can **start blank** or take a **copy of the current data** (made while Foundry is stopped; a big folder takes a few minutes); a Foundry folder is opened as it is. **Save & restart…** asks you to confirm what changes, then Foundry restarts on the other folder and the page reloads. It is refused while a goal is at work: pause it first. The folder you leave is never removed, and the folders you had before are listed under **Before** to go back to. The choice is kept in `~/.foundry/config.json`, one per launch profile; with `FOUNDRY_DATA_DIR` set, or in the Docker image, the folder is shown and cannot be changed here. If a chosen folder is not there when Foundry starts (a disk not mounted), it starts on the default folder with a notice: **Keep this folder** makes that the choice, **Dismiss** waits for the disk.
 - **Port** (4111) and **Host** (127.0.0.1): where Foundry is reachable. Keep 127.0.0.1 unless you set up remote access. Restart needed.
 - **claude binary** and **Claude Code home**: where Claude Code and its skills live. Empty finds them. Restart needed.
 - **Codex binary** and **Codex home**: the Codex executable and native account/configuration directory. Empty uses PATH and `CODEX_HOME` or `~/.codex`. Restart needed. The launch profile is fixed; choose each goal’s coding agent on New goal.
