@@ -20,11 +20,11 @@ Brief 上几乎所有东西你都能改。花五分钟看看：这是改主意�
 Brief 会以你在 New goal 表单上选的视图打开。用顶部的 **Expert view** 或 **Simple view** 切换；这个浏览器会为这个 goal 记住你的选择。
 
 - **Simple view** 只显示需要你决定的内容：Foundry 理解了什么、它的问题、它的假设、你会得到什么，以及价格。见本页末尾的 [Brief 的 Simple view](#brief-的-simple-view)。
-- **Expert view** 显示全部内容，顺序是：页头、**Understanding**、**Questions**、**Assumptions**、**Decisions**、**Areas**、**Plan**、**Goal acceptance**、**How to run it**、**Completion**、估算和预算，以及按钮。本页剩下的部分就按这个顺序讲。左边有这些部分的目录（手机上是顶部一排标签），点一项就跳到那里。目录上方的 **Back to goal**（手机上是那一排最前面的 **Goal**）不管你滚到哪里，都能一下回到 goal 页面。正在看的那一项会高亮，每项旁边写着它的状态，比如 **Questions 1 blocking**、**Assumptions 2/2**、**Plan 36 tasks**；需要你处理的会用黄色标出。
+- **Expert view** 显示全部内容，顺序是：页头、**Understanding**、**Questions**、**Assumptions**、**Decisions**、**Areas**、**Plan**、**Goal acceptance**、**How to run it**、**Completion**、估算和预算，以及按钮。本页剩下的部分就按这个顺序讲。左边有这些部分的目录（手机上是顶部一排标签），点一项就跳到那里。页面最顶上有一条带着 goal 名字的 **← Back to goal** 横条，不管你滚到哪里都留在视野里，点它就回到 goal 页面。正在看的那一项会高亮，每项旁边写着它的状态，比如 **Questions 1 blocking**、**Assumptions 2/2**、**Plan 36 tasks**；需要你处理的会用黄色标出。
 
 ## 页面顶部
 
-- 最上面一行：**← Goals** 回到 goal 列表，**Goal** 跳到这个 goal 的页面。
+- 最上面一条横条，滚动时一直留在视野里：**← Back to goal** 回到这个 goal 的页面，右边的 **Goals** 回到 goal 列表。
 - Brief 等你处理时，标题上方的黄色状态牌显示 **awaiting approval**。
 - 标题下面是几块小牌子：项目文件夹、goal 从哪个分支开始 → goal 自己的分支、编码智能体、workflow 套件（**Powered by**）、pace 和交付方式。
 - 再下面是 goal 的五个阶段，和 goal 页面上一样：Brief 等你处理时，**Brief** 是黄色的，并标着 **You**。
