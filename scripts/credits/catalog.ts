@@ -32,6 +32,8 @@ export const CATALOG: Record<string, CatalogCredit> = {
   // the Figure pack (ADR-0076): April Zhu's Colorfigures and iso-glow, published as tarballs (no repository), bundled with Foundry
   'https://april-zhu.com/colorfigures': { name: 'Colorfigures', license: 'MIT', url: 'https://april-zhu.com/colorfigures' },
   'https://isoglow.dev': { name: 'iso-glow', license: 'MIT', url: 'https://isoglow.dev' },
+  // the Diagram pack (ADR-0083): Cathryn Lavery's diagram-design, pinned to one commit (the repository publishes no releases)
+  'cathrynlavery/diagram-design': { license: 'MIT' },
   'upstash/context7': { license: 'MIT' },
   'microsoft/playwright-mcp': { license: 'Apache-2.0' },
   'exa-labs/exa-mcp-server': { license: 'MIT' },

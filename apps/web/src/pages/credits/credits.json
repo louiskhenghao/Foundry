@@ -1173,6 +1173,17 @@
       "featured": false
     },
     {
+      "project": "cathrynlavery/diagram-design",
+      "name": "cathrynlavery/diagram-design",
+      "url": "https://github.com/cathrynlavery/diagram-design",
+      "license": "MIT",
+      "kinds": [
+        "Skills"
+      ],
+      "ref": "0cf73c3fcc56667ad91a9a04c439ac6ccfabc9d1",
+      "featured": false
+    },
+    {
       "project": "https://april-zhu.com/colorfigures",
       "name": "Colorfigures",
       "url": "https://april-zhu.com/colorfigures",

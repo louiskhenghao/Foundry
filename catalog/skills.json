@@ -2742,6 +2742,48 @@
         }
       ],
       "homepage": "https://isoglow.dev"
+    },
+    {
+      "id": "diagram-design",
+      "name": "diagram-design",
+      "summary": "Cathryn Lavery's diagram-design: editorial diagrams as one self-contained HTML page with an inline SVG — 45 types (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, org chart, layer stack, Gantt, Sankey, UML class, database schema, the chart types…) in a light, a dark and a full-editorial skin: one accent colour, hairline borders, no shadows. Redraws draw.io, Mermaid and Excalidraw files; takes a brand's palette and fonts from a website.",
+      "why": "The Diagram pack's skill (ADR-0083): a diagram task needs a design system, a selection guide and a self-check the worker can follow, not ad-hoc SVG. The page opens offline and exports to SVG with the skill's own standard-library script; Foundry renders the PNG and runs the self-check itself when the task lands.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "cathrynlavery/diagram-design",
+        "ref": "0cf73c3fcc56667ad91a9a04c439ac6ccfabc9d1",
+        "path": "skills/diagram-design"
+      },
+      "roles": [
+        "worker"
+      ],
+      "invoke": "/diagram-design",
+      "tags": [
+        "diagram",
+        "svg",
+        "architecture",
+        "flowchart",
+        "editorial"
+      ],
+      "aliases": [],
+      "pack": "diagram",
+      "packOption": "diagram-design",
+      "scenarios": [
+        "diagram"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "diagram"
+          ],
+          "instruction": "Invoke it first and follow it end to end: pick the type from its selection guide (a semantic pattern first when behaviour carries the meaning), load that type's reference, stay inside its complexity budget, resolve every token against the effective style guide and keep its connector rules; run its scripts/self_check.py on the page. The Brief answers its first-run gate and its confirm-before-drawing pause: never ask. Write the page where the task's `delivers` names it, export the SVG beside it with its scripts/export_svg.py, and record both in the task manifest."
+        }
+      ],
+      "homepage": "https://github.com/cathrynlavery/diagram-design"
     }
   ]
 }
