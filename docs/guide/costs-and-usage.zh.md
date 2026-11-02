@@ -93,4 +93,4 @@ goal 按创建时间算，会话按运行时间算。重试率是尝试过的任
 
 配置的图片技能使用独立的媒体服务 API key：OpenAI 兼容的 key，或 Gemini key。这个 key 不会启用 Codex API-key 推理，也不会代替 ChatGPT 登录。在 **Settings → Tools & keys** 里添加；下一个会话就生效，不用重启。没有 key 时，图片任务只能做出手绘的 SVG 或 HTML 渲染，质量低很多 —— Brief 会在你批准前告诉你。
 
-[Figure goal](./figures.zh.md)（beta）不需要 key：figure 由技能画出来，花的只是 worker 的 token 和时间 —— Colorfigures 一张图 15–30 分钟、几十万 token，iso-glow 一张约一分钟。[Diagram goal](./diagrams.zh.md)（beta）也不需要：一张图只花 worker 几分钟。
+[Figure goal](./figures.zh.md)（beta）不需要 key：figure 由技能画出来，花的只是 worker 的 token 和时间 —— Colorfigures 一张图 15–30 分钟、几十万 token，iso-glow 一张约一分钟。[Diagram goal](./diagrams.zh.md)（beta）也不需要：一张图只花 worker 几分钟。[Deck goal](./decks.zh.md)（beta）做幻灯片本身也不要 key —— 这是个长任务，几十页一页页画 —— 只有你让 Brief 加 AI 配图时才用到图片 key。

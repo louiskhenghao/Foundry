@@ -95,7 +95,7 @@ inputs:
 - 一条时间线；每种画幅都从它剪出来。
 ```
 
-- `name` 和 `nature`（`code`、`docs`、`research`、`image`、`video`、`figure`、`diagram` 或 `cad`）必须有；`summary` 和 `settings` 可选；`.zh.md` 文件写 `lang: zh`。
+- `name` 和 `nature`（`code`、`docs`、`research`、`image`、`video`、`figure`、`diagram`、`deck` 或 `cad`）必须有；`summary` 和 `settings` 可选；`.zh.md` 文件写 `lang: zh`。
 - `settings` 可以写 `mode`（`simple` 或 `expert`）、`workflow`（`pace`、`tdd`、`ponytail`、`profile`）、`budgetPreset`（custom 时加 `budgets`：`maxCostUsd`、`maxDurationMin`、`maxConcurrent`、`attemptsPerTask`）、`interviewDepth`（0–5）、`autoBrief`（`mustChecks` 和 `stretchChecks`，命令列表）、视频模版的 `videoPack`、figure 模版的 `figurePack`。跟电脑和账号有关的东西不属于这里：coding agent、模型、delivery、文件夹都是表单自己的事。
 - `inputs` 只是细化描述里已有的东西：一个没有条目的 `{{key}}` 就是一个必填的单行输入，标签取自它的 key。条目可以给 `label`、`help`、`type`（`text`、`textarea`，或带 `options` 的 `choice`，`other: true` 允许自由作答）、`default`、`required` 和 `example`（预览「Filled in」时显示的示例，不会写进 goal）。描述里没出现过的 key 的条目是警告，不是错误。
 - 描述可以用 Markdown。只放着一个留空的可选输入的行（`## 品牌` 后面跟着 `{{brand}}`）在写出描述时会被去掉。
