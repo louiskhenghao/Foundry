@@ -679,7 +679,7 @@ export function NewGoalPage() {
     { id: SECTIONS.agent.id, label: 'Coding agent', dot: SECTIONS.agent.dot, ...(selectedAccount && !selectedAccount.installed ? { status: 'not installed', warn: true } : selectedAccount && !selectedAccount.status.loggedIn ? { status: 'sign in', warn: true } : { status: PROVIDER_LABEL[provider], ...(selectedAccount ? { tone: 'ok' as const } : {}) }) },
     { id: SECTIONS.kind.id, label: 'Kind of goal', dot: SECTIONS.kind.dot, status: NATURES.find((n) => n.id === nature)?.label },
     { id: SECTIONS.view.id, label: 'How much to see', dot: SECTIONS.view.dot, status: mode === 'simple' ? 'Simple' : 'Expert' },
-    { id: SECTIONS.goal.id, label: `1 · ${STEPS[0]}`, dot: SECTIONS.goal.dot, ...(prompt.trim() ? {} : { status: 'missing', warn: true }) },
+    { id: SECTIONS.goal.id, label: `1 · ${STEPS[0]}`, dot: SECTIONS.goal.dot, ...(prompt.trim() ? {} : carrying ? { status: 'carried over', tone: 'ok' as const } : { status: 'missing', warn: true }) },
     { id: SECTIONS.repo.id, label: `2 · ${STEPS[1]}`, dot: SECTIONS.repo.dot, ...(!repoPath.trim() ? { status: 'missing', warn: true } : !repoInfo ? { status: 'checking…', tone: 'work' as const } : !repoInfo.ok ? { status: 'not ready', warn: true } : { status: short(repoInfo.branch), tone: 'ok' as const }) },
     { id: SECTIONS.budget.id, label: `3 · ${STEPS[2]}`, dot: SECTIONS.budget.dot, status: BUDGET_PRESETS[budget.preset].label },
     { id: SECTIONS.delivery.id, label: `4 · ${STEPS[3]}`, dot: SECTIONS.delivery.dot, status: DELIVERY_WORD[delivery.mode] },
@@ -1163,7 +1163,7 @@ export function NewGoalPage() {
               {schedule ? 'Save schedule' : 'Schedule…'}
             </Button>
             <Button variant="primary" className="shrink-0 whitespace-nowrap" disabled={busy || !ready} onClick={submit}>
-              {busy ? 'Creating…' : auto ? 'Create & run' : 'Create & clarify'}
+              {busy ? 'Creating…' : carrying ? 'Create & confirm the Brief' : auto ? 'Create & run' : 'Create & clarify'}
             </Button>
             <ScheduleDialog open={scheduleOpen} editing={!!schedule} initial={{ name: schedule?.name ?? scheduleNameFrom(title, prompt), cadence: schedule?.cadence ?? defaultCadence(), autoApprove: schedule?.autoApprove ?? true }} busy={scheduleBusy} error={scheduleErr} onClose={() => setScheduleOpen(false)} onSave={saveSchedule} />
           </div>
