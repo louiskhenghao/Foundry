@@ -23,6 +23,11 @@ export const CatalogSource = z.discriminatedUnion('type', [
     ref: z.string().optional(),
     /** path of the skill dir inside the repo; when missing we search **\/<name>/SKILL.md */
     path: z.string().optional(),
+    /**
+     * the skill's scripts need Python packages (ADR-0084): Foundry makes a virtual environment with uv at this Python
+     * version under <dataDir>/python/<name> and installs the requirements file (relative to the skill dir) into it
+     */
+    python: z.object({ requirements: z.string().min(1), version: z.string().min(1) }).optional(),
   }),
   z.object({
     type: z.literal('cli'),
@@ -78,7 +83,7 @@ export const CatalogSource = z.discriminatedUnion('type', [
 export type CatalogSource = z.infer<typeof CatalogSource>;
 
 export const TaskKindForSkill = z.enum(['feature', 'bug', 'refactor', 'research', 'chore', 'any']);
-export const SkillScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'cad', 'general']);
+export const SkillScenario = z.enum(['frontend', 'backend', 'fullstack', 'data', 'mobile', 'infra', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'deck', 'cad', 'general']);
 export type SkillScenario = z.infer<typeof SkillScenario>;
 
 /** How a role must/should use a skill inside the engine's own workflow (see ADR-0004). */
@@ -170,6 +175,8 @@ export const FoundryMarker = z.object({
   path: z.string(),
   installedAt: z.string(),
   updatedAt: z.string().optional(),
+  /** the Python environment made for the skill (ADR-0084): where, at which Python, from which requirements (its sha256) */
+  python: z.object({ venv: z.string(), version: z.string(), requirements: z.string() }).optional(),
 });
 export type FoundryMarker = z.infer<typeof FoundryMarker>;
 
