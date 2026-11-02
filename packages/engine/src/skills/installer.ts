@@ -268,6 +268,11 @@ export async function installEntry(entry: CatalogEntry, ctx: InstallContext, opt
       throw new InstallError(`${entry.name} already exists in ${ctx.paths.skillsDir} and was not installed by foundry`, 'conflict', { name: entry.name, path: dest, managed: marker ? 'foundry' : 'other' });
     }
     if (marker?.catalogId === entry.id && !opts.force && !opts.refresh) {
+      // the copy is current; its Python environment may still be missing (uv was not there, or the install failed): make it now (ADR-0084)
+      if (entry.source.python && !pythonOf(ctx.paths, entry.name)) {
+        const python = await installPython(entry.name, entry.source.python, dest, ctx);
+        if (python) writeFileSync(join(dest, MARKER_FILE), JSON.stringify({ ...marker, python }, null, 2));
+      }
       return { ok: true, id: entry.id, name: entry.name, path: dest, commit: marker.commit, manual: null, error: null };
     }
   }
@@ -322,22 +327,24 @@ export async function installPython(name: string, spec: { requirements: string; 
     return undefined;
   }
   const uv = Bun.which('uv');
-  if (!uv || !ctx.spawn) {
-    say(`[skills] ${name}: ${uv ? 'no spawner configured' : 'uv is not on PATH (https://docs.astral.sh/uv/)'} — the skill is installed, its Python environment is not; Install again once uv is there`);
+  if (!uv) {
+    say(`[skills] ${name}: uv is not on PATH (https://docs.astral.sh/uv/) — the skill is installed, its Python environment is not; Install again once uv is there`);
     return undefined;
   }
+  // tests inject a spawner; every install path otherwise streams the real one (imported late: updaters.ts imports this module)
+  const spawn = ctx.spawn ?? (await import('./updaters.ts')).spawnStreaming;
   const venv = pythonEnvPath(ctx.paths, name);
   mkdirSync(ctx.paths.pythonDir, { recursive: true });
   rmSync(venv, { recursive: true, force: true });
   say(`[skills] ${name}: making a Python ${spec.version} environment at ${venv}`);
-  const made = await ctx.spawn([uv, 'venv', '--python', spec.version, venv], skillDir, say, { timeoutMs: 10 * 60_000 });
+  const made = await spawn([uv, 'venv', '--python', spec.version, venv], skillDir, say, { timeoutMs: 10 * 60_000 });
   if (made.code !== 0) {
     say(`[skills] ${name}: uv venv failed (${made.code}): ${made.tail.slice(-400)}`);
     rmSync(venv, { recursive: true, force: true });
     return undefined;
   }
   say(`[skills] ${name}: installing ${spec.requirements} into it`);
-  const got = await ctx.spawn([uv, 'pip', 'install', '--python', join(venv, 'bin', 'python'), '-r', req], skillDir, say, { timeoutMs: 30 * 60_000 });
+  const got = await spawn([uv, 'pip', 'install', '--python', join(venv, 'bin', 'python'), '-r', req], skillDir, say, { timeoutMs: 30 * 60_000 });
   if (got.code !== 0) {
     say(`[skills] ${name}: uv pip install failed (${got.code}): ${got.tail.slice(-400)}`);
     rmSync(venv, { recursive: true, force: true });

@@ -48,7 +48,4 @@ describe.skipIf(!uv)('the Python environment of a skill', () => {
     expect(existsSync(pythonEnvPath({ pythonDir: join(home, 'python') }, 'ppt-master'))).toBe(false);
     expect(pythonOf({ pythonDir: join(home, 'python') }, 'ppt-master')).toBeNull();
   });
-  test('is not made without a spawner', async () => {
-    expect(await installPython('ppt-master', { requirements: 'requirements.txt', version: '3.12' }, skillDir, ctx(undefined))).toBeUndefined();
-  });
 });
