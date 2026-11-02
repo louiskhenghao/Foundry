@@ -276,7 +276,7 @@ Codex 的 follow-up 会保留明确指定的全角色模型覆盖，即使 Setti
 
 之前的 goal 停下时还有任务没做完（取消、失败，或完成但有跳过的）的话，Follows 卡片会在 **Carry over its unfinished tasks** 下列出它的任务，没完成的默认勾选。勾着任务时，新 goal 会原样接手它们——规格、文件、顺序、Areas 和验收检查，加上之前 goal 的 goal 级检查——并跳过 Clarify：它的 Brief 马上写好，打开让你确认或修改，和任何 Brief 一样。描述框变成给智能体的备注（可不填）。之前那个 goal 里被接手的任务显示为 **skipped**，并注明去了哪个 goal，这样之后再 Resume 它也不会重复做。没勾选的任务不进新 goal：Brief 会写明这一点，之前 goal 的 goal 级检查在新 goal 里变成 stretch 检查，因为它们也涵盖那些任务。新 goal 建立在之前 goal 的分支上，所以那部分工作还没进 base 时，即使你设置了按任务交付，也会用一个 pull request 交付整个分支，之前 goal 完成的工作不会丢。想加新需求的话，把任务都取消勾选：goal 就按你写的内容走 Clarify。想在同一个 goal 里接着做，用它页面上的 **Resume…**（见 [暂停与继续](./while-it-runs.zh.md#暂停与继续)）。
 
-之后 goal 页面会显示 **Follows: …**，之前那个 goal 上会显示 **Followed by: …**，都是链接。如果之前的 goal 被删除了，后续 goal 会显示 "follows a deleted goal" 和它的标题。在 goal 列表里，一个 goal 和它的后续 goal 合成一项，像 Agents 页面的分组那样折叠：显示第一个 goal 的标题和一个写着共几个 goal 的小标签、最新那个 goal 的状态（**latest: …**），以及所有这些 goal 的费用和时间。点它就展开其中每个 goal 的行，从早到晚排列，后续 goal 前面标着 ↳。其中有 goal 还在进行时它会自动展开；你折叠或展开过它，它会记住；列表上方的 **expand all** / **collapse all** 可以一次展开或折叠所有分组。之前的 goal 被删除的后续 goal 独立显示，标题下面有一小行 "↳ follows …"。
+之后 goal 页面会显示 **Follows: …**，之前那个 goal 上会显示 **Followed by: …**，都是链接。如果之前的 goal 被删除了，后续 goal 会显示 "follows a deleted goal" 和它的标题。在 goal 列表里，一个 goal 和它的后续 goal 合成一项，像 Agents 页面的分组那样折叠：显示第一个 goal 的标题和一个写着共几个 goal 的小标签、最新那个 goal 的状态（**latest: …**），以及所有这些 goal 的费用和时间。点它就展开其中的各个 goal，用一条线串成带编号的步骤，从早到晚排列：每一步写明它在这条链里的身份（**Original**、**Follow-up** 或 **Carried over N tasks**）和当前状态，以及它自己的费用和时间。其中有 goal 还在进行时它会自动展开；你折叠或展开过它，它会记住；列表上方的 **expand all** / **collapse all** 可以一次展开或折叠所有分组。之前的 goal 被删除的后续 goal 独立显示，标题下面有一小行 "↳ follows …"。
 
 在命令行里：`foundry goal new "<prompt>" --follows <goal id>`。
 
