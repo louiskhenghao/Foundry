@@ -24,6 +24,8 @@ interface LiveState {
   /** prepend decoded history (from the transcript) for a channel that has nothing buffered yet */
   seedStream: (attemptId: string, events: any[]) => void;
   setConnected: (c: boolean) => void;
+  /** every screen fetches again: after the live connection came back, or when the app comes to the front (the installed app has no reload button) */
+  refreshAll: () => void;
 }
 
 const MAX_STREAM = 400;
@@ -55,17 +57,31 @@ export const useLive = create<LiveState>((set) => ({
       return { streams: { ...s.streams, [attemptId]: merged } };
     }),
   setConnected: (connected) => set({ connected }),
+  refreshAll: () => set((s) => ({ globalVersion: s.globalVersion + 1, goalVersion: Object.fromEntries(Object.keys(s.goalVersion).map((k) => [k, (s.goalVersion[k] ?? 0) + 1])) })),
 }));
 
 let ws: WebSocket | null = null;
+let retry: ReturnType<typeof setTimeout> | null = null;
+/** the connection dropped since it last opened: events may have been missed, so the next open fetches everything again */
+let dropped = false;
+let hiddenAt: number | null = null;
+/** a screen hidden this long comes back with everything fetched again, whatever the socket says: a laptop lid, a phone in a pocket */
+const STALE_MS = 30_000;
 export function connectWs() {
   const url = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
   const open = () => {
+    if (retry) clearTimeout(retry);
+    retry = null;
     ws = new WebSocket(url);
-    ws.onopen = () => useLive.getState().setConnected(true);
+    ws.onopen = () => {
+      useLive.getState().setConnected(true);
+      if (dropped) useLive.getState().refreshAll();
+      dropped = false;
+    };
     ws.onclose = () => {
+      dropped = true;
       useLive.getState().setConnected(false);
-      setTimeout(open, 1500);
+      if (!retry) retry = setTimeout(open, 1500);
     };
     ws.onmessage = (m) => {
       const msg = JSON.parse(String(m.data));
@@ -74,6 +90,20 @@ export function connectWs() {
     };
   };
   open();
+  // the installed app (a PWA, a home-screen web app) has no reload button and its socket dies while it sleeps: coming to the
+  // front reconnects at once instead of waiting for the retry, and fetches everything again when it was away for long
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      hiddenAt = Date.now();
+      return;
+    }
+    const away = hiddenAt ? Date.now() - hiddenAt : 0;
+    hiddenAt = null;
+    if (!ws || ws.readyState === WebSocket.CLOSED || ws.readyState === WebSocket.CLOSING) {
+      dropped = true;
+      open();
+    } else if (away > STALE_MS) useLive.getState().refreshAll();
+  });
 }
 
 /**

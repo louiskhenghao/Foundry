@@ -103,3 +103,7 @@ All the **must** checks passed (what you asked for) and the **stretch** checks t
 ## Can I add information after the goal started?
 
 Yes. Add files or links under **Attachments** on the goal's Overview tab; every new session receives them. To change what gets built, use a milestone or a hint (see [Can I change the plan after approving?](#can-i-change-the-plan-after-approving)).
+
+## The installed app shows old data and has no reload button
+
+When Foundry is installed as an app (Chrome's **Install**, Safari's **Add to Dock** or a phone's home screen) it runs in a window of its own, without the browser's reload button, and its live connection drops while the window sleeps. Foundry now fetches everything again by itself when the connection comes back and when the window returns to the front after a while away; when a screen still looks stale, open the ⚙ menu and press **Reload**, which loads the app again.
