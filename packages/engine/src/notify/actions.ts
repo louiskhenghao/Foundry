@@ -10,6 +10,7 @@
 import { AgentProvider, PROVIDER_LABEL, reportsDollars } from '@foundry/core';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { budgetStatus } from '../budget.ts';
 import { ACTIONS_BY_TRIGGER, proposeBudgetFromEstimate, calibratedEstimate, type Calibration } from '@foundry/core';
 import type { Brief, Budgets, Escalation, EscalationAction, EscalationAnswer, FeedbackPlan, Goal, InterviewQuestion } from '@foundry/core';
 
@@ -190,13 +191,15 @@ export const usageKeyboard = (provider: AgentProvider, next: string | null = nul
  * The budget a Brief is approved with, as the Brief page does it: an Auto goal with no limits yet takes the estimate ×2
  * (no dollar limit for Codex, which reports no cost); otherwise the goal's limits stand.
  */
-export function budgetOnApproval(goal: Pick<Goal, 'provider' | 'budgetPreset' | 'budgets'>, brief: Pick<Brief, 'costEstimateUsd' | 'timeEstimateMin'>, calibration: Calibration | null = null): { budgets?: Partial<Budgets>; text: string } {
+export function budgetOnApproval(goal: Goal, brief: Pick<Brief, 'costEstimateUsd' | 'timeEstimateMin'>, calibration: Calibration | null = null): { budgets?: Partial<Budgets>; text: string } {
   const codex = !reportsDollars(goal.provider);
   if (goal.budgetPreset === 'auto' && goal.budgets.maxCostUsd == null && goal.budgets.maxDurationMin == null) {
-    // the estimate as earlier goals corrected it (ADR-0056), then ×2 as on the Brief page
+    // the estimate as earlier goals corrected it (ADR-0056), then ×2 as on the Brief page, on top of what Clarify spent
     const corrected = calibration && calibration.scope !== 'none';
-    const p = proposeBudgetFromEstimate(calibratedEstimate(brief, calibration));
-    return { budgets: codex ? { maxDurationMin: p.maxDurationMin } : p, text: `${codex ? '' : `$${p.maxCostUsd} / `}${p.maxDurationMin} min (the ${corrected ? 'calibrated ' : ''}estimate ×2)` };
+    const spent = budgetStatus(goal);
+    const p = proposeBudgetFromEstimate(calibratedEstimate(brief, calibration), { costUsd: codex ? 0 : spent.costUsd, elapsedMin: spent.elapsedMin });
+    const plus = (spent.costUsd || 0) > 0 || (spent.elapsedMin || 0) > 0 ? ', plus what Clarify spent' : '';
+    return { budgets: codex ? { maxDurationMin: p.maxDurationMin } : p, text: `${codex ? '' : `$${p.maxCostUsd} / `}${p.maxDurationMin} min (the ${corrected ? 'calibrated ' : ''}estimate ×2${plus})` };
   }
   const { maxCostUsd, maxDurationMin } = goal.budgets;
   return { text: `${codex ? '' : `${maxCostUsd == null ? 'no cost limit' : `$${maxCostUsd}`} / `}${maxDurationMin == null ? 'no time limit' : `${maxDurationMin} min`}` };

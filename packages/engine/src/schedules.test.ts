@@ -128,7 +128,8 @@ describe('schedules (ADR-0054)', () => {
     const s = engine.saveSchedule({ name: 'Budget from the estimate', cadence: { kind: 'daily', at: '03:00' }, recipe: recipe({ budgetPreset: 'auto', budgets: undefined }) });
     const { goalId } = await fireSchedule(engine, s, { manual: true });
     await waitFor(() => ['done', 'over_delivered', 'failed'].includes(getGoal(engine.store.db, goalId!)!.state), 30_000);
-    expect(getGoal(engine.store.db, goalId!)!.budgets).toMatchObject({ maxCostUsd: 3, maxDurationMin: 30 });
+    // the estimate ×2 (floors $3 / 30 min) plus what the fake Clarify spent ($0.5 and a few seconds), rounded up
+    expect(getGoal(engine.store.db, goalId!)!.budgets).toMatchObject({ maxCostUsd: 3.5, maxDurationMin: 40 });
 
     const asks = track(new Engine(cfg(), new BriefRunner(oneTaskBrief([{ text: 'Which registry?', options: ['npm', 'jsr'], blocking: true }]))));
     const s2 = asks.saveSchedule({ name: 'Asks', cadence: { kind: 'daily', at: '03:00' }, recipe: recipe() });

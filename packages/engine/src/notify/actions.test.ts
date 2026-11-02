@@ -322,9 +322,14 @@ describe('approving a Brief', () => {
   });
 
   test('limits the goal already has stand; Codex sets no dollar limit', () => {
-    const fixed = { provider: 'claude' as const, budgetPreset: 'custom' as const, budgets: { maxCostUsd: 10, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null } };
+    const fixed = goal({ provider: 'claude', budgetPreset: 'custom', budgets: { maxCostUsd: 10, maxDurationMin: null, maxConcurrent: 3, attemptsPerTask: 3, attemptTimeoutMin: null } });
     expect(budgetOnApproval(fixed, brief())).toEqual({ text: '$10 / no time limit' });
     expect(budgetOnApproval({ ...goal(), provider: 'codex' }, brief())).toEqual({ budgets: { maxDurationMin: 80 }, text: '80 min (the estimate ×2)' });
+  });
+
+  test('an Auto goal that already spent on Clarify gets that on top of the estimate ×2', () => {
+    const spent = goal({ costUsd: 2.5, conversationCostUsd: 0.5, activeMs: 12 * 60_000, activeSince: null } as Partial<Goal>);
+    expect(budgetOnApproval(spent, brief())).toEqual({ budgets: { maxCostUsd: 6.5, maxDurationMin: 100 }, text: '$6.5 / 100 min (the estimate ×2, plus what Clarify spent)' });
   });
 
   test('nothing is approved past a blocking question, nor on a goal that moved on', async () => {

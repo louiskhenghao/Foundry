@@ -186,7 +186,8 @@ export function BriefPage() {
   const costAvailable = reportsDollars(g.provider);
   // the estimate as earlier goals corrected it (ADR-0056): the Auto proposal is twice that
   const calibration = describeCalibration(detail.calibration ?? null, brief, costAvailable);
-  const proposed = { ...proposeBudgetFromEstimate(calibratedEstimate(brief, costAvailable ? (detail.calibration ?? null) : detail.calibration ? { cost: null, time: detail.calibration.time } : null)), ...(!costAvailable ? { maxCostUsd: null } : {}) };
+  // on top of what the goal already spent (Clarify, the interview): its limits count everything
+  const proposed = { ...proposeBudgetFromEstimate(calibratedEstimate(brief, costAvailable ? (detail.calibration ?? null) : detail.calibration ? { cost: null, time: detail.calibration.time } : null), { costUsd: costAvailable ? (detail.budget?.costUsd ?? 0) : 0, elapsedMin: detail.budget?.elapsedMin ?? 0 }), ...(!costAvailable ? { maxCostUsd: null } : {}) };
   // Auto: start from the proposal; otherwise from the goal's own budget
   const budgetDraft = budgetEdit ?? (isAuto && g.budgets.maxCostUsd == null && g.budgets.maxDurationMin == null ? proposed : { maxCostUsd: g.budgets.maxCostUsd, maxDurationMin: g.budgets.maxDurationMin });
   const budgetChanged = budgetDraft.maxCostUsd !== g.budgets.maxCostUsd || budgetDraft.maxDurationMin !== g.budgets.maxDurationMin;
@@ -422,7 +423,7 @@ export function BriefPage() {
                   <div className="text-xs text-ink-soft mb-2.5">
                     {isAuto ? (
                       <>
-                        <span className="font-semibold text-ink">Auto budget preset:</span> no cap was set while clarifying; this proposal ({calibration ? 'the calibrated estimate ×2' : 'estimate ×2'}) becomes the goal's budget when you approve. Edit it, or keep it unlimited — the engine pauses and asks you if a limit is reached.
+                        <span className="font-semibold text-ink">Auto budget preset:</span> no cap was set while clarifying; this proposal ({calibration ? 'the calibrated estimate ×2' : 'estimate ×2'}, plus what clarifying already spent) becomes the goal's budget when you approve. Edit it, or keep it unlimited — the engine pauses and asks you if a limit is reached.
                       </>
                     ) : overCost || overTime ? (
                       <span className="font-semibold text-you-ink">The estimate exceeds the budget you set. Raise it here or approve anyway (the engine will pause when it is reached).</span>

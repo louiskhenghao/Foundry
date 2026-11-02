@@ -6,6 +6,7 @@
  */
 import type { Goal, GoalRecipe, Schedule, ScheduleCadence } from '@foundry/core';
 import { IdPrefix, calibratedEstimate, getBrief, getGoal, getSchedule, isDue, listSchedules, newId, nextRunAt, proposeBudgetFromEstimate, Schedule as ScheduleSchema } from '@foundry/core';
+import { budgetStatus } from './budget.ts';
 import { calibrationFor } from './calibration.ts';
 import { linkAttachment } from './attachments.ts';
 import type { Engine } from './engine.ts';
@@ -158,7 +159,7 @@ export function autoApproveScheduled(engine: Engine, goal: Goal): void {
   const brief = getBrief(store.db, goal.id)?.brief;
   if (!brief || brief.questions.some((q) => q.blocking && !q.answer?.trim())) return;
   // the estimate as earlier goals corrected it (ADR-0056): a run nobody watches gets a budget that fits
-  const budgets = goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(engine, goal))) : undefined;
+  const budgets = goal.budgetPreset === 'auto' ? proposeBudgetFromEstimate(calibratedEstimate(brief, calibrationFor(engine, goal)), budgetStatus(goal)) : undefined;
   engine.approvingDelegated.set(
     goal.id,
     engine

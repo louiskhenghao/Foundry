@@ -58,10 +58,17 @@ export const BUDGET_PRESETS: Record<BudgetPreset, { label: string; blurb: string
   custom: { label: 'Custom', blurb: 'Set every limit yourself.', budgets: DEFAULT_BUDGETS },
 };
 
-/** Budget proposed from a Brief estimate: ×2 headroom, rounded up, with sensible floors. */
-export function proposeBudgetFromEstimate(est: { costEstimateUsd: number; timeEstimateMin: number }): { maxCostUsd: number; maxDurationMin: number } {
-  const cost = Math.max(3, Math.ceil((est.costEstimateUsd * 2) / 0.5) * 0.5);
-  const min = Math.max(30, Math.ceil((est.timeEstimateMin * 2) / 10) * 10);
+/**
+ * Budget proposed from a Brief estimate: ×2 headroom with sensible floors for the work, plus what the goal already spent
+ * (Clarify, an interview): a goal's limits count everything, so without it a small goal could reach its limit the moment
+ * it was approved. Rounded up to $0.5 and 10 min.
+ */
+export function proposeBudgetFromEstimate(est: { costEstimateUsd: number; timeEstimateMin: number }, spent: { costUsd: number; elapsedMin: number } = { costUsd: 0, elapsedMin: 0 }): { maxCostUsd: number; maxDurationMin: number } {
+  const workCost = Math.max(3, Math.ceil((est.costEstimateUsd * 2) / 0.5) * 0.5);
+  const workMin = Math.max(30, Math.ceil((est.timeEstimateMin * 2) / 10) * 10);
+  const add = (n: number) => (Number.isFinite(n) ? Math.max(0, n) : 0);
+  const cost = Math.ceil((workCost + add(spent.costUsd)) / 0.5 - 1e-9) * 0.5;
+  const min = Math.ceil((workMin + add(spent.elapsedMin)) / 10 - 1e-9) * 10;
   return { maxCostUsd: Number(cost.toFixed(2)), maxDurationMin: min };
 }
 
