@@ -3127,7 +3127,6 @@ export class Engine {
       return;
     }
     if (!['paused', 'cancelled', 'failed', 'blocked'].includes(goal.state)) throw new Error(`goal is ${goal.state.replace(/_/g, ' ')}; only a paused, cancelled, failed or blocked goal can be resumed`);
-    if (this.inFlightForGoal(goalId).length) throw new Error('its work in flight has not landed yet; resume once it has');
     if (this.removingFolders.has(goalId)) throw new Error("the goal's folders are being removed (Clean up anyway); resume it once that has finished");
     const hint = opts.hint?.trim() || null;
     if (opts.budgets && (opts.budgets.maxCostUsd !== undefined || opts.budgets.maxDurationMin !== undefined)) {
@@ -3152,6 +3151,9 @@ export class Engine {
     const words = hint ? `The person resumed the goal and says: ${hint}` : null;
     for (const t of tasks) {
       if (t.state === 'done' || t.state === 'skipped') continue;
+      // a session that did not stop when asked (a hung process) is still at work: left alone, its end is handled as any
+      // session's once the goal runs again
+      if (this.isInFlight(t.id)) continue;
       let again = false;
       if (t.state === 'merging') {
         // half-landed: it runs again and lands once its checks pass (as after an engine restart)

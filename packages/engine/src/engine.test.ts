@@ -1426,6 +1426,29 @@ describe('pause and resume (ADR-0080)', () => {
     expect(runner.calls.filter((c) => c.label?.startsWith('attempt first step'))).toHaveLength(1); // done stays done
   }, 40_000);
 
+  test('a session that ignores the stop is left alone: the goal pauses and resumes around it, and its end is handled once the goal runs again', async () => {
+    const runner = new HeldRunner();
+    runner.held = /second step/;
+    const { engine, goal } = await start(runner);
+    await waitFor(() => taskNamed(engine, goal.id, 'second step')?.state === 'running' && engine.taskLiveness(taskNamed(engine, goal.id, 'second step').id).session, 20_000);
+    // the kill reaches nothing (a hung process): the goal is paused all the same, the session still in flight
+    const stuck = runner as unknown as { end: ((r: RunResult) => void) | null };
+    const end = stuck.end;
+    stuck.end = null;
+    engine.pauseGoal(goal.id, { now: true });
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('paused');
+    expect(engine.inFlightForGoal(goal.id)).toHaveLength(1);
+    await engine.resumeGoal(goal.id);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('running');
+    expect(taskNamed(engine, goal.id, 'second step').state).toBe('running');
+    // the session ends at last, on a running goal: its work lands as any session's
+    stuck.end = end;
+    runner.release();
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+    expect(listAttempts(engine.store.db, taskNamed(engine, goal.id, 'second step').id).filter((a) => a.kind === 'work')).toHaveLength(1);
+  }, 40_000);
+
   test('only a goal at work pauses, only a stopped one resumes, and a raised budget comes along', async () => {
     const runner = new HeldRunner();
     const { engine, goal } = await start(runner);
