@@ -160,11 +160,14 @@ export function carryTasks(engine: Engine, a: Goal, ids: string[]): { ids: strin
     milestone: t.milestone,
     milestoneScript: t.milestoneScript ?? null,
   }));
+  // unfinished tasks left unticked stay out of this goal. A's goal-level checks speak for all of A: as musts they would
+  // fail for want of those tasks, and the goal review would do them after all
+  const behind = all.filter((t) => !key.has(t.id) && t.state !== 'done' && t.state !== 'skipped');
   const checks: BriefCheck[] = listChecks(db, a.id)
     .filter((c) => c.taskId === null || key.has(c.taskId))
-    .map((c, i) => ({ key: `C${i + 1}`, name: c.name, tier: c.tier, taskKey: c.taskId ? key.get(c.taskId)! : null, areaKey: null, spec: c.spec }));
+    .map((c, i) => ({ key: `C${i + 1}`, name: c.name, tier: c.taskId === null && behind.length ? 'stretch' : c.tier, taskKey: c.taskId ? key.get(c.taskId)! : null, areaKey: null, spec: c.spec }));
   const share = all.length ? chosen.length / all.length : 1;
-  const left = `This goal finishes what "${a.title}" (${a.state.replace(/_/g, '-')}) left: ${chosen.length} of its ${all.length} task${all.length === 1 ? '' : 's'} — ${chosen.map((t) => `"${clip(t.title, 80)}"`).join(', ')}. They are carried over as they were planned, with their acceptance checks; nothing else is redone.`;
+  const left = `This goal finishes what "${a.title}" (${a.state.replace(/_/g, '-')}) left: ${chosen.length} of its ${all.length} task${all.length === 1 ? '' : 's'} — ${chosen.map((t) => `"${clip(t.title, 80)}"`).join(', ')}. They are carried over as they were planned, with their acceptance checks; nothing else is redone.${behind.length ? ` Left out on purpose, not part of this goal: ${behind.map((t) => `"${clip(t.title, 80)}"`).join(', ')}; the earlier goal's goal-level checks are stretch here, since they speak for those tasks too.` : ''}`;
   const understanding = prev?.understanding?.trim() ? `${clip(prev.understanding.trim(), 1500)}\n\n${left}` : left;
   return {
     ids: chosen.map((t) => t.id),
