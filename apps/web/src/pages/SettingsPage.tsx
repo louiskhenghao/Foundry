@@ -17,6 +17,7 @@ import { DesignPacks } from '../components/DesignPacks.tsx';
 import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { AccessCard } from './settings/AccessCard.tsx';
+import { DataDirNoticeBanner, DataFolder, RestartNowButton } from './settings/DataFolder.tsx';
 import { Button, Card, CopyButton, Empty, Field, Input, Loading, PageHeader, Select, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { AppearanceCard } from './settings/AppearanceCard.tsx';
@@ -335,11 +336,21 @@ export function SettingsPage() {
           <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md bg-you text-on-you" aria-hidden="true">
             <RotateCcw size={13} strokeWidth={2.5} />
           </span>
-          <span className="min-w-0 break-words pt-1">
-            <b className="font-bold">Restart the engine to apply:</b> <span className="mono">{view.restartNeeded.join(', ')}</span> — stop it (Ctrl-C) and run <span className="mono">bun run serve</span> <CopyButton text="bun run serve" />
+          <span className="min-w-0 break-words pt-1 space-y-1.5">
+            <span className="block">
+              <b className="font-bold">Restart the engine to apply:</b> <span className="mono">{view.restartNeeded.join(', ')}</span>
+            </span>
+            {/* in its own process (ADR-0082), once no goal is at work; by hand for a Foundry started another way */}
+            <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <RestartNowButton />
+              <span className="text-ink-faint">
+                or stop it (Ctrl-C) and run <span className="mono">bun run serve</span> <CopyButton text="bun run serve" />
+              </span>
+            </span>
           </span>
         </div>
       )}
+      <DataDirNoticeBanner />
       {msg && (
         <div className="flex items-start gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-xs text-ink">
           <Check size={13} className="mt-px shrink-0 text-ok-ink" aria-hidden="true" />
@@ -788,6 +799,10 @@ export function SettingsPage() {
       </Card>
 
       <Card id="engine" title={<SettingsTitle id="engine">Engine (install)<HelpLink to="settings#engine-install" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
+        {/* the data folder (ADR-0082) is not a Setting: Settings live inside it */}
+        <div className="mb-4">
+          <DataFolder />
+        </div>
         {grid(
           <>
             <Field label="Port" aside={aside('engine.port')} help="HTTP port of the local server and of the boundary hook callback.">

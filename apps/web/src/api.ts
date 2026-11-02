@@ -358,6 +358,42 @@ export type { McpHealth, McpLoginSession, McpView };
 /** a server added by hand on the MCP tab */
 export type McpCustomServer = { name: string; config: { type: 'stdio'; command: string; args?: string[] } | { type: 'http' | 'sse'; url: string } };
 
+// the data folder (ADR-0082): where this Foundry keeps everything, another one tested and switched to from Settings
+export type DataDirMode = 'open' | 'blank' | 'clone';
+export interface DataDirCheck {
+  id: string;
+  ok: boolean;
+  label: string;
+  detail: string;
+}
+export interface DataDirTest {
+  input: string;
+  path: string;
+  kind: 'current' | 'foundry' | 'empty' | 'other';
+  ok: boolean;
+  checks: DataDirCheck[];
+  folder: { provider: string | null; version: string | null; goals: number | null; events: number | null } | null;
+  current: { path: string; bytes: number };
+  freeBytes: number | null;
+  canClone: boolean;
+  modes: DataDirMode[];
+}
+export type DataDirNotice = { kind: 'fell-back'; from: string; to: string; error: string; at: string } | { kind: 'switch-failed'; to: string; error: string; at: string } | { kind: 'missing'; chosen: string; at: string };
+export interface DataDirStatus {
+  current: string;
+  source: 'env' | 'config' | 'default' | 'override';
+  default: string;
+  provider: AgentProvider;
+  version: string;
+  /** another value once the engine has started again */
+  startedAt: string;
+  readOnly: { reason: 'docker' | 'env'; detail: string } | null;
+  recent: string[];
+  configFile: string | null;
+  notice: DataDirNotice | null;
+  restart: { attached: boolean; pending: { kind: string } | null };
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -891,6 +927,13 @@ export function apiForProvider(provider?: AgentProvider) {
   updateStatus: () => req<UpdateStatusView>('/api/update'),
   updateCheck: () => req<UpdateReportView>('/api/update/check', { method: 'POST' }),
   updateApply: (force = false) => req<{ started: true; channel: string }>('/api/update/apply', { method: 'POST', body: JSON.stringify({ force }) }),
+  // the data folder (ADR-0082)
+  dataDir: () => req<DataDirStatus>('/api/data-dir'),
+  dataDirTest: (path: string) => req<DataDirTest>('/api/data-dir/test', { method: 'POST', body: JSON.stringify({ path }) }),
+  dataDirSwitch: (path: string, mode: DataDirMode) => req<{ started: true; to: string; mode: DataDirMode }>('/api/data-dir/switch', { method: 'POST', body: JSON.stringify({ path, mode }) }),
+  dataDirKeep: () => req<{ ok: true; current: string }>('/api/data-dir/keep', { method: 'POST' }),
+  dataDirDismiss: () => req<{ ok: true }>('/api/data-dir/notice/dismiss', { method: 'POST' }),
+  engineRestart: () => req<{ started: true }>('/api/engine/restart', { method: 'POST' }),
   accounts: (force = false) => req<AccountsInfo>(`/api/accounts?force=${force ? '1' : '0'}`),
   auth: (force = false, provider?: AgentProvider) => req<AuthInfo>(`/api/auth?force=${force ? '1' : '0'}${provider ? '&provider=' + provider : ''}`),
   startLogin: (body: { email?: string }, provider?: AgentProvider) => req<LoginSession>(`/api/auth/login${provider ? '?provider=' + provider : ''}`, { method: 'POST', body: JSON.stringify(body) }),
