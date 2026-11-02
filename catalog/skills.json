@@ -2784,6 +2784,51 @@
         }
       ],
       "homepage": "https://github.com/cathrynlavery/diagram-design"
+    },
+    {
+      "id": "ppt-master",
+      "name": "ppt-master",
+      "summary": "Hugo He's PPT Master: natively editable PPTX decks from a topic or from documents (PDF, DOCX, Markdown, HTML, spreadsheets) — real DrawingML shapes, text boxes, charts and tables, transitions and animations, speaker notes — planned under a design spec, drawn page by page as SVG and compiled by its own scripts. Python 3.10+ with a set of packages, which Foundry installs into an environment of its own with uv.",
+      "why": "The Deck pack's skill (ADR-0084): a deck task needs a planning method, a page grammar and a compiler the worker can follow, not ad-hoc python-pptx calls. Its default route keeps a design spec the work resumes from and leaves one preview per slide, which Foundry renders for the person; Foundry's deck check counts the slides and runs the skill's own delivery check.",
+      "tier": "optional",
+      "source": {
+        "type": "git",
+        "repo": "hugohe3/ppt-master",
+        "ref": "v6.8.0",
+        "path": "skills/ppt-master",
+        "python": {
+          "requirements": "requirements.txt",
+          "version": "3.12"
+        }
+      },
+      "roles": [
+        "worker"
+      ],
+      "invoke": "/ppt-master",
+      "tags": [
+        "deck",
+        "pptx",
+        "presentation",
+        "slides"
+      ],
+      "aliases": [],
+      "pack": "deck",
+      "packOption": "ppt-master",
+      "scenarios": [
+        "deck"
+      ],
+      "workflow": [
+        {
+          "role": "worker",
+          "mandate": "must",
+          "when": "any",
+          "scenarios": [
+            "deck"
+          ],
+          "instruction": "Invoke it first and follow its default Generate PPTX route end to end: run its attribution guard and routing, make the project under artifacts/decks (--dir), import the sources, plan under its Strategist with both confirmation stages explicitly delegated to the Brief (decide Stage 1, derive Stage 2 from the Brief and the task spec; never launch its confirmation page), write the design spec and lock, author every page as SVG, pass its quality gates, build the svg_final previews and export with svg_to_pptx.py; copy the export to the path the task's `delivers` names and record it in the task manifest."
+        }
+      ],
+      "homepage": "https://github.com/hugohe3/ppt-master"
     }
   ]
 }

@@ -34,6 +34,8 @@ export const CATALOG: Record<string, CatalogCredit> = {
   'https://isoglow.dev': { name: 'iso-glow', license: 'MIT', url: 'https://isoglow.dev' },
   // the Diagram pack (ADR-0083): Cathryn Lavery's diagram-design, pinned to one commit (the repository publishes no releases)
   'cathrynlavery/diagram-design': { license: 'MIT' },
+  // the Deck pack (ADR-0084): Hugo He's PPT Master, pinned to a release; its Python packages go into an environment the person's own install makes, not into Foundry
+  'hugohe3/ppt-master': { license: 'MIT' },
   'upstash/context7': { license: 'MIT' },
   'microsoft/playwright-mcp': { license: 'Apache-2.0' },
   'exa-labs/exa-mcp-server': { license: 'MIT' },
