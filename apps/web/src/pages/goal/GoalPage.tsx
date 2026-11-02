@@ -1,6 +1,7 @@
 import { isHistory, reportsDollars, taskUsage } from '@foundry/core/browser';
-import { ArrowLeft, Ban, Brain, CircleAlert, CornerDownRight, Folder, GitBranch, GitMerge, LayoutTemplate, Link2, NotebookPen, Pencil, RotateCcw, Trash2 } from 'lucide-react';
+import { ArrowLeft, Ban, Brain, CircleAlert, CornerDownRight, Folder, GitBranch, GitMerge, LayoutTemplate, Link2, NotebookPen, Pause, Pencil, Play, RotateCcw, Trash2 } from 'lucide-react';
 import { RestartDialog } from '../../components/RestartDialog.tsx';
+import { PauseDialog, ResumeDialog } from './PauseResume.tsx';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { GoalTitle, HeaderDetails, RenameDialog } from './GoalHead.tsx';
@@ -63,6 +64,9 @@ export function GoalPage() {
   const [delBranch, setDelBranch] = useState(false);
   const [markFollow, setMarkFollow] = useState(false);
   const [rename, setRename] = useState(false);
+  const [pause, setPause] = useState(false);
+  const [resume, setResume] = useState(false);
+  const [cancelAsk, setCancelAsk] = useState(false);
   const [expert, setExpert] = useState<boolean | null>(() => {
     const v = localStorage.getItem(`foundry.expert.${id}`);
     return v === null ? null : v === '1';
@@ -154,6 +158,9 @@ export function GoalPage() {
   const selTask = d.tasks.find((t) => t.id === sel) ?? null;
   const finished = g.state === 'done' || g.state === 'over_delivered';
   const awaiting = g.state === 'awaiting_brief_approval';
+  // Pause and Resume (ADR-0080): a goal at work pauses; a paused, cancelled, failed or blocked one goes on from where it stopped
+  const pausable = g.state === 'running' || g.state === 'clarifying';
+  const resumable = ['paused', 'cancelled', 'failed', 'blocked'].includes(g.state);
   const repoName = g.repoPath.replace(/\/+$/, '').split('/').pop() || g.repoPath;
   const isExpert = expert ?? g.mode !== 'simple';
   // an Imported Goal not Reattached yet is history: it can be read, mapped, Reattached or deleted (ADR-0030)
@@ -161,7 +168,7 @@ export function GoalPage() {
   const more: MoreItem[] = history ? [{ label: 'Delete goal…', icon: <Trash2 size={13} />, onClick: () => setDel(true), danger: true }] : [
     ...(terminal || g.state === 'blocked' ? [{ label: 'Restart…', icon: <RotateCcw size={13} />, onClick: () => setRestart(true), title: 'Restart from a task of your choice (or from the beginning)' }] : []),
     ...(awaiting ? [{ label: 'Re-run Clarify', icon: <RotateCcw size={13} />, onClick: () => api.reclarify(id, 'fetch the latest base branch and explore again').catch((e) => setErr(e.message)), title: 'Fetch the base branch again and rebuild the Brief from the fresh tip' }] : []),
-    ...(!terminal && awaiting ? [{ label: 'Cancel goal', icon: <Ban size={13} />, onClick: () => api.cancelGoal(id) }] : []),
+    ...(!terminal ? [{ label: 'Cancel goal…', icon: <Ban size={13} />, onClick: () => setCancelAsk(true), danger: true, title: 'Stop the goal; Resume… takes it on later from where it stopped' }] : []),
     ...(!g.follows ? [{ label: 'Mark as follow-up of…', icon: <Link2 size={13} />, onClick: () => setMarkFollow(true), title: 'Record that this goal continues an earlier goal of the same repository' }] : []),
     ...(terminal && g.state !== 'cancelled' ? [{ label: 'Learn from this goal again', icon: <NotebookPen size={13} />, onClick: () => api.learnFrom(id).catch((e) => setErr(e.message)), title: "A short session reads how this goal went and updates this folder's Learnings" }] : []),
     { label: 'Rename…', icon: <Pencil size={13} />, onClick: () => setRename(true), title: 'Give the goal a new name; its progress folder keeps the one it was made with' },
@@ -172,7 +179,7 @@ export function GoalPage() {
   // where the goal stands, said once above the stages: the plate, then the tasks and the time
   const total = d.tasks.length;
   const doneTasks = d.tasks.filter((t) => t.state === 'done').length;
-  const statusLine = [total ? (running ? `${running} of ${total} task${total === 1 ? '' : 's'} running` : `${doneTasks} of ${total} task${total === 1 ? '' : 's'} done`) : null, d.budget.elapsedMin >= 1 ? `${d.budget.elapsedMin.toFixed(0)} min in` : null].filter(Boolean).join(' · ');
+  const statusLine = [g.pausing ? `pausing — ${running ? `the ${running} running task${running === 1 ? '' : 's'} land${running === 1 ? 's' : ''} first` : 'nothing more starts'}` : null, total ? (running ? `${running} of ${total} task${total === 1 ? '' : 's'} running` : `${doneTasks} of ${total} task${total === 1 ? '' : 's'} done`) : null, d.budget.elapsedMin >= 1 ? `${d.budget.elapsedMin.toFixed(0)} min in` : null].filter(Boolean).join(' · ');
   const marks = stageMarks(g, total > 0);
   // in Expert, each stage opens where its work shows; the Brief has its own page in both views
   const stageLinks = [
@@ -307,14 +314,22 @@ export function GoalPage() {
                 <GitMerge size={15} aria-hidden="true" />
                 {g.delivery.status === 'delivered' ? 'Delivery' : g.delivery.status === 'running' ? 'Delivering…' : 'Deliver…'}
               </Button>
-            ) : !terminal ? (
-              <Button variant="danger" size="lg" onClick={() => api.cancelGoal(id)}>
-                <Ban size={15} /> Cancel
+            ) : g.pausing ? (
+              <Button size="lg" onClick={() => api.resumeGoal(id, {}).catch((e) => setErr(e.message))} title="The pause waits for the running work to land; press to let the goal go on instead">
+                <Play size={15} aria-hidden="true" /> Keep going
+              </Button>
+            ) : resumable ? (
+              <Button size="lg" variant="primary" onClick={() => setResume(true)} title="Go on from where it stopped">
+                <Play size={15} aria-hidden="true" /> Resume…
+              </Button>
+            ) : pausable ? (
+              <Button size="lg" onClick={() => setPause(true)} title="Pause the goal; Resume… takes it on from where it stopped">
+                <Pause size={15} aria-hidden="true" /> Pause…
               </Button>
             ) : null}
             {terminal && (!history || g.transfer?.repoMapped) && (
               <Link to={`/goals/new?follows=${id}`}>
-                <Button size="lg" variant={finished ? 'default' : 'primary'} title="Start a new goal that builds on this one">
+                <Button size="lg" title="Start a new goal that builds on this one — or finishes what it left">
                   <CornerDownRight size={15} /> Continue with a follow-up…
                 </Button>
               </Link>
@@ -327,6 +342,21 @@ export function GoalPage() {
       {history && <ImportedCard goal={g} onChanged={() => api.goal(id).then(setD).catch((e) => setErr(e.message))} />}
       <MarkFollowUpDialog d={d} open={markFollow} onClose={() => setMarkFollow(false)} />
       <RenameDialog goal={g} open={rename} onClose={() => setRename(false)} />
+      <PauseDialog goalId={id} state={g.state} running={running} open={pause} onClose={() => setPause(false)} />
+      <ResumeDialog d={d} open={resume} onClose={() => setResume(false)} />
+      <ConfirmDialog
+        open={cancelAsk}
+        title={`Cancel the goal "${g.title}"?`}
+        confirmLabel="Cancel goal"
+        danger
+        onClose={() => setCancelAsk(false)}
+        onConfirm={() => {
+          setCancelAsk(false);
+          api.cancelGoal(id).catch((e) => setErr(e.message));
+        }}
+      >
+        <p>Its running sessions are stopped and what they did so far is kept. The goal is over for now: Resume… takes it on later from where it stopped, and Continue with a follow-up… starts a new goal from it.</p>
+      </ConfirmDialog>
       {restart !== false && <RestartDialog goalId={id} tasks={d.tasks} initial={typeof restart === 'string' ? restart : null} open onClose={() => setRestart(false)} onDone={() => { setRestart(false); setTab('tasks'); }} />}
       <ConfirmDialog
         open={del}

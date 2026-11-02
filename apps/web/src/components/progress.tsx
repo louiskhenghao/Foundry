@@ -1,5 +1,5 @@
 import type { GoalState, TaskState } from '@foundry/core/browser';
-import { Ban, Check, Eye, FileText, GitMerge, Hand, MessageSquare, Play, X, type LucideIcon } from 'lucide-react';
+import { Ban, Check, Eye, FileText, GitMerge, Hand, MessageSquare, Pause, Play, X, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useLayout } from '../theme.ts';
@@ -21,6 +21,8 @@ interface GoalLike {
   interview?: { status: string } | null;
   /** where a blocked goal stopped */
   stateBeforeBlock?: GoalState | null;
+  /** where a paused goal was (ADR-0080) */
+  pausedFrom?: GoalState | null;
 }
 
 /** the stage a goal in this state stands on */
@@ -43,6 +45,9 @@ export function stageMarks(g: GoalLike, hasTasks: boolean): Mark[] {
     // an Inbox item holds the goal where it stopped
     case 'blocked':
       return at(STAGE_OF[g.stateBeforeBlock ?? 'running'] ?? 2, 'you');
+    // the person paused it where it was (ADR-0080): that stage waits, hollow, for Resume
+    case 'paused':
+      return at(STAGE_OF[g.pausedFrom ?? 'running'] ?? 2, 'next');
     case 'goal_review':
       return at(3, 'run');
     case 'done':
@@ -80,7 +85,7 @@ export function stageNotes(g: NotedGoal, tasks: { state: TaskState }[], marks: M
   return [
     g.state === 'clarifying' ? (skeleton ? 'planning the tasks' : g.interview?.status === 'awaiting_answers' ? 'questions for you' : 'reading the project') : rounds ? `${rounds} round${rounds === 1 ? '' : 's'} of questions` : 'no questions needed',
     g.state === 'awaiting_brief_approval' ? 'waiting for you' : skeleton ? 'skeleton ready' : marks[1] === 'done' ? (g.approvedBy ? `approved by ${g.approvedBy}` : 'approved') : 'not written yet',
-    total ? `${done} of ${total} tasks` : 'no tasks yet',
+    total ? `${g.state === 'paused' ? 'paused · ' : ''}${done} of ${total} tasks` : g.state === 'paused' ? 'paused' : 'no tasks yet',
     g.state === 'goal_review' ? 'reviewing the whole' : marks[3] === 'done' ? 'passed' : 'the whole goal',
     g.delivery.status === 'delivered' ? `delivered${prs ? ` · ${prs} PR${prs === 1 ? '' : 's'}` : ''}` : (DELIVER_NOTE[g.delivery.policy.mode] ?? g.delivery.policy.mode),
   ];
@@ -295,13 +300,16 @@ function StagePlates({ marks, notes, tasks, links, now }: { marks: Mark[]; notes
  */
 export function StatePlate({ state, label }: { state: GoalState; label: string }) {
   const you = state === 'awaiting_brief_approval' || state === 'awaiting_feedback' || state === 'blocked';
-  const Icon = state === 'running' ? Play : state === 'goal_review' ? Eye : state === 'clarifying' || state === 'draft' ? MessageSquare : state === 'failed' ? X : state === 'cancelled' ? Ban : you ? Hand : Check;
+  const Icon = state === 'running' ? Play : state === 'goal_review' ? Eye : state === 'clarifying' || state === 'draft' ? MessageSquare : state === 'failed' ? X : state === 'cancelled' ? Ban : state === 'paused' ? Pause : you ? Hand : Check;
+  // paused by the person (ADR-0080): hollow like cancelled, in the softer ink of something that waits for nobody
   const look = you
     ? 'bg-you text-on-you'
     : state === 'failed'
       ? 'bg-bad text-on-bad'
       : state === 'cancelled'
         ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-faint'
+        : state === 'paused'
+          ? 'ring-[1.5px] ring-inset ring-line-strong text-ink-soft'
         : state === 'running'
           ? 'bg-work text-on-work'
           : state === 'goal_review'

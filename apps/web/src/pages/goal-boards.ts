@@ -14,6 +14,8 @@ export function needOf(g: GoalRow): Need | null {
   if (g.state === 'awaiting_brief_approval') return { action: 'Review brief', href: `/goals/${g.id}/brief`, say: 'The Brief is ready. Approve it, or change what you want first, and the work starts.' };
   if (g.state === 'clarifying' && g.interview?.status === 'awaiting_answers') return { action: 'Answer questions', href: `/goals/${g.id}`, say: 'Some questions only you can decide. Answer them and Foundry writes the Brief.' };
   if (g.state === 'awaiting_feedback') return { action: 'Have a look', href: `/goals/${g.id}`, say: 'Something is ready to look at. Continue, or say what to change.' };
+  // paused by the person (ADR-0080): it hangs with what waits for you, since only you can let it go on
+  if (g.state === 'paused') return { action: 'Resume', href: `/goals/${g.id}`, say: 'You paused it. It goes on from where it stopped when you resume it.' };
   if (g.openEscalations > 0) return { action: 'Open Inbox', href: '/inbox', say: g.openEscalations === 1 ? 'One thing waits for your decision before this goal can go on.' : `${g.openEscalations} things wait for your decision before this goal can go on.` };
   if (g.state === 'blocked') return { action: 'See why', href: `/goals/${g.id}`, say: 'It stopped and cannot go on by itself.' };
   return null;

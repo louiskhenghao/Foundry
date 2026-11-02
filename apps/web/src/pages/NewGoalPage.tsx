@@ -17,7 +17,7 @@ import { DeliveryPolicyForm, type PolicyDraft } from '../components/DeliveryPoli
 import { RepoCard } from '../components/RepoCard.tsx';
 import { useUnsaved } from '../unsaved.ts';
 import { CodexModelSelect } from '../components/CodexModelSelect.tsx';
-import { Button, ButtonGroup, Card, ConfirmDialog, Input, PageHeader, Select, Textarea, choiceClass, cn, code } from '../ui.tsx';
+import { Badge, Button, ButtonGroup, Card, ConfirmDialog, Input, PageHeader, Select, Textarea, choiceClass, cn, code } from '../ui.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
 import { HelpLink } from './HelpPage.tsx';
 import { initialWorkflow, updateWorkflow } from './new-goal-workflow.ts';
@@ -114,7 +114,11 @@ interface FollowChoice {
   startFrom: 'base' | 'previous';
   attachments: boolean;
   style: boolean;
+  /** the earlier goal's unfinished tasks this goal carries over as planned (ADR-0081); ticked ⇒ Clarify is skipped and the Brief waits for approval */
+  carry: string[];
 }
+/** the tasks of the earlier goal a follow-up can carry over: not done, not skipped */
+const carriable = (d: FollowUpDraft) => d.tasks.filter((t) => t.state !== 'done' && t.state !== 'skipped');
 
 export function NewGoalPage() {
   const nav = useNavigate();
@@ -398,7 +402,8 @@ export function NewGoalPage() {
     if (!goalId) return setFollow(null);
     try {
       const dr = await api.followUpDraft(goalId);
-      setFollow({ draft: dr, startFrom: dr.start.recommended, attachments: true, style: true });
+      // what the earlier goal left unfinished is carried over unless unticked: the usual reason to follow a stopped goal
+      setFollow({ draft: dr, startFrom: dr.start.recommended, attachments: true, style: true, carry: carriable(dr).map((t) => t.id) });
       if (!prefill) return;
       const p = dr.prefill;
       changed.current.add('provider');
@@ -580,9 +585,11 @@ export function NewGoalPage() {
   // the first thing still missing, said next to the button: a greyed-out button must never leave you guessing
   // a template's required inputs come first, while the template still writes the description
   const templateMissing = template && templateVersion && !templateEdited ? missingLabels(templateVersion, templateValues) : [];
+  // tasks carried over from the earlier goal are its description (ADR-0081): the words here are notes for the agents
+  const carrying = !!follow && follow.carry.length > 0;
   const notReady = templateMissing.length
     ? `Fill in ${templateMissing.join(', ')}`
-    : !prompt.trim()
+    : !prompt.trim() && !carrying
     ? 'Describe the goal'
     : !repoPath.trim()
       ? 'Select a repository folder'
@@ -606,7 +613,7 @@ export function NewGoalPage() {
   const notReadyTone = templateMissing.length ? 'text-you-ink' : !prompt.trim() || !repoPath.trim() ? 'text-ink-soft' : !repoInfo ? 'text-work-ink' : !repoInfo.ok ? 'text-bad-ink' : !selectedAccount ? 'text-work-ink' : !selectedAccount.installed ? 'text-bad-ink' : !selectedAccount.status.loggedIn ? 'text-you-ink' : missingPreset || unsupportedCodexChoices.length ? 'text-bad-ink' : 'text-ink-soft';
   // a schedule is saved without starting a session: the sign-in gates do not hold it back (a run refuses at its time instead)
   const scheduleReady = !!prompt.trim() && !!repoInfo?.ok && !missingPreset && !unsupportedCodexChoices.length && !(provider === 'codex' && codexOverride && !codexModel.trim());
-  const done = [prompt.trim().length > 0, repoInfo?.ok ?? false, true, true];
+  const done = [prompt.trim().length > 0 || carrying, repoInfo?.ok ?? false, true, true];
   /** the step you are at: the first not done yet */
   const current = done.indexOf(false);
 
@@ -615,9 +622,10 @@ export function NewGoalPage() {
         provider,
         codexModel: provider === 'codex' && codexOverride ? codexModel.trim() : undefined,
         agyModel: provider === 'agy' && agyModel ? agyModel : undefined,
-        prompt,
+        // carried tasks (ADR-0081): the description says what the goal finishes, the words typed are notes for the agents
+        prompt: carrying ? `Finish what "${follow!.draft.previous.title}" left: ${follow!.carry.length} of its task${follow!.carry.length === 1 ? '' : 's'} carried over as planned.${prompt.trim() ? `\n\n${prompt.trim()}` : ''}` : prompt,
         repoPath: repoPath.trim(),
-        title: title.trim() || undefined,
+        title: title.trim() || (carrying ? `Finish: ${follow!.draft.previous.title}` : undefined),
         budgets: { ...budget.budgets, ...(!reportsDollars(provider) ? { maxCostUsd: null } : {}) },
         budgetPreset: budget.preset,
         autoBrief: auto ? { mustChecks: checks.split('\n').map((s) => s.trim()).filter(Boolean), stretchChecks: stretch.split('\n').map((s) => s.trim()).filter(Boolean) } : undefined,
@@ -635,7 +643,7 @@ export function NewGoalPage() {
         interviewDepth: Number(interviewDepth),
         effort: effort || (provider === 'codex' ? null : undefined),
         modelPreset: (provider === 'codex' ? codexPreset : provider === 'agy' ? '' : modelPreset) || undefined,
-        follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style } : undefined,
+        follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style, carry: follow.carry.length ? follow.carry : undefined } : undefined,
         delegation: { allow: delegate, autoApprove: delegate && delegateAuto },
         companions: companions.map((p) => p.trim()).filter(Boolean).map((p) => ({ repoPath: p })),
         issue: issue?.read.issue,
@@ -715,7 +723,7 @@ export function NewGoalPage() {
                   <X size={12} />
                 </button>
               </span>
-              <span className="text-xs text-ink-faint">Settings are prefilled from it; Clarify gets what it asked, decided and delivered as background.</span>
+              <span className="text-xs text-ink-faint">{carrying ? `Settings are prefilled from it; ${follow.carry.length} of its unfinished task${follow.carry.length === 1 ? ' is' : 's are'} carried over as planned, so this goal skips Clarify and waits for you to confirm its Brief.` : 'Settings are prefilled from it; Clarify gets what it asked, decided and delivered as background.'}</span>
             </div>
           )}
 
@@ -1033,7 +1041,8 @@ export function NewGoalPage() {
                 <TemplatePanel entry={template} version={templateVersion} values={templateValues} onValues={changeTemplateValues} onRemove={removeTemplate} edited={templateEdited} onReapply={() => writeFromInputs(templateValues)} dropped={templateDropped} draft={fillDraft} notes={templateNotes} onNotes={setTemplateNotes} repoReady={!!repoInfo?.ok} onAsk={askFill} onAcceptValues={acceptFill} />
               </div>
             )}
-            <Textarea rows={6} placeholder="Describe the goal as you would to a senior engineer. The system clarifies, proposes Must / Stretch acceptance checks and a task plan for you to approve." value={prompt} onChange={(e) => setPrompt(e.target.value)} />
+            {carrying && <p className="mb-2 text-xs text-ink-soft">The tasks carried over from the earlier goal are this goal's plan. Write here only what the agents should know besides them (optional); nothing is clarified.</p>}
+            <Textarea rows={carrying ? 3 : 6} placeholder={carrying ? 'Notes for the agents (optional)' : 'Describe the goal as you would to a senior engineer. The system clarifies, proposes Must / Stretch acceptance checks and a task plan for you to approve.'} value={prompt} onChange={(e) => setPrompt(e.target.value)} />
             {!template && (
               <div className="mt-2">
                 <DraftBox
@@ -1232,6 +1241,31 @@ function FollowsPicker({ follow, candidates, onPick, onChange }: { follow: Follo
                 Bring its attachments <span className="text-ink-faint">({d.attachments.map((a) => a.name).join(', ')})</span>
               </span>
             </label>
+          )}
+          {carriable(d).length > 0 && (
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-semibold text-ink-soft">Carry over its unfinished tasks</span>
+                <HelpLink to="your-first-goal#follows" />
+                <span className="text-ink-faint">{follow.carry.length ? `${follow.carry.length} ticked: this goal takes them as planned, with their checks, and skips Clarify — you confirm its Brief` : 'none ticked: this goal is clarified from what you write'}</span>
+              </div>
+              <ul className="max-h-56 divide-y divide-line overflow-auto rounded-md border border-line bg-panel">
+                {d.tasks.map((t) => {
+                  const finished = t.state === 'done' || t.state === 'skipped';
+                  return (
+                    <li key={t.id}>
+                      <label className={cn('flex items-center gap-2 px-2.5 py-1.5', finished ? 'text-ink-faint' : 'cursor-pointer')}>
+                        <input type="checkbox" className="shrink-0" disabled={finished} checked={follow.carry.includes(t.id)} onChange={(e) => onChange({ ...follow, carry: e.target.checked ? [...follow.carry, t.id] : follow.carry.filter((x) => x !== t.id) })} />
+                        <Badge state={t.state} />
+                        <span className="min-w-0 truncate" title={t.title}>
+                          {t.title}
+                        </span>
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
           {d.style && (
             <label className="flex items-start gap-2">
