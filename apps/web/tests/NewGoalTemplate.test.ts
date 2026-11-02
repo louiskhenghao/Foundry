@@ -16,6 +16,10 @@ describe('templates on the New goal form', () => {
     const all = [entry(), entry({ id: 'figure-kettle', nature: 'figure', settings: {} }), entry({ id: 'code-feature', nature: 'code', settings: {} }), entry({ id: 'video-plain', nature: 'video', settings: {} })];
     expect(offeredTemplates(all, { figure: false, motionStudio: false }).map((t) => t.id)).toEqual(['code-feature', 'video-plain']);
     expect(offeredTemplates(all, { figure: true, motionStudio: true }).map((t) => t.id)).toEqual(['video-product-reel', 'figure-kettle', 'code-feature', 'video-plain']);
+    // a diagram template shows only while the diagram Beta is on (ADR-0083)
+    const chart = entry({ id: 'diagram-chart', nature: 'diagram', settings: { mode: 'simple' } });
+    expect(offeredTemplates([...all, chart], { figure: false, motionStudio: false }).map((t) => t.id)).toEqual(['code-feature', 'video-plain']);
+    expect(offeredTemplates([...all, chart], { figure: false, motionStudio: false, diagram: true }).map((t) => t.id)).toEqual(['code-feature', 'video-plain', 'diagram-chart']);
     expect(byNature(all).map((g) => [g.nature, g.templates.length])).toEqual([['code', 1], ['video', 2], ['figure', 1]]);
   });
 

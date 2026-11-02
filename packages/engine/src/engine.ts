@@ -69,9 +69,11 @@ import { needsInvestigation } from './references.ts';
 import { MILESTONE_CHECK_PREFIX, milestoneCheckSpec } from './checks/milestone-script.ts';
 import { cleanDeliverables, deliversCheckName, deliversCheckSpec } from './checks/delivers.ts';
 import { FIGURE_CHECK_NAME } from './checks/figure.ts';
+import { DIAGRAM_CHECK_NAME } from './checks/diagram.ts';
 import { adjustGoal, adjustView, adjustedSinceDelivery, type AdjustView } from './adjust.ts';
 import type { DoctorCheck } from './skills/types.ts';
 import { isFigureStyle, type FigureInfo } from './figure.ts';
+import type { DiagramInfo } from './diagram.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { skillUsage } from './skills/usage.ts';
@@ -512,7 +514,7 @@ export class Engine {
         const { [id]: _, ...rest } = config.suiteReleases ?? {};
         this.updateSettings({ workflow: { suiteReleases: ref ? { ...rest, [id]: ref } : rest } });
       },
-      packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack, figure: config.figurePack }),
+      packs: () => ({ design: config.designPack, image: config.imagePack, video: config.videoPack, figure: config.figurePack, diagram: config.diagramPack }),
       // a plugin that ships MCP servers (text-to-cad's `cad`) is allowed for sessions as soon as it is installed, under the prefix this coding agent gives it
       onPluginServers: (prefixes) => {
         if (provider !== 'agy') for (const p of prefixes) this.mcpFor(provider).allow(p, true);
@@ -775,6 +777,23 @@ export class Engine {
   /** can figure goals be made and run here: the beta switch (ADR-0076) */
   figureAvailable(): boolean {
     return this.config.betaFigure;
+  }
+
+  /** can diagram goals be made and run here: the beta switch (ADR-0083) */
+  diagramAvailable(): boolean {
+    return this.config.betaDiagram;
+  }
+
+  /**
+   * The diagram skill for a goal (ADR-0083): the pack Settings names and whether it is installed for the goal's coding
+   * agent; null while diagram goals are off (a diagram verdict is document work then, and no goal hears of diagram tasks).
+   */
+  async diagramInfo(goal: Goal): Promise<DiagramInfo | null> {
+    if (!this.config.betaDiagram) return null;
+    const pack = this.config.diagramPack as DiagramInfo['pack'];
+    if (pack === 'none') return { pack, installed: false };
+    const statuses = await this.skillsFor(goal).status().catch(() => []);
+    return { pack, installed: statuses.some((s) => s.entry.pack === 'diagram' && s.entry.packOption === pack && SATISFIED.includes(s.status)) };
   }
 
   /** the goal's own pack choices laid over Settings' (its Figure pack, ADR-0076; its video engine, ADR-0077): what its sessions' skill sections are filtered by */
@@ -2335,6 +2354,8 @@ export class Engine {
     const nature: GoalNature = input.nature ?? 'auto';
     // figure goals are a beta feature (ADR-0076): off, the nature is refused rather than quietly run as another kind
     if ((nature === 'figure' || input.figurePack) && !this.config.betaFigure) throw new Error('Figure goals are a beta feature: turn on Settings → Beta → Figure goals first');
+    // diagram goals too (ADR-0083)
+    if (nature === 'diagram' && !this.config.betaDiagram) throw new Error('Diagram goals are a beta feature: turn on Settings → Beta → Diagram goals first');
     let codexPreset: CodexModelPreset | undefined;
     const presetId = input.modelPreset ?? (provider === 'codex' && nature !== 'auto' ? this.config.codexNaturePreset[natureKey(nature)] : null);
     if (provider === 'codex') {
@@ -2646,7 +2667,7 @@ export class Engine {
     // the motion-studio engine's tools (ADR-0077), only while its Beta is on
     const motion = this.config.betaMotionStudio ? await this.playwrightStatus().then((pw) => motionStudioCheck({ ffmpeg: Bun.which('ffmpeg'), ffprobe: Bun.which('ffprobe'), browser: pw.browser, browserDetail: pw.detail, platform: process.platform })) : null;
     if (motion?.ok) this.wakeMotionStudioGoals();
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(await this.figureToolsCheck()), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(await this.figureToolsCheck()), ...(await this.diagramToolsCheck()), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
   }
 
   /**
@@ -2664,6 +2685,22 @@ export class Engine {
       warn('figure-chromium', 'Figure goals: Chromium for the render check', pw.browser, pw.browser ? pw.detail : `${pw.detail} — Foundry opens each delivered figure page headless; without Chromium the figure check fails every figure task`, { url: '/settings#preview' }),
       warn('figure-python', 'Figure goals: python3', !!python, python ? python : "python3 is not on PATH — Colorfigures builds its one-file page with it (iso-glow can make its four text replacements by hand); install Python 3 or let the worker say so", { url: 'https://www.python.org/downloads/' }),
       ...(this.config.figurePack === 'colorfigures' ? [warn('figure-chrome', 'Figure goals: a Chrome for Colorfigures', !!chrome, chrome ? chrome : "no google-chrome or chromium on PATH (and no Google Chrome app) — Colorfigures checks its own shots from every side in headless Chrome and skips them without one; Foundry's render check still runs", { url: 'https://www.google.com/chrome/' })] : []),
+    ];
+  }
+
+  /**
+   * The tools diagram goals need on this computer (ADR-0083), only while the beta is on and a Diagram pack is chosen:
+   * Playwright's Chromium for Foundry's own render check of every page, and python3, which the skill's SVG exporter and
+   * self-check run (both standard-library scripts).
+   */
+  private async diagramToolsCheck(): Promise<DoctorCheck[]> {
+    if (!this.config.betaDiagram || this.config.diagramPack === 'none') return [];
+    const warn = (id: string, label: string, ok: boolean, detail: string, fix: DoctorCheck['fix'] = null): DoctorCheck => ({ id, label, ok, severity: 'warn', detail, fix: ok ? null : fix });
+    const pw = await playwrightStatus();
+    const python = Bun.which('python3') ?? Bun.which('python');
+    return [
+      warn('diagram-chromium', 'Diagram goals: Chromium for the render check', pw.browser, pw.browser ? pw.detail : `${pw.detail} — Foundry opens each delivered diagram page headless and renders its PNG; without Chromium the diagram check fails every diagram task`, { url: '/settings#preview' }),
+      warn('diagram-python', 'Diagram goals: python3', !!python, python ? python : 'python3 is not on PATH — the diagram skill exports the SVG and checks its page with it (standard library only); install Python 3 or let the worker say so', { url: 'https://www.python.org/downloads/' }),
     ];
   }
 
@@ -2886,7 +2923,7 @@ export class Engine {
         scenario: t.scenario ?? 'general',
         area: area?.name ?? null,
         // docs, infra, research and media work gets no TDD mandate regardless of the goal's discipline
-        tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video', 'figure'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
+        tdd: t.tdd === 'off' || ['docs', 'infra', 'research', 'image', 'video', 'figure', 'diagram'].includes(t.scenario ?? 'general') ? 'off' : 'inherit',
         dependsOn: t.dependsOnKeys.map((k) => idByKey.get(k)!),
         relevantFiles: t.relevantFiles,
         delivers: cleanDeliverables(t.delivers),
@@ -2932,6 +2969,11 @@ export class Engine {
         // a figure task's pages are opened headless by Foundry itself when the task lands (ADR-0076): its one must check beyond the files existing
         if (task.scenario === 'figure') {
           const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: FIGURE_CHECK_NAME, tier: 'must', spec: { type: 'figure' } };
+          this.store.append({ type: 'check.created', goalId, payload: { check } });
+        }
+        // a diagram task's pages too (ADR-0083), whatever the goal's nature: a document's diagram is a task like any other
+        if (task.scenario === 'diagram') {
+          const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: DIAGRAM_CHECK_NAME, tier: 'must', spec: { type: 'diagram' } };
           this.store.append({ type: 'check.created', goalId, payload: { check } });
         }
       }

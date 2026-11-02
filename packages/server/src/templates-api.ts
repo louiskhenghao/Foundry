@@ -33,7 +33,7 @@ export function versionOf(t: TemplateEntry, lang?: TemplateLang): TemplateVersio
 }
 
 /** the built-in template a description of each kind is shaped like when the person chose none */
-export const GUIDE_TEMPLATE: Record<TemplateNature, string> = { code: 'code-feature', docs: 'docs-prd', research: 'research-report', image: 'image-poster', video: 'video-product-reel', figure: 'figure-how-it-works', cad: 'cad-part' };
+export const GUIDE_TEMPLATE: Record<TemplateNature, string> = { code: 'code-feature', docs: 'docs-prd', research: 'research-report', image: 'image-poster', video: 'video-product-reel', figure: 'figure-how-it-works', diagram: 'diagram-architecture', cad: 'cad-part' };
 
 /** a draft under way, done, failed or stopped; forgotten a while after it ends */
 interface DraftJob {

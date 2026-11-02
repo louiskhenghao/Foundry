@@ -186,6 +186,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.adjusted', { adjustment: Adjustment }),
   /** a figure task's pages were opened headless by Foundry (ADR-0076): per page its screenshot(s) in the goal's screenshots folder and what went wrong */
   ev('figure.checked', { taskId: z.string(), attemptId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), pages: z.array(z.object({ file: z.string(), screenshot: z.string().nullable(), inside: z.string().nullable(), errors: z.array(z.string()) })), summary: z.string() }),
+  /** a diagram task's pages were opened headless by Foundry (ADR-0083): per page its screenshot in the goal's screenshots folder, the PNG it rendered under artifacts/ (workspace-relative) and what went wrong */
+  ev('diagram.checked', { taskId: z.string(), attemptId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), pages: z.array(z.object({ file: z.string(), screenshot: z.string().nullable(), png: z.string().nullable(), errors: z.array(z.string()) })), summary: z.string() }),
   /** media artifacts were copied from the goal workspace to the goal's output folder at done; `startedAt`: when the copy
    * began (a file written after it may not be what the folder received), and `startedAfter` the id of the goal's last
    * state change then (a run again after it is delivered again); `copies`: each copy's identity in the output folder as

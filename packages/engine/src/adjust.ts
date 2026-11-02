@@ -16,6 +16,7 @@ import { ADJUST_ATTACHMENTS_MAX, ARTIFACTS_HISTORY_DIR, IdPrefix, getBrief, getG
 import { attachmentAbsPath } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { FIGURE_CHECK_NAME, figurePages } from './checks/figure.ts';
+import { DIAGRAM_CHECK_NAME, diagramPages } from './checks/diagram.ts';
 import type { Engine } from './engine.ts';
 import { headRef } from './git/git.ts';
 import { ARTIFACTS_DIR, copyInto, goalWorkspacePath, listArtifacts } from './workspace.ts';
@@ -191,7 +192,7 @@ function scenarioFor(goal: Goal, tasks: Task[]): TaskScenario {
   for (const t of tasks) if (t.origin === 'brief') counts.set(t.scenario, (counts.get(t.scenario) ?? 0) + 1);
   const top = [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
   if (top) return top;
-  return goal.nature === 'figure' || goal.nature === 'image' || goal.nature === 'video' || goal.nature === 'cad' ? goal.nature : 'general';
+  return goal.nature === 'figure' || goal.nature === 'diagram' || goal.nature === 'image' || goal.nature === 'video' || goal.nature === 'cad' ? goal.nature : 'general';
 }
 
 const firstLine = (text: string, max = 60): string => {
@@ -223,8 +224,8 @@ export async function adjustGoal(engine: Engine, goalId: string, textIn: string,
     const id = newId(IdPrefix.adjust);
     const at = new Date().toISOString();
     const ws = goalWorkspacePath(config.dataDir, goal);
-    // the result as it stands is kept before anything changes: the artifacts, and a figure's committed pages
-    const pages = tasks.filter((t) => t.scenario === 'figure' && t.state === 'done').flatMap((t) => figurePages(ws, t).map((p) => relative(ws, p)));
+    // the result as it stands is kept before anything changes: the artifacts, and a figure's or a diagram's committed pages
+    const pages = tasks.filter((t) => t.state === 'done' && (t.scenario === 'figure' || t.scenario === 'diagram')).flatMap((t) => (t.scenario === 'figure' ? figurePages(ws, t) : diagramPages(ws, t)).map((p) => relative(ws, p)));
     try {
       await snapshotResult(ws, n, { adjustment: { id, text, at }, pages });
     } catch (err) {
@@ -303,6 +304,10 @@ export async function adjustGoal(engine: Engine, goalId: string, textIn: string,
         }
         if (scenario === 'figure') {
           const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: FIGURE_CHECK_NAME, tier: 'must', spec: { type: 'figure' } };
+          store.append({ type: 'check.created', goalId, payload: { check } });
+        }
+        if (scenario === 'diagram') {
+          const check: Check = { id: newId(IdPrefix.check), goalId, taskId: task.id, name: DIAGRAM_CHECK_NAME, tier: 'must', spec: { type: 'diagram' } };
           store.append({ type: 'check.created', goalId, payload: { check } });
         }
         break;

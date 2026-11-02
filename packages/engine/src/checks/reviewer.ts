@@ -5,6 +5,8 @@ import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@foundry/core'
 import { jsonSchemaFor, ReviewerVerdict as ReviewerVerdictSchema, VERDICT_AXES, type VerdictAxis, type VerdictScores, chosenStyle, getBrief } from '@foundry/core';
 import { renderStyle } from '../attempt-prompt.ts';
 import { FIGURE_REVIEW_TASK } from '../figure.ts';
+import { DIAGRAM_REVIEW_TASK } from '../diagram.ts';
+import { diagramCheckLines, diagramReviewSection } from './diagram.ts';
 import { renderAdjustment } from '../adjust.ts';
 import { figureCheckLines, figureReviewSection } from './figure.ts';
 import type { Engine } from '../engine.ts';
@@ -170,12 +172,14 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
         ? `# Media review\nThe artifacts themselves are the deliverable and they are NOT in the diff (the \`artifacts/\` folder is kept out of git). Read the task's manifest (\`docs/artifacts/…\` in the diff) and verify each listed file exists under \`artifacts/\`. You cannot watch video: verify metadata with \`ffprobe\` if available, and if \`ffmpeg\` is available extract 2–3 frames (\`ffmpeg -i <file> -vf "select=gt(scene\\,0.3)" -frames:v 3 /tmp/frame%d.png\`) and view them with the Read tool. A file listed but missing, or metadata contradicting the spec (duration, resolution), is a blocker; final visual quality stays with the human.`
         : task.scenario === 'figure'
           ? figureReviewSection(FIGURE_REVIEW_TASK, figureCheckLines(engine.store.db, goal.id, task.id))
-          : '';
+          : task.scenario === 'diagram'
+            ? diagramReviewSection(DIAGRAM_REVIEW_TASK, diagramCheckLines(engine.store.db, goal.id, task.id))
+            : '';
   const brief = getBrief(engine.store.db, goal.id)?.brief;
   const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '';
   const subjects = renderSubjects(engine.config.dataDir, goal.id, brief, 'task-reviewer', task.scenario);
-  // the Subjects' pictures live outside the worktree, and so do Foundry's screenshots of a figure task's pages (ADR-0076)
-  const reviewDirs = [...(subjects ? subjectsAddDirs(engine.config.dataDir, goal.id, brief) : []), ...(task.scenario === 'figure' ? [screenshotsDir(engine.config.dataDir, goal)] : [])];
+  // the Subjects' pictures live outside the worktree, and so do Foundry's screenshots of a figure or diagram task's pages (ADR-0076, ADR-0083)
+  const reviewDirs = [...(subjects ? subjectsAddDirs(engine.config.dataDir, goal.id, brief) : []), ...(task.scenario === 'figure' || task.scenario === 'diagram' ? [screenshotsDir(engine.config.dataDir, goal)] : [])];
   // what earlier reviews in this repository refused for such a change (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('review_task', memoryQuestion('review_task', { goalTitle: goal.title, taskTitle: task.title, files: task.relevantFiles }), { repoPath: goal.repoPath, goalId: goal.id, taskId: task.id, attemptId: attempt.id });
   const prompt = [

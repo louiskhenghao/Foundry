@@ -44,6 +44,12 @@ export const FIGURE_PACK_OPTIONS: PackOption[] = [
   { id: 'none', label: 'None', summary: 'No figure skill is mandated; figure tasks rely on the worker alone.', homepage: null },
 ];
 
+/** the Diagram pack (ADR-0083): which skill draws diagram tasks' editorial diagrams, one self-contained HTML page with an SVG beside it each */
+export const DIAGRAM_PACK_OPTIONS: PackOption[] = [
+  { id: 'diagram-design', label: 'diagram-design', summary: "Cathryn Lavery's diagram-design: editorial diagrams as one self-contained HTML page with an inline SVG — 45 types (architecture, flowchart, sequence, state, ER, timeline, swimlane, quadrant, org chart, layer stack, Gantt, Sankey, UML class, database schema, the chart types…) in a light, a dark and a full-editorial skin, one accent colour, hairline borders, no shadows; redraws draw.io, Mermaid and Excalidraw files; a brand's palette and fonts from a website. Pinned to one commit; its scripts need python3 (standard library only).", homepage: 'https://github.com/cathrynlavery/diagram-design' },
+  { id: 'none', label: 'None', summary: 'No diagram skill is mandated; diagram tasks rely on the worker alone.', homepage: null },
+];
+
 /** Is this entry visible given the chosen pack options? Entries without a pack always are. */
 export function packAllows(entry: Pick<CatalogEntry, 'pack' | 'packOption'>, chosen: Record<string, string | undefined>): boolean {
   if (!entry.pack) return true;

@@ -21,11 +21,19 @@ export function saveTemplateLang(lang: TemplateLang): void {
 export const shownVersion = (t: TemplateEntry, lang: TemplateLang): TemplateVersionView => t[lang] ?? t.en ?? t.zh!;
 
 /** the kinds of goal, in the order the form lists them */
-export const TEMPLATE_NATURES: TemplateNature[] = ['code', 'docs', 'research', 'image', 'video', 'figure', 'cad'];
+export const TEMPLATE_NATURES: TemplateNature[] = ['code', 'docs', 'research', 'image', 'video', 'figure', 'diagram', 'cad'];
 
-/** what the form shows of the templates: the figure ones and the motion-studio ones only while their Beta is on */
-export function offeredTemplates(all: TemplateEntry[], beta: { figure: boolean; motionStudio: boolean }): TemplateEntry[] {
-  return all.filter((t) => (t.nature !== 'figure' || beta.figure) && (!t.settings.videoPack || beta.motionStudio));
+/** the Beta switches the form reads: a kind or an engine behind one is offered only while it is on */
+export interface TemplateBeta {
+  figure: boolean;
+  motionStudio: boolean;
+  /** diagram goals (ADR-0083); unset = off */
+  diagram?: boolean;
+}
+
+/** what the form shows of the templates: the figure, diagram and motion-studio ones only while their Beta is on */
+export function offeredTemplates(all: TemplateEntry[], beta: TemplateBeta): TemplateEntry[] {
+  return all.filter((t) => (t.nature !== 'figure' || beta.figure) && (t.nature !== 'diagram' || !!beta.diagram) && (!t.settings.videoPack || beta.motionStudio));
 }
 
 /** the templates of each kind, kinds with none left out */
@@ -71,7 +79,7 @@ export interface TemplateFormPatch {
   /** what the template asked for that this form cannot take now */
   dropped: string[];
 }
-export function formPatch(t: TemplateEntry, beta: { figure: boolean; motionStudio: boolean }): TemplateFormPatch {
+export function formPatch(t: TemplateEntry, beta: TemplateBeta): TemplateFormPatch {
   const s = t.settings;
   const patch: TemplateFormPatch = { nature: t.nature, dropped: [] };
   if (s.videoPack) {
@@ -109,7 +117,7 @@ export function fallbackStyle(packs: PackGroupView | null): string | null {
 }
 
 /** the kinds in words, as the form names them */
-export const NATURE_WORD: Record<TemplateNature, string> = { code: 'Code', docs: 'Documents', research: 'Research', image: 'Images', video: 'Video', figure: 'Figures', cad: 'CAD' };
+export const NATURE_WORD: Record<TemplateNature, string> = { code: 'Code', docs: 'Documents', research: 'Research', image: 'Images', video: 'Video', figure: 'Figures', diagram: 'Diagrams', cad: 'CAD' };
 
 /** is every required input of a template answered */
 export const complete = (v: Pick<TemplateVersionView, 'inputs'>, values: Record<string, string>): boolean => v.inputs.every((i) => !inputRequired(i) || !!(values[i.key]?.trim() || i.default));

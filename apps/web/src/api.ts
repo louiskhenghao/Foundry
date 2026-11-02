@@ -244,6 +244,8 @@ export interface PacksView {
   video: PackGroupView;
   /** the Figure pack (ADR-0076) */
   figure: PackGroupView;
+  /** the Diagram pack (ADR-0083) */
+  diagram: PackGroupView;
 }
 
 export interface LastGoalWorkflow {

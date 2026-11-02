@@ -94,7 +94,7 @@ Make a {{duration}} product reel for {{product}}.
 - One timeline; every format is cut from it.
 ```
 
-- `name` and `nature` (`code`, `docs`, `research`, `image`, `video`, `figure` or `cad`) are needed; `summary` and `settings` are optional; a `.zh.md` file says `lang: zh`.
+- `name` and `nature` (`code`, `docs`, `research`, `image`, `video`, `figure`, `diagram` or `cad`) are needed; `summary` and `settings` are optional; a `.zh.md` file says `lang: zh`.
 - `settings` may name `mode` (`simple` or `expert`), `workflow` (`pace`, `tdd`, `ponytail`, `profile`), `budgetPreset` (and `budgets` with `maxCostUsd`, `maxDurationMin`, `maxConcurrent`, `attemptsPerTask` when custom), `interviewDepth` (0–5), `autoBrief` (`mustChecks` and `stretchChecks`, lists of commands), `videoPack` for a video template and `figurePack` for a figure one. Nothing about a computer or its accounts belongs here: the coding agent, its models, the delivery and the folders are the form's.
 - `inputs` only refines what the description already says: a `{{key}}` with no entry is a required one-line input labelled after its key. An entry may give `label`, `help`, `type` (`text`, `textarea` or `choice` with `options` and `other: true` for a free answer), `default`, `required` and `example` (shown when the template is read filled in; never written into a goal). An entry for a key the description never names is a warning, not an error.
 - The description may use Markdown. A line that holds nothing but an optional input left empty (`## Brand` followed by `{{brand}}`) is dropped when the description is written.

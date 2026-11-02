@@ -13,6 +13,7 @@ const WHAT: Record<Check['spec']['type'], string> = {
   'llm-judge': 'An AI judge answers this prompt.',
   selfcheck: 'Opens the preview in a headless browser, takes a screenshot and fails on console, page or network errors. No AI involved.',
   figure: 'Opens each page the task delivered under artifacts/ in a headless browser, screenshots it (and its see-through) and fails on script errors or a page that drew nothing. No AI involved.',
+  diagram: "Opens each diagram page the task delivered in a headless browser, screenshots it, renders its SVG to a PNG under artifacts/ and runs the diagram skill's own self-check; fails on script errors, a page with no SVG or a self-check that refuses it. No AI involved.",
 };
 
 /** a section's label in the dialog, in small capitals */

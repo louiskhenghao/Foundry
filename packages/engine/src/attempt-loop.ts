@@ -19,6 +19,7 @@ import { handoffSection } from './handoff.ts';
 import { learningsForWorker } from './learnings.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { runFigureCheck } from './checks/figure.ts';
+import { runDiagramCheck } from './checks/diagram.ts';
 import { attemptTimeoutMs } from './figure.ts';
 import { renderAdjustment, type AdjustmentContext } from './adjust.ts';
 import { verdictSummary, reviewTaskDiff } from './checks/reviewer.ts';
@@ -373,8 +374,15 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     results.push(r);
     store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
   }
+  // a diagram task's pages likewise (ADR-0083), with the diagram skill's own self-check as installed for this coding agent
+  for (const c of checks) {
+    if (c.spec.type !== 'diagram') continue;
+    const r = await runDiagramCheck(engine, goal, task, attempt.id, c, cwd, { selfCheck: join(engine.skillsFor(goal).paths.skillsDir, 'diagram-design', 'scripts', 'self_check.py') });
+    results.push(r);
+    store.append({ type: 'check.finished', goalId: goal.id, payload: { result: r } });
+  }
   bumpStat(store.db, 'attempt.cost', result.costUsd);
-  const mustCommand = checks.filter((c) => c.tier === 'must' && (c.spec.type === 'command' || c.spec.type === 'figure'));
+  const mustCommand = checks.filter((c) => c.tier === 'must' && (c.spec.type === 'command' || c.spec.type === 'figure' || c.spec.type === 'diagram'));
   const objectivePassed = mustCommand.every((c) => results.find((r) => r.checkId === c.id)?.status === 'pass');
 
   let reviewerVerdict: ObservationReport['reviewerVerdict'] = null;
