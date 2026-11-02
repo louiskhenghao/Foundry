@@ -56,6 +56,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.imagePack': { name: 'FOUNDRY_IMAGE_PACK', parse: str },
   'workflow.videoPack': { name: 'FOUNDRY_VIDEO_PACK', parse: str },
   'workflow.figurePack': { name: 'FOUNDRY_FIGURE_PACK', parse: str },
+  'workflow.diagramPack': { name: 'FOUNDRY_DIAGRAM_PACK', parse: str },
   'workflow.autoskills': { name: 'FOUNDRY_AUTOSKILLS', parse: bool },
   'delivery.defaultMode': { name: 'FOUNDRY_DELIVERY_MODE', parse: str },
   'sync.fetchBeforeGoal': { name: 'FOUNDRY_SYNC_FETCH', parse: bool },
@@ -94,6 +95,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'beta.conversation': { name: 'FOUNDRY_BETA_CONVERSATION', parse: bool },
   'beta.motionStudio': { name: 'FOUNDRY_BETA_MOTION_STUDIO', parse: bool },
   'beta.figure': { name: 'FOUNDRY_BETA_FIGURE', parse: bool },
+  'beta.diagram': { name: 'FOUNDRY_BETA_DIAGRAM', parse: bool },
   'beta.adjust': { name: 'FOUNDRY_BETA_ADJUST', parse: bool },
 };
 
@@ -326,6 +328,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('workflow.imagePack')) config.imagePack = s.workflow.imagePack;
   if (on('workflow.videoPack')) config.videoPack = s.workflow.videoPack;
   if (on('workflow.figurePack')) config.figurePack = s.workflow.figurePack;
+  if (on('workflow.diagramPack')) config.diagramPack = s.workflow.diagramPack;
   if (on('workflow.autoskills')) config.autoskills = s.workflow.autoskills;
   if (on('workflow.settingSources')) config.settingSources = s.workflow.settingSources ?? undefined;
   if (on('workflow.mcpAllowed')) config.mcpAllowed = s.workflow.mcpAllowed;
@@ -334,6 +337,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('beta.conversation')) config.betaConversation = s.beta.conversation;
   if (on('beta.motionStudio')) config.betaMotionStudio = s.beta.motionStudio;
   if (on('beta.figure')) config.betaFigure = s.beta.figure;
+  if (on('beta.diagram')) config.betaDiagram = s.beta.diagram;
   if (on('beta.adjust')) config.betaAdjust = s.beta.adjust;
   if (on('reviews.maxFixCycles')) config.maxFixCycles = s.reviews.maxFixCycles;
   if (on('delivery.defaultMode') || on('delivery.defaultUnit') || on('delivery.defaultRemote')) {

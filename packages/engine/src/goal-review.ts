@@ -6,6 +6,8 @@ import { z } from 'zod';
 import { renderStyle, styleApplies } from './attempt-prompt.ts';
 import { FIGURE_REVIEW_GOAL } from './figure.ts';
 import { figureCheckLines, figureReviewSection } from './checks/figure.ts';
+import { DIAGRAM_REVIEW_GOAL } from './diagram.ts';
+import { diagramCheckLines, diagramReviewSection } from './checks/diagram.ts';
 import { renderAdjustments } from './adjust.ts';
 import { attachmentsDir, renderAttachments } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
@@ -153,7 +155,9 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
       ? `# Media review\nThis goal's deliverables are media files under \`artifacts/\` — they are NOT in the diff (kept out of git); the committed \`docs/artifacts/\` manifests describe them. Verify every manifest entry exists on disk${scenario === 'image' ? ' and open the images with the Read tool (it renders them) to judge them against the checks' : '; verify video metadata with ffprobe when available (you cannot watch video — final visual quality stays with the human)'}.`
       : scenario === 'figure'
         ? figureReviewSection(FIGURE_REVIEW_GOAL, figureCheckLines(engine.store.db, goal.id))
-        : '';
+        : scenario === 'diagram'
+          ? diagramReviewSection(DIAGRAM_REVIEW_GOAL, diagramCheckLines(engine.store.db, goal.id))
+          : '';
   // what earlier goal reviews in this repository found (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('review_goal', memoryQuestion('review_goal', { goalTitle: goal.title }), { repoPath: goal.repoPath, goalId: goal.id });
   const prompt = [
@@ -194,8 +198,8 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     jsonSchema: jsonSchemaFor(GoalReviewOutput),
     settings: boundarySettings(engine.config.hooksDir),
     settingSources: engine.config.settingSources,
-    // a figure goal's reviewer may open Foundry's screenshots of the pages (ADR-0076)
-    addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(engine.config.dataDir, goal.id)] : []), ...subjectsAddDirs(engine.config.dataDir, goal.id, brief), ...(scenario === 'figure' ? [screenshotsDir(engine.config.dataDir, goal)] : [])]),
+    // a figure or diagram goal's reviewer may open Foundry's screenshots of the pages (ADR-0076, ADR-0083)
+    addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(engine.config.dataDir, goal.id)] : []), ...subjectsAddDirs(engine.config.dataDir, goal.id, brief), ...(scenario === 'figure' || scenario === 'diagram' ? [screenshotsDir(engine.config.dataDir, goal)] : [])]),
     transcriptPath,
   };
   const handle = await engine.runner.run({ ...base, prompt, maxTurns: 80, maxBudgetUsd: cap, appendSystemPromptFile: engine.roles.path('reviewer-goal'), timeoutMs: 30 * 60_000, label: `goal review ${goal.title}` });

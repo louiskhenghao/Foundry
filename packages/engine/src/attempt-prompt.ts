@@ -2,6 +2,7 @@ import { attachmentAbsPath } from './attachments.ts';
 import type { BriefStyleOption, Check, Goal, ObservationReport, Task, Brief } from '@foundry/core';
 import { renderReferences } from './references.ts';
 import { FIGURE_WORKER_CONVENTIONS } from './figure.ts';
+import { DIAGRAM_WORKER_CONVENTIONS } from './diagram.ts';
 import { skillMatches } from './skills/usage.ts';
 
 /** Scenarios whose deliverables have no look — the chosen Style Proposal is noise to them. Everything else (UI, mobile, media, general) must follow it. */
@@ -130,6 +131,8 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
     );
   } else if (i.task.scenario === 'figure') {
     lines.push(FIGURE_WORKER_CONVENTIONS);
+  } else if (i.task.scenario === 'diagram') {
+    lines.push(DIAGRAM_WORKER_CONVENTIONS);
   } else if (i.task.scenario === 'image' || i.task.scenario === 'video') {
     lines.push(
       `# Media conventions\n- Every generated file goes into \`artifacts/\` in this workspace. That folder never reaches git — the engine delivers it to the user when the goal finishes.\n- Keep the manifest named in your task spec (\`docs/artifacts/…\`) up to date: one bullet per artifact — file name, what it shows, and the prompt/parameters used. The manifest is committed and is what the reviewer reads first.\n- Codebase conventions and test suites do not apply here; the craft is the artifacts themselves and an honest manifest.`,
