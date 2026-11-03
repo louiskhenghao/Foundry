@@ -186,6 +186,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('goal.figure_pack_set', { figurePack: FigurePack, reason: z.string() }),
   /** the person asked for an Adjustment of the finished goal's result (ADR-0078): the goal runs again and carries it out itself */
   ev('goal.adjusted', { adjustment: Adjustment }),
+  /** Foundry rendered a finished HyperFrames goal's films again after the person's edits in the Editor (ADR-0086): the edit's number, the files under artifacts/ it wrote, the commit the edits landed as, and what failed per project folder */
+  ev('goal.rerendered', { n: z.number().int().positive(), files: z.array(z.string()), commit: z.string().nullable(), errors: z.array(z.object({ dir: z.string(), error: z.string() })) }),
   /** a figure task's pages were opened headless by Foundry (ADR-0076): per page its screenshot(s) in the goal's screenshots folder and what went wrong */
   ev('figure.checked', { taskId: z.string(), attemptId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), pages: z.array(z.object({ file: z.string(), screenshot: z.string().nullable(), inside: z.string().nullable(), errors: z.array(z.string()) })), summary: z.string() }),
   /** a diagram task's pages were opened headless by Foundry (ADR-0083): per page its screenshot in the goal's screenshots folder, the PNG it rendered under artifacts/ (workspace-relative) and what went wrong */

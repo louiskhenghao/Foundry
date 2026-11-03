@@ -4,7 +4,7 @@ import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { basename, join, relative } from 'node:path';
 import { spawnStreaming } from '../skills/updaters.ts';
 import type { BriefApp, BriefRun, Goal, PreviewPlace } from '@foundry/core';
-import { CAD_VIEWER_KEY, getBrief, getGoal, repoHere } from '@foundry/core';
+import { CAD_VIEWER_KEY, getBrief, getGoal, isEditorKey, isPersonApp, repoHere } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { ensureDetachedWorktree, git, gitOk } from '../git/git.ts';
 import { goalWorkspacePath, previewWorkspacePath } from '../workspace.ts';
@@ -208,10 +208,11 @@ export class PreviewManager {
   /** the apps that apply: the Brief's apps, else its run command, else package.json workspaces, else the root package.json */
   resolveApps(goal: Goal): { apps: BriefApp[]; source: 'brief' | 'detected' } | null {
     const found = this.resolveRepoApps(goal);
-    // a cad goal also has text-to-cad's viewer, for the person to open (a walkthrough never starts it)
-    const viewer = this.engine.cadViewerApp(goal);
-    if (!viewer) return found;
-    return found ? { ...found, apps: [...found.apps, viewer] } : { apps: [viewer], source: 'detected' };
+    // a cad goal also has text-to-cad's viewer, and a video goal the Editor of each HyperFrames project (ADR-0086), for
+    // the person to open (a walkthrough never starts them)
+    const own = [...(this.engine.cadViewerApp(goal) ? [this.engine.cadViewerApp(goal)!] : []), ...this.engine.editorApps(goal)];
+    if (!own.length) return found;
+    return found ? { ...found, apps: [...found.apps, ...own] } : { apps: own, source: 'detected' };
   }
 
   private resolveRepoApps(goal: Goal): { apps: BriefApp[]; source: 'brief' | 'detected' } | null {
@@ -308,8 +309,8 @@ export class PreviewManager {
   async start(goal: Goal, by: PreviewStarter, appKey?: string): Promise<PreviewStatus> {
     if (!repoHere(goal)) throw new PreviewError('this goal came from another computer: map its repository to a checkout here first', 409);
     const found = this.resolveApps(goal);
-    // text-to-cad's viewer is the person's: a milestone, self-check or integration start never counts it, and a goal with nothing else has nothing to run
-    const usable = found && by !== 'human' ? { ...found, apps: found.apps.filter((a) => a.key !== CAD_VIEWER_KEY) } : found;
+    // text-to-cad's viewer and the Editor are the person's: a milestone, self-check or integration start never counts them, and a goal with nothing else has nothing to run
+    const usable = found && by !== 'human' ? { ...found, apps: found.apps.filter((a) => !isPersonApp(a.key)) } : found;
     if (!usable?.apps.length) throw new PreviewError('nothing to run: the Brief has no run command and package.json has no dev/start script', 409);
     // an app switched to fake data for a walkthrough runs its mock command instead
     const resolved = { ...usable, apps: usable.apps.map((a) => (this.mocked.has(id(goal.id, a.key)) ? { ...a, command: this.mocked.get(id(goal.id, a.key))! } : a)) };
@@ -363,7 +364,8 @@ export class PreviewManager {
    * Output streams to the apps' logs; the returned tail is kept at the top of each app's log.
    */
   private async installDependencies(goal: Goal, ws: string, apps: BriefApp[]): Promise<{ lines: string[]; failed: string | null }> {
-    const steps = installSteps(ws, apps);
+    // the Editor runs from npx and needs nothing of the repository's installed: starting it alone installs nothing
+    const steps = apps.every((a) => isEditorKey(a.key)) ? [] : installSteps(ws, apps);
     const lines: string[] = [];
     let failed: string | null = null;
     const say = (line: string) => {
@@ -629,9 +631,9 @@ export class PreviewManager {
     this.engine.config.log(`[preview] ${key}: stopped (${reason})`);
   }
 
-  /** after an integration: the running apps pick up the new code (the CAD viewer serves files from disk and keeps running) */
+  /** after an integration: the running apps pick up the new code (the CAD viewer and the Editor serve files from disk and keep running) */
   async restartIfRunning(goal: Goal): Promise<void> {
-    const running = [...this.live.values()].filter((l) => l.goalId === goal.id && l.key !== CAD_VIEWER_KEY).map((l) => l.key);
+    const running = [...this.live.values()].filter((l) => l.goalId === goal.id && !isPersonApp(l.key)).map((l) => l.key);
     if (!running.length) return;
     for (const key of running) await this.stop(goal.id, 'restart after integration', key);
     for (const key of running) await this.start(goal, 'integration', key).catch((err) => this.engine.config.log(`[preview] ${goal.id}/${key}: restart failed: ${String((err as Error).message ?? err)}`));
