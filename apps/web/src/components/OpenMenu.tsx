@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Code2, Copy, ExternalLink, Folder, Globe, TerminalSquare } from 'lucide-react';
+import { Check, ChevronDown, Clapperboard, Code2, Copy, ExternalLink, Folder, Globe, TerminalSquare } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, type OpenTarget } from '../api.ts';
 import { Button, Menu, buttonClass, cn, code } from '../ui.tsx';
@@ -26,7 +26,7 @@ const remote = () => typeof location !== 'undefined' && !['localhost', '127.0.0.
  * opens on a phone. Launching apps happens on the server (same machine). `working` = the coding agents are using the
  * goal's folders now, so edits made there can clash with theirs.
  */
-export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working = false }: { goalId: string; places: OpenPlace[]; size?: 'sm' | 'md' | 'lg'; label?: string; working?: boolean }) {
+export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working = false, projects = [] }: { goalId: string; places: OpenPlace[]; size?: 'sm' | 'md' | 'lg'; label?: string; working?: boolean; /** the Editor of each HyperFrames project of a video goal (ADR-0086): started if need be, then opened in a new tab */ projects?: { key: string; name: string; dir: string }[] }) {
   const [targets, setTargets] = useState<OpenTarget[] | null>(cached);
   const [status, setStatus] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   // the web editor's password, shown once it opened so it can be pasted on its sign-in page
@@ -79,6 +79,32 @@ export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working 
     } catch (e: any) {
       win?.close();
       setStatus({ kind: 'err', text: e.body?.code === 'not-installed' ? 'VS Code in the browser (code-server) is not installed — install it in Settings → Tools' : (e.body?.error ?? e.message) });
+    }
+  };
+  /** the Editor (ADR-0086): a preview app the person starts; opened once it answers, at its tailnet address from another device */
+  const openEditor = async (key: string) => {
+    setStatus(null);
+    const win = window.open('', '_blank');
+    if (win) win.opener = null;
+    try {
+      const st = await api.previewStart(goalId, key);
+      const app = st.apps.find((a) => a.key === key);
+      const url = remote() ? app?.tailnetUrl : app?.url;
+      if (!url) {
+        win?.close();
+        setStatus({ kind: 'err', text: remote() ? "the Editor is not reachable from this device: it is not on your tailnet (Tailscale off or not running on Foundry's computer)" : 'the Editor did not start — see the preview card' });
+        return;
+      }
+      void api.previewVisit(goalId);
+      if (win) win.location.href = url;
+      else if (!window.open(url, '_blank', 'noopener')) {
+        setStatus({ kind: 'err', text: `the browser blocked the new tab: open ${url} yourself` });
+        return;
+      }
+      setStatus({ kind: 'ok', text: app?.ready ? 'opened the Editor' : 'opened the Editor; it may still be starting — reload the tab in a moment' });
+    } catch (e: any) {
+      win?.close();
+      setStatus({ kind: 'err', text: e.body?.error ?? e.message });
     }
   };
   const copy = (p: string) => {
@@ -148,6 +174,22 @@ export function OpenMenu({ goalId, places, size = 'sm', label = 'Open', working 
               )}
             </div>
           ))}
+          {projects.length > 0 && (
+            <div className="rounded-lg bg-sunken p-2.5">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="shrink-0 text-[13px] font-bold text-ink">Editor</span>
+                <span className="min-w-0 truncate text-ink-faint">HyperFrames' browser editor, on this computer or your phone</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {projects.map((e) => (
+                  <button key={e.key} onClick={() => void openEditor(e.key)} title={e.dir ? `the project in ${e.dir}` : 'the project at the root'} className={buttonClass('default', 'sm')}>
+                    <Clapperboard size={12} className={EDITOR_INK} /> {e.name.replace(/^Editor · /, '')}
+                  </button>
+                ))}
+              </div>
+              {working && <div className="text-[11px] font-semibold text-work-ink mt-1.5">The goal is running: what you save in the Editor goes into the coding agents' next commit, or may be overwritten.</div>}
+            </div>
+          )}
           {status && <div className={cn('px-1 font-semibold', status.kind === 'ok' ? 'text-ok-ink' : 'text-bad-ink')}>{status.text}</div>}
           {password && (
             <div className="flex items-center gap-1.5 px-1 text-ink-soft">
