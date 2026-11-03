@@ -279,7 +279,14 @@ export class SkillsUpdateChecker {
     const localFp = dirFingerprint(localDir);
     const upFp = upstreamDir ? dirFingerprint(upstreamDir) : null;
 
-    if (localFp && upFp && localFp === upFp) {
+    // the catalog takes this skill from another repository now (the hyperframes skills moved from a student kit to their
+    // upstream): Foundry's copy is outdated whatever its bytes say, and Update reinstalls it from the catalog's source
+    const entry = key.manager === 'foundry' && catalogId ? catalog.entries.find((e) => e.id === catalogId) : undefined;
+    const movedTo = entry?.source.type === 'git' && row.marker && !row.marker.repo.startsWith('bundled:') && row.marker.repo !== entry.source.repo ? entry.source.repo : null;
+    if (movedTo) {
+      out.status = 'outdated';
+      out.match = { relation: 'differs', olderCommit: null, olderAt: null };
+    } else if (localFp && upFp && localFp === upFp) {
       out.status = 'up-to-date';
       if (candidate) out.match = { relation: 'identical', olderCommit: null, olderAt: null };
     } else if (upFp && upstreamDir && onlyDocsDiffer(localDir, upstreamDir)) {
