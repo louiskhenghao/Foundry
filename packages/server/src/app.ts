@@ -7,7 +7,8 @@ import { AttachmentError, BrowseError, DECK_PACK_OPTIONS, DESIGN_PACK_OPTIONS, D
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
 import { delegationNeedsHuman, readHomeConfig, writeHomeConfig } from '@foundry/engine';
-import { AdjustError, ConversationError } from '@foundry/engine';
+import { AdjustError, ConversationError, EditorError, motionFilms } from '@foundry/engine';
+import { SEEK_LISTENER, filmFileType, filmPage } from './film-page.ts';
 import { Attachment, BudgetPreset, DeliveryPolicy, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, VideoPack, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, fileResponse, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles, deliveredFile } from './files.ts';
@@ -668,6 +669,29 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const page = /\.html?$/i.test(rel);
     return fileResponse(p, c.req.raw, { 'cache-control': 'private, max-age=60', ...(page ? { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': 'sandbox allow-scripts', 'x-content-type-options': 'nosniff' } : {}) });
   });
+  // ---- the Editor (ADR-0086): a motion-studio film's scrubber page, and the film's own files under motion/ in a sandbox ----
+  const editorOn = () => {
+    if (!engine.config.betaEditor) throw new HttpError(404, { error: 'the Editor is off: Settings → Beta → Editor' });
+  };
+  app.get('/api/goals/:id/film/:slug', (c) => {
+    const goal = goalOr404(c);
+    editorOn();
+    const film = motionFilms(goalWorkspacePath(engine.config.dataDir, goal)).find((f) => f.slug === c.req.param('slug'));
+    if (!film) throw new HttpError(404, { error: 'film not found' });
+    return c.html(filmPage({ goalId: goal.id, film }));
+  });
+  app.get('/api/goals/:id/motion/*', (c) => {
+    const goal = goalOr404(c);
+    editorOn();
+    const rel = decodeURIComponent(c.req.path.slice(c.req.path.indexOf('/motion/') + '/motion/'.length));
+    if (!rel || rel.split('/').some((seg) => seg === '..' || seg === '' || seg.startsWith('.'))) throw new HttpError(400, { error: 'bad film path' });
+    const p = join(goalWorkspacePath(engine.config.dataDir, goal), 'motion', rel);
+    if (!existsSync(p) || !statSync(p).isFile()) throw new HttpError(404, { error: 'file not found' });
+    // the film's page runs in the browser, but never as Foundry: the sandbox directive gives it an opaque origin (as a
+    // figure's page, ADR-0076); its scripts beside it run in that sandbox, and the scrubber page reaches it by message
+    if (/\.html?$/i.test(rel)) return c.body(readFileSync(p, 'utf8') + SEEK_LISTENER, 200, { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': 'sandbox allow-scripts', 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' });
+    return fileResponse(p, c.req.raw, { 'content-type': filmFileType(rel), 'cache-control': 'private, max-age=60' });
+  });
   // ---- the user guide, bundled with the install: docs/guide/*.md (+ .zh.md) and its screenshots ----
   const guideDir = join(engine.config.rootDir, 'docs', 'guide');
   app.get('/api/guide', (c) => c.json({ pages: listGuide(guideDir) }));
@@ -854,6 +878,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       budget: budgetStatus(goal),
       // Adjust the result (ADR-0078): whether the person can ask for one now, and the Adjustments made
       adjust: engine.adjustView(goal),
+      // the Editor (ADR-0086): the HyperFrames projects, the motion-studio films and Re-render
+      editor: engine.editorView(goal),
       // live: a slot held / a session alive, so the drawer can tell stuck from busy; waiting: why a ready task is not running
       tasks: tasks.map((t) => ({ ...t, depth: depth.get(t.id) ?? 0, usage: taskUsage(listAttempts(db, t.id)), live: engine.taskLiveness(t.id), ...readyView(t), ...delegatedView(t) })),
       attempts: listAttemptsByGoal(db, id),
@@ -960,6 +986,16 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       return c.json(engine.conversations.ask(goal.id, body.text, { by: c.get('person')?.name ?? null, conversationId: body.conversationId ?? null, fresh: body.fresh, attachments: body.attachments }), 202);
     } catch (e) {
       if (e instanceof ConversationError) throw new HttpError(e.status, { error: e.message });
+      throw e;
+    }
+  });
+  // Re-render (ADR-0086): a finished HyperFrames goal's films rendered again after the person's edits in the Editor; no session
+  app.post('/api/goals/:id/rerender', (c) => {
+    const goal = goalOr404(c);
+    try {
+      return c.json(engine.rerender(goal.id, { by: c.get('person')?.name ?? null }), 202);
+    } catch (e) {
+      if (e instanceof EditorError) throw new HttpError(e.status, { error: e.message });
       throw e;
     }
   });
