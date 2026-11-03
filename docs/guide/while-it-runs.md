@@ -188,6 +188,8 @@ The lower part of the **Workspace & preview** card starts the result so you can 
 
 If the card says **Nothing to run yet**, there is no start command yet. It appears once a task adds one, or you can set one on the Brief under **How to run it**.
 
+A video goal's card also lists its films' editors — HyperFrames' browser editor per project, a scrubber page per motion-studio film — when the Editor beta is on: see [Editor](./editor.md).
+
 ### Several apps
 
 A repository can hold several apps you run side by side, for example a web app, an admin and an API. Foundry finds them in the workspaces of `package.json`, or the Brief lists them under **How to run it**. The card then shows one row per app, the first one at the top:

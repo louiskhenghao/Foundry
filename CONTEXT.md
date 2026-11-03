@@ -425,6 +425,14 @@ A file a Goal produces outside git: a media file (an image, a video, audio), the
 **CAD Goal**
 A Goal of nature cad: parts and assemblies, drawings, DXF profiles or robot description files, made with text-to-cad's skills (build123d and OpenCASCADE through cadgen). Code work with a geometry kernel: the Clarifier makes the manufacturing process and the key dimensions blocking questions, the planner cuts one Task per part with geometry checks first, TDD is preferred and Ponytail applies; sources are committed, exports and snapshots are Artifacts. A cad Goal waits before Clarify until text-to-cad is installed for its coding agent.
 
+**Editor**
+HyperFrames' browser editor opened from a video Goal's page (beta): one Preview app per HyperFrames project folder of the Goal's workspace (found by its `hyperframes.json`), started and stopped by the user only, at the CLI release the project pins, in its folder, on a preview port and the tailnet; never started by a milestone, the self-check or an integration, and left running when the other apps restart. Its edits save straight to the project's files: while the Goal works they go into the agents' next commit or may be overwritten (the row says so); after, they are the user's until a Re-render. A motion-studio film gets a scrubber page instead (format, Play, a slider, the keys), Foundry's own page with the film in a sandbox, read-only.
+_Avoid_: studio (HyperFrames' desktop app, not part of Foundry), preview (the Goal's result running; the Editor is one of its apps), VS Code (web) (code-server on the folder, not a film editor)
+
+**Re-render**
+Foundry rendering a finished HyperFrames Goal's films again after the user's edits in the Editor, with no session and no cost (beta): refused as an Adjustment is and while one runs; the result as it stands kept as an earlier version, every project rendered by the CLI to `artifacts/video/<project>/final.mp4` and probed, the edits committed as `chore(video): edits in the editor (edit n)`, the files delivered to the Output Folder and a pushed branch or open pull request carried on. Recorded as an Adjustment of mode `rerender`, so edits and Adjustments share one numbering and one history.
+_Avoid_: Adjustment (an agent carrying out words; a Re-render carries out the user's own edits), export (the editor's own render into `renders/`, which Foundry neither tracks nor delivers)
+
 **CAD Viewer**
 text-to-cad's own viewer (`cadgen viewer`), listed as a preview app of every CAD Goal and started only by the person from the milestone or preview card; the plugin's pinned cadgen command, on a preview port. It opens on the Goal's assembly when one was exported, else on its newest STEP (`?file=` with the absolute path: the workspace's while the Goal runs, the Output Folder's once delivered), and a running viewer follows a newer assembly. It stays on this computer, never on the tailnet: it serves any file it is given the path of.
 
