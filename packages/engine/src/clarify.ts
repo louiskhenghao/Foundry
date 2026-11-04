@@ -174,7 +174,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
     engine.memory.reflectPerson(memoryQuestion('person', { goalTitle: goal.title, goalPrompt: goal.prompt }), { repoPath: goal.repoPath, goalId: goal.id }),
   ]);
   const previous = [followUp, delegationContext(engine, goal), learningsContext(engine, goal), recalled ? memorySection(recalled.text, { tools: false, kind: recalled.kind }) : '', aboutPerson ? memorySection(aboutPerson.text, { tools: false, about: 'person', kind: aboutPerson.kind }) : ''].filter(Boolean).join('\n\n');
-  const prompt = buildClarifyPrompt({ ...goal, nature }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable, figure, diagram, deck);
+  const prompt = buildClarifyPrompt({ ...goal, nature, videoPack: engine.videoPackOf(goal) as Goal['videoPack'] }, overview, clarifierHint, [renderAttachments(goal, config.dataDir), markitdownHint(engine.markitdown.available(), engine.markitdown.binary())].filter(Boolean).join('\n\n'), decisions, isEmptyRepo(ws), engine.imageGenAvailable(), goal.interview ? interviewDepth(goal.interview) : null, previous, cadAvailable, figure, diagram, deck);
   const addDirs = goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : undefined;
   const schema = clarifySchema(!!goal.interview);
   const transcriptPath = join(config.dataDir, 'transcripts', `clarify-${goal.id}.jsonl`);
@@ -213,7 +213,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
     model: plannerModel.model,
     run: (skeleton: BriefSkeleton, resume?: { sessionId: string; message: string }) =>
       engine.runner.run({
-        prompt: resume ? resume.message : buildPlannerPrompt({ ...goal, nature }, skeleton, { overview, attachments: renderAttachments(goal, config.dataDir), decisions, interview: goal.interview, emptyRepo: isEmptyRepo(ws), imageGen: engine.imageGenAvailable(), previous, plannerHint, delegation: goal.delegation.allow, diagram, deck }),
+        prompt: resume ? resume.message : buildPlannerPrompt({ ...goal, nature, videoPack: engine.videoPackOf(goal) as Goal['videoPack'] }, skeleton, { overview, attachments: renderAttachments(goal, config.dataDir), decisions, interview: goal.interview, emptyRepo: isEmptyRepo(ws), imageGen: engine.imageGenAvailable(), previous, plannerHint, delegation: goal.delegation.allow, diagram, deck }),
         cwd: ws,
         model: plannerModel.model,
         meta: metaFor(goal.id, plannerModel),
@@ -711,6 +711,30 @@ Tasks in this order, each depending on the one before unless said otherwise. Eve
 The reviewer rubric, for every reviewer check of a film task: "Open the attempt's latest contact.png, strip.png and phone.png under artifacts/motion/<slug>/ and look at them. Score 1–10 in \`scores\`: hook (something striking in the first 2 s), readability (every word legible at phone size), motion (springs that settle, no dead frames, no stutter), variety (something new every 2–4 s), composition (off-centre where it should be, one accent, no corner labels or borders, no glow on UI chrome), brand (the real colours, faces and words), sound (cuts on the grid, hits on the beat). Pass only when every axis is 8 or more; list the three worst frames by timestamp."
 Estimate generously: a 15-second film is five to eight sessions of up to an hour at xhigh effort.`;
 
+/** the HyperFrames engine under Foundry's harness (ADR-0087): what the Brief of a film settles, and the contract its goal-level checks measure */
+const HYPERFRAMES_CLARIFY = `# Engine: HyperFrames (ADR-0087)
+This goal's films are made with HyperFrames (the \`hyperframes\`, \`hyperframes-cli\`, \`hyperframes-registry\` and \`media-use\` skills) under Foundry's harness (the \`hyperframes-harness\` skill): a project at \`video/<slug>/\` whose root composition mounts one scene per sub-composition, rendered by the CLI frame by frame into H.264, judged on contact sheets by a scored rubric, brought to -14 LUFS and measured by \`video/lib/verify.mjs\`. The person can open HyperFrames' browser editor on the project from the goal page while the goal runs and after; the worker never waits at a preview.
+Settle in the Brief (ask only for what the prompt and the attachments leave open; the formats always):
+- the subject or product, and its URL when it has one (real screens and the real logo come from it; never an invented UI)
+- the duration in seconds, and the formats (16x9, 9x16, 1x1, 4x5): the first is the root composition; every other format is its own root composition reframed by hand, never a crop or a scale of the first
+- brand colours (hex) and faces (a display face and a mono face), or the style direction you recommend among \`styleOptions\`
+- the reference: an attached frame, clip or folder of pictures, or none (say so)
+- the music: a supplied track (attached) or a bundled one; the BPM; the voice: none, or narration made on this computer (\`hyperframes tts\`) in the language named; captions or not
+- the language of any words on screen, and the closing CTA or tagline (exact spelling)
+- the film's slug (lowercase, hyphens): the project under \`video/<slug>/\`, outputs under \`artifacts/video/<slug>/\`
+Record the deliverables as goal-level must checks: per format, \`artifacts/video/<slug>/final-<format>.mp4\` verified by the command \`node video/lib/verify.mjs artifacts/video/<slug>/final-<format>.mp4 --format <format> --composition video/<slug>/index.html\` (exit 0; another format's composition is \`index-<format>.html\`); \`poster.png\`, \`contact.png\` and \`phone.png\` there; \`video/<slug>/README.md\` with the commands that render it again; \`docs/video/review_log.md\` with the scores of every critique round; \`docs/video/style_guide.md\`.`;
+
+/** the HyperFrames engine under Foundry's harness (ADR-0087): how a film's tasks are cut and checked */
+const HYPERFRAMES_PLAN = `# Engine: HyperFrames — how the tasks are cut (ADR-0087)
+Tasks in this order, each depending on the one before unless said otherwise. Every task spec repeats the contract (one scene per sub-composition, clips with \`data-start\` and \`data-duration\` on the storyboard's seconds, variables for copy and media, the registry before any hand-built effect, \`npx hyperframes check --json\` clean; banned: a centred title on a gradient, everything fading in, corner labels and frame borders, glow on UI chrome, particle bursts, text on a linear curve) and says that the worker runs \`scripts/scaffold.mjs\` of the hyperframes-harness skill once and \`video/lib/*.mjs\` from the repository root, with the CLI as \`npx --yes hyperframes@<the project's pinned release>\`, nothing else to install, no cloud render, no HeyGen sign-in, and never a wait at the preview.
+1. **Style guide and storyboard** (scenario video; a milestone "Have a look at the storyboard" — the goal goes on without waiting): gather the real assets, write \`docs/video/style_guide.md\` and \`video/<slug>/STORYBOARD.md\` (BPM and beat length, one row per shot with its seconds, what is on screen, the sound), run the scaffold. Check: a must command \`test -s docs/video/style_guide.md && test -s video/<slug>/STORYBOARD.md && test -f video/<slug>/hyperframes.json\`.
+2. **Build and draft**: every scene as a sub-composition mounted by the root, \`check\` clean, a draft render and the first sheets under \`artifacts/video/<slug>/rounds/1/\`. Checks: a must reviewer check with the rubric below on the latest sheets, and a must command \`npx --yes hyperframes@<release> check video/<slug> --json\` (exit 0). A film over 30 seconds: one task writes the style and the shared components first, then one task per chapter (they may run in parallel), then an assembly task.
+3. **Critique rounds**: the three worst problems fixed each round, only the touched span re-rendered, new sheets, three rounds at least, each logged in \`docs/video/review_log.md\` (a \`## Round N\` heading, the scores per axis, the three problems, what changed). Checks: the reviewer rubric (must), and a must command \`test $(grep -c '^## Round' docs/video/review_log.md) -ge 3\`.
+4. **Sound**: the music placed as an \`<audio>\` with an id (the Brief's track, or a bundled one), effects on the cuts, the voice from \`hyperframes tts\` and captions from \`hyperframes transcribe\` when the Brief asks. Check: a must command that the draft render has an audio stream (\`ffprobe -v error -select_streams a:0 -show_entries stream=codec_type -of csv=p=0 <file> | grep -qx audio\`).
+5. **Deliver, sheets and verify**: every format rendered at delivery quality, \`loudness.mjs\` to -14 LUFS, \`sheets.mjs\`, \`verify.mjs\` per format; the deliverables are the contract files the goal-level checks name.
+The reviewer rubric, for every reviewer check of a film task: "Open the attempt's latest contact.png, strip.png and phone.png under artifacts/video/<slug>/ (its rounds/ folder for a draft) and look at them. Score 1–10 in \`scores\`: hook (something striking in the first 2 s), readability (every word legible at phone size, captions title-safe), motion (eased moves that settle, no dead frames, no stutter), variety (something new every 2–4 s), composition (off-centre where it should be, one accent, no corner labels or borders, no glow on UI chrome), brand (the real colours, faces, words and screens), sound (cuts on the beat, voice intelligible over the music). Pass only when every axis is 8 or more; list the three worst frames by timestamp."
+Estimate generously: a 15-second film is four to six sessions of up to an hour.`;
+
 /** what every media task's spec and checks must say: where files go, parallel generation, the manifest, how they are judged */
 function mediaConventions(kind: 'image' | 'video', ffprobe: boolean): string {
   return `Conventions every media task's spec MUST state verbatim:\n- generated files go to \`artifacts/\` in the workspace (the engine keeps that folder out of git)\n- independent artifacts are generated IN PARALLEL (launch the generation calls together, e.g. background jobs), never one after another; at most one regeneration pass per artifact\n- the task also writes its manifest \`docs/artifacts/<task-slug>.md\` (committed): one bullet per artifact — file name, what it shows, and the prompt/parameters used\nAcceptance: reviewer checks whose rubric judges the manifest AND the artifacts themselves (the reviewer opens image files to look at them)${kind === 'video' ? `; add a must command check verifying each video with ffprobe (duration, resolution)${ffprobe ? '' : ' — ffprobe is NOT installed on this machine, so use a plain file-exists check instead'}` : ''}. Command checks otherwise only verify objective facts (files exist, counts).`;
@@ -732,6 +756,7 @@ function plannerNatureSection(goal: Goal, emptyRepo: boolean, diagram: DiagramIn
   if (nature === 'docs') return [docs, diagrams].filter(Boolean).join('\n\n');
   if (nature === 'research') return [research, diagrams].filter(Boolean).join('\n\n');
   if (nature === 'video' && goal.videoPack === 'motion-studio') return [media('video'), MOTION_STUDIO_PLAN].join('\n\n');
+  if (nature === 'video' && goal.videoPack === 'hyperframes') return [media('video'), HYPERFRAMES_PLAN].join('\n\n');
   if (nature === 'image' || nature === 'video') return media(nature);
   if (nature === 'cad') return CAD_PLAN;
   if (nature === 'figure') return FIGURE_PLAN;
@@ -765,7 +790,7 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
     case 'image':
       return [media('image'), subjectsSection(goal)].join('\n\n');
     case 'video':
-      return [media('video'), ...(goal.videoPack === 'motion-studio' ? [MOTION_STUDIO_CLARIFY] : []), subjectsSection(goal)].join('\n\n');
+      return [media('video'), ...(goal.videoPack === 'motion-studio' ? [MOTION_STUDIO_CLARIFY] : goal.videoPack === 'hyperframes' ? [HYPERFRAMES_CLARIFY] : []), subjectsSection(goal)].join('\n\n');
     case 'figure':
       return [figureClarifySection(figure), subjectsSection(goal)].join('\n\n');
     case 'diagram':

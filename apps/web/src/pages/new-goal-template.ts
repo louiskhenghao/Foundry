@@ -33,9 +33,9 @@ export interface TemplateBeta {
   deck?: boolean;
 }
 
-/** what the form shows of the templates: the figure, diagram and motion-studio ones only while their Beta is on */
+/** what the form shows of the templates: the figure, diagram, deck and motion-studio ones only while their Beta is on; a template on another video engine (HyperFrames, ADR-0087) always */
 export function offeredTemplates(all: TemplateEntry[], beta: TemplateBeta): TemplateEntry[] {
-  return all.filter((t) => (t.nature !== 'figure' || beta.figure) && (t.nature !== 'diagram' || !!beta.diagram) && (t.nature !== 'deck' || !!beta.deck) && (!t.settings.videoPack || beta.motionStudio));
+  return all.filter((t) => (t.nature !== 'figure' || beta.figure) && (t.nature !== 'diagram' || !!beta.diagram) && (t.nature !== 'deck' || !!beta.deck) && (t.settings.videoPack !== 'motion-studio' || beta.motionStudio));
 }
 
 /** the templates of each kind, kinds with none left out */
@@ -85,7 +85,8 @@ export function formPatch(t: TemplateEntry, beta: TemplateBeta): TemplateFormPat
   const s = t.settings;
   const patch: TemplateFormPatch = { nature: t.nature, dropped: [] };
   if (s.videoPack) {
-    if (beta.motionStudio) patch.videoPack = s.videoPack;
+    // only the motion-studio engine is behind a Beta (ADR-0077); HyperFrames is any video goal's to pick (ADR-0087)
+    if (s.videoPack !== 'motion-studio' || beta.motionStudio) patch.videoPack = s.videoPack;
     else patch.dropped.push(`its video engine (${s.videoPack}): the motion-studio Beta is off`);
   }
   if (s.figurePack && s.figurePack !== 'none') {

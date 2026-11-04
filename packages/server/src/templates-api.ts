@@ -70,7 +70,7 @@ export function goalFromTemplate<B extends { prompt?: string; template?: Templat
   const s = v.settings;
   const given = rest as Record<string, unknown>;
   const defaults: Record<string, unknown> = { nature: t.nature };
-  if (s.videoPack && engine.config.betaMotionStudio) defaults.videoPack = s.videoPack;
+  if (s.videoPack && (s.videoPack !== 'motion-studio' || engine.config.betaMotionStudio)) defaults.videoPack = s.videoPack;
   if (s.figurePack && engine.config.betaFigure) defaults.figurePack = s.figurePack;
   if (s.mode) defaults.mode = s.mode;
   // a template that names no budget gets Auto (the Brief proposes one), as the CLI's own default — except a motion-studio

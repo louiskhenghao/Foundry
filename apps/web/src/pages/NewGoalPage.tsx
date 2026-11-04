@@ -673,7 +673,8 @@ export function NewGoalPage() {
         nature,
         figurePack: nature === 'figure' && figurePack ? figurePack : undefined,
         outputDir: ARTIFACT_NATURES.includes(nature) && outputDir.trim() ? outputDir.trim() : undefined,
-        videoPack: nature === 'video' && betaMotionStudio && videoPack ? videoPack : undefined,
+        // the Engine picker shows with the motion-studio Beta; a template sets the engine without it (ADR-0087)
+        videoPack: nature === 'video' && videoPack && (videoPack !== 'motion-studio' || betaMotionStudio) ? videoPack : undefined,
         interviewDepth: Number(interviewDepth),
         effort: effort || (provider === 'codex' ? null : undefined),
         modelPreset: (provider === 'codex' ? codexPreset : provider === 'agy' ? '' : modelPreset) || undefined,

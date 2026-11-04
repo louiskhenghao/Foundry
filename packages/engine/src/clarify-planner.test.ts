@@ -248,6 +248,16 @@ describe('the planner prompt', () => {
     for (const nature of ['research', 'docs', 'image'] as const) expect(buildPlannerPrompt({ ...base, nature }, skeleton, ctx)).not.toContain('# Plan lean');
     expect(buildPlannerPrompt({ ...base, workflow: { ...base.workflow, ponytail: 'off' } }, skeleton, ctx)).not.toContain('# Plan lean');
     // cad is code work with a geometry kernel: its own planning rules, and Plan lean with them
+    // a video goal's engine shapes the plan (ADR-0077, ADR-0087): the sections name the harness, its folders and the rubric
+    const hf = buildPlannerPrompt({ ...base, nature: 'video', videoPack: 'hyperframes' }, skeleton, ctx);
+    expect(hf).toContain('# Engine: HyperFrames');
+    expect(hf).toContain('video/lib/*.mjs');
+    expect(hf).toContain("grep -c '^## Round' docs/video/review_log.md");
+    expect(hf).not.toContain('# Engine: motion studio');
+    const ms = buildPlannerPrompt({ ...base, nature: 'video', videoPack: 'motion-studio' }, skeleton, ctx);
+    expect(ms).toContain('# Engine: motion studio');
+    expect(ms).not.toContain('# Engine: HyperFrames');
+    expect(buildPlannerPrompt({ ...base, nature: 'video', videoPack: null }, skeleton, ctx)).not.toContain('# Engine:');
     const cad = buildPlannerPrompt({ ...base, nature: 'cad' }, skeleton, ctx);
     expect(cad).toContain('# CAD');
     expect(cad).toContain('# Plan lean');
