@@ -34,8 +34,9 @@ section; every template with a `videoPack` was hidden behind the motion-studio b
 - **Clarify and planner sections for the engine** (`HYPERFRAMES_CLARIFY`, `HYPERFRAMES_PLAN`): what the Brief settles
   (the formats' rule: the first is the film, another format is its own reframed root composition, never a crop; the
   voice and captions made on this computer; the slug), the goal-level must checks on the verifier per format, the
-  five tasks with their checks (the storyboard milestone, `check --json`, three logged rounds, an audio stream, the
-  delivery files), and the reviewer rubric. The prompts now see the engine the goal follows — `engine.videoPackOf`
+  five tasks with their checks (the storyboard, the first sheets as a milestone, `check --json`, three logged rounds,
+  an audio stream, the delivery files), and the reviewer rubric. Live, a milestone on the storyboard task showed as
+  failed evidence (a document, no picture): the first look is the first sheets. The prompts now see the engine the goal follows — `engine.videoPackOf`
   at the callers — so a goal with no pick of its own gets the section of Settings' engine; motion-studio's sections
   gain the same.
 - **A doctor check, `hyperframes`**, while Settings' Video skills name the engine: Node.js 22 or newer and ffmpeg

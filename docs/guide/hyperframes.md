@@ -16,8 +16,8 @@ The Clarifier settles what a film needs before anything renders: the subject or 
 
 The plan then runs through the harness's gates:
 
-1. **Style guide and storyboard** — the real assets gathered, a style guide written from the reference, the shots laid on a beat grid; the project is laid out under `video/<slug>/`. The task is a milestone: the storyboard is shown on the goal page and the goal goes on.
-2. **Build and draft** — one scene per sub-composition mounted by the root, the command line's check clean, a draft render and the first contact sheets.
+1. **Style guide and storyboard** — the real assets gathered, a style guide written from the reference, the shots laid on a beat grid; the project is laid out under `video/<slug>/`.
+2. **Build and draft** — one scene per sub-composition mounted by the root, the command line's check clean, a draft render and the first contact sheets. The task is a milestone: the sheets are shown on the goal page and the goal goes on.
 3. **Critique rounds** — the worker scores its own sheets by a fixed rubric, fixes the three worst problems, re-renders only the span it touched; three rounds at least, each logged with its scores.
 4. **Sound** — the music placed, effects on the cuts, the voice from the on-device text-to-speech and the captions from the on-device transcription when the Brief asks.
 5. **Deliver** — every format at delivery quality, brought to -14 LUFS, with its contact sheet, phone sheet and poster; the verifier measures each file.
