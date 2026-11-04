@@ -29,7 +29,7 @@ Each task is judged twice: the worker critiques its own contact sheets by a fixe
 
 ## What you get
 
-Under the goal's artifacts, per format: `final-<format>.mp4` (H.264, 1080 wide or tall, the duration you asked for, -14 LUFS), `loop_check.mp4`, `poster.png` and `contact.png`; the artifacts strip plays the film with its poster. In the repository: the film's source under `motion/<slug>/` with a README that renders it again, and under `docs/motion/` the style guide, the review log with every round's scores, and the house style. When the goal completes, the house style is also written as a project skill (`motion-house-style`) that your own coding sessions read, kept out of git like the Learnings skill.
+Under the goal's artifacts, per format: `final-<format>.mp4` (H.264, 1080 wide or tall, the duration you asked for, -14 LUFS), `loop_check.mp4`, `poster.png` and `contact.png`; the artifacts strip plays the film with its poster. In the repository: the film's source under `motion/<slug>/` with a README that renders it again, and under `docs/motion/` the style guide, the review log with every round's scores, and the house style. When the goal completes, the house style is also written as a project skill (`motion-house-style`) that your own coding sessions read, kept out of git like the Learnings skill. With the Editor beta on, the **Workspace & preview** card lists each film with a page that scrubs through it: see [Editor](./editor.md#motion-studio-films).
 
 ## Sessions that run long
 

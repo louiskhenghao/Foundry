@@ -20,6 +20,7 @@ import { MilestonesCard } from './MilestoneEvidence.tsx';
 import { ProjectSkillsCard } from './ProjectSkillsCard.tsx';
 import { ProvidesCard } from './ProvidesCard.tsx';
 import { AdjustCard } from './AdjustCard.tsx';
+import { RerenderCard } from './RerenderCard.tsx';
 
 /** a label inside a card, in small capitals */
 const LABEL = 'text-[11px] font-extrabold uppercase tracking-[0.08em]';
@@ -73,7 +74,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           {/* what the person said they would provide (ADR-0074): each material's state, and a slot to give it */}
           {(d.brief?.brief.provides?.length ?? 0) > 0 && <ProvidesCard goalId={g.id} provides={d.brief!.brief.provides!} attachments={g.attachments} taskTitles={Object.fromEntries(d.tasks.map((t) => [t.id, t.title]))} />}
           <CodexModelsCard goal={g} />
-          {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} goal={g} />}
+          {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <PreviewCard goalId={g.id} goal={g} editor={d.editor} />}
           {!['draft', 'clarifying', 'awaiting_brief_approval'].includes(g.state) && <MilestonesCard d={d} />}
           {d.events.some((e) => e.type === 'goal.models_changed') && (
             <Card title="Model fallback">
@@ -107,6 +108,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           )}
           <ProjectSkillsCard d={d} />
           <CompletionCard d={d} />
+          <RerenderCard d={d} />
           <AdjustCard d={d} />
         </div>
         <div className="space-y-4">

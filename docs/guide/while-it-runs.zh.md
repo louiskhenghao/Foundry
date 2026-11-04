@@ -188,6 +188,8 @@ Overview 标签上 **Workspace & preview** 卡片的顶部写着 worker 提交�
 
 如果卡片显示 **Nothing to run yet**，说明还没有启动命令。等某个任务加上一条就会出现，或者你可以在 Brief 的 **How to run it** 下设一条。
 
+影片 goal 的卡片在 Editor beta 打开时还会列出片的编辑器 —— 每个 HyperFrames 项目一个浏览器编辑器，每部 motion-studio 的片一个拖条页：见[编辑器](./editor.zh.md)。
+
 ### Several apps
 
 一个仓库里可能有几个要一起运行的应用，比如网站、管理后台和 API。Foundry 会从 `package.json` 的 workspaces 里找到它们，或者由 Brief 在 **How to run it** 下列出。这时卡片每个应用一行，第一个排在最上面：

@@ -72,6 +72,7 @@ import { FIGURE_CHECK_NAME } from './checks/figure.ts';
 import { DIAGRAM_CHECK_NAME } from './checks/diagram.ts';
 import { DECK_CHECK_NAME } from './checks/deck.ts';
 import { adjustGoal, adjustView, adjustedSinceDelivery, type AdjustView } from './adjust.ts';
+import { editorApps, editorView, hyperframesProjects, rerenderGoal, type EditorDeps, type EditorView, type HyperframesProject } from './editor.ts';
 import type { DoctorCheck } from './skills/types.ts';
 import { isFigureStyle, type FigureInfo } from './figure.ts';
 import type { DiagramInfo } from './diagram.ts';
@@ -390,6 +391,10 @@ export class Engine {
   readonly conversations: Conversations;
   /** goals whose Adjustment is being set up (ADR-0078): one at a time per goal */
   readonly adjusting = new Set<string>();
+  /** goals whose films Foundry is rendering again after edits in the Editor (ADR-0086): one at a time per goal */
+  readonly rerendering = new Set<string>();
+  /** what a test puts in place of the HyperFrames CLI for a Re-render (ADR-0086) */
+  editorDeps: EditorDeps = {};
   /** pushes escalations / goal endings / delivery results / usage pauses to Telegram & Discord (Settings → Notifications) */
   readonly notifications: NotificationDispatcher;
   /** Telegram's buttons and replies: reads the bot's updates while the engine serves (ADR-0038) */
@@ -708,6 +713,28 @@ export class Engine {
     const file = model ? `/?file=${encodeURIComponent(model).replace(/%2F/gi, '/').replace(/%3A/gi, ':')}` : '';
     return { key: CAD_VIEWER_KEY, name: 'CAD Viewer', dir: '', install: null, command: [server.command, ...serverBaseArgs(server.args), 'viewer', '--port', '{port}'].map(q).join(' '), url: `http://localhost:{port}${file}`, platform: 'web' };
   }
+
+  /** the Editor apps of a video goal (ADR-0086): HyperFrames' browser editor per project folder, started by the person */
+  editorApps(goal: Goal): BriefApp[] {
+    return editorApps(this, goal);
+  }
+  /** the goal page's view of the Editor: the projects, the motion-studio films and Re-render (ADR-0086) */
+  editorView(goal: Goal): EditorView {
+    return editorView(this, goal);
+  }
+  /** the films of a finished HyperFrames goal rendered again after the person's edits (ADR-0086); the work goes on in the background */
+  rerender(goalId: string, opts: { by?: string | null } = {}): { n: number } {
+    return rerenderGoal(this, goalId, opts);
+  }
+  /** the HyperFrames projects of the goal's workspace, kept for 10 s: every status poll of the preview asks */
+  editorProjects(goal: Goal): HyperframesProject[] {
+    const hit = this.editorMemo.get(goal.id);
+    if (hit && Date.now() - hit.at < 10_000) return hit.value;
+    const value = hyperframesProjects(goalWorkspacePath(this.config.dataDir, goal));
+    this.editorMemo.set(goal.id, { at: Date.now(), value });
+    return value;
+  }
+  private editorMemo = new Map<string, { at: number; value: HyperframesProject[] }>();
 
   /**
    * The model the CAD Viewer opens on (cadModelIn): from the goal's workspace while it runs, from the output folder

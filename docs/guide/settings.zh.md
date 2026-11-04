@@ -351,6 +351,7 @@ Access 打开后，每个人做的事都记在自己名下：goal 页面会写�
 - **Diagram goals**：一种自己的 goal 类型 —— 编辑风格的图（架构、流程、时序、时间线、图表），每张一个网页加旁边的 SVG，由 Diagram 包（diagram-design）画出来，任务落地时由 Foundry 在无头浏览器里打开检查；文档和代码 goal 也能带 diagram 任务。开着时：goal 类型里有 **Diagrams**，Skills 下有 **Diagram skills**，命令行接受 `--nature diagram`，doctor 会检查相关工具。关着时：这些都不出现；之前做的 diagram goal 仍能打开。见 [Diagram goal](./diagrams.zh.md)。
 - **Deck goals**：一种自己的 goal 类型 —— 原生可编辑的 PPTX 幻灯片（路演、课件、汇报、文档变幻灯片），由 Deck 包（PPT Master）在 Foundry 维护的 Python 环境里做出来，Brief 代替技能的两阶段确认。开着时：goal 类型里有 **Slides**，Skills 下有 **Deck skills**，命令行接受 `--nature deck`，doctor 会检查 uv、环境和 Chromium。关着时：这些都不出现；之前做的 deck goal 仍能打开。见 [Deck goal](./decks.zh.md)。
 - **Adjust the result**：已完成 goal 页面上的一张卡片，接收你对结果的意见 —— 要改什么，可以附图片或文件 —— 由 goal 自己去做：当初干活的会话从停下的地方接着来，或者在做完的任务后面加一个任务，或者失败的 goal 把失败的任务重新跑一遍。检查和审查会重新跑，输出文件夹和已开的 pull request 会拿到新结果，改之前的结果会保留。费用算在 goal 上，在它的预算之内。关着时：没有这张卡片；已经做过的调整留在 goal 上。见[调整结果](./getting-the-result.zh.md#调整结果)。
+- **Editor on video goals**：HyperFrames goal 的 **Workspace & preview** 卡片每个项目文件夹多一行 **Editor** —— 由 Foundry 作为预览应用启动的 HyperFrames 浏览器编辑器（时间轴、检查器、字幕、导出），goal 进行中和完成后都能开，和任何预览一样在你的 tailnet 上；motion-studio goal 则每部片一行，打开拖条页。完成的 HyperFrames goal 多一张 **Re-render** 卡片：你改完之后重新渲染，之前的成果保留，改动提交，新文件交付，不开会话。关着时：没有 Editor 行、没有拖条页、没有 Re-render；已经做的改动留在 goal 的文件夹里。见[编辑器](./editor.zh.md)。
 
 ## Engine (install)
 

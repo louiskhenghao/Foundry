@@ -15,6 +15,7 @@ import { MilestonesCard } from './MilestoneEvidence.tsx';
 import { BriefStrip, GoalReview } from './OverviewTab.tsx';
 import { PreviewCard } from './PreviewCard.tsx';
 import { AdjustCard } from './AdjustCard.tsx';
+import { RerenderCard } from './RerenderCard.tsx';
 
 const STATE_TEXT: Record<string, string> = {
   draft: 'Getting ready.',
@@ -119,7 +120,7 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
       )}
 
       {/* at a milestone pause the Have a look card above has the preview already */}
-      {approved && g.state !== 'awaiting_feedback' && <PreviewCard goalId={g.id} goal={g} />}
+      {approved && g.state !== 'awaiting_feedback' && <PreviewCard goalId={g.id} goal={g} editor={d.editor} />}
       {approved && <MilestonesCard d={d} />}
 
       <Card title="Cost">
@@ -170,7 +171,7 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
               )}
             </span>
             <span className="ml-auto flex items-center gap-2">
-              <OpenMenu goalId={g.id} places={[...(d.paths.workspace ? [{ which: 'workspace' as const, label: 'The result', path: d.paths.workspace, hint: `branch ${g.branch}` }] : []), { which: 'repo' as const, label: 'Your repository', path: d.paths.repo }]} label="Open" working={['running', 'goal_review'].includes(g.state)} />
+              <OpenMenu goalId={g.id} places={[...(d.paths.workspace ? [{ which: 'workspace' as const, label: 'The result', path: d.paths.workspace, hint: `branch ${g.branch}` }] : []), { which: 'repo' as const, label: 'Your repository', path: d.paths.repo }]} label="Open" working={['running', 'goal_review'].includes(g.state)} projects={d.editor?.enabled ? d.editor.projects : []} />
               {g.delivery.status !== 'delivered' && (
                 <Button size="sm" variant="primary" onClick={onDeliver} title="Push / open a pull request / merge — opens the Delivery tab in Expert view">
                   Deliver…
@@ -181,6 +182,7 @@ export function SimpleOverview({ d, onDeliver }: { d: GoalDetail; onDeliver: () 
           <MergeStatus goal={g} className="mt-3" />
         </Card>
       )}
+      <RerenderCard d={d} />
       <AdjustCard d={d} />
       {review && <GoalReview review={review} />}
       <MarkdownPanel title="what you asked for" source={g.prompt} maxHeight={160} actions={<OpenFull value={{ title: g.title, text: g.prompt }} />} />

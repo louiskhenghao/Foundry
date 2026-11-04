@@ -72,6 +72,12 @@ export const BriefApp = BriefRun.extend({
 export type BriefApp = z.infer<typeof BriefApp>;
 /** the preview app key of text-to-cad's viewer on a cad goal: started by the person, never by a walkthrough, and never put on the tailnet */
 export const CAD_VIEWER_KEY = 'cad-viewer';
+/** the preview app keys of the Editor (ADR-0086): HyperFrames' browser editor on one project folder of a video goal, `editor:<folder>`; started by the person, never by a walkthrough; on the tailnet like any app */
+export const EDITOR_KEY_PREFIX = 'editor:';
+export const editorKey = (dir: string) => `${EDITOR_KEY_PREFIX}${dir || '.'}`;
+export const isEditorKey = (key: string) => key.startsWith(EDITOR_KEY_PREFIX);
+/** an app the person starts and stops: never a milestone's, the self-check's or an integration's, and left alone when the others restart */
+export const isPersonApp = (key: string) => key === CAD_VIEWER_KEY || isEditorKey(key);
 
 export const BriefTask = z.object({
   key: z.string(),
