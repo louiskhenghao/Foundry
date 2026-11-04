@@ -146,6 +146,7 @@ describe('the Editor (ADR-0086)', () => {
     expect(view.rerender!.history.map((h) => [h.n, h.files])).toEqual([[1, ['video/reel/final.mp4']]]);
     // the editor's scratch folders are kept out of git
     expect(readFileSync(join(ws, '.git', 'info', 'exclude'), 'utf8')).toContain('.hyperframes/');
+    expect(readFileSync(join(ws, '.git', 'info', 'exclude'), 'utf8')).toContain('.thumbnails/');
     rmSync(out, { recursive: true, force: true });
     rmSync(ws, { recursive: true, force: true });
   }, 30_000);

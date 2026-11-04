@@ -1,7 +1,8 @@
 /**
  * The scrubber page of a motion-studio film (ADR-0086): Foundry's own page, served at /api/goals/:id/film/:slug, with
- * the film's index.html in a sandboxed iframe (an opaque origin: the film's code never runs as Foundry) opened with
- * `?render=1` so its own play loop stays off. A slider, Play and the arrow keys drive `window.seek(t)` by message; the
+ * the film's index.html in a sandboxed iframe (an opaque origin: the film's code never runs as Foundry, and its
+ * requests carry no cookie, so its files are reached under the goal's film-files token) opened with `?render=1` so its
+ * own play loop stays off. A slider, Play and the arrow keys drive `window.seek(t)` by message; the
  * listener below is appended to the film's page when it is served.
  */
 import { servedType } from './files.ts';
@@ -9,6 +10,8 @@ import { servedType } from './files.ts';
 export interface FilmPageInput {
   goalId: string;
   film: { slug: string; title: string; duration: number; fps: number; formats: string[] };
+  /** the goal's film-files token: the film's page and files are reached under it, since the sandbox sends no cookie */
+  token: string;
 }
 
 /** appended to a film's index.html as it is served: the scrubber page's `{seek: t}` messages reach `window.seek` */
@@ -27,10 +30,10 @@ export function filmFileType(rel: string): string {
   return servedType(rel);
 }
 
-export function filmPage({ goalId, film }: FilmPageInput): string {
+export function filmPage({ goalId, film, token }: FilmPageInput): string {
   const formats = (film.formats.length ? film.formats : ['16x9']).filter((f) => SIZES[f]);
   const first = formats[0] ?? '16x9';
-  const base = `/api/goals/${encodeURIComponent(goalId)}/motion/${encodeURIComponent(film.slug)}/index.html`;
+  const base = `/api/goals/${encodeURIComponent(goalId)}/film-files/${token}/${encodeURIComponent(film.slug)}/index.html`;
   const data = JSON.stringify({ base, duration: film.duration, fps: film.fps, formats, sizes: Object.fromEntries(formats.map((f) => [f, SIZES[f]])) });
   return `<!doctype html>
 <html lang="en">

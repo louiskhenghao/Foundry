@@ -1,4 +1,5 @@
 import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, POOLED_PROVIDERS, isPooled, type PooledProvider, findConversationAttachment } from '@foundry/core';
+import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -185,6 +186,14 @@ const accessCookie = (token: string, req: Request) => {
 const CLEAR_ACCESS_COOKIE = `${ACCESS_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
 /** the requests Access lets through without a token: finding out whether it is on, and signing in */
 const ACCESS_OPEN = new Set(['GET /api/access/me', 'POST /api/access/login']);
+/**
+ * A motion-studio film's files (ADR-0086) are fetched by its page from a sandbox, an opaque origin that sends none of
+ * Foundry's cookies: they are reached under a token in the path instead, derived per goal from a secret of this
+ * process, that only the goal's page hands out. GET only; the files are read from the goal's motion/ folder alone.
+ */
+const FILM_FILES = /^\/api\/goals\/([^/]+)\/film-files\/([0-9a-f]{32})\//;
+const FILM_SECRET = randomBytes(16).toString('hex');
+const filmToken = (goalId: string) => createHash('sha256').update(`${FILM_SECRET}:${goalId}`).digest('hex').slice(0, 32);
 /** failed sign-ins are slowed down: this many a minute, for everyone together, then a wait */
 const LOGIN_FAILS_PER_MINUTE = 10;
 
@@ -198,7 +207,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   // Access (ADR-0061): once anyone has a token, every API request carries one; who it is goes with the request
   app.use('/api/*', async (c, next) => {
-    if (!engine.access.enabled() || ACCESS_OPEN.has(`${c.req.method} ${c.req.path}`)) {
+    const film = c.req.method === 'GET' ? FILM_FILES.exec(c.req.path) : null;
+    if (!engine.access.enabled() || ACCESS_OPEN.has(`${c.req.method} ${c.req.path}`) || (film && film[2] === filmToken(film[1]!))) {
       c.set('person', null);
       return next();
     }
@@ -678,19 +688,24 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     editorOn();
     const film = motionFilms(goalWorkspacePath(engine.config.dataDir, goal)).find((f) => f.slug === c.req.param('slug'));
     if (!film) throw new HttpError(404, { error: 'film not found' });
-    return c.html(filmPage({ goalId: goal.id, film }));
+    return c.html(filmPage({ goalId: goal.id, film, token: filmToken(goal.id) }));
   });
-  app.get('/api/goals/:id/motion/*', (c) => {
+  app.get('/api/goals/:id/film-files/:token/*', (c) => {
     const goal = goalOr404(c);
     editorOn();
-    const rel = decodeURIComponent(c.req.path.slice(c.req.path.indexOf('/motion/') + '/motion/'.length));
+    if (c.req.param('token') !== filmToken(goal.id)) throw new HttpError(404, { error: 'file not found' });
+    const rel = decodeURIComponent(c.req.path.slice(c.req.path.indexOf(`/film-files/${c.req.param('token')}/`) + `/film-files/${c.req.param('token')}/`.length));
     if (!rel || rel.split('/').some((seg) => seg === '..' || seg === '' || seg.startsWith('.'))) throw new HttpError(400, { error: 'bad film path' });
-    const p = join(goalWorkspacePath(engine.config.dataDir, goal), 'motion', rel);
+    const root = join(goalWorkspacePath(engine.config.dataDir, goal), 'motion');
+    const p = join(root, rel);
     if (!existsSync(p) || !statSync(p).isFile()) throw new HttpError(404, { error: 'file not found' });
     // the film's page runs in the browser, but never as Foundry: the sandbox directive gives it an opaque origin (as a
-    // figure's page, ADR-0076); its scripts beside it run in that sandbox, and the scrubber page reaches it by message
-    if (/\.html?$/i.test(rel)) return c.body(readFileSync(p, 'utf8') + SEEK_LISTENER, 200, { 'content-type': 'text/html; charset=utf-8', 'content-security-policy': 'sandbox allow-scripts', 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' });
-    return fileResponse(p, c.req.raw, { 'content-type': filmFileType(rel), 'cache-control': 'private, max-age=60' });
+    // figure's page, ADR-0076); its scripts, fonts and pictures come by this route (the token, not a cookie) and must
+    // say any origin may read them, since a font or a fetch from an opaque origin is refused without; the scrubber
+    // page reaches it by message
+    const cors = { 'access-control-allow-origin': '*' };
+    if (/\.html?$/i.test(rel)) return c.body(readFileSync(p, 'utf8') + SEEK_LISTENER, 200, { ...cors, 'content-type': 'text/html; charset=utf-8', 'content-security-policy': 'sandbox allow-scripts', 'x-content-type-options': 'nosniff', 'cache-control': 'no-store' });
+    return fileResponse(p, c.req.raw, { ...cors, 'content-type': filmFileType(rel), 'cache-control': 'private, max-age=60' });
   });
   // ---- the user guide, bundled with the install: docs/guide/*.md (+ .zh.md) and its screenshots ----
   const guideDir = join(engine.config.rootDir, 'docs', 'guide');

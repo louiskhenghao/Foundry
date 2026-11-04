@@ -53,9 +53,12 @@ dialogs (22 questions and a list of assumptions).
   HTTP route answers 202; the output streams on the channel `rerender-<goal>`.
 - **A motion-studio film gets a scrubber page, not a process**: `GET /api/goals/:id/film/:slug` is Foundry's own
   page (format menu, Play, a slider, the keys) with the film's `index.html` in an iframe opened with `?render=1`;
-  the film's files are served from `motion/` by `GET /api/goals/:id/motion/*` with `sandbox allow-scripts`, so the
-  film's code never runs as Foundry (as a figure's page, ADR-0076), its scripts typed to run, and a message listener
-  appended to the page so the scrubber reaches `window.seek` by `postMessage`. Read-only: to change a film, Adjust.
+  the film's files are served from `motion/` by `GET /api/goals/:id/film-files/<token>/*` with `sandbox
+  allow-scripts`, so the film's code never runs as Foundry (as a figure's page, ADR-0076). The sandbox is an opaque
+  origin that sends no cookie and is refused fonts and fetches across origins, so the files are reached under a token
+  derived per goal from a secret of the process (only the goal's page hands it out; GET, the `motion/` folder alone)
+  and answered with `access-control-allow-origin: *`; its scripts are typed to run, and a message listener appended to
+  the page lets the scrubber reach `window.seek` by `postMessage`. Read-only: to change a film, Adjust.
 - **The UI**: the Workspace & preview card lists the Editor rows with a chip and the warning while the goal works, and
   the films with Open; the Open menu gets an Editor block that starts the app if need be and opens it (at its tailnet
   address from another device); a Re-render card beside Adjust holds the button, the output, the last result and the
@@ -71,8 +74,10 @@ dialogs (22 questions and a list of assumptions).
 - The Editor's process is one more preview app: a HyperFrames goal with nothing else to run shows the Editor alone,
   and automated starts report "nothing to run" as a cad goal's do.
 - `AdjustmentMode` gains `rerender`; readers of a goal's Adjustments see entries with no task and the fixed text.
-- The film route serves the goal's `motion/` folder to anyone who can open the goal's page, in a sandbox; the Editor
-  itself has no authentication and listens on the loopback and the tailnet only.
+- The film route serves the goal's `motion/` folder to anyone who holds the goal's film-files token, which only the
+  goal's page hands out and which changes with every start of Foundry; the Editor itself has no authentication and
+  listens on the loopback and the tailnet only. HyperFrames' `.thumbnails/` joins `renders/` and `.hyperframes/`
+  among the folders kept out of git.
 - Remotion stays out; the guide's FAQ says why in a line.
 
 ## Alternatives considered

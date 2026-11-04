@@ -23,8 +23,8 @@ import { ARTIFACTS_DIR, goalWorkspacePath } from './workspace.ts';
 export const HYPERFRAMES_PIN = '0.9.8';
 /** where a Re-render writes a project's film, under artifacts/: `video/<project>/final.mp4` */
 export const RERENDER_DIR = 'video';
-/** the folders of a project the editor and its exports write, never the goal's to commit */
-export const HYPERFRAMES_SCRATCH = ['renders/', '.hyperframes/'];
+/** the folders of a project the editor, its thumbnails and its exports write, never the goal's to commit */
+export const HYPERFRAMES_SCRATCH = ['renders/', '.hyperframes/', '.thumbnails/'];
 /** folders never searched for projects or films */
 const SKIP = new Set(['node_modules', '.git', '.hyperframes', 'renders', 'artifacts', 'dist', 'build', '.foundry', 'motion']);
 const DEPTH = 4;
