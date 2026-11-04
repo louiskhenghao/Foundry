@@ -6,8 +6,8 @@
  * Foundry itself after the person's edits, the edits committed as one of the goal's own commits, the new files
  * delivered. No session takes part in a Re-render: it costs nothing.
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync } from 'node:fs';
+import { basename, join, relative } from 'node:path';
 import type { Adjustment, BriefApp, Goal } from '@foundry/core';
 import { IdPrefix, editorKey, getGoal, newId } from '@foundry/core';
 import { finishedRefusal, snapshotResult, versionFiles } from './adjust.ts';
@@ -23,8 +23,8 @@ import { ARTIFACTS_DIR, goalWorkspacePath } from './workspace.ts';
 export const HYPERFRAMES_PIN = '0.9.8';
 /** where a Re-render writes a project's film, under artifacts/: `video/<project>/final.mp4` */
 export const RERENDER_DIR = 'video';
-/** the folders of a project the editor, its thumbnails and its exports write, never the goal's to commit */
-export const HYPERFRAMES_SCRATCH = ['renders/', '.hyperframes/', '.thumbnails/'];
+/** the folders of a project the editor (its thumbnails, its waveform cache) and its exports write, never the goal's to commit */
+export const HYPERFRAMES_SCRATCH = ['renders/', '.hyperframes/', '.thumbnails/', '.waveform-cache/'];
 /** folders never searched for projects or films */
 const SKIP = new Set(['node_modules', '.git', '.hyperframes', 'renders', 'artifacts', 'dist', 'build', '.foundry', 'motion']);
 const DEPTH = 4;
@@ -81,10 +81,45 @@ export interface EditorView {
   } | null;
 }
 
-/** what a test puts in place of the CLI: the render of one project, and the probe of the file it wrote (its duration in seconds, null = could not tell) */
+/**
+ * what a test puts in place of the CLI: the render of one project's composition, the loudness pass of the harness
+ * (ADR-0087; null = the workspace has none, the render is the film), and the probe of the file written (its duration
+ * in seconds, null = could not tell)
+ */
 export interface EditorDeps {
-  render?: (o: { dir: string; out: string; version: string; log: (line: string) => void }) => Promise<void>;
+  render?: (o: { dir: string; composition: string; out: string; version: string; log: (line: string) => void }) => Promise<void>;
+  loudness?: (o: { ws: string; input: string; out: string; log: (line: string) => void }) => Promise<boolean>;
   probe?: (file: string) => Promise<number | null>;
+}
+
+/** one film of a project a Re-render makes: the format's root composition (the first format's is index.html) and the file it replaces */
+export interface RerenderOutput {
+  format: string | null;
+  composition: string;
+  rel: string;
+}
+
+/**
+ * What a Re-render of a project writes: the format-named films the goal delivered under artifacts/video/<project>/
+ * (`final-<format>.mp4`, each from its own root composition `index-<format>.html`, the first from `index.html`), or one
+ * `final.mp4` from `index.html` when the goal left none.
+ */
+export function rerenderOutputs(ws: string, project: HyperframesProject): RerenderOutput[] {
+  const dir = join(ws, ARTIFACTS_DIR, RERENDER_DIR, project.name);
+  let finals: string[] = [];
+  try {
+    finals = readdirSync(dir).filter((f) => /^final-[a-z0-9]+\.mp4$/i.test(f)).sort();
+  } catch {
+    finals = [];
+  }
+  if (!finals.length) return [{ format: null, composition: 'index.html', rel: `${RERENDER_DIR}/${project.name}/final.mp4` }];
+  return finals.map((f, i) => {
+    const format = /^final-([a-z0-9]+)\.mp4$/i.exec(f)![1]!;
+    const own = `index-${format}.html`;
+    // the first format is the root composition itself unless the project has one named for it; every other format must
+    const composition = existsSync(join(ws, project.dir, own)) ? own : i === 0 ? 'index.html' : own;
+    return { format, composition, rel: `${RERENDER_DIR}/${project.name}/${f}` };
+  });
 }
 
 const readJson = (file: string): Record<string, unknown> | null => {
@@ -220,18 +255,35 @@ export function editorView(engine: Engine, goal: Goal): EditorView {
   };
 }
 
-/** the CLI's render of one project into `out`, its output streamed; a non-zero exit is the error with its last lines */
-async function renderWithCli(o: { dir: string; out: string; version: string; log: (line: string) => void }): Promise<void> {
+/** the CLI's render of one composition of a project into `out`, its output streamed; a non-zero exit is the error with its last lines */
+async function renderWithCli(o: { dir: string; composition: string; out: string; version: string; log: (line: string) => void }): Promise<void> {
   const tail: string[] = [];
   const say = (l: string) => {
     tail.push(l);
     if (tail.length > 20) tail.shift();
     o.log(l);
   };
-  const command = hyperframesCommand(o.version, `render --quality delivery --quiet -o '${o.out.replace(/'/g, `'\\''`)}'`);
+  const q = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
+  const command = hyperframesCommand(o.version, `render --quality delivery --quiet${o.composition === 'index.html' ? '' : ` --composition ${q(o.composition)}`} -o ${q(o.out)}`);
   say(`$ ${command}  (in ${o.dir})`);
   const r = await spawnStreaming(['sh', '-lc', command], o.dir, say, { timeoutMs: RENDER_TIMEOUT_MS });
   if (r.code !== 0) throw new Error(`hyperframes render exited ${r.code}${tail.length ? `: ${tail.slice(-3).join(' | ')}` : ''}`);
+}
+
+/** the harness's loudness pass (video/lib/loudness.mjs, ADR-0087) when the workspace carries it: `input` to `out` at -14 LUFS; false = no pass, the render is the film */
+async function loudnessWithHarness(o: { ws: string; input: string; out: string; log: (line: string) => void }): Promise<boolean> {
+  const script = join(o.ws, 'video', 'lib', 'loudness.mjs');
+  if (!existsSync(script)) return false;
+  const tail: string[] = [];
+  const say = (l: string) => {
+    tail.push(l);
+    if (tail.length > 20) tail.shift();
+    o.log(l);
+  };
+  say(`$ node video/lib/loudness.mjs ${relative(o.ws, o.input)} --out ${relative(o.ws, o.out)}`);
+  const r = await spawnStreaming(['node', script, o.input, '--out', o.out], o.ws, say, { timeoutMs: RENDER_TIMEOUT_MS });
+  if (r.code !== 0) throw new Error(`the loudness pass exited ${r.code}${tail.length ? `: ${tail.slice(-3).join(' | ')}` : ''}`);
+  return true;
 }
 
 /** the duration ffprobe reads from the file, null without ffprobe */
@@ -278,23 +330,30 @@ export function rerenderGoal(engine: Engine, goalId: string, opts: { by?: string
       await snapshotResult(ws, n, { adjustment: { id, text: 'Edits in the editor, rendered again', at } });
       await excludeFromGit(ws, HYPERFRAMES_SCRATCH.map((p) => `/${p}`).concat(HYPERFRAMES_SCRATCH), config.log);
       const render = engine.editorDeps.render ?? renderWithCli;
+      const loudness = engine.editorDeps.loudness ?? loudnessWithHarness;
       const probe = engine.editorDeps.probe ?? probeWithFfprobe;
       for (const p of projects) {
-        const rel = `${RERENDER_DIR}/${p.name}/final.mp4`;
-        const out = join(ws, ARTIFACTS_DIR, rel);
         mkdirSync(join(ws, ARTIFACTS_DIR, RERENDER_DIR, p.name), { recursive: true });
-        log(`[rerender] ${p.name}: rendering edit ${n}`);
-        try {
-          await render({ dir: join(ws, p.dir), out, version: p.version, log });
-          if (!existsSync(out)) throw new Error('the render wrote no file');
-          const duration = await probe(out);
-          if (duration !== null && !(duration > 0)) throw new Error('the render is empty (ffprobe reads no duration)');
-          files.push(rel);
-          log(`[rerender] ${p.name}: ${rel}${duration ? ` (${duration.toFixed(1)} s)` : ''}`);
-        } catch (err) {
-          const error = String((err as Error).message ?? err);
-          errors.push({ dir: p.dir, error });
-          log(`[rerender] ${p.name}: failed — ${error}`);
+        // every film the goal delivered is made again from its own composition and replaced in place; the render goes
+        // through the harness's loudness pass when the repository carries it, so the file keeps the contract it was
+        // measured by (ADR-0087)
+        for (const o of rerenderOutputs(ws, p)) {
+          const out = join(ws, ARTIFACTS_DIR, o.rel);
+          const raw = join(ws, ARTIFACTS_DIR, RERENDER_DIR, p.name, `render${o.format ? `-${o.format}` : ''}.mp4`);
+          log(`[rerender] ${p.name}: rendering ${o.composition} for edit ${n}`);
+          try {
+            await render({ dir: join(ws, p.dir), composition: o.composition, out: raw, version: p.version, log });
+            if (!existsSync(raw)) throw new Error('the render wrote no file');
+            if (!(await loudness({ ws, input: raw, out, log }))) renameSync(raw, out);
+            const duration = await probe(out);
+            if (duration !== null && !(duration > 0)) throw new Error('the render is empty (ffprobe reads no duration)');
+            files.push(o.rel);
+            log(`[rerender] ${p.name}: ${o.rel}${duration ? ` (${duration.toFixed(1)} s)` : ''}`);
+          } catch (err) {
+            const error = String((err as Error).message ?? err);
+            errors.push({ dir: p.dir, error: `${o.composition}: ${error}` });
+            log(`[rerender] ${p.name}: ${o.composition} failed — ${error}`);
+          }
         }
       }
       const c = await commitAll(ws, `${ccHeader({ type: 'chore', scope: 'video', subject: `edits in the editor (edit ${n})` })}\n\nAdjustment: ${n}`);

@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { IDLE_DELIVERY, getGoal, type Goal } from '@foundry/core';
 import type { ClaudeRunner } from '@foundry/runner';
 import { artifactsDue } from './completion.ts';
 import { defaultConfig } from './config.ts';
-import { EditorError, HYPERFRAMES_PIN, editorView, hyperframesProjects, motionFilms } from './editor.ts';
+import { EditorError, HYPERFRAMES_PIN, editorView, hyperframesProjects, motionFilms, rerenderOutputs } from './editor.ts';
 import { Engine } from './engine.ts';
 import { makeRepo, sh, waitFor } from './test-helpers.ts';
 
@@ -105,27 +105,31 @@ describe('the Editor (ADR-0086)', () => {
     mkdirSync(join(ws, 'artifacts', 'video', 'reel'), { recursive: true });
     writeFileSync(join(ws, 'artifacts', 'video', 'reel', 'final.mp4'), 'old');
     await sh('git add -A && git commit -qm "feat: the reel"', ws);
-    // delivered once already to its output folder: nothing due until something changes
+    // delivered once already to its output folder: nothing due until something changes. The goal finished the way a
+    // real one does, through its states: the delivery trigger reads those
     const out = mkdtempSync(join(tmpdir(), 'foundry-editor-out-'));
     const g = goal(ws, { outputDir: out });
+    engine.store.append({ type: 'goal.state_changed', goalId: g.id, payload: { from: 'running', to: 'done', reason: 'test' } });
     engine.store.append({ type: 'goal.artifacts_delivered', goalId: g.id, payload: { status: 'ok', files: ['video/reel/final.mp4'], dest: out, detail: '1 artifact(s) copied' } });
     expect(artifactsDue(engine, getGoal(engine.store.db, g.id)!)).toBe(false);
     // the person edited in the Editor: the project's page changed on disk, uncommitted
     writeFileSync(join(ws, 'video', 'reel', 'index.html'), '<div class="clip" data-start="0" data-duration="4"></div>');
     const renders: string[] = [];
     engine.editorDeps = {
-      render: async ({ dir, out: file, version, log }) => {
-        renders.push(`${dir}@${version}`);
+      render: async ({ dir, composition, out: file, version, log }) => {
+        renders.push(`${dir}@${version}:${composition}`);
         log('rendering…');
         writeFileSync(file, 'new mp4 bytes');
       },
+      // no harness in this repository: the render is the film
+      loudness: async () => false,
       probe: async () => 4,
     };
     expect(engine.rerender(g.id, { by: 'ann' })).toEqual({ n: 1 });
     expect(engine.rerendering.has(g.id)).toBe(true);
     await expect(() => engine.rerender(g.id)).toThrow(/being rendered now/);
     await waitFor(() => engine.store.listByGoalOfTypes(g.id, ['goal.rerendered']).length === 1, 15_000);
-    expect(renders).toEqual([`${join(ws, 'video/reel')}@0.9.5`]);
+    expect(renders).toEqual([`${join(ws, 'video/reel')}@0.9.5:index.html`]);
     expect(readFileSync(join(ws, 'artifacts', 'video', 'reel', 'final.mp4'), 'utf8')).toBe('new mp4 bytes');
     // the earlier result, kept before the edit
     expect(readFileSync(join(ws, 'artifacts', '.history', '1', 'video', 'reel', 'final.mp4'), 'utf8')).toBe('old');
@@ -139,7 +143,12 @@ describe('the Editor (ADR-0086)', () => {
     // the goal's tick delivered the new file to the output folder on its own (artifactsDue): the delivery after the Re-render is the second one
     await waitFor(() => engine.store.listByGoalOfTypes(g.id, ['goal.artifacts_delivered']).length === 2, 15_000);
     expect(readFileSync(join(out, 'video', 'reel', 'final.mp4'), 'utf8')).toBe('new mp4 bytes');
+    // and once only: the Re-render is covered by the delivery that followed it, whatever state change that delivery
+    // names as its start (live, a goal that went through its states delivered again on every tick)
     expect(artifactsDue(engine, getGoal(engine.store.db, g.id)!)).toBe(false);
+    await engine.tick(g.id);
+    await new Promise((r) => setTimeout(r, 300));
+    expect(engine.store.listByGoalOfTypes(g.id, ['goal.artifacts_delivered']).length).toBe(2);
     const view = editorView(engine, after);
     expect(view.rerender).toMatchObject({ can: true, running: false, next: 2 });
     expect(view.rerender!.last).toMatchObject({ n: 1, files: ['video/reel/final.mp4'] });
@@ -148,6 +157,47 @@ describe('the Editor (ADR-0086)', () => {
     expect(readFileSync(join(ws, '.git', 'info', 'exclude'), 'utf8')).toContain('.hyperframes/');
     expect(readFileSync(join(ws, '.git', 'info', 'exclude'), 'utf8')).toContain('.thumbnails/');
     rmSync(out, { recursive: true, force: true });
+    rmSync(ws, { recursive: true, force: true });
+  }, 30_000);
+
+  test('every film the goal delivered is made again from its own composition and replaced in place, through the loudness pass when the repository carries the harness', async () => {
+    const ws = await makeRepo();
+    project(ws, 'video/reel', 'reel', '0.9.8');
+    writeFileSync(join(ws, 'video', 'reel', 'index-9x16.html'), '<div class="clip"></div>');
+    mkdirSync(join(ws, 'video', 'lib'), { recursive: true });
+    writeFileSync(join(ws, 'video', 'lib', 'loudness.mjs'), '// the harness');
+    mkdirSync(join(ws, 'artifacts', 'video', 'reel'), { recursive: true });
+    writeFileSync(join(ws, 'artifacts', 'video', 'reel', 'final-16x9.mp4'), 'old wide');
+    writeFileSync(join(ws, 'artifacts', 'video', 'reel', 'final-9x16.mp4'), 'old tall');
+    await sh('git add -A && git commit -qm "feat: the reel in two formats"', ws);
+    const g = goal(ws, { id: 'g_editor05', branch: 'goal/g_editor05' });
+    expect(rerenderOutputs(ws, { dir: 'video/reel', name: 'reel', version: '0.9.8', pinned: true })).toEqual([
+      { format: '16x9', composition: 'index.html', rel: 'video/reel/final-16x9.mp4' },
+      { format: '9x16', composition: 'index-9x16.html', rel: 'video/reel/final-9x16.mp4' },
+    ]);
+    const calls: string[] = [];
+    engine.editorDeps = {
+      render: async ({ composition, out }) => {
+        calls.push(`render ${composition} → ${basename(out)}`);
+        writeFileSync(out, `raw ${composition}`);
+      },
+      loudness: async ({ input, out }) => {
+        calls.push(`loudness ${basename(input)} → ${basename(out)}`);
+        writeFileSync(out, `loud ${readFileSync(input, 'utf8')}`);
+        return true;
+      },
+      probe: async () => 15,
+    };
+    engine.rerender(g.id);
+    await waitFor(() => engine.store.listByGoalOfTypes(g.id, ['goal.rerendered']).length === 1, 15_000);
+    expect(calls).toEqual(['render index.html → render-16x9.mp4', 'loudness render-16x9.mp4 → final-16x9.mp4', 'render index-9x16.html → render-9x16.mp4', 'loudness render-9x16.mp4 → final-9x16.mp4']);
+    expect(readFileSync(join(ws, 'artifacts', 'video', 'reel', 'final-16x9.mp4'), 'utf8')).toBe('loud raw index.html');
+    expect(readFileSync(join(ws, 'artifacts', 'video', 'reel', 'final-9x16.mp4'), 'utf8')).toBe('loud raw index-9x16.html');
+    expect(readFileSync(join(ws, 'artifacts', '.history', '1', 'video', 'reel', 'final-9x16.mp4'), 'utf8')).toBe('old tall');
+    const p = engine.store.listByGoalOfTypes(g.id, ['goal.rerendered'])[0]!.payload as { files: string[]; errors: unknown[] };
+    expect(p.files).toEqual(['video/reel/final-16x9.mp4', 'video/reel/final-9x16.mp4']);
+    expect(p.errors).toEqual([]);
+    expect(readFileSync(join(ws, '.git', 'info', 'exclude'), 'utf8')).toContain('.waveform-cache/');
     rmSync(ws, { recursive: true, force: true });
   }, 30_000);
 
@@ -162,13 +212,14 @@ describe('the Editor (ADR-0086)', () => {
         if (dir.endsWith('/a')) throw new Error('boom');
         writeFileSync(out, 'ok');
       },
+      loudness: async () => false,
       probe: async () => 2,
     };
     engine.rerender(g.id);
     await waitFor(() => engine.store.listByGoalOfTypes(g.id, ['goal.rerendered']).length === 1, 15_000);
     const p = engine.store.listByGoalOfTypes(g.id, ['goal.rerendered'])[0]!.payload as { files: string[]; errors: { dir: string; error: string }[] };
     expect(p.files).toEqual(['video/b/final.mp4']);
-    expect(p.errors).toEqual([{ dir: 'a', error: 'boom' }]);
+    expect(p.errors).toEqual([{ dir: 'a', error: 'index.html: boom' }]);
     expect(engine.store.listByGoalOfTypes(g.id, ['engine.note']).at(-1)!.payload).toMatchObject({ level: 'warn' });
     expect(existsSync(join(ws, 'artifacts', 'video', 'a', 'final.mp4'))).toBe(false);
 
