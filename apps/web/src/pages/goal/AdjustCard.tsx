@@ -9,7 +9,7 @@ import { BetaChip } from '../../components/conversation/ConversationBubble.tsx';
 import { Button, Card, cn, fmtUsd } from '../../ui.tsx';
 
 const FINISHED = new Set(['done', 'over_delivered', 'failed']);
-const MODE_LABEL: Record<NonNullable<AdjustView['mode']>, string> = { resume: 'the finished task carried on', task: 'a task was appended', restart: 'the failed tasks ran again' };
+const MODE_LABEL: Record<NonNullable<AdjustView['mode']>, string> = { resume: 'the finished task carried on', task: 'a task was appended', restart: 'the failed tasks ran again', rerender: 'the films rendered again after edits in the Editor' };
 const firstLine = (text: string, max = 90): string => {
   const line = text.split('\n').find((l) => l.trim())?.trim() ?? text.trim();
   return line.length > max ? `${line.slice(0, max - 1).trimEnd()}…` : line;
@@ -34,7 +34,9 @@ export function AdjustCard({ d, onChanged }: { d: GoalDetail; onChanged?: () => 
   const picker = useRef<HTMLInputElement>(null);
   if (!view?.enabled) return null;
   const finished = FINISHED.has(g.state);
-  if (!finished && !view.history.length) return null;
+  // an edit in the Editor rendered again (ADR-0086) is listed on the Re-render card; the numbers run on together
+  const history = view.history.filter((a) => a.mode !== 'rerender');
+  if (!finished && !history.length) return null;
   const addFiles = async (list: FileList | File[]) => {
     setUploadError(null);
     const room = ADJUST_ATTACHMENTS_MAX - files.length;
@@ -145,11 +147,11 @@ export function AdjustCard({ d, onChanged }: { d: GoalDetail; onChanged?: () => 
           )}
         </p>
       )}
-      {view.history.length > 0 && (
+      {history.length > 0 && (
         <div className={cn(finished && 'mt-4')}>
           <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">Adjustments</div>
           <ol className="mt-1.5 space-y-2 text-sm">
-            {view.history.map((a) => (
+            {history.map((a) => (
               <li key={a.id} className="min-w-0">
                 <span className="font-semibold text-ink">{a.n}.</span> <span className="text-ink" title={a.text}>{firstLine(a.text)}</span>
                 <span className="block text-[11px] text-ink-faint">

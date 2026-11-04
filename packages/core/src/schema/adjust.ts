@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
-/** how an Adjustment is carried out: the finished task's session resumed, a task appended after the finished ones, or the failed tasks restarted with it */
-export const AdjustmentMode = z.enum(['resume', 'task', 'restart']);
+/** how an Adjustment is carried out: the finished task's session resumed, a task appended after the finished ones, the failed tasks restarted with it, or (ADR-0086) the films rendered again by Foundry itself after the person's edits in the Editor, no session at all */
+export const AdjustmentMode = z.enum(['resume', 'task', 'restart', 'rerender']);
 export type AdjustmentMode = z.infer<typeof AdjustmentMode>;
 
 /**

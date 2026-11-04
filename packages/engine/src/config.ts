@@ -174,6 +174,8 @@ export interface EngineConfig {
   betaDeck: boolean;
   /** Adjust the result on finished goals is a beta feature behind Settings → Beta (ADR-0078) */
   betaAdjust: boolean;
+  /** the Editor on video goals (HyperFrames' browser editor, the motion-studio scrubber page, Re-render) is a beta feature behind Settings → Beta (ADR-0086) */
+  betaEditor: boolean;
   log: (msg: string) => void;
 }
 
@@ -272,6 +274,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     betaDiagram: process.env.FOUNDRY_BETA_DIAGRAM === '1' || process.env.FOUNDRY_BETA_DIAGRAM === 'true',
     betaDeck: process.env.FOUNDRY_BETA_DECK === '1' || process.env.FOUNDRY_BETA_DECK === 'true',
     betaAdjust: process.env.FOUNDRY_BETA_ADJUST === '1' || process.env.FOUNDRY_BETA_ADJUST === 'true',
+    betaEditor: process.env.FOUNDRY_BETA_EDITOR === '1' || process.env.FOUNDRY_BETA_EDITOR === 'true',
     log: (m) => console.log(m),
     ...overrides,
   };

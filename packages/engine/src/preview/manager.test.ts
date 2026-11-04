@@ -332,6 +332,47 @@ describe('installSteps', () => {
   });
 });
 
+describe('the Editor (ADR-0086)', () => {
+  const project = (dir: string) => {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'hyperframes.json'), '{}');
+    writeFileSync(join(dir, 'meta.json'), JSON.stringify({ name: 'reel' }));
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { dev: 'npx --yes hyperframes@0.9.5 preview' } }));
+  };
+
+  test("a video goal's Editor is started by the person only, installs nothing, keeps running after an integration, and is on the tailnet like any app", async () => {
+    engine.config.betaEditor = true;
+    project(join(ws, 'video', 'reel'));
+    // the repository has nothing of its own to run: a dev script that would install first must not run for the Editor
+    writeFileSync(join(ws, 'package.json'), JSON.stringify({ scripts: { dev: 'node server.js' } }));
+    const g = goal({ id: 'g_editor01', nature: 'video', videoPack: 'hyperframes', repoPath: await makeRepo(), branch: 'goal/g_editor01' });
+    expect(engine.preview.status(g.id).apps.map((a) => a.key)).toEqual(['app', 'editor:video/reel']);
+    // a stand-in for the CLI that answers on PORT
+    const real = engine.editorApps.bind(engine);
+    engine.editorApps = (x) => real(x).map((a) => ({ ...a, command: `bun -e 'Bun.serve({ port: Number(process.env.PORT), fetch: () => new Response("editor") })'` }));
+    const exposed: number[] = [];
+    engine.tailnet.expose = async (port: number) => (exposed.push(port), `https://box.example.ts.net:${port}/`);
+    engine.tailnet.unexpose = async () => {};
+    // a milestone start counts the repository's app only
+    expect(engine.preview.resolveApps(g)!.apps.filter((a) => a.key !== 'editor:video/reel').map((a) => a.key)).toEqual(['app']);
+    await engine.preview.start(g, 'human', 'editor:video/reel');
+    const editor = () => engine.preview.status(g.id).apps.find((a) => a.key === 'editor:video/reel')!;
+    await waitFor(() => editor().ready, 15_000);
+    expect(editor().url).toBe(`http://localhost:${editor().port}/`);
+    expect(editor().dir).toBe('video/reel');
+    expect(editor().log.some((l) => /installing dependencies/.test(l))).toBe(false);
+    expect(editor().tailnetUrl).toBe(`https://box.example.ts.net:${editor().port}`);
+    expect(exposed).toEqual([editor().port!]);
+    // a task landed: the repository's apps restart, the Editor is left as it is
+    const before = editor().startedAt;
+    await engine.preview.restartIfRunning(g);
+    expect(editor().running).toBe(true);
+    expect(editor().startedAt).toBe(before);
+    await engine.preview.stop(g.id, 'human', 'editor:video/reel');
+    expect(editor().running).toBe(false);
+  }, 45_000);
+});
+
 describe('the CAD viewer', () => {
   // a landing is what tells the engine a goal's exports changed (the viewer's model is kept between status polls)
   const landed = (goalId: string, files: string[]) => engine.store.append({ type: 'task.artifacts_landed', goalId, payload: { taskId: 't_cad', files } });

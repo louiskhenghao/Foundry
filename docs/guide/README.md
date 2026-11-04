@@ -56,13 +56,14 @@ The full glossary, for the curious, is `CONTEXT.md` in the Foundry repository.
 8. [Figure goals](./figures.md) (beta): interactive isometric figures of objects and machines, one web page each.
 9. [Diagram goals](./diagrams.md) (beta): editorial diagrams — architecture, flows, timelines, charts — one web page with an SVG each, on their own or inside a document.
 10. [Deck goals](./decks.md) (beta): slide decks as native PPTX files — a pitch, a lecture, a report, a document turned into slides.
-11. [Schedules](./schedules.md): goals that run on their own, every day, week or month.
-12. [Settings explained](./settings.md): every Settings section in plain words.
-13. [Themes](./themes.md): choosing how Foundry looks, and making a theme of your own.
-14. [Templates](./templates.md): a pattern for each kind of goal to start from, filling in with AI, and templates of your own.
-15. [Costs and usage](./costs-and-usage.md): what costs money and how to spend less.
-16. [Moving to a new computer](./moving-to-a-new-computer.md): carrying settings, keys and goals to another Foundry.
-17. [Ports](./ports.md): which ports are in use, who holds them, and freeing one.
-18. [FAQ](./faq.md): short answers to common questions.
+11. [Editor](./editor.md) (beta): HyperFrames' browser editor and the motion-studio scrubber page opened from a video goal's page, and Re-render after your edits.
+12. [Schedules](./schedules.md): goals that run on their own, every day, week or month.
+13. [Settings explained](./settings.md): every Settings section in plain words.
+14. [Themes](./themes.md): choosing how Foundry looks, and making a theme of your own.
+15. [Templates](./templates.md): a pattern for each kind of goal to start from, filling in with AI, and templates of your own.
+16. [Costs and usage](./costs-and-usage.md): what costs money and how to spend less.
+17. [Moving to a new computer](./moving-to-a-new-computer.md): carrying settings, keys and goals to another Foundry.
+18. [Ports](./ports.md): which ports are in use, who holds them, and freeing one.
+19. [FAQ](./faq.md): short answers to common questions.
 
 **Help** in the ⚙ menu at the right of the top bar shows this guide inside Foundry. The same menu holds **Settings**, **Setup**, **Transfer**, **Ports**, **Learnings**, **Schedules**, the light or dark mode, **Appearance** (the theme; see [Themes](./themes.md)), and the version you run: a red dot on the ⚙ button marks a newer one, and pressing the version opens **About & updates**.

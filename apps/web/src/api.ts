@@ -497,6 +497,27 @@ export interface AdjustView {
   history: (Adjustment & { files: string[] })[];
 }
 
+/** the goal page's view of the Editor (ADR-0086), as the server computes it: mirrors the engine's EditorView */
+export interface EditorView {
+  /** Settings → Beta → Editor is on */
+  enabled: boolean;
+  /** the HyperFrames projects of the goal's folder, each an Editor row of the preview card under its app key */
+  projects: { dir: string; name: string; version: string; pinned: boolean; key: string }[];
+  /** the motion-studio films, each with its scrubber page */
+  films: { slug: string; title: string; duration: number; fps: number; formats: string[]; url: string }[];
+  /** Re-render on a goal with HyperFrames projects; null = nothing to render */
+  rerender: {
+    can: boolean;
+    reason: string | null;
+    running: boolean;
+    /** the number the next edit gets (shared with the Adjustments) */
+    next: number;
+    last: { n: number; at: string; files: string[]; commit: string | null; errors: { dir: string; error: string }[] } | null;
+    /** the edits rendered so far, oldest first, each with the files of the version kept before it */
+    history: (Adjustment & { files: string[] })[];
+  } | null;
+}
+
 export interface GoalDetail {
   goal: Goal;
   /** how far earlier goals ran from their estimate (ADR-0056) */
@@ -510,6 +531,8 @@ export interface GoalDetail {
   budget: BudgetStatus;
   /** Adjust the result (ADR-0078): whether an Adjustment can be asked for now, and those made with the versions kept before each */
   adjust?: AdjustView;
+  /** the Editor (ADR-0086): the HyperFrames projects, the motion-studio films and Re-render */
+  editor?: EditorView;
   /** live: a slot held / a session process alive; waiting: why a ready task is not running (null: nothing holds it back);
    * waitingKind: the scheduler's caution (slots, running alone, shared files), which Start now may override, or 'hard' */
   tasks: (Task & { depth: number; usage: TaskUsage | null; live?: { inFlight: boolean; session: boolean; since: string | null }; waiting?: string | null; waitingKind?: WaitingKind | null; delegated?: DelegatedView })[];
@@ -813,6 +836,8 @@ export function apiForProvider(provider?: AgentProvider) {
   guidePage: (slug: string, lang: 'en' | 'zh') => req<{ slug: string; markdown: string; lang: 'en' | 'zh' }>(`/api/guide/page/${encodeURIComponent(slug)}?lang=${lang}`),
   interviewAnswer: (id: string, answers: Record<string, string>, finish = false, note: string | null = null) => req<{ ok: true }>(`/api/goals/${id}/interview/answer`, { method: 'POST', body: JSON.stringify({ answers, finish, note }) }),
   preview: (id: string) => req<PreviewStatus>(`/api/goals/${id}/preview`),
+  /** the films of a finished HyperFrames goal rendered again after edits in the Editor (ADR-0086); 202, the work goes on in the background */
+  rerender: (id: string) => req<{ n: number }>(`/api/goals/${id}/rerender`, { method: 'POST' }),
   /** without `app`, starts every app that is not running (Docker services first) */
   previewSources: (id: string) => req<PreviewSources>(`/api/goals/${id}/preview/sources`),
   previewSetSource: (id: string, ref: string | null | undefined, place?: PreviewPlace) => req<PreviewSource>(`/api/goals/${id}/preview/source`, { method: 'PUT', body: JSON.stringify({ ref, place }) }),

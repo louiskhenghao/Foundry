@@ -1,13 +1,13 @@
 import { ExternalLink, Eye, EyeOff, GitBranch, Lock, Play, Plus, Square, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
-import { type PreviewAppStatus, type PreviewEnv, type PreviewPlace, type PreviewSources, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
+import { type EditorView, type PreviewAppStatus, type PreviewEnv, type PreviewPlace, type PreviewSources, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
 import { Button, Card, CopyButton, Input, Modal, Select, cn } from '../../ui.tsx';
 import { markFill } from '../../components/progress.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { WorkspaceDetails } from './WorkspaceDetails.tsx';
 import { PortLine, usePortRelease, usePorts } from '../PortsPage.tsx';
 import { Link } from 'react-router-dom';
-import { CAD_VIEWER_KEY, type Goal } from '@foundry/core/browser';
+import { CAD_VIEWER_KEY, isEditorKey, isPersonApp, type Goal } from '@foundry/core/browser';
 import { HelpLink } from '../HelpPage.tsx';
 
 const startedByText = (by: PreviewAppStatus['startedBy']) => (by === 'human' ? 'by you' : by === 'milestone' ? 'for the milestone' : by === 'integration' ? 'after a task landed' : null);
@@ -41,6 +41,44 @@ const remote = typeof location !== 'undefined' && !['localhost', '127.0.0.1', '[
 const openUrl = (a: PreviewAppStatus) => (remote && a.tailnetUrl ? a.tailnetUrl : a.url);
 /** the CAD Viewer is never on the tailnet (it serves any file of Foundry's computer by its path): see HereOnly */
 const hereOnly = (a: PreviewAppStatus) => remote && a.key === CAD_VIEWER_KEY;
+/** the goal's coding agents are at work in the folder the Editor edits (ADR-0086) */
+const WORKING = new Set(['running', 'goal_review', 'blocked', 'awaiting_feedback', 'paused']);
+
+/** an Editor row's chip and, while the goal works, the warning: the agents and the person edit the same files */
+function EditorNote({ working }: { working: boolean }) {
+  return (
+    <>
+      <span className="inline-flex items-baseline rounded-md px-1.5 text-[11px] leading-[14px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong">
+        Editor <HelpLink to="editor" label="The Editor on video goals (new tab)" className="ml-1 self-center" />
+      </span>
+      {working && <span className="basis-full text-[11px] font-semibold text-work-ink">The goal is at work in this folder: what you save in the Editor goes into its next commit, or may be overwritten (HyperFrames keeps backups under .hyperframes/backup/).</span>}
+    </>
+  );
+}
+
+/** the motion-studio films of the goal, each with its scrubber page (ADR-0086): no process, a page Foundry serves */
+function Films({ films }: { films: NonNullable<EditorView['films']> }) {
+  if (!films.length) return null;
+  return (
+    <ul className="divide-y divide-line">
+      {films.map((f) => (
+        <li key={f.slug} className="flex items-baseline gap-x-2 gap-y-0.5 flex-wrap py-2 first:pt-0 last:pb-0">
+          <span className="text-[13px] font-bold text-ink">{f.title}</span>
+          <span className="mono text-[11px] text-ink-faint">motion/{f.slug}</span>
+          <span className="text-[11px] text-ink-faint">
+            {f.duration} s · {f.formats.join(', ')}
+          </span>
+          <span className="inline-flex items-baseline rounded-md px-1.5 text-[11px] leading-[14px] font-semibold text-ink-soft ring-1 ring-inset ring-line-strong">
+            Film <HelpLink to="editor#motion-studio-films" label="Scrubbing a motion-studio film (new tab)" className="ml-1 self-center" />
+          </span>
+          <a href={f.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 self-center max-sm:min-h-8 font-semibold text-work-ink hover:underline">
+            Open <ExternalLink size={12} />
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /** the address an app answers on (localhost:4178), without the path and query its link carries (the CAD Viewer's names the model's whole path) */
 export const viewerAddress = (url: string) => {
@@ -138,7 +176,7 @@ function PortHolder({ port }: { port: number }) {
  * and the Docker services they need. What would run, whether it runs, where to open it. Embedded in the milestone
  * card; on the Overview tab it is the Workspace & preview card, with the goal's folder (`goal`) at the top.
  */
-export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedded?: boolean; goal?: Goal }) {
+export function PreviewCard({ goalId, embedded, goal, editor }: { goalId: string; embedded?: boolean; goal?: Goal; editor?: EditorView }) {
   const [st, setSt] = useState<PreviewStatus | null>(null);
   const [svc, setSvc] = useState<ServicesStatus | null>(null);
   // what is being done: start:<app key> / stop:<app key>, '*' = every app
@@ -191,10 +229,12 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
   const apps = st?.apps ?? [];
   const multi = apps.length > 1;
   const anyRunning = apps.some((a) => a.running);
-  const allRunning = apps.every((a) => a.running || !a.run.command);
-  // a CAD goal whose repository has nothing to run itself: the preview is text-to-cad's viewer alone
+  const allRunning = apps.every((a) => a.running || !a.run.command || isPersonApp(a.key));
+  // a CAD goal whose repository has nothing to run itself: the preview is text-to-cad's viewer alone; a video goal's, the Editor alone
   const viewerOnly = apps.length === 1 && apps[0]?.key === CAD_VIEWER_KEY;
-  const fromText = st?.source === 'brief' ? 'the Brief' : viewerOnly ? 'text-to-cad' : multi ? 'package.json workspaces' : 'package.json';
+  const editorOnly = apps.length === 1 && isEditorKey(apps[0]!.key);
+  const working = !!goal && WORKING.has(goal.state);
+  const fromText = st?.source === 'brief' ? 'the Brief' : viewerOnly ? 'text-to-cad' : editorOnly ? 'HyperFrames' : multi ? 'package.json workspaces' : 'package.json';
   const allButtons = multi && (
     <>
       <Button size="sm" variant="primary" disabled={!!busy || allRunning} onClick={() => run('start:*', () => api.previewStart(goalId))} title="Start every app that is not running (Docker services first)">
@@ -213,14 +253,14 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
           <>
             <StatusDot app={a} />
             <span className="text-[13px] font-semibold text-ink">
-              {viewerOnly ? 'CAD Viewer running' : 'Running'} on port <span className="mono">{a.port}</span>
+              {viewerOnly ? 'CAD Viewer running' : editorOnly ? 'Editor running' : 'Running'} on port <span className="mono">{a.port}</span>
               {startedByText(a.startedBy) && <span className="font-normal text-ink-faint"> · started {startedByText(a.startedBy)}</span>}
               {a.mock && <span className="text-ink" title="Running its mock command against fake data for the milestone walkthrough; the next start runs the real app"> · mock data</span>}
             </span>
             {hereOnly(a) && <HereOnly app={a} onVisit={visit} />}
             {a.url && !hereOnly(a) && (
               <a href={openUrl(a)!} target="_blank" rel="noreferrer" onClick={visit} className="inline-flex items-center gap-1 max-sm:min-h-8 text-[13px] font-semibold text-work-ink hover:underline">
-                {viewerOnly ? 'Open the model' : 'Open preview'} <ExternalLink size={12} />
+                {viewerOnly ? 'Open the model' : editorOnly ? 'Open the editor' : 'Open preview'} <ExternalLink size={12} />
               </a>
             )}
             <Button size="sm" variant="ghost" className="ml-auto" disabled={!!busy} onClick={() => run('stop:*', () => api.previewStop(goalId))}>
@@ -229,10 +269,10 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
           </>
         ) : (
           <>
-            <span className="text-[13px] font-semibold text-ink">{st!.run?.command ? (viewerOnly ? 'CAD Viewer not running' : 'Not running') : 'Nothing to run yet'}</span>
+            <span className="text-[13px] font-semibold text-ink">{st!.run?.command ? (viewerOnly ? 'CAD Viewer not running' : editorOnly ? 'Editor not running' : 'Not running') : 'Nothing to run yet'}</span>
             {viewerOnly && hereOnly(apps[0]!) && <HereOnly app={apps[0]!} onVisit={visit} />}
             <Button size="sm" variant="primary" className="ml-auto" disabled={!!busy || !st!.run?.command} onClick={() => run('start:*', () => api.previewStart(goalId))} title={st!.run?.command ? `runs: ${st!.run.command}` : 'no dev/start script in package.json — the Brief\'s "How to run it" can set a command'}>
-              <Play size={12} /> {busy === 'start:*' ? 'Starting…' : viewerOnly ? 'Start the viewer' : 'Start preview'}
+              <Play size={12} /> {busy === 'start:*' ? 'Starting…' : viewerOnly ? 'Start the viewer' : editorOnly ? 'Start the editor' : 'Start preview'}
             </Button>
           </>
         )}
@@ -243,6 +283,11 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
         </div>
       ) : (
         <div className="text-[11px] text-ink-faint">No dev or start script in package.json. Once a task adds one, or the Brief's "How to run it" names a command, the preview can start.</div>
+      )}
+      {editorOnly && (
+        <div className="flex items-baseline gap-x-2 gap-y-1 flex-wrap">
+          <EditorNote working={working} />
+        </div>
       )}
       {a && <AlsoServing app={a} onVisit={visit} />}
       {a && !err && <Problems app={a} />}
@@ -269,6 +314,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
                   Open <ExternalLink size={12} />
                 </a>
               )}
+              {isEditorKey(a.key) && <EditorNote working={working} />}
             </div>
             <div className="flex items-baseline gap-x-2 flex-wrap text-[11px] text-ink-faint">
               {command && <span className="mono text-ink-soft break-all">{command}</span>}
@@ -324,6 +370,7 @@ export function PreviewCard({ goalId, embedded, goal }: { goalId: string; embedd
       ) : (
         single(apps[0])
       )}
+      {editor && editor.films.length > 0 && <Films films={editor.films} />}
       {err && <div className="text-bad-ink">{err}</div>}
       {st && !multi && st.running && apps[0] && (
         <div>

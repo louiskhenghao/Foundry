@@ -44,7 +44,7 @@ export function inferCompletion(brief: Brief, ws: string, pace: 'thorough' | 'fa
  */
 export function artifactsDue(engine: Engine, goal: Goal): boolean {
   if (!goal.completion.artifactsRun) return true;
-  const events = engine.store.listByGoalOfTypes(goal.id, ['goal.state_changed', 'goal.artifacts_delivered']);
+  const events = engine.store.listByGoalOfTypes(goal.id, ['goal.state_changed', 'goal.artifacts_delivered', 'goal.rerendered']);
   const last = events.filter((e) => e.type === 'goal.artifacts_delivered').at(-1);
   if (!last) return true;
   const to = (e: (typeof events)[number]) => (e.type === 'goal.state_changed' ? (e.payload as { to: string }).to : null);
@@ -52,7 +52,8 @@ export function artifactsDue(engine: Engine, goal: Goal): boolean {
   // deliveries: after the goal last finished before the record
   const after = (last.payload as { startedAfter?: string }).startedAfter;
   const began = (after ? events.find((e) => e.id === after)?.seq : undefined) ?? events.filter((e) => ['done', 'over_delivered'].includes(to(e) ?? '') && e.seq < last.seq).at(-1)?.seq ?? last.seq;
-  const ranAgain = events.some((e) => to(e) === 'running' && e.seq > began);
+  // run again, or its films rendered again by Foundry after the person's edits in the Editor (ADR-0086)
+  const ranAgain = events.some((e) => (to(e) === 'running' || e.type === 'goal.rerendered') && e.seq > began);
   return ranAgain && listArtifacts(goalWorkspacePath(engine.config.dataDir, goal)).length > 0;
 }
 

@@ -37,17 +37,24 @@ const FINISHED = new Set(['done', 'over_delivered', 'failed']);
 /** deliveries that take the new commit without anything new chosen: the branch is pushed again, the pull request updated */
 const CARRIES_ON = new Set(['pushed', 'pr_open', 'automerge_armed']);
 
+/** why a finished goal's result cannot be changed in place now — by an Adjustment or a Re-render (ADR-0086) — or null */
+export function finishedRefusal(engine: Engine, goal: Goal): string | null {
+  if (!FINISHED.has(goal.state)) {
+    if (goal.state === 'cancelled') return 'the goal was cancelled: restart it, or start a follow-up';
+    return 'the goal is still at work: adjust its result once it has finished';
+  }
+  if (isHistory(goal) || !repoHere(goal)) return 'an imported goal held as history: its repository is not on this computer';
+  if (goal.delegatedFrom) return 'a Delegated goal: adjust its main goal, whose result it is part of';
+  if (goal.delivery.status === 'running') return 'its delivery is under way: adjust it once that has finished';
+  if (goal.delivery.cleanup?.done || goal.delivery.outcome === 'merged') return 'its work was merged: start a follow-up for the change';
+  if (!existsSync(goalWorkspacePath(engine.config.dataDir, goal))) return 'its progress folder is gone: start a follow-up for the change';
+  return null;
+}
+
 /** what an Adjustment of this goal would do now, or why none can be made */
 export function adjustPlan(engine: Engine, goal: Goal): { mode: AdjustmentMode; taskIds: string[] } | { refused: string } {
-  if (!FINISHED.has(goal.state)) {
-    if (goal.state === 'cancelled') return { refused: 'the goal was cancelled: restart it, or start a follow-up' };
-    return { refused: 'the goal is still at work: adjust its result once it has finished' };
-  }
-  if (isHistory(goal) || !repoHere(goal)) return { refused: 'an imported goal held as history: its repository is not on this computer' };
-  if (goal.delegatedFrom) return { refused: 'a Delegated goal: adjust its main goal, whose result it is part of' };
-  if (goal.delivery.status === 'running') return { refused: 'its delivery is under way: adjust it once that has finished' };
-  if (goal.delivery.cleanup?.done || goal.delivery.outcome === 'merged') return { refused: 'its work was merged: start a follow-up for the change' };
-  if (!existsSync(goalWorkspacePath(engine.config.dataDir, goal))) return { refused: 'its progress folder is gone: start a follow-up for the change' };
+  const refused = finishedRefusal(engine, goal);
+  if (refused) return { refused };
   const b = budgetStatus(goal);
   if (b.exceeded) return { refused: `its ${b.exceeded === 'cost' ? 'cost' : 'time'} budget is used up: raise it under Budget first` };
   const tasks = listTasks(engine.store.db, goal.id);

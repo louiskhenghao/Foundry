@@ -29,7 +29,7 @@ motion-studio goal 一建出来就带着做片需要的设定：Settings 或表�
 
 ## What you get
 
-在 goal 的 artifacts 里，每种格式一份：`final-<format>.mp4`（H.264，宽或高 1080，你要的时长，-14 LUFS）、`loop_check.mp4`、`poster.png` 和 `contact.png`；artifacts 条用封面播放这支片。仓库里：`motion/<slug>/` 下的源码和一份能重新渲染的 README，`docs/motion/` 下的风格指南、记着每轮分数的 review log，以及 house style。goal 完成时，house style 还会写成一个项目 skill（`motion-house-style`），你自己的编码会话会读到，和 Learnings skill 一样不进 git。
+在 goal 的 artifacts 里，每种格式一份：`final-<format>.mp4`（H.264，宽或高 1080，你要的时长，-14 LUFS）、`loop_check.mp4`、`poster.png` 和 `contact.png`；artifacts 条用封面播放这支片。仓库里：`motion/<slug>/` 下的源码和一份能重新渲染的 README，`docs/motion/` 下的风格指南、记着每轮分数的 review log，以及 house style。goal 完成时，house style 还会写成一个项目 skill（`motion-house-style`），你自己的编码会话会读到，和 Learnings skill 一样不进 git。Editor beta 打开时，**Workspace & preview** 卡片会列出每部片和一个拖着看的页面：见[编辑器](./editor.zh.md#motion-studio-films)。
 
 ## Sessions that run long
 

@@ -281,6 +281,8 @@ export const BetaSettings = z.object({
   deck: z.boolean().default(false),
   /** Adjust the result (ADR-0078): a finished goal takes the person's words on its result and carries them out itself — the finished task's session resumed, or a task appended */
   adjust: z.boolean().default(false),
+  /** the Editor on video goals (ADR-0086): HyperFrames' browser editor opened from the goal page as a preview app, a scrubber page for motion-studio films, and Re-render on a finished HyperFrames goal */
+  editor: z.boolean().default(false),
 });
 export type BetaSettings = z.infer<typeof BetaSettings>;
 

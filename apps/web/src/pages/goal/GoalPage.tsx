@@ -303,6 +303,7 @@ export function GoalPage() {
                 ...(d.paths.workspace ? [{ which: 'workspace' as const, label: 'Goal workspace', path: d.paths.workspace, hint: `branch ${g.branch}` }] : []),
               ]}
               working={['running', 'goal_review'].includes(g.state)}
+              projects={d.editor?.enabled ? d.editor.projects : []}
               size="lg"
             />
             {history ? null : awaiting ? (
