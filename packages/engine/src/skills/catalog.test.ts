@@ -37,6 +37,21 @@ describe('catalog', () => {
     expect(c.entries.find((e) => e.id === 'code-review')!.workflow[0]!.instruction).toMatch(/no issue tracker/);
   });
 
+  test('the shipped catalog takes the hyperframes skills from their upstream at one commit and keeps the Herk playbooks at the kit\'s', () => {
+    const c = loadCatalog(resolve(import.meta.dir, '../../../../catalog/skills.json'));
+    const hf = c.entries.filter((e) => e.bundle === 'hyperframes');
+    const repoOf = (id: string) => {
+      const e = hf.find((x) => x.id === id)!;
+      return e.source.type === 'git' ? `${e.source.repo}@${e.source.ref?.length}` : null;
+    };
+    for (const id of ['hyperframes', 'hyperframes-cli', 'hyperframes-registry', 'hyperframes-media-use', 'hyperframes-slideshow']) expect(repoOf(id), id).toBe('heygen-com/hyperframes@40');
+    for (const id of ['hyperframes-make-a-video', 'hyperframes-motion-showreel', 'hyperframes-short-form-edit', 'hyperframes-video-beats']) expect(repoOf(id), id).toBe('nateherkai/herk-edit-kit@40');
+    expect(hf.find((e) => e.id === 'hyperframes-gsap')).toBeUndefined();
+    // the upstream skill is the one a video worker must read; the kit's playbooks only come first for their own kind of film
+    expect(hf.find((e) => e.id === 'hyperframes')!.workflow[0]!.mandate).toBe('must');
+    expect(hf.filter((e) => e.workflow.some((w) => w.mandate === 'must')).map((e) => e.id)).toEqual(['hyperframes']);
+  });
+
   test('rejects duplicate ids and bad shapes', () => {
     const p = writeCatalog(join(fake.home, 'cat-bad'), [
       { id: 'a', name: 'a', summary: '', why: '', tier: 'optional', source: { type: 'git', repo: 'o/r' } },

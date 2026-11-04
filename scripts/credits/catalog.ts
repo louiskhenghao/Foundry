@@ -23,9 +23,10 @@ export const CATALOG: Record<string, CatalogCredit> = {
   'ConardLi/garden-skills': { license: 'MIT' },
   'guinacio/claude-image-gen': { license: 'MIT' },
   'Leonxlnx/taste-skill': { license: 'MIT' },
-  // the kit is MIT; its hyperframes, hyperframes-cli and gsap skills carry HyperFrames' Apache-2.0, its pipeline skills
-  // (motion-showreel, short-form-edit, video-beats) the kit's own use permission (licenses/PIPELINE-USE-PERMISSION.txt)
-  'nateherkai/hyperframes-student-kit': { name: 'Herk Edit Kit (hyperframes-student-kit)', license: 'MIT, Apache-2.0 and the kit\'s use permission' },
+  'heygen-com/hyperframes': { name: 'HyperFrames', license: 'Apache-2.0' },
+  // the Herk Edit Kit's own playbooks (make-a-video, motion-showreel, short-form-edit, video-beats): MIT for the original kit
+  // material and the kit's use permission (licenses/PIPELINE-USE-PERMISSION.txt) for its pipeline skills
+  'nateherkai/herk-edit-kit': { name: 'Herk Edit Kit', license: 'MIT and the kit\'s use permission' },
   'morluto/rea': { license: 'MIT' },
   'earthtojake/text-to-cad': { license: 'MIT' },
   'https://ffmpeg.org': { name: 'FFmpeg', license: 'LGPL-2.1-or-later', url: 'https://ffmpeg.org' },

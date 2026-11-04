@@ -8,6 +8,7 @@ import { scanSkills } from './scanner.ts';
 import { dirFingerprint, gitBlobSha1, sourceOf } from './sources.ts';
 import { SkillsUpdateChecker } from './updates.ts';
 import { runSourceUpdate } from './updaters.ts';
+import { readMarker } from './installer.ts';
 import { SkillsManager } from './manager.ts';
 
 const sh = async (args: string[], cwd: string) => {
@@ -187,6 +188,27 @@ describe('skills sources & updates', () => {
     expect(p.changed).toEqual([]); // sha unchanged in the fake registry
     expect(lines.some((l) => l === 'updating…')).toBe(true); // ANSI stripped
   });
+
+  test('the catalog moves a skill to another repository → the managed copy is outdated → Update reinstalls it from there', async () => {
+    // same bytes upstream, another owner/name in the catalog: bytes alone would say up-to-date
+    const moved = writeCatalog(join(fh.home, 'catalog-moved'), [
+      { id: 'tdd', name: 'tdd', summary: 's', why: 'w', tier: 'recommended', bundle: 'mp', source: { type: 'git', repo: 'mattpocock/skills', url: upstream.url, path: 'skills/engineering/tdd' }, roles: ['worker'] },
+      { id: 'diagnosing-bugs', name: 'diagnosing-bugs', aliases: ['diagnose'], summary: 's', why: 'w', tier: 'recommended', bundle: 'mp', source: { type: 'git', repo: 'upstream-org/skills', url: upstream.url, path: 'skills/engineering/diagnosing-bugs' }, roles: ['worker'] },
+    ]);
+    const m = new SkillsManager({ claudeHome: fh.claudeHome, dataDir: fh.dataDir, catalogPath: moved, which: () => null, updates: { ttlMs: 60_000, urlFor: () => upstream.url } });
+    const before = await m.updates({ refresh: true });
+    const old = before.sources.find((s) => s.id === 'foundry:mattpocock/skills')!;
+    const row = old.skills.find((k) => k.name === 'diagnosing-bugs')!;
+    expect(row.status).toBe('outdated');
+    expect(row.actions).toContain('update');
+    expect(old.updateAvailable).toBe(true);
+
+    const run = await m.updateSource(old.id, { names: ['diagnosing-bugs'] });
+    expect(run.exitCode).toBe(0);
+    expect(readMarker(join(fh.paths.skillsDir, 'diagnosing-bugs'))?.repo).toBe('upstream-org/skills');
+    const after = await m.updates({ refresh: true });
+    expect(after.sources.find((s) => s.id === 'foundry:upstream-org/skills')!.skills[0]!.status).toBe('up-to-date');
+  }, 30_000);
 });
 
 // keep cpSync referenced for future fixtures

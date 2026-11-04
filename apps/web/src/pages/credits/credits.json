@@ -1261,10 +1261,10 @@
       "featured": false
     },
     {
-      "project": "nateherkai/hyperframes-student-kit",
-      "name": "Herk Edit Kit (hyperframes-student-kit)",
-      "url": "https://github.com/nateherkai/hyperframes-student-kit",
-      "license": "MIT, Apache-2.0 and the kit's use permission",
+      "project": "nateherkai/herk-edit-kit",
+      "name": "Herk Edit Kit",
+      "url": "https://github.com/nateherkai/herk-edit-kit",
+      "license": "MIT and the kit's use permission",
       "kinds": [
         "Skills"
       ],
@@ -1280,6 +1280,17 @@
         "Skills"
       ],
       "ref": "v6.8.0",
+      "featured": false
+    },
+    {
+      "project": "heygen-com/hyperframes",
+      "name": "HyperFrames",
+      "url": "https://github.com/heygen-com/hyperframes",
+      "license": "Apache-2.0",
+      "kinds": [
+        "Skills"
+      ],
+      "ref": "ce9830fece57fec08c7e5fbb7330218b6478571c",
       "featured": false
     },
     {
