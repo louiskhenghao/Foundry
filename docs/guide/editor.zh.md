@@ -21,11 +21,11 @@ HyperFrames goal 把片放在进度文件夹里的一个项目文件夹（`hyper
 HyperFrames goal 结束后（done、over-delivered 或 failed），它页面上的 **Re-render** 卡片在你改完之后把片重新渲染一遍，不开任何会话：
 
 1. 当前的成果先留一份在进度文件夹的 `artifacts/.history/<n>/` 下，和[调整结果](./getting-the-result.zh.md#调整结果)之前一样；编辑和调整共用一套编号。
-2. 每个项目用 `hyperframes render --quality delivery` 渲染到 `artifacts/video/<项目>/final.mp4`，文件用 ffprobe 检查。**▸ output** 实时显示渲染过程。
+2. goal 交付在 `artifacts/video/<项目>/` 下的每支片，都从它自己的 composition 用 `hyperframes render --quality delivery` 重新渲染并原地替换（`final-16x9.mp4` 来自 `index.html`，`final-9x16.mp4` 来自 `index-9x16.html`），项目带着 [harness](./hyperframes.zh.md) 时再过一遍响度处理到 -14 LUFS，然后用 ffprobe 检查。**▸ output** 实时显示渲染过程。
 3. 你的改动作为一个独立的提交落在 goal 分支上，*chore(video): edits in the editor (edit n)*，所以已经推送过的分支不会被改写。
 4. 输出文件夹拿到新文件；已经推送的分支或已经开出的 pull request 拿到这个新提交 —— 不用再选任何东西。
 
-卡片列出每次编辑，以及改之前留下的版本（**Before it**）。渲染失败的项目会在卡片上说明并保留它之前的文件；其他项目照常落地。Re-render 需要的就是 HyperFrames 需要的：Node.js 22 或更新、FFmpeg，以及 HyperFrames 第一次渲染时自己下载的 Chrome。
+卡片列出每次编辑，以及改之前留下的版本（**Before it**）。渲染失败的那支片会在卡片上说明并保留它之前的文件；其他的照常落地。Re-render 需要的就是 HyperFrames 需要的：Node.js 22 或更新、FFmpeg，以及 HyperFrames 第一次渲染时自己下载的 Chrome。
 
 暂时不行的情况：goal 还在跑（等它结束）、工作已经合并或进度文件夹已清理的 goal（开一个 [follow-up](./getting-the-result.zh.md#continue-with-a-follow-up)）、Delegated goal、作为历史导入的 goal，以及正在交付的 goal。
 

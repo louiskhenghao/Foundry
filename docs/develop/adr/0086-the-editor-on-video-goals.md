@@ -43,14 +43,19 @@ dialogs (22 questions and a list of assumptions).
   `.hyperframes/backup/`). After the goal finished, the edits are the person's until Re-render.
 - **Re-render on a finished HyperFrames goal**, with no session and no cost: refused as an Adjustment is (at work,
   merged, cleaned up, delegated, imported, delivering) and while one runs; then, under the goal's workspace lock, the
-  result kept aside under `artifacts/.history/<n>/` (the Adjustments' numbering, `snapshotResult`), each project
-  rendered by the CLI with `render --quality delivery` to `artifacts/video/<project>/final.mp4` and probed with
-  ffprobe, `renders/` and `.hyperframes/` excluded from git, the edits committed as `chore(video): edits in the editor
-  (edit n)`, and two events: `goal.adjusted` with an Adjustment of the new mode `rerender` (so the AdjustCard's
+  result kept aside under `artifacts/.history/<n>/` (the Adjustments' numbering, `snapshotResult`), every film the
+  goal delivered under `artifacts/video/<project>/` made again from its own composition and replaced in place
+  (`final-<format>.mp4` from `index-<format>.html`, the first format from `index.html`; `final.mp4` from `index.html`
+  when the goal left none) by the CLI with `render --quality delivery`, through the harness's loudness pass when the
+  repository carries `video/lib/loudness.mjs` (ADR-0087), and probed with ffprobe; `renders/`, `.hyperframes/`,
+  `.thumbnails/` and `.waveform-cache/` excluded from git; the edits committed as `chore(video): edits in the editor
+  (edit n)`; and two events: `goal.adjusted` with an Adjustment of the new mode `rerender` (so the AdjustCard's
   numbering, `adjustedSinceDelivery` and a pushed branch or open pull request carry on as after any Adjustment) and
-  `goal.rerendered` (the files, the commit, the errors per project), on which `artifactsDue` delivers the new files
-  to the output folder. A project whose render failed is recorded and keeps its earlier file; the others land. The
-  HTTP route answers 202; the output streams on the channel `rerender-<goal>`.
+  `goal.rerendered` (the files, the commit, the errors per composition), on which `artifactsDue` delivers the new
+  files to the output folder once: a Re-render counts until the delivery recorded after it, whatever state change
+  that record names as its start (live, a goal that had gone through its states delivered again on every tick). A
+  composition whose render failed is recorded and keeps its earlier file; the others land. The HTTP route answers
+  202; the output streams on the channel `rerender-<goal>`.
 - **A motion-studio film gets a scrubber page, not a process**: `GET /api/goals/:id/film/:slug` is Foundry's own
   page (format menu, Play, a slider, the keys) with the film's `index.html` in an iframe opened with `?render=1`;
   the film's files are served from `motion/` by `GET /api/goals/:id/film-files/<token>/*` with `sandbox
@@ -76,8 +81,8 @@ dialogs (22 questions and a list of assumptions).
 - `AdjustmentMode` gains `rerender`; readers of a goal's Adjustments see entries with no task and the fixed text.
 - The film route serves the goal's `motion/` folder to anyone who holds the goal's film-files token, which only the
   goal's page hands out and which changes with every start of Foundry; the Editor itself has no authentication and
-  listens on the loopback and the tailnet only. HyperFrames' `.thumbnails/` joins `renders/` and `.hyperframes/`
-  among the folders kept out of git.
+  listens on the loopback and the tailnet only. HyperFrames' `.thumbnails/` and `.waveform-cache/` join `renders/`
+  and `.hyperframes/` among the folders kept out of git.
 - Remotion stays out; the guide's FAQ says why in a line.
 
 ## Alternatives considered

@@ -21,11 +21,11 @@ The editor is the person's: a milestone, the self-check and an integration never
 Once a HyperFrames goal has finished (done, over-delivered or failed), the **Re-render** card on its page renders the films again after your edits, with no session:
 
 1. The result as it stands is kept under `artifacts/.history/<n>/` in the progress folder, as before an [adjustment](./getting-the-result.md#adjusting-the-result); the edits share the adjustments' numbering.
-2. Every project is rendered with `hyperframes render --quality delivery` to `artifacts/video/<project>/final.mp4`, and the file is checked with ffprobe. **▸ output** shows the render as it goes.
+2. Every film the goal delivered under `artifacts/video/<project>/` is rendered again from its own composition with `hyperframes render --quality delivery` and replaced in place (`final-16x9.mp4` from `index.html`, `final-9x16.mp4` from `index-9x16.html`), brought to -14 LUFS by the [harness](./hyperframes.md)'s loudness pass when the project carries it, and checked with ffprobe. **▸ output** shows the render as it goes.
 3. Your edits land on the goal branch as a commit of their own, *chore(video): edits in the editor (edit n)*, so a branch already pushed is never rewritten.
 4. The output folder gets the new files, and a branch already pushed or a pull request already open gets the new commit — nothing new to choose.
 
-The card lists each edit with the version kept before it under **Before it**. A project whose render failed says so on the card and keeps its earlier file; the others still land. Re-render needs what HyperFrames needs: Node.js 22 or newer, FFmpeg, and a Chrome HyperFrames downloads by itself on the first render.
+The card lists each edit with the version kept before it under **Before it**. A film whose render failed says so on the card and keeps its earlier file; the others still land. Re-render needs what HyperFrames needs: Node.js 22 or newer, FFmpeg, and a Chrome HyperFrames downloads by itself on the first render.
 
 Not now: a goal still at work (wait for it to finish), a goal whose work was merged or whose progress folder was cleaned up (start a [follow-up](./getting-the-result.md#continue-with-a-follow-up)), a Delegated goal, an imported goal held as history, or a goal whose delivery is under way.
 
