@@ -15,6 +15,10 @@ describe('templates on the New goal form', () => {
   test('hides the figure and motion-studio templates while their Beta is off, and groups by kind', () => {
     const all = [entry(), entry({ id: 'figure-kettle', nature: 'figure', settings: {} }), entry({ id: 'code-feature', nature: 'code', settings: {} }), entry({ id: 'video-plain', nature: 'video', settings: {} })];
     expect(offeredTemplates(all, { figure: false, motionStudio: false }).map((t) => t.id)).toEqual(['code-feature', 'video-plain']);
+    // a template on the HyperFrames engine needs no Beta (ADR-0087)
+    const hf = entry({ id: 'video-hyperframes', settings: { videoPack: 'hyperframes', mode: 'simple', budgetPreset: 'thorough' } });
+    expect(offeredTemplates([...all, hf], { figure: false, motionStudio: false }).map((t) => t.id)).toEqual(['code-feature', 'video-plain', 'video-hyperframes']);
+    expect(formPatch(hf, { figure: false, motionStudio: false })).toMatchObject({ nature: 'video', videoPack: 'hyperframes', dropped: [] });
     expect(offeredTemplates(all, { figure: true, motionStudio: true }).map((t) => t.id)).toEqual(['video-product-reel', 'figure-kettle', 'code-feature', 'video-plain']);
     // a diagram template shows only while the diagram Beta is on (ADR-0083)
     const chart = entry({ id: 'diagram-chart', nature: 'diagram', settings: { mode: 'simple' } });

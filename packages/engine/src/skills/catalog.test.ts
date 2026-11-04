@@ -45,11 +45,13 @@ describe('catalog', () => {
       return e.source.type === 'git' ? `${e.source.repo}@${e.source.ref?.length}` : null;
     };
     for (const id of ['hyperframes', 'hyperframes-cli', 'hyperframes-registry', 'hyperframes-media-use', 'hyperframes-slideshow']) expect(repoOf(id), id).toBe('heygen-com/hyperframes@40');
+    // Foundry's own harness rides with the pack, bundled like motion-studio's (ADR-0087)
+    expect(hf.find((e) => e.id === 'hyperframes-harness')!.source).toEqual({ type: 'bundled', path: 'bundled/hyperframes-harness' });
     for (const id of ['hyperframes-make-a-video', 'hyperframes-motion-showreel', 'hyperframes-short-form-edit', 'hyperframes-video-beats']) expect(repoOf(id), id).toBe('nateherkai/herk-edit-kit@40');
     expect(hf.find((e) => e.id === 'hyperframes-gsap')).toBeUndefined();
     // the upstream skill is the one a video worker must read; the kit's playbooks only come first for their own kind of film
     expect(hf.find((e) => e.id === 'hyperframes')!.workflow[0]!.mandate).toBe('must');
-    expect(hf.filter((e) => e.workflow.some((w) => w.mandate === 'must')).map((e) => e.id)).toEqual(['hyperframes']);
+    expect(hf.filter((e) => e.workflow.some((w) => w.mandate === 'must')).map((e) => e.id)).toEqual(['hyperframes', 'hyperframes-harness']);
   });
 
   test('rejects duplicate ids and bad shapes', () => {

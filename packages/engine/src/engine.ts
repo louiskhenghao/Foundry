@@ -159,6 +159,7 @@ import { DESKTOP_APPS_PATTERNS, SLICER_APP_PATTERNS, SLICER_HEADLESS_PATTERNS } 
 import { pluginServerPrefix } from './mcp/servers.ts';
 import { serverBaseArgs } from './skills/installer.ts';
 import { MOTION_STUDIO, exportHouseStyle, motionStudioCheck } from './motion-studio.ts';
+import { HYPERFRAMES, hyperframesCheck } from './hyperframes.ts';
 import { playwrightEnv } from './playwright-dir.ts';
 
 
@@ -2761,7 +2762,9 @@ export class Engine {
     // the motion-studio engine's tools (ADR-0077), only while its Beta is on
     const motion = this.config.betaMotionStudio ? await this.playwrightStatus().then((pw) => motionStudioCheck({ ffmpeg: Bun.which('ffmpeg'), ffprobe: Bun.which('ffprobe'), browser: pw.browser, browserDetail: pw.detail, platform: process.platform })) : null;
     if (motion?.ok) this.wakeMotionStudioGoals();
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(await this.figureToolsCheck()), ...(await this.diagramToolsCheck()), ...(await this.deckToolsCheck(provider)), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
+    // the HyperFrames engine's tools (ADR-0087), while Settings' Video skills name it
+    const hf = this.config.videoPack === HYPERFRAMES ? hyperframesCheck({ node: Bun.which('node'), nodeVersion: await this.nodeVersion(), ffmpeg: Bun.which('ffmpeg'), ffprobe: Bun.which('ffprobe'), platform: process.platform }) : null;
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(hf ? [hf] : []), ...(await this.figureToolsCheck()), ...(await this.diagramToolsCheck()), ...(await this.deckToolsCheck(provider)), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
   }
 
   /**
@@ -2769,6 +2772,22 @@ export class Engine {
    * Playwright's Chromium for Foundry's own render check of every page; python3, which Colorfigures' build step and
    * iso-glow's fast path run; and a Chrome on PATH for Colorfigures' own shots from every side (it skips them without).
    */
+  /** `node --version` of the node on PATH, kept for the process: the doctor asks on every page load */
+  private async nodeVersion(): Promise<string | null> {
+    if (this.nodeVersionMemo !== undefined) return this.nodeVersionMemo;
+    const bin = Bun.which('node');
+    if (!bin) return (this.nodeVersionMemo = null);
+    try {
+      const p = Bun.spawn([bin, '--version'], { stdout: 'pipe', stderr: 'ignore' });
+      const out = (await new Response(p.stdout).text()).trim();
+      await p.exited;
+      return (this.nodeVersionMemo = out || null);
+    } catch {
+      return (this.nodeVersionMemo = null);
+    }
+  }
+  private nodeVersionMemo: string | null | undefined;
+
   private async figureToolsCheck(): Promise<DoctorCheck[]> {
     if (!this.config.betaFigure || this.config.figurePack === 'none') return [];
     const warn = (id: string, label: string, ok: boolean, detail: string, fix: DoctorCheck['fix'] = null): DoctorCheck => ({ id, label, ok, severity: 'warn', detail, fix: ok ? null : fix });
