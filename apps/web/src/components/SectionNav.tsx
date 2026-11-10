@@ -27,10 +27,20 @@ function Status({ item, onAccent = false }: { item: NavSection; /** drawn on the
 }
 
 /**
- * The section you are at, and a jump to one; the scroller is <main>, not the window. A section jumped to is marked at once
- * and stays marked once the jump has settled, even where the page ends before that section can reach the top.
+ * A menu whose page shows one section at a time (Settings): `current` is the open one and `onSelect` opens another; the
+ * menu then follows no scrolling. Left out, the menu follows the scroll of a page that shows every section.
  */
-function useActiveSection(ids: string[]): { active: string | null; jump: (id: string) => void } {
+export interface SectionChoice {
+  current: string | null;
+  onSelect: (id: string) => void;
+}
+
+/**
+ * The section you are at, and a jump to one; the scroller is <main>, not the window. A section jumped to is marked at once
+ * and stays marked once the jump has settled, even where the page ends before that section can reach the top. With a
+ * `choice`, the section is the chosen one and a jump is a choice: nothing is watched.
+ */
+function useActiveSection(ids: string[], choice?: SectionChoice): { active: string | null; jump: (id: string) => void } {
   const [active, setActive] = useState<string | null>(ids[0] ?? null);
   /** the section a jump goes to, while its scrolling goes on */
   const jumped = useRef<string | null>(null);
@@ -54,7 +64,9 @@ function useActiveSection(ids: string[]): { active: string | null; jump: (id: st
       if (!box || !view || box.bottom < view.top || box.top > view.bottom) setActive(current());
     }, 200);
   };
+  const chosen = !!choice;
   useEffect(() => {
+    if (chosen) return;
     const main = document.querySelector('main');
     let frame = 0;
     const onScroll = () => {
@@ -69,7 +81,8 @@ function useActiveSection(ids: string[]): { active: string | null; jump: (id: st
       cancelAnimationFrame(frame);
       clearTimeout(settle.current);
     };
-  }, [key]);
+  }, [key, chosen]);
+  if (choice) return { active: choice.current, jump: choice.onSelect };
   const jump = (id: string) => {
     jumped.current = id;
     setActive(id);
@@ -81,11 +94,11 @@ function useActiveSection(ids: string[]): { active: string | null; jump: (id: st
 
 /**
  * A page's sections as a list beside it, staying in view on a wide screen (the Brief, New goal, Settings): click one to
- * jump there; the one you are reading is marked, and each shows its colour and how it stands. Narrower screens get
- * SectionChipNav.
+ * jump there, or to open it where the page shows one section at a time (`choice`); the one you are reading is marked,
+ * and each shows its colour and how it stands. Narrower screens get SectionChipNav.
  */
-export function SectionSideNav({ items, label, top = 'top-4' }: { items: NavSection[]; /** what the menu is, for a screen reader */ label: string; /** where it pins, a `top-*` class: lower under a bar of the page's own (the Brief's way back) */ top?: string }) {
-  const { active, jump } = useActiveSection(items.map((i) => i.id));
+export function SectionSideNav({ items, label, top = 'top-4', choice }: { items: NavSection[]; /** what the menu is, for a screen reader */ label: string; /** where it pins, a `top-*` class: lower under a bar of the page's own (the Brief's way back) */ top?: string; /** the page shows one section at a time: the open one, and how to open another */ choice?: SectionChoice }) {
+  const { active, jump } = useActiveSection(items.map((i) => i.id), choice);
   return (
     // pinned a little under the top of the page while the page scrolls beside it
     <nav aria-label={label} className={cn('hidden lg:block sticky self-start max-h-[calc(100dvh-5.5rem)] overflow-auto py-1 space-y-0.5', top)}>
@@ -106,8 +119,8 @@ export function SectionSideNav({ items, label, top = 'top-4' }: { items: NavSect
  * The same sections as a row of chips stuck to the top of a narrow screen, scrolling sideways; the row slides by itself
  * to keep the marked chip in view. `inBar`: it rides in a sticky bar of the page's own (Settings' save bar).
  */
-export function SectionChipNav({ items, label, inBar = false, top = 'top-0' }: { items: NavSection[]; label: string; inBar?: boolean; /** where the row sticks, a `top-*` class: under a bar of the page's own (the Brief's way back) */ top?: string }) {
-  const { active, jump } = useActiveSection(items.map((i) => i.id));
+export function SectionChipNav({ items, label, inBar = false, top = 'top-0', choice }: { items: NavSection[]; label: string; inBar?: boolean; /** where the row sticks, a `top-*` class: under a bar of the page's own (the Brief's way back) */ top?: string; /** the page shows one section at a time: the open one, and how to open another */ choice?: SectionChoice }) {
+  const { active, jump } = useActiveSection(items.map((i) => i.id), choice);
   const row = useRef<HTMLElement>(null);
   useEffect(() => {
     const nav = row.current;
