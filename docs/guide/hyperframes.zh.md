@@ -8,7 +8,7 @@
 - **ffmpeg**，带 ffprobe：编码、contact sheet、响度处理和校验都用它（`brew install ffmpeg`）。
 - 渲染用的 Chrome：HyperFrames 第一次渲染时自己下载无头 Chrome，不用装。
 
-Settings 的 Video skills pack 选的是 HyperFrames 时，Setup 页面的 doctor 会检查 Node.js 和 ffmpeg。skill 本身来自 Extensions 目录：HyperFrames 的四个（写法指南、命令行、积木注册表、素材）、Foundry 自己的 **hyperframes-harness**，以及 Herk Edit Kit 做 showreel、Shorts 和长片节拍的 playbook。
+Settings 的 Video skills pack 选的是 HyperFrames 时，Setup 页面的 doctor 会检查 Node.js 和 ffmpeg。skill 本身来自 Extensions 目录：HyperFrames 的四个（写法指南、命令行、积木注册表、素材）、Foundry 自己的 **hyperframes-harness**、Herk Edit Kit 做 showreel、Shorts 和长片节拍的 playbook，以及 Latent Spaces 的发布短片 skill **brag**（见下文）。
 
 ## How a film is made
 
@@ -30,6 +30,12 @@ goal 进行中和完成后，它页面上的 **Editor** 一行会在项目上打
 
 在 goal 的 artifacts 里，每种画幅一份：`final-<format>.mp4`（H.264，宽或高 1080，你要的时长，-14 LUFS）、`poster.png`、`contact.png` 和 `phone.png`，`rounds/` 下是每轮批评的 sheet；artifacts 条用封面播放这支片。仓库里：`video/<slug>/` 下的项目（已提交）和一份能重新渲染的 README，`docs/video/` 下的风格指南和记着每轮分数的 review log。命令行自己的文件夹（`renders/`、`.hyperframes/`、`.thumbnails/`）不进 git。
 
+## 用 /brag 给仓库本身做一支发布短片
+
+[/brag](https://latent-spaces.github.io/brag/) 是一个 skill，把它所在的项目变成一支 15–25 秒的发布短片：它读代码，用项目自己的话找出钩子、揭晓、两三个亮点和收尾，选好语气、曲子和音效，再把一份 composition brief 交给 HyperFrames。它在 Extensions 目录的 HyperFrames bundle 里，钉在一个版本上，所以对 bundle 按 **Install** 就会一起装上。
+
+**发布短片（/brag）** 模版在你想展示的那个仓库上开这样一个 goal：一句话说它是什么、语气（/brag 的七个预设 —— default、polished、yc-parody、chaotic、deadpan、cinematic、app-store —— 或者你用几个字写的方向）、画幅（横屏、竖屏或方形）、时长、要不要旁白、音乐（/brag 自带的一首、你自己的，或不要）、重点讲什么，以及发到哪里。goal 在上面的 harness 下跑 /brag 的完整版：/brag 讲故事，harness 评审并交付。项目和任何 HyperFrames 影片一样在 `video/<slug>/`（所以 Editor 和 Re-render 都找得到），/brag 的 `brag-plan.md`、`composition-brief.md` 和 `share-copy.txt` 就放在 composition 旁边；片子是 `artifacts/video/<slug>/final-<format>.mp4`，-14 LUFS，并把 /brag 选出的封面烘进第一帧，这样每个平台的缩略图都是它。分享文案一到三句，拿来就能发；片子用了 /brag 自带曲目（Sascha Ende 的，CC BY 4.0）时，许可证要求的署名就写在文案下面，发的时候一起带上。
+
 ## Templates
 
-四个内置[模版](./templates.zh.md)用正确的设置开一个 HyperFrames goal：**旁白讲解片**（本机合成的声音、字幕、节奏）、**字幕短片**（你附的录像，剪出字幕和钩子）、**图片影片**（你的图片，一拍一张，每张一句）和**产品 reel（HyperFrames）**。
+五个内置[模版](./templates.zh.md)用正确的设置开一个 HyperFrames goal：**旁白讲解片**（本机合成的声音、字幕、节奏）、**字幕短片**（你附的录像，剪出字幕和钩子）、**图片影片**（你的图片，一拍一张，每张一句）、**产品 reel（HyperFrames）**和**发布短片（/brag）**。

@@ -8,7 +8,7 @@ The **HyperFrames** engine makes a video goal's film the way a web page is made:
 - **ffmpeg** with ffprobe: the encoder, the contact sheets, the loudness pass and the verifier use it (`brew install ffmpeg`).
 - A Chrome to render with: HyperFrames fetches its own headless Chrome on the first render; nothing to install.
 
-The doctor on the Setup page checks Node.js and ffmpeg while the Video skills pack of Settings is HyperFrames. The skills themselves come from the Extensions catalog: the four from HyperFrames (the authoring guide, the command line, the registry of blocks, media), Foundry's own **hyperframes-harness**, and the Herk Edit Kit playbooks for showreels, Shorts and long-form beats.
+The doctor on the Setup page checks Node.js and ffmpeg while the Video skills pack of Settings is HyperFrames. The skills themselves come from the Extensions catalog: the four from HyperFrames (the authoring guide, the command line, the registry of blocks, media), Foundry's own **hyperframes-harness**, the Herk Edit Kit playbooks for showreels, Shorts and long-form beats, and **brag**, Latent Spaces' launch-video skill (see below).
 
 ## How a film is made
 
@@ -30,6 +30,12 @@ While the goal runs, and after, the **Editor** row on its page opens HyperFrames
 
 Under the goal's artifacts, per format: `final-<format>.mp4` (H.264, 1080 wide or tall, the duration you asked for, -14 LUFS), `poster.png`, `contact.png` and `phone.png`, and under `rounds/` the sheets of every critique round; the artifacts strip plays the film with its poster. In the repository: the project under `video/<slug>/`, committed, with a README that renders it again, and under `docs/video/` the style guide and the review log with every round's scores. The command line's own folders (`renders/`, `.hyperframes/`, `.thumbnails/`) stay out of git.
 
+## A launch video of the repository itself, with /brag
+
+[/brag](https://latent-spaces.github.io/brag/) is a skill that turns the project it is run in into a 15–25 second launch video: it reads the code, finds the hook, the reveal, two or three highlights and the punchline in the project's own words, picks a tone, a track and sound effects, and hands a composition brief to HyperFrames. It is in the Extensions catalog's HyperFrames bundle, pinned to one release, so **Install** on the bundle brings it along.
+
+The **Launch video (/brag)** template starts such a goal on the repository you want to show off: what it is in a line, the tone (one of /brag's seven presets — default, polished, yc-parody, chaotic, deadpan, cinematic, app-store — or your own direction in a few words), the format (landscape, vertical or square), the length, narration or none, the music (one of /brag's bundled tracks, your own, or none), what to point at, and where you will post it. The goal runs /brag's full edition under the harness above: /brag tells the story, the harness judges it and hands it in. The project is `video/<slug>/` as for any HyperFrames film (so the Editor and Re-render find it), with /brag's `brag-plan.md`, `composition-brief.md` and `share-copy.txt` beside the composition; the film is `artifacts/video/<slug>/final-<format>.mp4` at -14 LUFS, with /brag's chosen poster baked in as its first frame so every platform's thumbnail shows it. The share copy is one to three sentences, ready to post; when the film uses one of /brag's bundled tracks (Sascha Ende's, CC BY 4.0), the credit line the licence asks for stands under it, so copy both.
+
 ## Templates
 
-Four built-in [templates](./templates.md) start a HyperFrames goal with the right settings: **Narrated explainer** (a voice made on this computer, captions, a beat), **Captioned clip** (a recording you attach, cut with captions and a hook), **Slideshow film** (your pictures, one per beat, a line on each) and **Product reel (HyperFrames)**.
+Five built-in [templates](./templates.md) start a HyperFrames goal with the right settings: **Narrated explainer** (a voice made on this computer, captions, a beat), **Captioned clip** (a recording you attach, cut with captions and a hook), **Slideshow film** (your pictures, one per beat, a line on each), **Product reel (HyperFrames)** and **Launch video (/brag)**.
