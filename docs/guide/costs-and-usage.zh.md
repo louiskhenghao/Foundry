@@ -6,7 +6,7 @@
 
 ## Codex 用量
 
-**Codex account quota** 通过原生 CLI 读取已登录 ChatGPT 账户的额度，与本机活动统计分开。卡片展示返回的所有额度分组、**剩余百分比**、时间窗口和报告的重置时间。蓝色条表示剩余额度：已用 25% 就显示剩余 75%。未知用量保持未知，不会显示为满额。**Refresh quota** 只读元数据，不运行推理；普通轮询缓存 60 秒。**Reported ordinary usage allowance** 忠实显示原生的 allowed／blocked／unknown 信号，不能根据百分比或已过去的重置时间推断恢复。缺失的额度和重置时间保持未知；读取失败不会伪装成零用量。原生 CLI 提供邮箱和订阅方案时，Accounts 也会显示。
+**Codex account quota** 通过原生 CLI 读取已登录 ChatGPT 账户的额度，与本机活动统计分开。卡片展示返回的所有额度分组、**剩余百分比**、时间窗口和报告的重置时间。蓝色条表示剩余额度：已用 25% 就显示剩余 75%。未知用量保持未知，不会显示为满额。**Refresh quota** 只读元数据，不运行推理；普通轮询缓存 60 秒。**Reported ordinary usage allowance** 忠实显示原生的 allowed／blocked／unknown 信号，不能根据百分比或已过去的重置时间推断恢复。缺失的额度和重置时间保持未知；读取失败不会伪装成零用量。原生 CLI 提供邮箱和订阅方案时，Accounts 也会显示；方案按该 coding agent 自己的叫法显示（**Ultra**、**Max**、**Pro**、**Plus**……），添加的账号的方案跟随它的登录状态，升级后下次打开页面就会更新。
 
 不预设每个账户都有「五小时＋每周」两种限制。只有周限额的账户只显示 **Weekly limit**；两者都有的账户显示 **5-hour limit** 和 **Weekly limit**。名称根据原生回传的时长判断，primary 或 secondary 都可能是周限额。其他时长按实际数据显示，未知时长保持未知；未回传的窗口不显示、不补零。多个额度分组保持独立，顶栏统一显示 **Usage**，悬停提示分别列出 Claude 活动和 Codex 账户额度；例如两个分组均为周限额时显示 **2 weekly limits**。某个编码智能体暂停或受限、或 MiniMax 额度偏低时显示黄色圆点。点击进入 Usage 后再分别查看两种编码智能体。
 
