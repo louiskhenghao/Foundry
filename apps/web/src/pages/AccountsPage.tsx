@@ -66,7 +66,7 @@ export function AccountsPage() {
       const status = account?.status;
       const at = stateOf(account, refreshing);
       const state = STATE[at];
-      const who = [status?.email, status?.subscriptionType && `Plan: ${status.subscriptionType}`].filter(Boolean).join(' · ') || methodOf(status?.authMethod) || (provider === 'codex' ? 'Use your ChatGPT account' : provider === 'agy' ? 'Use your Google account' : 'Use your Claude subscription');
+      const who = [status?.email, status?.plan && `Plan: ${status.plan}`].filter(Boolean).join(' · ') || methodOf(status?.authMethod) || (provider === 'codex' ? 'Use your ChatGPT account' : provider === 'agy' ? 'Use your Google account' : 'Use your Claude subscription');
       return <section key={provider} aria-labelledby={`agent-${provider}`} className="rounded-xl bg-panel shadow-[0_0_0_1px_var(--color-line),var(--surface-shadow)]">
         <header className="flex flex-wrap items-center gap-x-4 gap-y-3 p-4 sm:px-5">
           <ProviderMark provider={provider} size="lg" />
