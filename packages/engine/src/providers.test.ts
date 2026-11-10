@@ -73,7 +73,7 @@ test('rate limits are scoped to one provider', async () => {
 test('account API isolates status and rejects unknown providers', async () => {
   const { engine } = await setup();
   const checked: string[] = [];
-  for (const provider of ['claude', 'codex', 'agy'] as const) engine.accounts[provider].status = async () => { checked.push(provider); return { provider, loggedIn: true, authMethod: provider, apiProvider: null, email: null, orgName: null, subscriptionType: null, checkedAt: '', error: null }; };
+  for (const provider of ['claude', 'codex', 'agy'] as const) engine.accounts[provider].status = async () => { checked.push(provider); return { provider, loggedIn: true, authMethod: provider, apiProvider: null, email: null, orgName: null, subscriptionType: null, plan: null, checkedAt: '', error: null }; };
   const app = createApp(engine);
   const response = await app.request('/api/accounts');
   const body = await response.json() as any;

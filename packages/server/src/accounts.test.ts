@@ -25,6 +25,8 @@ test('a coding agent\'s accounts: listed without their homes, made current, swit
     const claude = list.find((a: any) => a.provider === 'claude').pool;
     expect(claude.autoSwitch).toBe(false);
     expect(claude.accounts.map((a: any) => [a.id, a.current])).toEqual([['native', true], ['acc_b', false]]);
+    // a plan stored as the token's key by an older Foundry is shown as the coding agent names it
+    expect(claude.accounts[1].plan).toBe('Max');
     expect(JSON.stringify(claude)).not.toContain(home);
     expect(list.find((a: any) => a.provider === 'agy').pool).toBeUndefined();
     expect((await post('/api/accounts/agy/add')).status).toBe(400);

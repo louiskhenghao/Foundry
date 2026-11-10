@@ -182,6 +182,10 @@ Authorising one Coding agent on the machine running Foundry. Each coding agent u
 One subscription Sign-in of a Coding agent. Claude Code and Codex can hold several; Antigravity holds one. Account 1 is the machine's own Sign-in, shared with the local CLI; every other Account is added in Foundry and lives in a home of its own where only its credentials differ, so Skills, plugins, settings and session history are the same for all of a coding agent's Accounts. Adding the same person and organisation twice changes nothing.
 _Avoid_: profile (a Launch profile or a Workflow suite), user (a person with an Access token)
 
+**Plan**
+The subscription an Account is on, named as its Coding agent names it for a person (Ultra, Max, Pro, Plus): the agent's own display name where it shows one, else its subscription key said in words. Read with the Sign-in, so it follows an upgrade or a rename; stored only as what was known when an Account was added.
+_Avoid_: subscription type (the raw key the sign-in's token carries, which outlives a rename), tier (the rate-limit tier, which is not shown)
+
 **Current account**
 The Account every new session of a Coding agent runs on. Making another Account current (Use now) leaves running sessions on theirs. It changes when the person says so, when an Account sessions run on is removed, and by an Account switch.
 

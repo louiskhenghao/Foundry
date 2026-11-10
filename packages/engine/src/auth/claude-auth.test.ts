@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { chmodSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { claudeConfigEnv } from '../config.ts';
-import { ClaudeAuth, claudeAuthStatus } from './claude-auth.ts';
+import { ClaudeAuth, claudeAuthStatus, readClaudePlanDisplayName } from './claude-auth.ts';
 
 /**
  * A stand-in for the CLI on a machine without a browser: it prints the URL, then asks for the code
@@ -151,6 +151,44 @@ sleep 30
     expect(auth.loginSession()!.ok).toBe(true);
     expect(auth.loginSession()!.needsCode).toBe(false); // browser flow: never asked
     expect(() => auth.submitCode('x')).toThrow(/no sign-in is in progress/);
+  });
+});
+
+describe('the plan an account is on', () => {
+  /** `claude auth status --json` as the CLI prints it: the token's subscription type, no display name */
+  const status = (fields: Record<string, unknown>) => (async () => ({ code: 0, stdout: JSON.stringify({ loggedIn: true, authMethod: 'claude.ai', email: 'me@example.com', ...fields }), stderr: '' })) as never;
+  /** a config dir with the CLI's own `.claude.json`, naming the account and its plan as Claude Code does */
+  const configDir = (account: Record<string, unknown> | null) => {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-claude-plan-'));
+    if (account) writeFileSync(join(dir, '.claude.json'), JSON.stringify({ numStartups: 3, oauthAccount: account }));
+    return dir;
+  };
+  test("the config file's display name wins: an Ultra plan whose token still says max is Ultra", async () => {
+    const dir = configDir({ emailAddress: 'me@example.com', organizationType: 'claude_max', organizationRateLimitTier: 'default_claude_max_20x', planDisplayName: 'Ultra' });
+    const st = await claudeAuthStatus('claude', status({ subscriptionType: 'max' }), dir);
+    expect(st).toMatchObject({ loggedIn: true, subscriptionType: 'max', plan: 'Ultra' });
+  });
+  test('without a display name the subscription type is said in words; a name the status itself carries one day is taken first', async () => {
+    expect((await claudeAuthStatus('claude', status({ subscriptionType: 'max' }), configDir(null))).plan).toBe('Max');
+    expect((await claudeAuthStatus('claude', status({ subscriptionType: 'pro' }), configDir({ emailAddress: 'me@example.com' }))).plan).toBe('Pro');
+    expect((await claudeAuthStatus('claude', status({ subscriptionType: 'max', planDisplayName: 'Ultra' }), configDir(null))).plan).toBe('Ultra');
+    expect((await claudeAuthStatus('claude', status({}), configDir(null))).plan).toBeNull();
+  });
+  test("a config file naming another account lends nothing: the plan is the status' own", async () => {
+    const dir = configDir({ emailAddress: 'someone-else@example.com', planDisplayName: 'Ultra' });
+    expect((await claudeAuthStatus('claude', status({ subscriptionType: 'max' }), dir)).plan).toBe('Max');
+    // nor does a status without an email take the file's word for it
+    expect(readClaudePlanDisplayName({ CLAUDE_CONFIG_DIR: dir }, null)).toBeNull();
+    // the same address in another case is the same account
+    expect(readClaudePlanDisplayName({ CLAUDE_CONFIG_DIR: dir }, 'Someone-Else@example.com')).toBe('Ultra');
+  });
+  test('a file that is missing, unreadable or not JSON is no plan, never an error', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-claude-plan-'));
+    expect(readClaudePlanDisplayName({ CLAUDE_CONFIG_DIR: dir }, 'me@example.com')).toBeNull();
+    writeFileSync(join(dir, '.claude.json'), '{not json');
+    expect(readClaudePlanDisplayName({ CLAUDE_CONFIG_DIR: dir }, 'me@example.com')).toBeNull();
+    mkdirSync(join(dir, 'folder', '.claude.json'), { recursive: true });
+    expect(readClaudePlanDisplayName({ CLAUDE_CONFIG_DIR: join(dir, 'folder') }, 'me@example.com')).toBeNull();
   });
 });
 

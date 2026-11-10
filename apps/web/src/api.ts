@@ -311,7 +311,10 @@ export interface ClaudeAuthStatus {
   apiProvider: string | null;
   email: string | null;
   orgName: string | null;
+  /** the plan's key as the sign-in reports it; `plan` is its name for a person */
   subscriptionType: string | null;
+  /** the plan the account is on, named as the coding agent names it: Ultra, Max, Plus… */
+  plan: string | null;
   checkedAt: string;
   error: string | null;
 }

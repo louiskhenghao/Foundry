@@ -2054,10 +2054,14 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
         installed: !!(provider === 'codex' ? engine.config.codexBin ?? Bun.which('codex') : provider === 'agy' ? engine.config.agyBin ?? Bun.which('agy') : engine.config.claudeBin ?? Bun.which('claude')),
         capabilities: { dollarCosts: provider === 'claude', skillTelemetry: provider === 'claude', nativeSubagents: provider === 'claude', managedMcp: provider !== 'agy', externalSessions: provider !== 'agy' },
         // Claude Code and Codex can hold several accounts (ADR-0065); their homes stay on this computer, never in the answer
-        pool: isPooled(provider) ? {
-          autoSwitch: engine.config.autoSwitch[provider],
-          accounts: await Promise.all(engine.accountPool.views(provider).map(async ({ home: _home, provider: _p, ...a }) => ({ ...a, status: a.id === NATIVE_ACCOUNT ? status : await engine.accountPool.auth(provider, a.id).status(force).catch(() => null) }))),
-        } : undefined,
+        pool: isPooled(provider) ? await (async () => {
+          // each account's sign-in read first: the views then carry the plan it reports now, not the one stored when it was added
+          const statuses = new Map(await Promise.all(engine.accountPool.views(provider).map(async (a) => [a.id, a.id === NATIVE_ACCOUNT ? status : await engine.accountPool.auth(provider, a.id).status(force).catch(() => null)] as const)));
+          return {
+            autoSwitch: engine.config.autoSwitch[provider],
+            accounts: engine.accountPool.views(provider).map(({ home: _home, provider: _p, ...a }) => ({ ...a, status: statuses.get(a.id) ?? null })),
+          };
+        })() : undefined,
       };
     })) });
   });

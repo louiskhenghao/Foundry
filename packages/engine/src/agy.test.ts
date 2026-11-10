@@ -105,7 +105,10 @@ describe('Antigravity as a coding agent (ADR-0064)', () => {
 
   test('the sign-in status comes from a read-only /usage run; an authentication error means signed out', async () => {
     const ok = await agyAuthStatus('/bin/agy', async () => ({ code: 0, stdout: JSON.stringify({ conversation_id: '', status: 'SUCCESS', response: 'ok', structured_output: { email: 'dev@example.com', plan: 'AI Pro' } }), stderr: '' }));
-    expect(ok).toMatchObject({ provider: 'agy', loggedIn: true, email: 'dev@example.com', subscriptionType: 'AI Pro', error: null });
+    expect(ok).toMatchObject({ provider: 'agy', loggedIn: true, email: 'dev@example.com', subscriptionType: 'AI Pro', plan: 'AI Pro', error: null });
+    // the CLI names no plan today: none is shown, never a made-up one
+    const quiet = await agyAuthStatus('/bin/agy', async () => ({ code: 0, stdout: JSON.stringify({ status: 'SUCCESS', response: 'ok', command: { name: 'usage', data: { groups: [] } } }), stderr: '' }));
+    expect(quiet).toMatchObject({ loggedIn: true, email: null, subscriptionType: null, plan: null });
     const out = await agyAuthStatus('/bin/agy', async () => ({ code: 1, stdout: '', stderr: 'error: authentication required\n' }));
     expect(out).toMatchObject({ loggedIn: false, error: 'not signed in' });
     const failed = await agyAuthStatus('/bin/agy', async () => ({ code: 0, stdout: JSON.stringify({ status: 'ERROR', error: 'model down' }), stderr: '' }));

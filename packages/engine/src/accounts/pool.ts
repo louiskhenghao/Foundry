@@ -1,4 +1,4 @@
-import { IdPrefix, NATIVE_ACCOUNT, PROVIDER_NAME, currentAccountId, listAccounts, newId, type AgentAccount, type EventStore, type PooledProvider } from '@foundry/core';
+import { IdPrefix, NATIVE_ACCOUNT, PROVIDER_NAME, currentAccountId, listAccounts, newId, planName, type AgentAccount, type EventStore, type PooledProvider } from '@foundry/core';
 import { ClaudeAuth, type ClaudeAuthStatus, type LoginSession } from '../auth/claude-auth.ts';
 import { CodexQuotaReader } from '../usage/codex-quota.ts';
 import { accountHome, linkShared, removeHome } from './homes.ts';
@@ -49,11 +49,20 @@ export class AccountPool {
 
   native(provider: PooledProvider): AgentAccount {
     const s = this.d.nativeAuth(provider).cachedStatus();
-    return { provider, id: NATIVE_ACCOUNT, home: null, email: s?.email ?? null, orgName: s?.orgName ?? null, plan: s?.subscriptionType ?? null, addedAt: '' };
+    return { provider, id: NATIVE_ACCOUNT, home: null, email: s?.email ?? null, orgName: s?.orgName ?? null, plan: s?.plan ?? null, addedAt: '' };
   }
   /** the native account first, then the added ones in the order they are tried */
   list(provider: PooledProvider): AgentAccount[] {
-    return [this.native(provider), ...listAccounts(this.d.store.db, provider)];
+    return [this.native(provider), ...listAccounts(this.d.store.db, provider).map((a) => this.withPlan(provider, a))];
+  }
+  /**
+   * An added account's plan as its sign-in last reported it: the plan can change after the account was added (an upgrade,
+   * a rename upstream), and the name stored then is only what was known. Before any status read, the stored name, said
+   * in words (older accounts stored the plan's key).
+   */
+  private withPlan(provider: PooledProvider, a: AgentAccount): AgentAccount {
+    const s = this.auths.get(key(provider, a.id))?.cachedStatus();
+    return { ...a, plan: (s?.loggedIn ? s.plan : null) ?? planName(provider, { type: a.plan }) };
   }
   get(provider: PooledProvider, id: string): AgentAccount | null {
     return this.list(provider).find((a) => a.id === id) ?? null;
@@ -215,7 +224,7 @@ export class AccountPool {
     const known = [native?.loggedIn ? native : null, ...listAccounts(this.d.store.db, provider)].flatMap((x) => (x?.email ? [{ email: x.email, orgName: x.orgName }] : []));
     const duplicate = status?.loggedIn && known.some((k) => identity(k) === identity(status));
     if (status?.loggedIn && !duplicate) {
-      this.d.store.append({ type: 'account.added', goalId: null, payload: { account: { provider, id: entry.id, home: entry.home, email: status.email, orgName: status.orgName, plan: status.subscriptionType, addedAt: new Date(this.now()).toISOString() } } });
+      this.d.store.append({ type: 'account.added', goalId: null, payload: { account: { provider, id: entry.id, home: entry.home, email: status.email, orgName: status.orgName, plan: status.plan, addedAt: new Date(this.now()).toISOString() } } });
       this.auths.set(key(provider, entry.id), entry.auth);
       return;
     }

@@ -1,4 +1,7 @@
-import type { AgentProvider } from '@foundry/core';
+import { readFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
+import { planName, type AgentProvider } from '@foundry/core';
 import { claudeConfigEnv } from '../config.ts';
 import { exec } from '../git/git.ts';
 import { readCodexAccount } from './codex-account.ts';
@@ -12,7 +15,10 @@ export interface ClaudeAuthStatus {
   apiProvider: string | null;
   email: string | null;
   orgName: string | null;
+  /** the plan's key as the coding agent's sign-in reports it (Claude Code's token says `max` on an Ultra plan) */
   subscriptionType: string | null;
+  /** the plan the account is on, named as the coding agent names it for a person (planName): Ultra, Max, Plus… */
+  plan: string | null;
   checkedAt: string;
   error: string | null;
 }
@@ -43,26 +49,47 @@ const CODE_REJECTED = /invalid code|code .{0,20}(expired|not valid)/i;
 
 export async function claudeAuthStatus(claudeBin: string | null, run: typeof exec = exec, claudeHome?: string, env: Record<string, string> = claudeConfigEnv(claudeHome)): Promise<ClaudeAuthStatus> {
   const checkedAt = new Date().toISOString();
-  if (!claudeBin) return { loggedIn: false, authMethod: null, apiProvider: null, email: null, orgName: null, subscriptionType: null, checkedAt, error: 'claude not installed' };
+  if (!claudeBin) return { loggedIn: false, authMethod: null, apiProvider: null, email: null, orgName: null, subscriptionType: null, plan: null, checkedAt, error: 'claude not installed' };
   const r = await run([claudeBin, 'auth', 'status', '--json'], process.cwd(), { timeoutMs: 20_000, env }).catch((e) => ({ code: 1, stdout: '', stderr: String(e) }));
   try {
     const j = JSON.parse(r.stdout);
-    return { loggedIn: !!j.loggedIn, authMethod: j.authMethod ?? null, apiProvider: j.apiProvider ?? null, email: j.email ?? null, orgName: j.orgName ?? null, subscriptionType: j.subscriptionType ?? null, checkedAt, error: null };
+    const email = j.email ?? null;
+    const subscriptionType = j.subscriptionType ?? null;
+    // the plan's name: the status' own field once the CLI has one, else what its config file says of this account
+    const plan = planName('claude', { displayName: j.planDisplayName ?? readClaudePlanDisplayName(env, email), type: subscriptionType });
+    return { loggedIn: !!j.loggedIn, authMethod: j.authMethod ?? null, apiProvider: j.apiProvider ?? null, email, orgName: j.orgName ?? null, subscriptionType, plan, checkedAt, error: null };
   } catch {
     const loggedIn = /logged in/i.test(r.stdout) && !/not logged in/i.test(r.stdout);
-    return { loggedIn, authMethod: null, apiProvider: null, email: null, orgName: null, subscriptionType: null, checkedAt, error: loggedIn ? null : (r.stderr || r.stdout).trim().slice(0, 200) || 'could not read auth status' };
+    return { loggedIn, authMethod: null, apiProvider: null, email: null, orgName: null, subscriptionType: null, plan: null, checkedAt, error: loggedIn ? null : (r.stderr || r.stdout).trim().slice(0, 200) || 'could not read auth status' };
+  }
+}
+
+/**
+ * The display name of the signed-in account's plan ("Ultra"), from Claude Code's own config file (`.claude.json` in its
+ * config dir, `~/.claude.json` for the default one): `auth status` has no field for it yet, and its subscription type
+ * keeps the plan's old key. Only when the file names the same account as the status does, so a sign-in changed outside
+ * Foundry never lends its plan to another; null when the file, the account or the name is missing.
+ */
+export function readClaudePlanDisplayName(env: { CLAUDE_CONFIG_DIR?: string }, email: string | null): string | null {
+  if (!email) return null;
+  try {
+    const account = JSON.parse(readFileSync(join(env.CLAUDE_CONFIG_DIR ?? homedir(), '.claude.json'), 'utf8'))?.oauthAccount;
+    if (typeof account?.emailAddress !== 'string' || account.emailAddress.toLowerCase() !== email.toLowerCase()) return null;
+    return typeof account.planDisplayName === 'string' && account.planDisplayName.trim() ? account.planDisplayName.trim() : null;
+  } catch {
+    return null;
   }
 }
 
 /** Read status without reading or returning Codex's credential file. */
 export async function codexAuthStatus(bin: string | null, run: typeof exec = exec, codexHome?: string): Promise<ClaudeAuthStatus> {
-  const base: ClaudeAuthStatus = { provider: 'codex', loggedIn: false, authMethod: null, apiProvider: 'openai', email: null, orgName: null, subscriptionType: null, checkedAt: new Date().toISOString(), error: null };
+  const base: ClaudeAuthStatus = { provider: 'codex', loggedIn: false, authMethod: null, apiProvider: 'openai', email: null, orgName: null, subscriptionType: null, plan: null, checkedAt: new Date().toISOString(), error: null };
   if (!bin) return { ...base, error: 'codex not installed' };
   // A custom command runner retains the legacy status protocol; native reads own their stdio process.
   if (run === exec) {
     try {
       const account = await readCodexAccount(bin, codexHome);
-      return account ? { ...base, loggedIn: true, authMethod: 'ChatGPT', email: account.email, subscriptionType: account.planType } : { ...base, error: 'Not signed in to Codex. Run codex login.' };
+      return account ? { ...base, loggedIn: true, authMethod: 'ChatGPT', email: account.email, subscriptionType: account.planType, plan: planName('codex', { type: account.planType }) } : { ...base, error: 'Not signed in to Codex. Run codex login.' };
     } catch (error) {
       // Older CLIs may lack account/read. An authoritative signed-out or non-ChatGPT account never falls back.
       if (!(error instanceof CodexAccountReadError) || error.kind !== 'unavailable') return { ...base, error: error instanceof CodexAccountReadError ? error.message : 'Could not read Codex account status.' };
