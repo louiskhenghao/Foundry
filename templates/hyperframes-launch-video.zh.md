@@ -74,5 +74,5 @@ inputs:
 
 ## 已经定好的
 - 故事归 /brag，用 `--full` 跑（绝不用 slim 版）：它读代码，写 `brag-plan.md`、`composition-brief.md` 和 `share-copy.txt`，把 composition 交给 HyperFrames。屏幕上的每一句主张都是项目自己说过的；不编造，画面里不出现密钥、内网地址或真实客户。
-- 它的输出文件夹就是 HyperFrames 项目 `video/<slug>/` 本身（里面不再套 `composition/`），这样 Editor 和 Re-render 都找得到。它的 `brag.mp4` 就是 `artifacts/video/<slug>/final-<format>.mp4`，调到 -14 LUFS，把 /brag 选出的最佳一帧烘进第 0 帧并留作 `poster.png`；`share-copy.txt` 留在项目文件夹里，下面附上自带曲目的许可证要求的署名。
+- 它的输出文件夹就是 HyperFrames 项目 `video/<slug>/` 本身（里面不再套 `composition/`），这样 Editor 和 Re-render 都找得到。它的 `brag.mp4` 就是 `artifacts/video/<slug>/final-<format>.mp4`，调到 -14 LUFS，让 /brag 选出的最佳一帧成为第 0 帧（composition 自己的第一帧，所以 Re-render 之后也还在）并留作 `poster.png`；`share-copy.txt` 留在项目文件夹里，下面附上自带曲目的许可证要求的署名。
 - Foundry 的 harness 照样评审：contact sheet、三轮批评、审查者七个维度都到 8 分以上、校验器测量交付文件。

@@ -31,8 +31,8 @@ the plan, the brief, `composition/` as the HyperFrames project, `brag.mp4` and `
 - **/brag's output folder is the harness's project folder.** `video/<slug>/` is at once the HyperFrames project and
   /brag's `<output-dir>`: `brag-plan.md`, `composition-brief.md` and `share-copy.txt` sit beside the composition, no
   `composition/` inside; `brag.mp4` is `artifacts/video/<slug>/final-<format>.mp4` after the loudness pass; the
-  poster /brag picks is baked in as frame 0 of that file (a re-encode that keeps the duration and the audio, so the
-  verifier still passes) and kept as `poster.png`. Everything the Editor, Re-render and the verifier expect stays
+  poster /brag picks is frame 0 of that file as the composition's own first frame (never an overlay added after the
+  render, which a Re-render would lose) and kept as `poster.png`. Everything the Editor, Re-render and the verifier expect stays
   where it was.
 - **/brag owns the story; the harness owns the judging and the delivery.** /brag's inspect and plan replace the
   harness's style guide and storyboard task (the style guide is written from the brief's visual identity, so nothing

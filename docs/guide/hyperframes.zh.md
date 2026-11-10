@@ -34,7 +34,7 @@ goal 进行中和完成后，它页面上的 **Editor** 一行会在项目上打
 
 [/brag](https://latent-spaces.github.io/brag/) 是一个 skill，把它所在的项目变成一支 15–25 秒的发布短片：它读代码，用项目自己的话找出钩子、揭晓、两三个亮点和收尾，选好语气、曲子和音效，再把一份 composition brief 交给 HyperFrames。它在 Extensions 目录的 HyperFrames bundle 里，钉在一个版本上，所以对 bundle 按 **Install** 就会一起装上。
 
-**发布短片（/brag）** 模版在你想展示的那个仓库上开这样一个 goal：一句话说它是什么、语气（/brag 的七个预设 —— default、polished、yc-parody、chaotic、deadpan、cinematic、app-store —— 或者你用几个字写的方向）、画幅（横屏、竖屏或方形）、时长、要不要旁白、音乐（/brag 自带的一首、你自己的，或不要）、重点讲什么，以及发到哪里。goal 在上面的 harness 下跑 /brag 的完整版：/brag 讲故事，harness 评审并交付。项目和任何 HyperFrames 影片一样在 `video/<slug>/`（所以 Editor 和 Re-render 都找得到），/brag 的 `brag-plan.md`、`composition-brief.md` 和 `share-copy.txt` 就放在 composition 旁边；片子是 `artifacts/video/<slug>/final-<format>.mp4`，-14 LUFS，并把 /brag 选出的封面烘进第一帧，这样每个平台的缩略图都是它。分享文案一到三句，拿来就能发；片子用了 /brag 自带曲目（Sascha Ende 的，CC BY 4.0）时，许可证要求的署名就写在文案下面，发的时候一起带上。
+**发布短片（/brag）** 模版在你想展示的那个仓库上开这样一个 goal：一句话说它是什么、语气（/brag 的七个预设 —— default、polished、yc-parody、chaotic、deadpan、cinematic、app-store —— 或者你用几个字写的方向）、画幅（横屏、竖屏或方形）、时长、要不要旁白、音乐（/brag 自带的一首、你自己的，或不要）、重点讲什么，以及发到哪里。goal 在上面的 harness 下跑 /brag 的完整版：/brag 讲故事，harness 评审并交付。项目和任何 HyperFrames 影片一样在 `video/<slug>/`（所以 Editor 和 Re-render 都找得到），/brag 的 `brag-plan.md`、`composition-brief.md` 和 `share-copy.txt` 就放在 composition 旁边；片子是 `artifacts/video/<slug>/final-<format>.mp4`，-14 LUFS，并让 /brag 选出的封面成为第一帧（composition 自己的第一帧，所以 Re-render 之后也还在），这样每个平台的缩略图都是它。分享文案一到三句，拿来就能发；片子用了 /brag 自带曲目（Sascha Ende 的，CC BY 4.0）时，许可证要求的署名就写在文案下面，发的时候一起带上。
 
 ## Templates
 
