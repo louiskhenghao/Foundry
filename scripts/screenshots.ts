@@ -220,10 +220,8 @@ try {
     await page.waitForTimeout(300);
   });
   await shot('templates', '/templates', undefined, 900);
-  await shot('settings-models', '/settings', async () => {
-    await page.evaluate(() => document.getElementById('models')?.scrollIntoView({ block: 'start' }));
-    await page.waitForTimeout(300);
-  });
+  // Settings shows one section at a time: the link opens Models & limits
+  await shot('settings-models', '/settings#models');
   // Settings → Appearance (ADR-0066): the built-in themes, light or dark, and how to make your own
   await partShot('appearance', '/settings#appearance', () => page.locator('#appearance'));
   // Settings → Engine (install) → Data folder (ADR-0082): a folder typed and tested, ready for Save & restart. The demo's
