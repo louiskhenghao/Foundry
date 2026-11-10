@@ -1,3 +1,4 @@
+import { planName } from '@foundry/core';
 import { exec } from '../git/git.ts';
 import type { ClaudeAuthStatus } from './claude-auth.ts';
 
@@ -7,7 +8,7 @@ import type { ClaudeAuthStatus } from './claude-auth.ts';
  * hanging. The payload's shape is the CLI's own; the account name is taken from the fields it is likely to carry.
  */
 export async function agyAuthStatus(bin: string | null, run: typeof exec = exec): Promise<ClaudeAuthStatus> {
-  const base: ClaudeAuthStatus = { provider: 'agy', loggedIn: false, authMethod: null, apiProvider: 'google', email: null, orgName: null, subscriptionType: null, checkedAt: new Date().toISOString(), error: null };
+  const base: ClaudeAuthStatus = { provider: 'agy', loggedIn: false, authMethod: null, apiProvider: 'google', email: null, orgName: null, subscriptionType: null, plan: null, checkedAt: new Date().toISOString(), error: null };
   if (!bin) return { ...base, error: 'agy not installed' };
   let r: { code: number; stdout: string; stderr: string };
   try {
@@ -27,5 +28,7 @@ export async function agyAuthStatus(bin: string | null, run: typeof exec = exec)
   }
   const info = payload.structured_output ?? payload.data ?? payload.usage ?? payload;
   const pick = (...keys: string[]) => keys.map((k) => info?.[k] ?? payload?.[k]).find((v) => typeof v === 'string' && v) as string | undefined;
-  return { ...base, loggedIn: true, authMethod: process.env.GEMINI_API_KEY ? 'api_key' : 'oauth', email: pick('email', 'account', 'user', 'userEmail') ?? null, subscriptionType: pick('plan', 'tier', 'subscription', 'planName') ?? null };
+  // the CLI names no plan in its payload today; the fields it is likely to use are read so a tier it starts to report shows
+  const plan = pick('planDisplayName', 'planName', 'plan', 'tier', 'subscription') ?? null;
+  return { ...base, loggedIn: true, authMethod: process.env.GEMINI_API_KEY ? 'api_key' : 'oauth', email: pick('email', 'account', 'user', 'userEmail') ?? null, subscriptionType: plan, plan: planName('agy', { displayName: plan }) };
 }

@@ -169,6 +169,26 @@ describe('the current account and usage limits', () => {
   });
 });
 
+describe("an added account's plan", () => {
+  test('is said in words from the stored key, and follows what its sign-in reports once that was read', async () => {
+    const { pool, add } = setup();
+    const home = add('claude', 'acc_b', 'b@example.com');
+    // stored by an older Foundry as the token's key
+    expect(pool.list('claude')[1]).toMatchObject({ id: 'acc_b', plan: 'Max' });
+    // the account moved to a plan with a name of its own since: Claude Code's config file in its home says so
+    writeFileSync(join(home, '.signed'), 'b@example.com');
+    writeFileSync(join(home, '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'b@example.com', planDisplayName: 'Ultra' } }));
+    expect((await pool.auth('claude', 'acc_b').status()).plan).toBe('Ultra');
+    expect(pool.list('claude')[1]!.plan).toBe('Ultra');
+    expect(pool.views('claude')[1]!.plan).toBe('Ultra');
+    // signed out since: nothing fresh to say, so the stored name again
+    pool.auth('claude', 'acc_b').invalidate();
+    rmSync(join(home, '.signed'));
+    expect((await pool.auth('claude', 'acc_b').status()).loggedIn).toBe(false);
+    expect(pool.list('claude')[1]!.plan).toBe('Max');
+  });
+});
+
 describe('adding an account', () => {
   test('a sign-in in a new home becomes an account; the same person twice leaves no trace', async () => {
     const { pool, dataDir } = setup();
@@ -180,7 +200,8 @@ describe('adding an account', () => {
       await settle(() => pool.list('claude').length === 2);
       expect(s.ok).toBe(true);
       const added = pool.list('claude')[1]!;
-      expect(added).toMatchObject({ email: 'other@example.com', plan: 'max' });
+      // the plan stored as the coding agent names it, not as the token keys it
+      expect(added).toMatchObject({ email: 'other@example.com', plan: 'Max' });
       expect(added.home!.startsWith(join(dataDir, 'accounts', 'claude'))).toBe(true);
       expect(readFileSync(join(added.home!, '.signed'), 'utf8')).toBe('other@example.com');
       expect(lstatSync(join(added.home!, 'skills')).isSymbolicLink()).toBe(true);

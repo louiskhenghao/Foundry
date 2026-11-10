@@ -62,7 +62,7 @@ describe('native Codex account and quota reads', () => {
 
   test('auth status exposes native email and plan instead of parsing login text', async () => {
     const f = fixture();
-    expect(await codexAuthStatus(f.bin, undefined, f.home)).toMatchObject({ provider: 'codex', loggedIn: true, authMethod: 'ChatGPT', email: 'person@example.test', subscriptionType: 'pro', error: null });
+    expect(await codexAuthStatus(f.bin, undefined, f.home)).toMatchObject({ provider: 'codex', loggedIn: true, authMethod: 'ChatGPT', email: 'person@example.test', subscriptionType: 'pro', plan: 'Pro', error: null });
     expect(existsSync(join(f.home, 'legacy-status'))).toBe(false);
   });
 
@@ -79,7 +79,7 @@ describe('native Codex account and quota reads', () => {
 
   test('only an unavailable account RPC permits the safe legacy status fallback', async () => {
     const f = fixture(`if (msg.method === 'account/read') { process.stdout.write(JSON.stringify({id:msg.id,error:{code:-32601,message:'secret-not-exposed'}})+'\\n'); return; }`);
-    expect(await codexAuthStatus(f.bin, undefined, f.home)).toMatchObject({ loggedIn: true, email: null, subscriptionType: null });
+    expect(await codexAuthStatus(f.bin, undefined, f.home)).toMatchObject({ loggedIn: true, email: null, subscriptionType: null, plan: null });
     expect(existsSync(join(f.home, 'legacy-status'))).toBe(true);
     const broken = fixture(`if (msg.method === 'account/read') { process.stdout.write(JSON.stringify({id:msg.id,error:{code:500,message:'sk-do-not-copy'}})+'\\n'); return; }`);
     const status = await codexAuthStatus(broken.bin, undefined, broken.home);

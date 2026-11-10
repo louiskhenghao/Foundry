@@ -61,6 +61,8 @@ if (args[0] === 'app-server') {
     const installed = await account();
     assert.equal(installed.installed, true);
     assert.equal(installed.status.loggedIn, true, `${provider}: Setup is signed in but Accounts says ${installed.status.error}`);
+    // the plan named as the coding agent names it (Codex's planType pro → Pro); the Claude fixture reports none
+    assert.equal(installed.status.plan, provider === 'codex' ? 'Pro' : null);
     assert.equal((await account(true)).status.loggedIn, true);
     const login = await post('login');
     assert.equal(login.status, 200, await login.text());
