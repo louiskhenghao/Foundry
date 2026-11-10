@@ -46,7 +46,7 @@ describe('doctor', () => {
     const whichAll = (b: string) => `/bin/${b}`;
     const statuses = catalogStatus(catalog, scanSkills(fake.paths), fake.paths, whichAll);
     const r = await runDoctor({ paths: fake.paths, catalog, statuses, claudeBin: claudeOk, which: whichAll, runtimeVersion: '1.4.3' });
-    expect(r.checks.find((c) => c.id === 'claude-auth')).toMatchObject({ ok: true, detail: 'logged in as a@b (max)' });
+    expect(r.checks.find((c) => c.id === 'claude-auth')).toMatchObject({ ok: true, detail: 'logged in as a@b (Max)' }); // the plan named as the coding agent names it
     expect(r.checks.find((c) => c.id === 'required:graphify')!.ok).toBe(true);
     expect(r.ok).toBe(true); // only the settings.json warning remains
   });
