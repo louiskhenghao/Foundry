@@ -49,6 +49,11 @@ describe('catalog', () => {
     expect(hf.find((e) => e.id === 'hyperframes-harness')!.source).toEqual({ type: 'bundled', path: 'bundled/hyperframes-harness' });
     for (const id of ['hyperframes-make-a-video', 'hyperframes-motion-showreel', 'hyperframes-short-form-edit', 'hyperframes-video-beats']) expect(repoOf(id), id).toBe('nateherkai/herk-edit-kit@40');
     expect(hf.find((e) => e.id === 'hyperframes-gsap')).toBeUndefined();
+    // /brag rides with the pack at one release of its own (ADR-0089): a worker preference on video, never a must — the harness stays the judge
+    const brag = hf.find((e) => e.id === 'brag')!;
+    expect(brag.source).toEqual({ type: 'git', repo: 'latent-spaces/brag', ref: '669ab9286aa28b6c3ee30e75f181ee74319d012a', path: 'skills/brag' });
+    expect(brag.workflow.map((r) => [r.role, r.mandate, r.scenarios])).toEqual([['worker', 'prefer', ['video']]]);
+    expect(brag.workflow[0]!.instruction).toMatch(/--full/);
     // the upstream skill is the one a video worker must read; the kit's playbooks only come first for their own kind of film
     expect(hf.find((e) => e.id === 'hyperframes')!.workflow[0]!.mandate).toBe('must');
     expect(hf.filter((e) => e.workflow.some((w) => w.mandate === 'must')).map((e) => e.id)).toEqual(['hyperframes', 'hyperframes-harness']);
