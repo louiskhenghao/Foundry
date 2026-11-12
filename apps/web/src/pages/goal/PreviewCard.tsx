@@ -1,7 +1,8 @@
-import { ExternalLink, Eye, EyeOff, GitBranch, Lock, Play, Plus, Square, X } from 'lucide-react';
+import { ExternalLink, GitBranch, Lock, Play, Square } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { type EditorView, type PreviewAppStatus, type PreviewEnv, type PreviewPlace, type PreviewSources, type PreviewStatus, type ServicesStatus, api } from '../../api.ts';
 import { Button, Card, CopyButton, Input, Modal, Select, cn } from '../../ui.tsx';
+import { EnvDialog } from './EnvDialog.tsx';
 import { markFill } from '../../components/progress.tsx';
 import { LiveLog } from '../LiveLog.tsx';
 import { WorkspaceDetails } from './WorkspaceDetails.tsx';
@@ -561,14 +562,6 @@ function Services({ goalId, svc, onChange, reload }: { goalId: string; svc: Serv
   );
 }
 
-const KEY = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
-type Row = { id: number; key: string; value: string; saved: boolean; shown?: boolean; custom?: boolean };
-let rowIds = 0;
-
-/** a random secret in the browser: 32 bytes, base64 (what `openssl rand -base64 32` prints) */
-const randomSecret = () => btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))));
-
 /**
  * Variables for this repository's previews, shared by its goals: a summary line on the card, edited in a dialog. The
  * server sends names only: a saved value is never shown again, an empty value field keeps it, typing replaces it.
@@ -604,8 +597,18 @@ function EnvPanel({ goalId, anyRunning }: { goalId: string; anyRunning: boolean 
       <EnvDialog
         open={open}
         env={env}
-        goalId={goalId}
-        anyRunning={anyRunning}
+        title={`Environment · ${env.repo.split('/').filter(Boolean).pop()}`}
+        intro={
+          <>
+            Values the previews of this repository need, shared by its goals and stored on this computer only. They go to the preview's processes as environment, never into the goal's folder where the coding agents work, and are hidden in the preview's output.{' '}
+            <span className="text-ink-faint">
+              They take precedence over the project's own <span className="mono">.env</span> files; Foundry sets <span className="mono">PORT</span> and <span className="mono">FOUNDRY_APP_&lt;KEY&gt;_URL</span> itself.
+            </span>
+          </>
+        }
+        savedNote={anyRunning ? ' Running apps keep their old values until you stop and start them.' : ' Apps get them the next time they start.'}
+        sectionTitle="Set for this repository"
+        actions={{ reload: () => api.previewEnv(goalId), save: (vars, rev) => api.previewSetEnv(goalId, vars, rev), importCheckout: () => api.previewImportEnv(goalId) }}
         onClose={() => setOpen(false)}
         onSaved={(e, msg) => {
           setEnv(e);
@@ -618,182 +621,3 @@ function EnvPanel({ goalId, anyRunning }: { goalId: string; anyRunning: boolean 
   );
 }
 
-/** The variables as a table, each name with what it is: its example file comment, a note, and the files that read it. */
-function EnvDialog({ open, env, goalId, anyRunning, onClose, onSaved, onReload }: { open: boolean; env: PreviewEnv; goalId: string; anyRunning: boolean; onClose: () => void; onSaved: (e: PreviewEnv, msg: string) => void; onReload: (e: PreviewEnv) => void }) {
-  const fresh = (e: PreviewEnv): Row[] => [...e.keys.map((key) => ({ id: ++rowIds, key, value: '', saved: true })), ...e.missing.map((key) => ({ id: ++rowIds, key, value: '', saved: false }))];
-  const [rows, setRows] = useState<Row[]>(() => fresh(env));
-  const [busy, setBusy] = useState<'save' | 'import' | null>(null);
-  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  useEffect(() => {
-    if (open) setMsg(null);
-  }, [open]);
-  useEffect(() => {
-    if (open) setRows(fresh(env));
-  }, [open, env.rev]);
-  const take = (e: PreviewEnv) => {
-    onReload(e);
-    setRows(fresh(e));
-  };
-
-  const names = rows.filter((r) => r.saved || r.custom || r.value).map((r) => r.key.trim());
-  // a saved name sends null (keep its value) unless a new value was typed; an unsaved one is sent only with a value
-  const next = Object.fromEntries(rows.filter((r) => r.key.trim() && (r.saved || r.value)).map((r) => [r.key.trim(), r.saved && !r.value ? null : r.value]));
-  const dirty = JSON.stringify(Object.keys(next).sort()) !== JSON.stringify([...env.keys].sort()) || Object.values(next).some((v) => v !== null);
-  const bad = names.filter((k, i) => k && (!KEY.test(k) || names.indexOf(k) !== i));
-  const unnamed = rows.some((r) => !r.key.trim() && r.value);
-  const set = (id: number, patch: Partial<Row>) => setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
-  const act = async (what: 'save' | 'import', fn: () => Promise<void>) => {
-    setBusy(what);
-    setMsg(null);
-    try {
-      await fn();
-    } catch (e: any) {
-      // changed elsewhere (another tab, another goal of this repository): show the current set, not a stale one
-      if (e.status === 409) await api.previewEnv(goalId).then(take).catch(() => {});
-      setMsg({ ok: false, text: e.status === 409 ? 'These variables changed elsewhere; showing the current ones. Your unsaved edits were not kept.' : (e.body?.error ?? e.message) });
-    } finally {
-      setBusy(null);
-    }
-  };
-  const restartNote = anyRunning ? ' Running apps keep their old values until you stop and start them.' : ' Apps get them the next time they start.';
-  const save = () => act('save', async () => onSaved(await api.previewSetEnv(goalId, next, env.rev), `Saved.${restartNote}`));
-  const importCheckout = () =>
-    act('import', async () => {
-      const r = await api.previewImportEnv(goalId);
-      take(r.view);
-      setMsg({ ok: true, text: r.added.length ? `Imported ${r.added.length}: ${r.added.join(', ')}.${restartNote}` : 'Nothing new to import: every name is already set here.' });
-    });
-  const noManager = { autoComplete: 'new-password', 'data-1p-ignore': 'true', 'data-lpignore': 'true' } as const;
-  const setRows_ = rows.filter((r) => r.saved);
-  const unset = rows.filter((r) => !r.saved && !r.custom);
-  const custom = rows.filter((r) => r.custom);
-
-  const row = (r: Row) => {
-    const n = env.notes[r.key.trim()];
-    const lines = [n?.comment, n?.hint && n.hint !== n?.comment ? n.hint : null].filter(Boolean) as string[];
-    return (
-      <li key={r.id} className="py-2.5 first:pt-0 last:pb-0">
-        <div className="grid grid-cols-[minmax(0,1fr)_auto_auto] sm:grid-cols-[minmax(0,13rem)_minmax(0,1fr)_auto_auto] gap-1.5 items-center">
-          {/* a saved name is fixed: renaming would need its value, which the page never has; remove and add instead */}
-          <Input
-            aria-label="Variable name"
-            value={r.key}
-            readOnly={!r.custom}
-            title={r.saved ? 'To rename, remove this variable and add it again with its value' : undefined}
-            placeholder="NAME"
-            spellCheck={false}
-            {...noManager}
-            onChange={(e) => set(r.id, { key: e.target.value })}
-            className={cn('col-span-3 sm:col-span-1 mono text-[11px] py-1', !r.custom && 'font-semibold text-ink bg-transparent border-transparent px-0', bad.includes(r.key.trim()) && 'border-bad/60')}
-          />
-          <div className="flex gap-1 min-w-0">
-            <Input aria-label={`Value of ${r.key || 'variable'}`} type={r.shown ? 'text' : 'password'} spellCheck={false} {...noManager} value={r.value} placeholder={r.saved ? 'saved · type to replace' : n?.example || 'not set'} onChange={(e) => set(r.id, { value: e.target.value })} className="mono text-[11px] py-1" />
-            {n?.generate === 'secret' && (
-              <Button size="sm" variant="ghost" className="shrink-0" onClick={() => set(r.id, { value: randomSecret(), shown: true })} title="Fill in a random 32-byte secret">
-                Generate
-              </Button>
-            )}
-          </div>
-          <Button size="sm" variant="ghost" onClick={() => set(r.id, { shown: !r.shown })} aria-label={r.shown ? 'Hide what you typed' : 'Show what you typed'} title={r.saved ? 'Saved values are never shown again; this shows what you type' : r.shown ? 'Hide' : 'Show'}>
-            {r.shown ? <EyeOff size={12} /> : <Eye size={12} />}
-          </Button>
-          {r.saved || r.custom ? (
-            <Button size="sm" variant="ghost" onClick={() => setRows((rs) => rs.filter((x) => x.id !== r.id))} aria-label={`Remove ${r.key || 'variable'}`} title="Remove">
-              <X size={12} />
-            </Button>
-          ) : (
-            <span className="w-7" />
-          )}
-        </div>
-        {(lines.length > 0 || (n && (n.file || n.usedIn.length > 0))) && (
-          <div className="mt-1 sm:ml-[13.375rem] space-y-0.5 text-[11px]">
-            {lines.map((l, i) => (
-              <div key={i} className="text-ink-soft">
-                {l}
-              </div>
-            ))}
-            {n && (n.file || n.usedIn.length > 0) && (
-              <div className="text-ink-faint">
-                {n.file && (
-                  <>
-                    in <span className="mono">{n.file}</span>
-                    {n.example && (
-                      <>
-                        {' '}
-                        as <span className="mono">{n.example}</span>
-                      </>
-                    )}
-                  </>
-                )}
-                {n.file && n.usedIn.length > 0 && ' · '}
-                {n.usedIn.length > 0 && (
-                  <>
-                    read by <span className="mono">{n.usedIn.join(', ')}</span>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </li>
-    );
-  };
-
-  return (
-    <Modal open={open} wide title={`Environment · ${env.repo.split('/').filter(Boolean).pop()}`} onClose={onClose}>
-      <div className="space-y-4 text-xs">
-        <p className="text-ink-soft">
-          Values the previews of this repository need, shared by its goals and stored on this computer only. They go to the preview's processes as environment, never into the goal's folder where the coding agents work, and are hidden in the preview's output.{' '}
-          <span className="text-ink-faint">
-            They take precedence over the project's own <span className="mono">.env</span> files; Foundry sets <span className="mono">PORT</span> and <span className="mono">FOUNDRY_APP_&lt;KEY&gt;_URL</span> itself.
-          </span>
-        </p>
-        {env.checkout.files.length > 0 && (
-          <div className="flex items-center gap-2 flex-wrap rounded-lg border border-line bg-sunken px-3 py-2 text-[11px] text-ink-soft">
-            <span className="min-w-0 flex-1">
-              Your checkout has <span className="mono text-ink">{env.checkout.files.join(', ')}</span> ({env.checkout.keys.length} variables), which git keeps out of the goal's folder.
-            </span>
-            <Button size="sm" disabled={!!busy || dirty} onClick={importCheckout} title={dirty ? 'Save or revert your changes first' : 'Copy the variables not set here yet; names already set keep their values'}>
-              {busy === 'import' ? 'Importing…' : 'Import from your checkout'}
-            </Button>
-          </div>
-        )}
-        {setRows_.length > 0 && (
-          <section className="space-y-2">
-            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">Set for this repository · <span className="mono">{setRows_.length}</span></h4>
-            <ul className="divide-y divide-line">{setRows_.map(row)}</ul>
-          </section>
-        )}
-        {unset.length > 0 && (
-          <section className="space-y-2">
-            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">Listed in example files, not set · <span className="mono">{unset.length}</span></h4>
-            <p className="text-[11px] text-ink-faint">Those without an example value come first. Not every one is needed: example files list optional settings too, and some start scripts write their own. Only the ones you fill in are saved.</p>
-            <ul className="divide-y divide-line">{unset.map(row)}</ul>
-          </section>
-        )}
-        {custom.length > 0 && (
-          <section className="space-y-2">
-            <h4 className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">Added</h4>
-            <ul className="divide-y divide-line">{custom.map(row)}</ul>
-          </section>
-        )}
-        {bad.length > 0 && <div className="text-bad-ink text-[11px]">Names use letters, digits and _ (not starting with a digit), each once: {bad.join(', ')}</div>}
-        {unnamed && <div className="text-bad-ink text-[11px]">A value has no name yet.</div>}
-        <div className="flex items-center gap-2 flex-wrap border-t border-line pt-3">
-          <Button size="sm" variant="ghost" onClick={() => setRows((rs) => [...rs, { id: ++rowIds, key: '', value: '', saved: false, shown: true, custom: true }])}>
-            <Plus size={12} /> Add variable
-          </Button>
-          <span role="status" className={cn('text-[11px] min-w-0 flex-1', msg?.ok ? 'text-ok-ink' : 'text-bad-ink')}>
-            {msg?.text}
-          </span>
-          <Button size="sm" variant="ghost" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button size="sm" variant="primary" disabled={!dirty || !!busy || bad.length > 0 || unnamed} onClick={save}>
-            {busy === 'save' ? 'Saving…' : 'Save'}
-          </Button>
-        </div>
-      </div>
-    </Modal>
-  );
-}

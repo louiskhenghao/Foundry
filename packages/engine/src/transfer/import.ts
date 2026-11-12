@@ -30,6 +30,7 @@ import { transferGoalDir } from './paths.ts';
 import { holdPreviewEnv } from './pending-env.ts';
 import { mapRepo } from './reattach.ts';
 import { openSecrets } from './secrets.ts';
+import { deployEnvKey, deployEnvStore } from '../deploy/env.ts';
 
 /** A received Transfer file waits here, unpacked, until it is applied or discarded */
 const incomingRoot = (dataDir: string) => join(dataDir, 'transfer', 'incoming');
@@ -187,6 +188,8 @@ export interface SecretsPreview {
   settings: { key: string; imported: string; mine: string | null; same: boolean }[];
   /** the repositories whose preview variables it holds, and their names */
   previewEnv: { repo: string; keys: string[] }[];
+  /** the runtime variables of deploys (ADR-0093), per repository and place */
+  deployEnv: { repo: string; place: string; keys: string[] }[];
 }
 
 /** Open the file's Keys & secrets with the password, to show what they would change (masked) */
@@ -200,6 +203,7 @@ export function unlockIncomingSecrets(engine: Engine, uploadId: string, password
       return { key, imported: maskSecret(value), mine: typeof here === 'string' && here ? maskSecret(here) : null, same: here === value };
     }),
     previewEnv: Object.entries(s.previewEnv).map(([repo, vars]) => ({ repo, keys: Object.keys(vars).sort() })),
+    deployEnv: Object.entries(s.deployEnv ?? {}).flatMap(([repo, places]) => Object.entries(places).map(([place, vars]) => ({ repo, place, keys: Object.keys(vars).sort() }))),
   };
 }
 
@@ -237,6 +241,8 @@ export interface ImportReport {
   settings: string[];
   secrets: string[];
   previewEnv: { applied: string[]; waiting: string[] };
+  /** the deploys' runtime variables: applied where the repository was matched (repo → place), skipped where it was not */
+  deployEnv: { applied: string[]; skipped: string[] };
   /** the repositories mapped to a checkout here, or why one could not be (its goals stay unmapped) */
   repos: { original: string; to: string; error: string | null }[];
   /** Templates & themes (ADR-0079): each file by its name; one that is already here as written is skipped, one that clashes gets a numbered name */
@@ -256,7 +262,7 @@ export async function applyIncoming(engine: Engine, uploadId: string, choicesIn:
   const m = readManifest(dir, engine.updater.current());
   // a wrong password stops the import before anything is written
   const secrets = choices.secrets && m.categories.secrets ? readSecrets(engine, uploadId, choices.secrets.password) : null;
-  const report: ImportReport = { imported: [], skipped: [], settings: [], secrets: [], previewEnv: { applied: [], waiting: [] }, repos: [], templates: { imported: [], skipped: [] }, themes: { imported: [], skipped: [] } };
+  const report: ImportReport = { imported: [], skipped: [], settings: [], secrets: [], previewEnv: { applied: [], waiting: [] }, deployEnv: { applied: [], skipped: [] }, repos: [], templates: { imported: [], skipped: [] }, themes: { imported: [], skipped: [] } };
 
   const wanted = choices.goals ? new Set(choices.goals) : null;
   for (const entry of m.goals) {
@@ -318,6 +324,14 @@ export async function applyIncoming(engine: Engine, uploadId: string, choicesIn:
       const here = mapped.get(original) ?? (choices.repos && original in choices.repos ? choices.repos[original] : await matchRepo(original, m.goals.find((g) => g.repoPath === original)?.remoteUrl ?? null));
       if (here) (engine.preview.env.merge(resolve(here), vars), report.previewEnv.applied.push(original));
       else (holdPreviewEnv(dataDir, original, vars), report.previewEnv.waiting.push(original));
+    }
+    // the deploys' runtime variables (ADR-0093) go to the same repository here, place by place; keys already set stay
+    for (const [original, places] of Object.entries(secrets.deployEnv ?? {})) {
+      const here = mapped.get(original) ?? (choices.repos && original in choices.repos ? choices.repos[original] : await matchRepo(original, m.goals.find((g) => g.repoPath === original)?.remoteUrl ?? null));
+      for (const [place, vars] of Object.entries(places)) {
+        if (here) (deployEnvStore(engine).merge(deployEnvKey(resolve(here), place), vars), report.deployEnv.applied.push(`${original} → ${place}`));
+        else report.deployEnv.skipped.push(`${original} → ${place}`);
+      }
     }
   }
 

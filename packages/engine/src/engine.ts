@@ -118,6 +118,7 @@ import { Conversations } from './conversation/conversations.ts';
 import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployReadiness, deployServers, deployWork, deploying, goalDeployability, goalServerDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
 import { pm2Steps, serverSteps } from './deploy/server.ts';
 import { listRecipes, recipeRuns, recipeWork, startRecipe } from './deploy/recipes.ts';
+import { type DeployEnvView, copyPreviewEnv, deployEnvView, importCheckoutDeployEnv, setDeployEnv } from './deploy/env.ts';
 import { type RevertInfo, type RevertRequest, revertInfo, revertWork, startRevert } from './delivery/revert.ts';
 import { buildReport } from './reports.ts';
 import { deliverCompanions } from './companions.ts';
@@ -3373,6 +3374,19 @@ export class Engine {
   /** whether a deploy of the goal to one place can start (ADR-0091): the host's token, or the server tried over SSH now */
   deployReadiness(goalId: string, provider: DeployProvider, target?: string | null): Promise<DeployReadiness> {
     return deployReadiness(this, goalId, provider, target);
+  }
+  /** the runtime variables of a deploy (ADR-0093): a place's set for the goal's repository, what each name is, what the example files list */
+  deployEnv(goalId: string, place: string): DeployEnvView {
+    return deployEnvView(this, this.mustGoal(goalId), place);
+  }
+  setDeployEnv(goalId: string, place: string, vars: Record<string, string | null>, rev: number): DeployEnvView {
+    return setDeployEnv(this, this.mustGoal(goalId), place, vars, rev);
+  }
+  copyPreviewEnvToDeploy(goalId: string, place: string): { added: string[]; view: DeployEnvView } {
+    return copyPreviewEnv(this, this.mustGoal(goalId), place);
+  }
+  importCheckoutDeployEnv(goalId: string, place: string): { added: string[]; view: DeployEnvView } {
+    return importCheckoutDeployEnv(this, this.mustGoal(goalId), place);
   }
   /** the server recipes (ADR-0092): Foundry's and the person's own, whole */
   serverRecipes(): ServerRecipe[] {

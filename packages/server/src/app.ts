@@ -1968,6 +1968,24 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       throw new HttpError(409, { error: String((e as Error).message ?? e) });
     }
   });
+  // ---------- Runtime variables of a deploy (ADR-0093): per repository and place; values never come back to a page ----------
+  const placeOf = (c: { req: { query: (k: string) => string | undefined } }) => {
+    const place = c.req.query('place') ?? '';
+    if (!/^(vercel|netlify|cloudflare|fly|railway|render|server:[A-Za-z0-9_-]+)$/.test(place)) throw new HttpError(400, { error: 'place: a host, a platform, or server:<id>' });
+    return place;
+  };
+  app.get('/api/goals/:id/deploy/env', (c) => c.json(engine.deployEnv(goalOr404(c).id, placeOf(c))));
+  app.put('/api/goals/:id/deploy/env', async (c) => {
+    const { vars, rev } = z.object({ vars: z.record(z.string().nullable()), rev: z.number().int().nonnegative() }).parse(await c.req.json());
+    const goal = goalOr404(c);
+    try {
+      return c.json(engine.setDeployEnv(goal.id, placeOf(c), vars, rev));
+    } catch (e) {
+      throw new HttpError(e instanceof EnvConflictError ? 409 : 400, { error: (e as Error).message });
+    }
+  });
+  app.post('/api/goals/:id/deploy/env/from-preview', (c) => c.json(engine.copyPreviewEnvToDeploy(goalOr404(c).id, placeOf(c))));
+  app.post('/api/goals/:id/deploy/env/import', (c) => c.json(engine.importCheckoutDeployEnv(goalOr404(c).id, placeOf(c))));
   // ---------- Server recipes (ADR-0092): scripts that set a server up, run on the person's click after they read them ----------
   app.get('/api/servers/recipes', (c) => c.json({ recipes: engine.serverRecipes() }));
   app.get('/api/servers/:id/recipes/runs', (c) => c.json({ runs: engine.serverRecipeRuns(c.req.param('id')) }));

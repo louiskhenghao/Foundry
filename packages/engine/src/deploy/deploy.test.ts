@@ -254,6 +254,7 @@ describe('deploying to a server of the person’s own (ADR-0091)', () => {
       ['folder', true, 'error'],
       ['ports', true, 'error'],
       ['front', false, 'warn'],
+      ['env', true, 'warn'],
     ]);
     expect(sshLog().every((l) => l.endsWith('key=present'))).toBe(true);
     expect(existsSync(join(dataDir, 'tmp')) ? readdirSync(join(dataDir, 'tmp')) : []).toEqual([]);
@@ -389,7 +390,10 @@ describe('a server in PM2 mode (ADR-0092)', () => {
       ['folder', true],
       ['ports', true],
       ['front', false],
+      ['env', false],
     ]);
+    // the example file lists PORT without a value here: told, never blocking (ADR-0093)
+    expect(ready.items.find((i) => i.id === 'env')).toMatchObject({ severity: 'warn', detail: expect.stringContaining('PORT') });
     engine.deploy(goal.id, { provider: 'server', target: 'pm', production: true });
     await waitFor(() => last(engine, goal.id)?.status !== 'running' && (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 1);
     expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'http://n.example:4000', framework: 'PM2 (yarn)', target: { id: 'pm', label: 'node box' } });
@@ -399,6 +403,49 @@ describe('a server in PM2 mode (ADR-0092)', () => {
     expect(await sh(`tar -tzf ${JSON.stringify(join(fakes, 'upload.tgz'))}`, fakes)).toContain('./ecosystem.foundry.config.cjs');
     expect(readFileSync(join(deployDir(engine, goal), 'ecosystem.foundry.config.cjs'), 'utf8')).toContain(`name: ${JSON.stringify(name)}, script: "yarn", args: 'start'`);
     expect(existsSync(join(repo, 'ecosystem.foundry.config.cjs'))).toBe(false);
+    rmSync(fakes, { recursive: true, force: true });
+  }, 60_000);
+});
+
+describe('the runtime variables go with a server deploy (ADR-0093)', () => {
+  async function serverGoal(files: Record<string, string>) {
+    const { engine, goal } = await finishedGoal(files);
+    const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));
+    engine.deploySsh = [fakeSsh(fakes)];
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'docker' as const }] } });
+    const sshLog = () => (existsSync(join(fakes, 'ssh.log')) ? readFileSync(join(fakes, 'ssh.log'), 'utf8').trim().split('\n') : []);
+    return { engine, goal, fakes, sshLog };
+  }  test('a compose project gets an env file and an override every service reads; the values stay out of every record; a PM2 process starts with them', async () => {
+    const { engine, goal, fakes, sshLog } = await serverGoal({ 'compose.yaml': 'services:\n  web:\n    build: .\n    ports:\n      - "8080:80"\n  worker:\n    build: .\n', Dockerfile: 'FROM nginx\n', '.env.example': 'DATABASE_URL=\nSESSION_SECRET=\n' });
+    engine.setDeployEnv(goal.id, 'server:srv1', { DATABASE_URL: 'postgres://db-host-0123/app', SESSION_SECRET: 'sess-secret-456789' }, 0);
+    const ready = await engine.deployReadiness(goal.id, 'server', 'srv1');
+    expect(ready.items.find((i) => i.id === 'env')).toMatchObject({ ok: true, detail: '2 set (DATABASE_URL, SESSION_SECRET)' });
+    engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true });
+    await waitFor(() => last(engine, goal.id)?.status !== 'running' && (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 1);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live' });
+    expect(sshLog().at(-1)).toContain("-f 'compose.yaml' -f 'compose.foundry.env.yaml' up -d --build --remove-orphans");
+    const listed = await sh(`tar -tzf ${JSON.stringify(join(fakes, 'upload.tgz'))}`, fakes);
+    expect(listed).toContain('./.foundry.env');
+    expect(listed).toContain('./compose.foundry.env.yaml');
+    const dir = deployDir(engine, goal);
+    expect(readFileSync(join(dir, '.foundry.env'), 'utf8')).toBe("DATABASE_URL='postgres://db-host-0123/app'\nSESSION_SECRET='sess-secret-456789'\n");
+    expect(readFileSync(join(dir, 'compose.foundry.env.yaml'), 'utf8')).toContain('  worker:\n    env_file:\n      - .foundry.env');
+    const recorded = JSON.stringify(engine.store.listByGoal(goal.id, 5000));
+    expect(recorded).not.toContain('db-host-0123');
+    expect(recorded).not.toContain('sess-secret');
+    expect(recorded).toContain('2 runtime variables go with it (DATABASE_URL, SESSION_SECRET)');
+    rmSync(fakes, { recursive: true, force: true });
+  }, 60_000);
+
+  test('in PM2 mode the process starts with them: the env file is sourced before pm2 startOrReload', async () => {
+    const { engine, goal, fakes, sshLog } = await serverGoal({ 'package.json': JSON.stringify({ scripts: { start: 'node server.js' } }), 'server.js': '' });
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: null, dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'pm2' }] } });
+    engine.setDeployEnv(goal.id, 'server:srv1', { PORT: '4100' }, 0);
+    engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true });
+    await waitFor(() => last(engine, goal.id)?.status !== 'running' && (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 1);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'http://h.example:4100' });
+    expect(sshLog().at(-1)).toContain('export NODE_ENV=production && set -a && . ./.foundry.env && set +a && ');
+    expect(await sh(`tar -tzf ${JSON.stringify(join(fakes, 'upload.tgz'))}`, fakes)).toContain('./.foundry.env');
     rmSync(fakes, { recursive: true, force: true });
   }, 60_000);
 });

@@ -1,5 +1,5 @@
 import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'node:crypto';
-import { SealedSecrets, TransferSecrets } from '@foundry/core';
+import { SealedSecrets, TransferSecrets, type TransferSecretsInput } from '@foundry/core';
 import { TransferError } from './errors.ts';
 
 /** scrypt cost: about a tenth of a second per guess on a laptop, so a weak password still costs an attacker dearly */
@@ -12,7 +12,7 @@ const keyFor = (password: string, salt: Buffer, s: { N: number; r: number; p: nu
  * Seal Keys & secrets with the person's password (ADR-0030). The Transfer's id is authenticated with them, so a sealed
  * block moved into another Transfer file does not open there.
  */
-export function sealSecrets(secrets: TransferSecrets, password: string, transferId: string): SealedSecrets {
+export function sealSecrets(secrets: TransferSecretsInput, password: string, transferId: string): SealedSecrets {
   if (!password) throw new TransferError('Keys & secrets need a password');
   const salt = randomBytes(16);
   const iv = randomBytes(12);

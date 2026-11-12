@@ -38,7 +38,19 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
     expect(host).toMatchObject({ ok: false, items: [{ id: 'token', ok: false, fix: { settings: 'git' } }] });
     const server = await (await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=server&target=srv1`)).json();
     expect(server.ok).toBe(false);
-    expect(server.items.map((i: { id: string; ok: boolean; severity: string }) => [i.id, i.ok, i.severity])).toEqual([['key', false, 'error'], ['reach', false, 'error'], ['docker', false, 'error'], ['folder', false, 'error'], ['front', false, 'warn']]);
+    expect(server.items.map((i: { id: string; ok: boolean; severity: string }) => [i.id, i.ok, i.severity])).toEqual([['key', false, 'error'], ['reach', false, 'error'], ['docker', false, 'error'], ['folder', false, 'error'], ['front', false, 'warn'], ['env', true, 'warn']]);
+    // the runtime variables of a place (ADR-0093): names only come back, a save needs the revision, other sources add names
+    const envUrl = `/api/goals/${goal.id}/deploy/env?place=server:srv1`;
+    expect(await (await app.request(envUrl)).json()).toMatchObject({ place: 'server:srv1', rev: 0, keys: [], missing: [], fromPreview: [] });
+    const put = (body: unknown) => app.request(envUrl, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect(await (await put({ vars: { DATABASE_URL: 'postgres://db/app' }, rev: 0 })).json()).toMatchObject({ rev: 1, keys: ['DATABASE_URL'] });
+    expect((await put({ vars: { DATABASE_URL: null }, rev: 0 })).status).toBe(409);
+    expect((await put({ vars: { 'bad name': 'x' }, rev: 1 })).status).toBe(400);
+    expect((await app.request(`/api/goals/${goal.id}/deploy/env?place=heroku`)).status).toBe(400);
+    engine.preview.env.set(repo, { SESSION_SECRET: 'abcdefghij' }, 0);
+    const copied = await (await app.request(`/api/goals/${goal.id}/deploy/env/from-preview?place=server:srv1`, { method: 'POST' })).json();
+    expect(copied).toMatchObject({ added: ['SESSION_SECRET'], view: { keys: ['DATABASE_URL', 'SESSION_SECRET'] } });
+    expect(JSON.stringify(copied)).not.toContain('abcdefghij');
     expect((await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=server&target=nope`)).status).toBe(409);
     expect((await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=nope`)).status).toBe(400);
     const noTarget = await post(goal.id, { provider: 'server', production: true });

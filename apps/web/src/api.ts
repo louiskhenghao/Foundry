@@ -695,6 +695,11 @@ export function apiForProvider(provider?: AgentProvider) {
   deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean, target?: string | null) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, target: target ?? null, production, smoke }) }),
   /** the readiness check (ADR-0091): whether a deploy to this place can start, tried now */
   deployReadiness: (goalId: string, provider: DeployHost, target?: string | null) => req<DeployReadiness>(`/api/goals/${goalId}/deploy/readiness?provider=${provider}${target ? `&target=${encodeURIComponent(target)}` : ''}`),
+  /** the runtime variables of a deploy (ADR-0093): a place's set for the goal's repository, names only */
+  deployEnv: (goalId: string, place: string) => req<DeployEnvView>(`/api/goals/${goalId}/deploy/env?place=${encodeURIComponent(place)}`),
+  deploySetEnv: (goalId: string, place: string, vars: Record<string, string | null>, rev: number) => req<DeployEnvView>(`/api/goals/${goalId}/deploy/env?place=${encodeURIComponent(place)}`, { method: 'PUT', body: JSON.stringify({ vars, rev }) }),
+  deployEnvFromPreview: (goalId: string, place: string) => req<{ added: string[]; view: DeployEnvView }>(`/api/goals/${goalId}/deploy/env/from-preview?place=${encodeURIComponent(place)}`, { method: 'POST' }),
+  deployEnvImport: (goalId: string, place: string) => req<{ added: string[]; view: DeployEnvView }>(`/api/goals/${goalId}/deploy/env/import?place=${encodeURIComponent(place)}`, { method: 'POST' }),
   /** server recipes (ADR-0092): the scripts, whole; a run on a server (on the person's click, after they read it); the runs so far */
   serverRecipes: () => req<{ recipes: ServerRecipe[] }>('/api/servers/recipes'),
   runServerRecipe: (serverId: string, recipeId: string, params: Record<string, string>) => req<{ started: boolean }>(`/api/servers/${encodeURIComponent(serverId)}/recipes/${encodeURIComponent(recipeId)}/run`, { method: 'POST', body: JSON.stringify({ params }) }),
@@ -1102,6 +1107,7 @@ export interface IncomingReport {
 export interface SecretsPreview {
   settings: { key: string; imported: string; mine: string | null; same: boolean }[];
   previewEnv: { repo: string; keys: string[] }[];
+  deployEnv?: { repo: string; place: string; keys: string[] }[];
 }
 export interface ImportChoices {
   goals?: string[];
@@ -1116,6 +1122,7 @@ export interface ImportReport {
   settings: string[];
   secrets: string[];
   previewEnv: { applied: string[]; waiting: string[] };
+  deployEnv?: { applied: string[]; skipped: string[] };
   repos: { original: string; to: string; error: string | null }[];
   templates: { imported: string[]; skipped: string[] };
   themes: { imported: string[]; skipped: string[] };
@@ -1159,6 +1166,11 @@ export interface ComposeReview {
   pulled: string[];
   volumes: string[];
   binds: string[];
+}
+/** the runtime variables of a deploy place (ADR-0093): the previews' shape, plus the previews' keys the place lacks */
+export interface DeployEnvView extends PreviewEnv {
+  place: string;
+  fromPreview: string[];
 }
 /** how a PM2-mode server installs, builds and starts a Node.js project (ADR-0092) */
 export interface Pm2Facts {

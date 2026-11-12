@@ -19,6 +19,8 @@ import { goalWorkspacePath } from '../workspace.ts';
 import { type Deployability, deployability } from './detect.ts';
 import { keepDeployFiles } from './keep-files.ts';
 import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, type DeployProvider as HostProvider, configured, deploySteps, deployedUrl, failureHint, isHost, lastWords, plain, projectName, redact, wentToProduction, whereLabel } from './providers.ts';
+import { redactor } from '../preview/env.ts';
+import { FOUNDRY_ENV_FILE, deployEnvView, deployVars, writeServerEnv } from './env.ts';
 import { withSecretFile } from './secret-file.ts';
 import { GENERATED_COMPOSE, GENERATED_ECOSYSTEM, type ServerDeployability, generatedCompose, generatedEcosystem, pm2Steps, serverAddress, serverDeployability, serverReadiness, serverSteps } from './server.ts';
 import { runSmoke, smokeScripts, type SmokeTarget } from './smoke.ts';
@@ -266,14 +268,21 @@ async function runServer(engine: Engine, goal: Goal, dir: string, ref: string, s
   // writes: in the checkout only, the repository never sees them
   if (d.app.kind === 'dockerfile') writeFileSync(join(dir, GENERATED_COMPOSE), generatedCompose(d.app.port!));
   if (d.app.kind === 'pm2' && d.app.pm2!.generated) writeFileSync(join(dir, GENERATED_ECOSYSTEM), generatedEcosystem(name, d.app.pm2!.manager, d.app.port));
+  // the runtime variables kept for this place (ADR-0093) go with the checkout as an env file the services read, or the
+  // PM2 process starts with; their values are blanked out of every record, as the hosts' tokens are
+  const vars = deployVars(engine, goal, `server:${server.id}`);
+  const hasVars = Object.keys(vars).length > 0;
+  const override = hasVars ? writeServerEnv(dir, vars, d.app.kind === 'pm2' ? null : d.app.services) : null;
+  const hide = redactor(Object.values(vars));
+  if (hasVars) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${Object.keys(vars).length} runtime variable${Object.keys(vars).length === 1 ? '' : 's'} go with it (${Object.keys(vars).sort().join(', ')})` } });
   const ok = await withSecretFile(engine.config.dataDir, 'id_deploy', server.privateKey!, async (keyFile) => {
     mkdirSync(dirname(knownHostsFile(engine)), { recursive: true });
-    const plan = { server, name, checkout: dir, keyFile, knownHosts: knownHostsFile(engine), file: d.app.file, ssh: engine.deploySsh };
+    const plan = { server, name, checkout: dir, keyFile, knownHosts: knownHostsFile(engine), file: d.app.file, ssh: engine.deploySsh, overrides: override ? [override] : [], envFile: hasVars ? FOUNDRY_ENV_FILE : null };
     const steps = d.app.kind === 'pm2' ? pm2Steps({ ...plan, pm2: d.app.pm2! }) : serverSteps(plan);
     for (const step of steps) {
       const t0 = Date.now();
       const r = await exec(step.argv, step.cwd, { timeoutMs: STEP_TIMEOUT_MS, env: step.env });
-      const out = plain(`${r.stdout}\n${r.stderr}`).trim();
+      const out = hide(plain(`${r.stdout}\n${r.stderr}`).trim());
       // the record names no path under the data folder: the key file, the known hosts and the checkout stand in
       const shown = step.argv.join(' ').split(keyFile).join('<key file>').split(knownHostsFile(engine)).join('<known hosts>').split(dir).join('<deploy folder>');
       store.append({ type: 'deploy.command', goalId: goal.id, payload: { provider, target, label: step.label, command: shown, exitCode: r.code, durationMs: Date.now() - t0, outputTail: out.slice(-3_000) } });
@@ -285,7 +294,8 @@ async function runServer(engine: Engine, goal: Goal, dir: string, ref: string, s
     return true;
   });
   if (!ok) return;
-  const url = serverAddress(server, d.app);
+  // a PM2 project's port may come from its runtime variables alone (PORT), when no file names it
+  const url = serverAddress(server, { port: d.app.port ?? (/^\d{2,5}$/.test(vars.PORT ?? '') ? Number(vars.PORT) : null) });
   store.append({ type: 'deploy.finished', goalId: goal.id, payload: { provider, target, production: true, url } });
   if (!(req.smoke ?? false)) return;
   if (!url) {
@@ -315,6 +325,11 @@ export async function deployReadiness(engine: Engine, goalId: string, provider: 
   const deps = { knownHosts: knownHostsFile(engine), ssh: engine.deploySsh, project, run: (argv: string[], cwd: string, opts: { timeoutMs: number }) => exec(argv, cwd, opts) };
   mkdirSync(dirname(deps.knownHosts), { recursive: true });
   const items = server.privateKey ? await withSecretFile(engine.config.dataDir, 'id_deploy', server.privateKey, (keyFile) => serverReadiness(server, { ...deps, keyFile })) : await serverReadiness(server, { ...deps, keyFile: null });
+  // the runtime variables (ADR-0093): told, never blocking — example files list optional settings too
+  if (goal) {
+    const env = deployEnvView(engine, goal, `server:${server.id}`);
+    items.push({ id: 'env', label: 'Runtime variables', ok: env.missing.length === 0, severity: 'warn', detail: env.missing.length ? `${env.missing.length} key${env.missing.length === 1 ? '' : 's'} from the example files without a value here: ${env.missing.join(', ')} — set what the project needs online under Runtime variables on the card` : env.keys.length ? `${env.keys.length} set (${env.keys.join(', ')})` : 'none set, none listed in example files', fix: null });
+  }
   return { ok: items.every((i) => i.ok || i.severity === 'warn'), items, at };
 }
 

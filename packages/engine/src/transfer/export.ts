@@ -1,4 +1,5 @@
 import type { AgentProvider } from '@foundry/core';
+import { allDeployEnv } from '../deploy/env.ts';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { hostname, platform } from 'node:os';
 import { basename, join } from 'node:path';
@@ -45,6 +46,8 @@ export interface TransferHost {
   release: string;
   settingsFile(): SettingsPatch;
   previewEnv(): Record<string, Record<string, string>>;
+  /** the runtime variables of deploys (ADR-0093): repository → place → variables; a host without them carries none */
+  deployEnv?: () => Record<string, Record<string, Record<string, string>>>;
 }
 
 /** the live engine as a TransferHost */
@@ -56,6 +59,7 @@ export function engineTransferHost(engine: Engine): TransferHost {
     release: engine.updater.current(),
     settingsFile: () => engine.settings.fileSnapshot(),
     previewEnv: () => engine.preview.env.all(),
+    deployEnv: () => allDeployEnv(engine),
   };
 }
 
@@ -94,7 +98,7 @@ export async function exportTransfer(host: TransferHost, opts: ExportOptions): P
   try {
     const file = host.settingsFile();
     if (cat('settings')) writeFileSync(join(stage, 'settings.json'), JSON.stringify(transferableSettings(file), null, 2));
-    if (cat('secrets')) writeFileSync(join(stage, 'secrets.json'), JSON.stringify(sealSecrets({ settings: secretSettings(file), previewEnv: host.previewEnv() }, opts.password!, transferId)), { mode: 0o600 });
+    if (cat('secrets')) writeFileSync(join(stage, 'secrets.json'), JSON.stringify(sealSecrets({ settings: secretSettings(file), previewEnv: host.previewEnv(), deployEnv: host.deployEnv?.() ?? {} }, opts.password!, transferId)), { mode: 0o600 });
     const entries: TransferGoalEntry[] = [];
     for (const g of goals) entries.push(await stageGoal(host, g, stage, cat('transcripts')));
     // Templates & themes (ADR-0079): the person's own files, as they are; the first format is kept for a file without them

@@ -2,7 +2,8 @@ import type { DeployReadiness, Deployment } from '@foundry/core/browser';
 import { AlertTriangle, Check, ExternalLink, Loader2, RefreshCw, Rocket, ShieldAlert, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, type DeployInfo, type DeployPlace, type GoalDetail } from '../../api.ts';
+import { api, type DeployEnvView, type DeployInfo, type DeployPlace, type GoalDetail } from '../../api.ts';
+import { EnvDialog } from './EnvDialog.tsx';
 import { Button, Card, ConfirmDialog, Loading, ago, choiceClass, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { RecipeDialog } from '../settings/RecipeDialog.tsx';
@@ -100,6 +101,10 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   const [checking, setChecking] = useState(false);
   // a recipe (ADR-0092) opened from a readiness item: which script, with the project's values
   const [recipe, setRecipe] = useState<{ id: string; params: Record<string, string> } | null>(null);
+  // the runtime variables of the chosen place (ADR-0093): names only, edited in the dialog
+  const [env, setEnv] = useState<DeployEnvView | null>(null);
+  const [envOpen, setEnvOpen] = useState(false);
+  const [envSaved, setEnvSaved] = useState<string | null>(null);
   const deployments = g.deployments ?? [];
   const chosen = info?.providers.find((p) => placeKey(p) === choice) ?? null;
   const isServer = chosen?.kind === 'server';
@@ -142,6 +147,18 @@ export function DeployCard({ d }: { d: GoalDetail }) {
     setReady(null);
     if (chosen?.kind === 'server' && chosen.configured && !chosen.refused) void check(chosen);
   }, [choice, chosen?.configured, chosen?.refused]);
+  // the variables belong to the place: a server's, a platform's (the hosts keep their own environment settings)
+  const envPlace = chosen && (chosen.kind === 'server' || ['fly', 'railway', 'render'].includes(chosen.id)) ? placeKey(chosen) : null;
+  useEffect(() => {
+    setEnv(null);
+    setEnvSaved(null);
+    if (!envPlace || !finished) return;
+    let alive = true;
+    api.deployEnv(g.id, envPlace).then((e) => alive && setEnv(e)).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [envPlace, g.id, finished]);
   if (!finished) return null;
 
   const run = async () => {
@@ -272,6 +289,20 @@ export function DeployCard({ d }: { d: GoalDetail }) {
               )}
             </div>
           )}
+          {envPlace && env && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sunken px-3 py-2">
+              <span className="text-[11px] font-semibold text-ink">Runtime variables for {chosen?.label}</span>
+              <span className="text-[11px] text-ink-faint">
+                <span className="mono">{env.keys.length}</span> set
+                {env.missing.length > 0 && <span className="font-semibold text-ink-soft"> · <span className="mono">{env.missing.length}</span> in example files not set</span>}
+                {env.fromPreview.length > 0 && <> · <span className="mono">{env.fromPreview.length}</span> the previews have</>}
+              </span>
+              {envSaved && <span className="text-[11px] text-ok-ink">{envSaved}</span>}
+              <Button size="sm" className="ml-auto" onClick={() => setEnvOpen(true)}>
+                Edit…
+              </Button>
+            </div>
+          )}
           {isServer && chosen && !chosen.refused && chosen.configured && <ReadinessList r={ready} checking={checking} onAgain={() => void check(chosen)} onRecipe={(id, params) => setRecipe({ id, params })} />}
           {chosen && !chosen.refused && info.plan.length > 0 && (
             <div className="rounded-lg border border-line bg-sunken p-3">
@@ -359,6 +390,34 @@ export function DeployCard({ d }: { d: GoalDetail }) {
           </>
         )}
       </ConfirmDialog>
+      {envPlace && env && (
+        <EnvDialog
+          open={envOpen}
+          env={env}
+          title={`Runtime variables · ${chosen?.label}`}
+          intro={
+            <>
+              What the project needs online at this place — a database address, an API key — kept on this computer only and sent with each deploy: a server gets them as an env file its services read (or the environment PM2 starts the process with), a platform through its own secrets. They never enter the goal's folder where the coding agents work, and are hidden in the deploy's record.
+            </>
+          }
+          savedNote=" The next deploy carries them."
+          sectionTitle="Set for this place"
+          actions={{
+            reload: () => api.deployEnv(g.id, envPlace),
+            save: (vars, rev) => api.deploySetEnv(g.id, envPlace, vars, rev),
+            importCheckout: () => api.deployEnvImport(g.id, envPlace),
+            extra: env.fromPreview.length ? [{ label: 'Copy from the previews', title: `The previews of this repository have ${env.fromPreview.length} variable${env.fromPreview.length === 1 ? '' : 's'} this place does not: ${env.fromPreview.join(', ')}.`, run: () => api.deployEnvFromPreview(g.id, envPlace) }] : [],
+          }}
+          onClose={() => setEnvOpen(false)}
+          onSaved={(e, msg) => {
+            setEnv(e);
+            setEnvSaved(msg);
+            setEnvOpen(false);
+            if (chosen?.kind === 'server') void check(chosen);
+          }}
+          onReload={setEnv}
+        />
+      )}
       {recipe && chosen?.kind === 'server' && (
         <RecipeDialog
           open

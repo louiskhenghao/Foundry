@@ -356,6 +356,11 @@ export function ImportPanel({ initial }: { initial?: IncomingReport }) {
                           preview variables for <span className="mono">{e.repo}</span>: <span className="mono text-ink-faint">{e.keys.join(', ')}</span> <span className="text-ink-faint">(added beside the ones set here)</span>
                         </div>
                       ))}
+                      {(secrets.deployEnv ?? []).map((e) => (
+                        <div key={`${e.repo}:${e.place}`} className="text-ink-soft">
+                          deploy variables for <span className="mono">{e.repo}</span> → <span className="mono">{e.place}</span>: <span className="mono text-ink-faint">{e.keys.join(', ')}</span> <span className="text-ink-faint">(added beside the ones set here)</span>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -409,6 +414,8 @@ export function ImportResult({ r }: { r: ImportReport }) {
       {(r.themes?.imported.length ?? 0) > 0 && <div className="text-ink-soft">themes brought in: {r.themes.imported.join(', ')}</div>}
       {(r.themes?.skipped.length ?? 0) > 0 && <div className="text-ink-faint">themes skipped: {r.themes.skipped.join(', ')}</div>}
       {r.previewEnv.waiting.length > 0 && <div className="text-ink-soft">preview variables wait until their repository is mapped: {r.previewEnv.waiting.join(', ')}</div>}
+      {(r.deployEnv?.applied.length ?? 0) > 0 && <div className="text-ink-soft">deploy variables applied: {r.deployEnv!.applied.join(', ')}</div>}
+      {(r.deployEnv?.skipped.length ?? 0) > 0 && <div className="text-ink-soft">deploy variables skipped (repository not matched): {r.deployEnv!.skipped.join(', ')}</div>}
     </div>
   );
 }
