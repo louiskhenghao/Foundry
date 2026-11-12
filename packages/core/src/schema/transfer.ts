@@ -1,7 +1,7 @@
 import { AgentProvider } from './provider.ts';
 import { z } from 'zod';
 import { GoalState } from './goal.ts';
-import { SECRET_SETTINGS, SettingsPatch } from './settings.ts';
+import { SECRET_SETTINGS, SettingsPatch, listSecrets, stripListSecrets } from './settings.ts';
 
 /**
  * The Transfer file (ADR-0030): one gzipped tar holding a manifest, the categories the person ticked and, per goal, its
@@ -91,7 +91,7 @@ export const LOCAL_SETTINGS = ['notifications.baseUrl', 'notifications.tailscale
 export const isLocalSetting = (path: string) => (LOCAL_SETTING_SECTIONS as readonly string[]).includes(path.split('.')[0]!) || (LOCAL_SETTINGS as readonly string[]).includes(path);
 export const isSecretSetting = (path: string) => (SECRET_SETTINGS as readonly string[]).includes(path);
 
-/** The leaves of a settings file a Transfer carries as "Settings": neither local to one computer nor a credential */
+/** The leaves of a settings file a Transfer carries as "Settings": neither local to one computer nor a credential (a list's items go without their secrets) */
 export function transferableSettings(file: SettingsPatch): SettingsPatch {
   const out: Record<string, Record<string, unknown>> = {};
   for (const [section, leaves] of Object.entries(file)) {
@@ -101,10 +101,10 @@ export function transferableSettings(file: SettingsPatch): SettingsPatch {
       (out[section] ??= {})[key] = value;
     }
   }
-  return SettingsPatch.parse(out);
+  return stripListSecrets(SettingsPatch.parse(out));
 }
 
-/** The credential leaves of a settings file that hold a value */
+/** The credential leaves of a settings file that hold a value, the list items' secrets among them (`delivery.servers.<id>.privateKey`) */
 export function secretSettings(file: SettingsPatch): Record<string, string> {
   const out: Record<string, string> = {};
   for (const path of SECRET_SETTINGS) {
@@ -112,5 +112,5 @@ export function secretSettings(file: SettingsPatch): Record<string, string> {
     const v = (file[section] as Record<string, unknown> | undefined)?.[key];
     if (typeof v === 'string' && v !== '') out[path] = v;
   }
-  return out;
+  return { ...out, ...listSecrets(file) };
 }

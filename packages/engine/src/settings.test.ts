@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { defaultConfig } from './config.ts';
@@ -231,5 +231,44 @@ describe('engine + settings', () => {
       if (saved === undefined) delete process.env.OPENAI_API_KEY;
       else process.env.OPENAI_API_KEY = saved;
     }
+  });
+});
+
+describe('a list setting with a secret in each item: the servers’ SSH keys (ADR-0090)', () => {
+  const box = (over: Record<string, unknown> = {}) => ({ id: 's1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: 'KEY-0123456789abcdef-END', dir: '~/apps', publicUrl: null, ...over });
+  test('the view carries the items without their keys, each key named beside with a hint; a list saved without them keeps the saved ones; an empty string forgets one', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-settings-servers-'));
+    const s = new SettingsStore(dir, {});
+    const { view } = s.update({ delivery: { servers: [box()] } });
+    expect(view.values.delivery.servers).toEqual([box({ privateKey: null })]);
+    expect(view.secrets['delivery.servers.s1.privateKey']).toEqual({ set: true, hint: 'KEY-…-END' });
+    expect(JSON.stringify(view)).not.toContain('0123456789');
+    expect(s.values().delivery.servers[0]!.privateKey).toBe('KEY-0123456789abcdef-END');
+    // the page sends the list back as it had it: no key, a renamed server, a second one with its key
+    s.update({ delivery: { servers: [box({ name: 'the box', privateKey: null }), box({ id: 's2', name: 'other', privateKey: 'OTHER-KEY-0123456789' })] } });
+    expect(s.values().delivery.servers.map((x) => [x.name, x.privateKey])).toEqual([
+      ['the box', 'KEY-0123456789abcdef-END'],
+      ['other', 'OTHER-KEY-0123456789'],
+    ]);
+    expect(s.view().secrets['delivery.servers.s2.privateKey']).toEqual({ set: true, hint: 'OTHE…6789' });
+    s.update({ delivery: { servers: [box({ privateKey: '' })] } });
+    expect(s.values().delivery.servers).toEqual([box({ privateKey: null })]);
+    expect(s.view().secrets['delivery.servers.s1.privateKey']).toBeUndefined();
+    // the file on disk is the engine's own: the key is there, readable by its owner only
+    expect(statSync(join(dir, 'settings.json')).mode & 0o777).toBe(0o600);
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('sections taken from a Transfer bring the servers without their keys: the keys saved here stay with the servers that match', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-settings-servers-import-'));
+    const s = new SettingsStore(dir, {});
+    s.update({ delivery: { servers: [box()], defaultRemote: 'origin' } });
+    s.replaceSections({ delivery: { servers: [box({ name: 'box on the other computer', privateKey: null }), box({ id: 's9', name: 'new', privateKey: null })], defaultRemote: 'upstream' } }, ['delivery']);
+    expect(s.values().delivery.defaultRemote).toBe('upstream');
+    expect(s.values().delivery.servers.map((x) => [x.id, x.name, x.privateKey])).toEqual([
+      ['s1', 'box on the other computer', 'KEY-0123456789abcdef-END'],
+      ['s9', 'new', null],
+    ]);
+    rmSync(dir, { recursive: true, force: true });
   });
 });

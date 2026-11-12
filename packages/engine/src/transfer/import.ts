@@ -15,6 +15,8 @@ import {
   listTasks,
   maskSecret,
   newId,
+  parseListSecretPath,
+  SECRET_LIST_SETTINGS,
   transferableSettings,
   type TransferFileEntry,
   type TransferGoalEntry,
@@ -290,9 +292,23 @@ export async function applyIncoming(engine: Engine, uploadId: string, choicesIn:
 
   if (secrets) {
     const keep = new Set(choices.secrets!.keepMine);
-    const patch: Record<string, Record<string, string>> = {};
+    const patch: Record<string, Record<string, unknown>> = {};
     for (const [key, value] of Object.entries(secrets.settings)) {
       if (keep.has(key)) continue;
+      // a list item's secret (a server's SSH key) goes onto the item of the list as it is here, by its key; an item the
+      // list no longer has takes nothing
+      const item = parseListSecretPath(key);
+      if (item) {
+        const [section, leaf] = item.list.split('.') as [string, string];
+        const spec = SECRET_LIST_SETTINGS[item.list]!;
+        const list = ((patch[section]?.[leaf] as Record<string, unknown>[] | undefined) ?? structuredClone((engine.settings.values() as unknown as Record<string, Record<string, unknown>>)[section]?.[leaf] as Record<string, unknown>[] | undefined) ?? []) as Record<string, unknown>[];
+        const at = list.find((i) => i[spec.key] === item.id);
+        if (!at) continue;
+        at[item.field] = value;
+        (patch[section] ??= {})[leaf] = list;
+        report.secrets.push(key);
+        continue;
+      }
       const [section, leaf] = key.split('.') as [string, string];
       (patch[section] ??= {})[leaf] = value;
       report.secrets.push(key);

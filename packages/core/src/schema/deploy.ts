@@ -1,8 +1,15 @@
 import { z } from 'zod';
 
-/** the hosts a finished goal's web app is deployed to (ADR-0041) */
-export const DeployProvider = z.enum(['vercel', 'netlify', 'cloudflare']);
+/** where a finished goal is deployed: the web hosts (ADR-0041), or a server of the person's own over SSH (ADR-0090) */
+export const DeployProvider = z.enum(['vercel', 'netlify', 'cloudflare', 'server']);
 export type DeployProvider = z.infer<typeof DeployProvider>;
+/** the web hosts: a CLI run here with a token, one project per repository */
+export const DeployHostProvider = z.enum(['vercel', 'netlify', 'cloudflare']);
+export type DeployHostProvider = z.infer<typeof DeployHostProvider>;
+
+/** which of a provider's places a deploy went to, when it has several: a server from Settings, by its id and the name it had then */
+export const DeployTarget = z.object({ id: z.string(), label: z.string() });
+export type DeployTarget = z.infer<typeof DeployTarget>;
 
 const Item = z.object({ file: z.string(), caption: z.string() });
 
@@ -33,12 +40,14 @@ export const DeploySmoke = z.object({
 });
 export type DeploySmoke = z.infer<typeof DeploySmoke>;
 
-/** One deploy of a goal's web app: where, preview or production, how it went, the address it got, and its smoke. */
+/** One deploy of a goal: where, preview or production, how it went, the address it got, and its smoke. */
 export const Deployment = z.object({
   provider: DeployProvider,
+  /** the server it went to (ADR-0090); absent on the hosts, and on deploys written before servers existed */
+  target: DeployTarget.nullable().optional(),
   production: z.boolean(),
   status: z.enum(['running', 'live', 'failed']),
-  /** the deployed address; null while it runs or when it failed */
+  /** the deployed address; null while it runs, when it failed, or when a server deploy publishes no port and the server has no public address */
   url: z.string().nullable(),
   /** why it failed, in words */
   reason: z.string().nullable(),
@@ -51,3 +60,30 @@ export const Deployment = z.object({
   smoke: DeploySmoke.nullable().optional(),
 });
 export type Deployment = z.infer<typeof Deployment>;
+
+/**
+ * One item of a readiness check (ADR-0090): something a deploy to this place needs, whether it is there, and where to
+ * do it when it is not — a Settings section, a command the person runs themselves, or a page to open.
+ */
+export const ReadinessItem = z.object({
+  id: z.string(),
+  label: z.string(),
+  ok: z.boolean(),
+  /** what was found, in words: a version, the error's own last line, or why it was not tried */
+  detail: z.string().default(''),
+  fix: z
+    .object({
+      /** the section of the Settings page (its anchor, `git`) */
+      settings: z.string().optional(),
+      /** a command the person runs themselves, on their own computer or on the server */
+      command: z.string().optional(),
+      url: z.string().optional(),
+    })
+    .nullable()
+    .default(null),
+});
+export type ReadinessItem = z.infer<typeof ReadinessItem>;
+
+/** Whether a deploy to one place can start: every item it needs, checked now. */
+export const DeployReadiness = z.object({ ok: z.boolean(), items: z.array(ReadinessItem), at: z.string() });
+export type DeployReadiness = z.infer<typeof DeployReadiness>;

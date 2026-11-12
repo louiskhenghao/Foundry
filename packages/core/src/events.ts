@@ -9,7 +9,7 @@ import { Schedule } from './schema/schedule.ts';
 import { AnswerStatus } from './schema/conversation.ts';
 import { Proposal } from './schema/proposal.ts';
 import { Adjustment } from './schema/adjust.ts';
-import { DeployProvider, SmokeScript } from './schema/deploy.ts';
+import { DeployProvider, DeployTarget, SmokeScript } from './schema/deploy.ts';
 import {
   Attempt,
   AuditFinding,
@@ -378,15 +378,19 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** `branch`: the stacked (or goal) branch the step works on, when it is about one PR */
   ev('delivery.step', { step: DeliveryStep, status: z.enum(['started', 'ok', 'skipped', 'failed']), detail: z.string(), branch: z.string().nullable().optional() }),
   ev('delivery.command', { step: DeliveryStep, command: z.string(), cwd: z.string(), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string() }),
-  /** the person deployed the goal's web app (ADR-0041): to which host, preview or production, which commit, what the app is */
-  ev('deploy.started', { provider: DeployProvider, production: z.boolean(), ref: z.string().nullable(), framework: z.string().nullable(), dir: z.string() }),
+  /**
+   * the person deployed the goal (ADR-0041): to which host, preview or production, which commit, what the app is;
+   * `target` names the server when the provider has several places (ADR-0090)
+   */
+  ev('deploy.started', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), ref: z.string().nullable(), framework: z.string().nullable(), dir: z.string() }),
   /** one command of a deploy, its tokens never in it */
-  ev('deploy.command', { provider: DeployProvider, label: z.string(), command: z.string(), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string() }),
-  ev('deploy.finished', { provider: DeployProvider, production: z.boolean(), url: z.string() }),
-  ev('deploy.failed', { provider: DeployProvider, production: z.boolean(), reason: z.string() }),
+  ev('deploy.command', { provider: DeployProvider, target: DeployTarget.nullable().optional(), label: z.string(), command: z.string(), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string() }),
+  /** `url` is null when a server deploy publishes no port and the server has no public address: it runs, with nothing to open */
+  ev('deploy.finished', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), url: z.string().nullable() }),
+  ev('deploy.failed', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), reason: z.string() }),
   /** the smoke of a deploy (ADR-0058): the goal's milestone scripts against the deployed address; `deployedAt` names the deploy (its `at`) */
-  ev('deploy.smoke_started', { provider: DeployProvider, production: z.boolean(), url: z.string(), deployedAt: z.string(), scripts: z.array(z.string()) }),
-  ev('deploy.smoke_finished', { provider: DeployProvider, production: z.boolean(), url: z.string(), deployedAt: z.string(), status: z.enum(['pass', 'fail', 'skipped']), detail: z.string(), scripts: z.array(SmokeScript) }),
+  ev('deploy.smoke_started', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), url: z.string(), deployedAt: z.string(), scripts: z.array(z.string()) }),
+  ev('deploy.smoke_finished', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), url: z.string(), deployedAt: z.string(), status: z.enum(['pass', 'fail', 'skipped']), detail: z.string(), scripts: z.array(SmokeScript) }),
   ev('delivery.repo_created', { owner: z.string(), name: z.string(), url: z.string(), visibility: z.string() }),
   ev('delivery.pushed', { remote: z.string(), branch: z.string(), ref: z.string(), taskId: z.string().nullable().default(null) }),
   /** the stacked branches built from the tasks' commits (unit = task), bottom first */
