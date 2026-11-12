@@ -11,6 +11,16 @@ export type MergeMethod = z.infer<typeof MergeMethod>;
 export const DeliveryUnit = z.enum(['goal', 'task']);
 export type DeliveryUnit = z.infer<typeof DeliveryUnit>;
 
+/**
+ * A repository's name as GitHub makes it from what it is asked for: ASCII letters, digits, `.`, `-` and `_` stay, every
+ * other character (a space, a bracket, a 中文 character) becomes `-`, at most 100 of them. A goal created from a folder
+ * called "My App V2" asks for that name and gets My-App-V2: the policy holds the name the remote will really have,
+ * so the person sees it before the repository exists and a later run finds the remote the first one created.
+ */
+export function githubRepoName(raw: string): string {
+  return raw.trim().replace(/[^A-Za-z0-9._-]/gu, '-').slice(0, 100);
+}
+
 /** What the human authorised the ENGINE to do with the goal branch once the goal is done. */
 export const DeliveryPolicy = z.object({
   mode: DeliveryMode.default('local'),
@@ -21,8 +31,8 @@ export const DeliveryPolicy = z.object({
   baseBranch: z.string().nullable().default(null),
   /** add the remote by URL when it does not exist (works without gh) */
   remoteUrl: z.string().nullable().default(null),
-  /** create the GitHub repo when no remote exists (needs gh) */
-  createRepo: z.object({ owner: z.string().min(1), name: z.string().min(1), visibility: z.enum(['private', 'public']).default('private') }).nullable().default(null),
+  /** create the GitHub repo when no remote exists (needs gh); the name as GitHub will spell it (githubRepoName) */
+  createRepo: z.object({ owner: z.string().min(1), name: z.string().trim().min(1).transform(githubRepoName), visibility: z.enum(['private', 'public']).default('private') }).nullable().default(null),
   mergeMethod: MergeMethod.default('squash'),
   requireChecks: z.boolean().default(true),
   mergeIfNoChecks: z.boolean().default(true),
