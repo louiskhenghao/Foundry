@@ -8,6 +8,7 @@ import { help } from './help.ts';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { codexQuotaWindows } from '@foundry/engine/quota-windows';
+import { agyMeters, claudeMeters, codexMeters, type AccountMeters } from '@foundry/engine/account-meters';
 
 const ROOT = resolve(import.meta.dir, '../../..');
 const argv = process.argv.slice(2);
@@ -597,7 +598,8 @@ switch (cmd) {
     break;
   }
   case 'usage': {
-    const query = opt('--provider') ? `?provider=${encodeURIComponent(opt('--provider')!)}` : '';
+    // every account's own usage is read (accounts=1): with several accounts each gets its lines (ADR-0090)
+    const query = `?accounts=1${opt('--provider') ? `&provider=${encodeURIComponent(opt('--provider')!)}` : ''}`;
     const u = has('--probe') ? await api(`/api/usage/probe${query}`, { method: 'POST' }) : await api(`/api/usage${query}`);
     const cost = (value: number) => u.costAvailable === false ? 'cost unavailable' : `$${value.toFixed(2)}`;
     if (has('--json')) return console.log(JSON.stringify(u, null, 2));
@@ -606,7 +608,23 @@ switch (cmd) {
       console.log(showSignal ? `${w.label}: ${w.status ?? 'unknown'} (${reset}${w.isUsingOverage ? ', using overage' : ''})` : w.label);
       console.log(`  sessions ${w.sessions}  in ${fmtK(w.inputTokens)}  out ${fmtK(w.outputTokens)}  cache-read ${fmtK(w.cacheReadTokens)}  ${cost(w.costUsd)}`);
     };
+    // an account's own usage windows as its coding agent reports them: one line per window, percent used and the reset
+    const own = (m: AccountMeters, indent = '  ') => {
+      if (m.state === 'unread') return console.log(`${indent}usage not read yet`);
+      if (m.state !== 'available') return console.log(`${indent}usage unavailable: ${m.message}`);
+      if (!m.meters.length) console.log(`${indent}no usage window reported`);
+      for (const x of m.meters) console.log(`${indent}${x.title} (${x.window}): ${x.usedPercent == null ? 'usage unknown' : `${x.usedPercent}% used`}${x.resetsAt ? ` · resets ${new Date(x.resetsAt).toLocaleString()}` : ''}${x.note ? ` · ${x.note}` : ''}`);
+      if (m.note) console.log(`${indent}${m.note}`);
+    };
+    const accounts: any[] = u.accounts ?? [];
+    const perAccount = (meters: (a: any) => AccountMeters) => {
+      for (const a of accounts) {
+        console.log(`${a.label}${a.current ? ' (current)' : ''}${a.plan ? ` · ${a.plan}` : ''}${a.limitedUntil ? ` · limited until ${new Date(a.limitedUntil).toLocaleTimeString()}` : ''}`);
+        own(meters(a));
+      }
+    };
     if (u.provider === 'codex') {
+      if (accounts.length > 1) perAccount((a) => codexMeters(a.codexQuota));
       const quota = u.codexQuota;
       if (quota?.state === 'available') {
         console.log(`ChatGPT account quota: ${quota.ordinaryUsageAllowed === true ? 'allowed' : quota.ordinaryUsageAllowed === false ? 'blocked' : 'allowance unknown'}`);
@@ -620,7 +638,19 @@ switch (cmd) {
       } else console.log(`ChatGPT account quota: ${quota?.message ?? 'unavailable'}`);
       console.log('Foundry activity only (not an account limit):');
       win({ ...u.sevenDay, label: 'Last 7 days' }, false);
+    } else if (u.provider === 'agy') {
+      console.log('Antigravity account quota:');
+      own(agyMeters(u.agyQuota));
+      console.log('Foundry activity only (not an account limit):');
+      win({ ...u.sevenDay, label: 'Last 7 days' }, false);
     } else {
+      // Claude: each account's own usage as Claude reports it, then Foundry's activity in each window with the last signal its sessions carried
+      if (accounts.length > 1) perAccount((a) => claudeMeters(a.claudeUsage));
+      else {
+        console.log('Claude account usage:');
+        own(claudeMeters(u.claudeUsage));
+      }
+      console.log('Foundry activity, with the last signal of its sessions:');
       win(u.fiveHour);
       win(u.sevenDay);
     }
