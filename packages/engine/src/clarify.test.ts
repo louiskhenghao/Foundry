@@ -882,10 +882,13 @@ describe('a design reference (ADR-0093)', () => {
     expect(clarify).toContain('exactly ONE `styleOptions` entry');
     expect(clarify).toContain('Design inventory');
     expect(clarify).toContain('Matches the design: <page>');
+    expect(clarify).toContain('a small drift (a few pixels, an opacity, a shade) is a note, not a failure');
+    expect(clarify).toContain('Never add a check about the reference files themselves');
     expect(clarify).not.toContain('2–4 `styleOptions`');
     const planner = runner.calls.find((c) => c.label?.startsWith('plan'))!.prompt;
     expect(planner).toContain('# The design is supplied');
     expect(planner).toContain('Matches the design: <page>');
+    expect(planner).toContain('Never plan a check about the reference files themselves');
     const brief = getBrief(engine.store.db, goal.id)!.brief;
     expect(brief.styleOptions.map((s) => s.name)).toEqual(['From your design']);
     engine.cancelGoal(goal.id);
