@@ -209,6 +209,9 @@ printf 'ssh|%s|%s|key=%s\\n' "$dest" "$cmd" "$present" >> "${join(dir, 'ssh.log'
 case "$cmd" in
   *"tar -xzf -"*) cat > "${join(dir, 'upload.tgz')}" ;;
   "echo foundry-ok") echo foundry-ok ;;
+  "p="*) if [ -f "${join(dir, 'FOREIGN')}" ]; then echo "FOUNDRY: the folder already holds files that are not a Foundry deploy: pick another deploy folder for this server in Settings, or empty it yourself" >&2; exit 3; fi; echo made ;;
+  "d="*) echo writable; echo project=new ;;
+  *"ss -ltnpH"*) echo '::ours::' ;;
   *"docker compose version"*) if [ -f "${join(dir, 'FAIL_DOCKER')}" ]; then echo "sh: 1: docker: not found" >&2; exit 127; fi; echo "Docker Compose version v2.29.1"; echo "27.1.0" ;;
   *"docker compose -p"*) if [ -f "${join(dir, 'FAIL_UP')}" ]; then echo "failed to solve: process \\"/bin/sh -c npm ci\\" did not complete successfully: exit code: 1" >&2; exit 1; fi; echo " Container web-1  Started" ;;
   *"test -w"*) echo writable ;;
@@ -225,7 +228,7 @@ describe('deploying to a server of the person’s own (ADR-0090)', () => {
     const { engine, goal } = await finishedGoal(files);
     const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));
     engine.deploySsh = [fakeSsh(fakes)];
-    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null }] } });
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false }] } });
     const sshLog = () => (existsSync(join(fakes, 'ssh.log')) ? readFileSync(join(fakes, 'ssh.log'), 'utf8').trim().split('\n') : []);
     return { engine, goal, fakes, sshLog };
   }
@@ -234,19 +237,21 @@ describe('deploying to a server of the person’s own (ADR-0090)', () => {
     const { engine, goal, fakes, sshLog } = await serverGoal({ 'compose.yaml': 'services:\n  web:\n    build: .\n    ports:\n      - "8080:80"\n', Dockerfile: 'FROM nginx\n' });
     const info = engine.deployInfo(goal.id, 'server', false, 'srv1');
     expect(info.server).toMatchObject({ ok: true, app: { kind: 'compose', file: 'compose.yaml', services: ['web'], port: 8080 } });
-    expect(info.providers.at(-1)).toEqual({ id: 'server', target: 'srv1', kind: 'server', label: 'box', configured: true, refused: null });
+    expect(info.providers.at(-1)).toEqual({ id: 'server', target: 'srv1', kind: 'server', label: 'box', configured: true, refused: null, permissive: false });
     expect(info.plan.map((s) => s.command).join('\n')).toContain('-i <key file>');
     expect(info.plan.map((s) => s.command).join('\n')).toContain("tar -czf - --exclude=.git --exclude=node_modules --exclude=.vercel --exclude=.netlify --exclude=.wrangler -C '<deploy folder>' .");
     expect(info.plan.map((s) => s.command).join('\n')).not.toContain('FAKEKEY');
 
     // the readiness check reaches the server with the key on disk, and leaves nothing behind
-    const ready = await engine.deployReadiness('server', 'srv1');
+    const ready = await engine.deployReadiness(goal.id, 'server', 'srv1');
     expect(ready.ok).toBe(true);
-    expect(ready.items.map((i) => [i.id, i.ok])).toEqual([
-      ['key', true],
-      ['reach', true],
-      ['docker', true],
-      ['folder', true],
+    expect(ready.items.map((i) => [i.id, i.ok, i.severity])).toEqual([
+      ['key', true, 'error'],
+      ['reach', true, 'error'],
+      ['docker', true, 'error'],
+      ['folder', true, 'error'],
+      ['ports', true, 'error'],
+      ['front', false, 'warn'],
     ]);
     expect(sshLog().every((l) => l.endsWith('key=present'))).toBe(true);
     expect(existsSync(join(dataDir, 'tmp')) ? readdirSync(join(dataDir, 'tmp')) : []).toEqual([]);
@@ -255,8 +260,12 @@ describe('deploying to a server of the person’s own (ADR-0090)', () => {
     await waitFor(() => last(engine, goal.id)?.status !== 'running' && (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 1);
     expect(last(engine, goal.id)).toMatchObject({ provider: 'server', target: { id: 'srv1', label: 'box' }, production: true, status: 'live', url: 'http://h.example:8080', framework: 'docker compose (compose.yaml)' });
     const name = deployName(goal);
-    const log = sshLog().filter((l) => !l.includes('foundry-ok') && !l.includes('compose version') && !l.includes('test -w'));
-    expect(log).toEqual([`ssh|deploy@h.example|mkdir -p ~/apps/${name}|key=present`, `ssh|deploy@h.example|tar -xzf - -C ~/apps/${name}|key=present`, `ssh|deploy@h.example|cd ~/apps/${name} && docker compose -p '${name}' -f 'compose.yaml' up -d --build --remove-orphans|key=present`]);
+    const log = sshLog().filter((l) => !l.includes('foundry-ok') && !l.includes('compose version') && !l.includes('|d=') && !l.includes('ss -ltnpH'));
+    expect(log).toHaveLength(3);
+    // the folder is made with Foundry's marker, or left alone when it holds something else
+    expect(log[0]).toContain(`|p=~/apps/${name}; if [ -d "$p" ] && [ ! -e "$p/.foundry-deploy" ]`);
+    expect(log[0]).toContain('mkdir -p "$p" && touch "$p/.foundry-deploy"|key=present');
+    expect(log.slice(1)).toEqual([`ssh|deploy@h.example|tar -xzf - -C ~/apps/${name}|key=present`, `ssh|deploy@h.example|cd ~/apps/${name} && docker compose -p '${name}' -f 'compose.yaml' up -d --build --remove-orphans|key=present`]);
     // what went over: the checkout, without its .git
     const listed = await sh(`tar -tzf ${JSON.stringify(join(fakes, 'upload.tgz'))}`, fakes);
     expect(listed).toContain('./compose.yaml');
@@ -268,7 +277,7 @@ describe('deploying to a server of the person’s own (ADR-0090)', () => {
     expect(existsSync(join(dataDir, 'tmp')) ? readdirSync(join(dataDir, 'tmp')) : []).toEqual([]);
 
     // a public address names the deploy instead of host and port
-    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: null, dir: '~/apps', publicUrl: 'https://app.example.com' }] } });
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: null, dir: '~/apps', publicUrl: 'https://app.example.com', allowPrivileged: false }] } });
     engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true });
     await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 2 && last(engine, goal.id)?.status !== 'running');
     expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://app.example.com' });
@@ -304,15 +313,58 @@ describe('deploying to a server of the person’s own (ADR-0090)', () => {
     expect(last(engine, goal.id)).toMatchObject({ provider: 'server', target: { id: 'srv1', label: 'box' }, reason: expect.stringContaining('no compose file') });
 
     writeFileSync(join(fakes, 'FAIL_DOCKER'), '');
-    const ready = await engine.deployReadiness('server', 'srv1');
+    const ready = await engine.deployReadiness(goal.id, 'server', 'srv1');
     expect(ready.ok).toBe(false);
     expect(ready.items.find((i) => i.id === 'docker')).toMatchObject({ ok: false, detail: expect.stringContaining('Docker is not installed on h.example'), fix: { url: expect.stringContaining('docs.docker.com') } });
 
-    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: '', dir: '~/apps', publicUrl: null }] } });
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: '', dir: '~/apps', publicUrl: null, allowPrivileged: false }] } });
     expect(engine.deployInfo(goal.id).providers.at(-1)).toMatchObject({ configured: false });
     expect(() => engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true })).toThrow(/has no SSH key/);
-    const hostReady = await engine.deployReadiness('netlify', null);
+    const hostReady = await engine.deployReadiness(goal.id, 'netlify', null);
     expect(hostReady).toMatchObject({ ok: true, items: [{ id: 'token', ok: true }] });
+    rmSync(fakes, { recursive: true, force: true });
+  }, 60_000);
+});
+
+describe('what a server deploy refuses before it touches anything (ADR-0090)', () => {
+  test('a compose file that reaches outside its project is refused with the reasons; allowed for the server, it runs and the activity says what it reaches', async () => {
+    const { engine, goal } = await finishedGoal({ 'compose.yaml': 'services:\n  agent:\n    build: .\n    ports: ["8080:80"]\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - /etc:/host-etc:ro\n', Dockerfile: 'FROM nginx\n' });
+    const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));
+    engine.deploySsh = [fakeSsh(fakes)];
+    const box = { id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false };
+    engine.updateSettings({ delivery: { servers: [box] } });
+    const info = engine.deployInfo(goal.id, 'server', true, 'srv1');
+    expect(info.server).toMatchObject({ ok: true, app: { review: { dangers: ['agent mounts the Docker socket (/var/run/docker.sock): the container would control every container on the server', 'agent bind-mounts /etc, outside the project folder'] } } });
+    expect(info.providers.at(-1)).toMatchObject({ id: 'server', target: 'srv1', permissive: false, refused: null });
+    engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true });
+    await waitFor(() => last(engine, goal.id)?.status === 'failed');
+    const reason = last(engine, goal.id)!.reason!;
+    expect(reason).toStartWith('compose.yaml reaches outside its project, which the server box does not allow: agent mounts the Docker socket');
+    expect(reason).toContain('allow it for this server under Settings → Git & delivery → Servers');
+    expect(existsSync(join(fakes, 'ssh.log'))).toBe(false);
+
+    engine.updateSettings({ delivery: { servers: [{ ...box, privateKey: null, allowPrivileged: true }] } });
+    expect(engine.deployInfo(goal.id, 'server', true, 'srv1').providers.at(-1)).toMatchObject({ permissive: true });
+    engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true });
+    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 2 && last(engine, goal.id)?.status !== 'running');
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'http://h.example:8080' });
+    const notes = engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'engine.note').map((e) => (e.payload as { level: string; message: string }));
+    expect(notes).toContainEqual({ level: 'warn', message: 'deploy: compose.yaml reaches outside its project, allowed for the server box: agent mounts the Docker socket (/var/run/docker.sock): the container would control every container on the server; agent bind-mounts /etc, outside the project folder' });
+    rmSync(fakes, { recursive: true, force: true });
+  }, 60_000);
+
+  test('a project folder on the server that holds something else is never written over: the deploy stops at its first step and says so', async () => {
+    const { engine, goal } = await finishedGoal({ 'compose.yaml': 'services:\n  web:\n    build: .\n    ports: ["8080:80"]\n', Dockerfile: 'FROM nginx\n' });
+    const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));
+    engine.deploySsh = [fakeSsh(fakes)];
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false }] } });
+    writeFileSync(join(fakes, 'FOREIGN'), '');
+    engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true });
+    await waitFor(() => last(engine, goal.id)?.status === 'failed');
+    expect(last(engine, goal.id)!.reason).toBe('make the folder on the server failed (exit 3): FOUNDRY: the folder already holds files that are not a Foundry deploy: pick another deploy folder for this server in Settings, or empty it yourself');
+    // nothing was copied, nothing started
+    expect(existsSync(join(fakes, 'upload.tgz'))).toBe(false);
+    expect(readFileSync(join(fakes, 'ssh.log'), 'utf8')).not.toContain('docker compose -p');
     rmSync(fakes, { recursive: true, force: true });
   }, 60_000);
 });

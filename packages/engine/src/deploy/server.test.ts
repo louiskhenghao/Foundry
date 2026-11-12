@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DeployServer } from '@foundry/core';
 import type { ExecResult } from '../git/git.ts';
-import { generatedCompose, publishedPort, remoteDir, serverAddress, serverDeployability, serverReadiness, serverSteps, shellQuote, sshArgv } from './server.ts';
+import { folderScript, generatedCompose, parseListeners, publishedPort, remoteDir, reviewCompose, serverAddress, serverDeployability, serverReadiness, serverSteps, shellQuote, sshArgv } from './server.ts';
 
-const server: DeployServer = { id: 'srv1', name: 'box', host: 'h.example', port: 2222, user: 'deploy', privateKey: 'KEY', dir: '~/apps', publicUrl: null };
+const server: DeployServer = { id: 'srv1', name: 'box', host: 'h.example', port: 2222, user: 'deploy', privateKey: 'KEY', dir: '~/apps', publicUrl: null, allowPrivileged: false };
 
 function repo(files: Record<string, string>): string {
   const dir = mkdtempSync(join(tmpdir(), 'foundry-server-detect-'));
@@ -68,7 +68,9 @@ describe('what a server runs (ADR-0090)', () => {
     expect(steps.map((s) => s.label)).toEqual(['make the folder on the server', 'copy the project over', 'start it with docker compose']);
     const ssh = sshArgv(server, '/tmp/k', '/data/deploy/known_hosts');
     expect(ssh).toEqual(['ssh', '-i', '/tmp/k', '-p', '2222', '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=accept-new', '-o', 'UserKnownHostsFile=/data/deploy/known_hosts', '-o', 'ConnectTimeout=20', '-o', 'LogLevel=ERROR', 'deploy@h.example']);
-    expect(steps[0]!.argv).toEqual([...ssh, 'mkdir -p ~/apps/site-abc123']);
+    expect(steps[0]!.argv).toEqual([...ssh, folderScript('~/apps/site-abc123')]);
+    expect(folderScript('~/apps/site-abc123')).toContain('already holds files that are not a Foundry deploy');
+    expect(folderScript('~/apps/site-abc123')).toContain('mkdir -p "$p" && touch "$p/.foundry-deploy"');
     expect(steps[1]!.argv.slice(0, 2)).toEqual(['sh', '-c']);
     expect(steps[1]!.argv[2]).toBe(`tar -czf - --exclude=.git --exclude=node_modules --exclude=.vercel --exclude=.netlify --exclude=.wrangler -C '/data/deploy/site abc' . | ${ssh.map(shellQuote).join(' ')} 'tar -xzf - -C ~/apps/site-abc123'`);
     expect(steps[2]!.argv).toEqual([...ssh, "cd ~/apps/site-abc123 && docker compose -p 'site-abc123' -f 'compose.yaml' up -d --build --remove-orphans"]);
@@ -100,9 +102,13 @@ describe('the readiness check of a server', () => {
       ['reach', true],
       ['docker', true],
       ['folder', true],
+      ['front', false],
     ]);
     expect(items[2]!.detail).toBe('Docker Compose version v2.29.1, 27.1.0');
-    expect(calls).toEqual(['echo foundry-ok', "docker compose version && docker info --format '{{.ServerVersion}}'", 'mkdir -p ~/apps && test -w ~/apps && echo writable']);
+    expect(calls.slice(0, 3)).toEqual(['echo foundry-ok', "docker compose version && docker info --format '{{.ServerVersion}}'", 'd=~/apps; mkdir -p "$d" && test -w "$d" && echo writable']);
+    expect(calls[3]).toContain('ss -ltnpH');
+    // nothing in front: told, never blocking
+    expect(items[4]).toMatchObject({ id: 'front', ok: false, severity: 'warn', detail: expect.stringContaining('nothing listens on 80 or 443'), fix: { url: expect.stringContaining('caddyserver') } });
   });
 
   test('without a key nothing is tried; a refused key says whose and how to add it; a changed host key points at Settings', async () => {
@@ -112,10 +118,12 @@ describe('the readiness check of a server', () => {
       ['reach', false, true],
       ['docker', false, true],
       ['folder', false, true],
+      ['front', false, true],
     ]);
     const refused = await serverReadiness(server, { ...deps, run: fakeRun({ 'foundry-ok': { code: 255, stderr: 'deploy@h.example: Permission denied (publickey).\n' } }).run });
     expect(refused[1]).toMatchObject({ id: 'reach', ok: false, detail: 'h.example refused the key for deploy: deploy@h.example: Permission denied (publickey).', fix: { command: expect.stringContaining('authorized_keys') } });
     expect(refused.slice(2).every((i) => !i.ok && i.detail.includes('could not be reached'))).toBe(true);
+    expect(refused.map((i) => i.id)).toEqual(['key', 'reach', 'docker', 'folder', 'front']);
     const changed = await serverReadiness(server, { ...deps, run: fakeRun({ 'foundry-ok': { code: 255, stderr: 'Host key verification failed.\n' } }).run });
     expect(changed[1]).toMatchObject({ ok: false, detail: expect.stringContaining('host key changed'), fix: { settings: 'git' } });
   });
@@ -124,7 +132,84 @@ describe('the readiness check of a server', () => {
     const missing = await serverReadiness(server, { ...deps, run: fakeRun({ 'foundry-ok': { stdout: 'foundry-ok' }, 'docker compose version': { code: 127, stderr: 'sh: 1: docker: not found\n' }, 'test -w': { stdout: 'writable' } }).run });
     expect(missing[2]).toMatchObject({ id: 'docker', ok: false, detail: 'Docker is not installed on h.example: sh: 1: docker: not found', fix: { url: 'https://docs.docker.com/engine/install/' } });
     const socket = await serverReadiness(server, { ...deps, run: fakeRun({ 'foundry-ok': { stdout: 'foundry-ok' }, 'docker compose version': { code: 1, stderr: 'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock\n' }, 'test -w': { code: 1, stderr: 'mkdir: cannot create directory: Permission denied\n' } }).run });
-    expect(socket[2]).toMatchObject({ ok: false, detail: expect.stringContaining('deploy may not use Docker there'), fix: { command: 'sudo usermod -aG docker deploy' } });
+    // the command is the person's to run, and says what it changes
+    const cmd = String(socket[2]!.fix!.command);
+    expect(cmd).toContain('sudo usermod -aG docker deploy');
+    expect(cmd).toContain('a member of the docker group can act as root');
+    expect(socket[2]).toMatchObject({ ok: false, detail: expect.stringContaining('deploy may not use Docker there') });
     expect(socket[3]).toMatchObject({ id: 'folder', ok: false, detail: expect.stringContaining('could not be made or written as deploy') });
+  });
+});
+
+describe('the compose review (ADR-0090): what a file would reach outside its project', () => {
+  const doc = (yaml: string) => Bun.YAML.parse(yaml) as Parameters<typeof reviewCompose>[0];
+  test('an ordinary project: built and pulled services, ports, named volumes and binds inside the folder; nothing refused', () => {
+    const r = reviewCompose(doc('services:\n  web:\n    build: .\n    ports: ["8080:80", "9090:9090"]\n    volumes:\n      - ./data:/app/data\n      - uploads:/app/uploads\n  db:\n    image: postgres:16\n    volumes:\n      - pg:/var/lib/postgresql/data\nvolumes:\n  pg: {}\n  uploads: {}\n'));
+    expect(r).toEqual({ dangers: [], ports: [8080, 9090], built: ['web'], pulled: ['db'], volumes: ['uploads', 'pg'], binds: ['./data'] });
+  });
+  test('what reaches outside is named with its service: the Docker socket, privileged, the host network and pid, capabilities, devices, bind mounts elsewhere, a volume bound to a device', () => {
+    const r = reviewCompose(doc('services:\n  agent:\n    image: x\n    privileged: true\n    network_mode: host\n    pid: host\n    cap_add: [SYS_ADMIN]\n    security_opt: ["apparmor:unconfined"]\n    devices: ["/dev/kvm:/dev/kvm"]\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - /etc:/host-etc:ro\n      - ~/.ssh:/root/.ssh\n      - ../other:/other\n      - type: bind\n        source: /srv/data\n        target: /data\nvolumes:\n  raw:\n    driver_opts:\n      type: none\n      device: /mnt/disk\n'));
+    expect(r.dangers).toEqual([
+      'agent runs privileged: the container would have the server\'s own powers',
+      "agent uses the host's network (network_mode: host): every port of the server, not the project's",
+      "agent shares the host's pid (pid: host)",
+      'agent adds capabilities (cap_add: SYS_ADMIN)',
+      'agent turns a security profile off (security_opt)',
+      "agent opens the server's devices (devices: /dev/kvm:/dev/kvm)",
+      'agent mounts the Docker socket (/var/run/docker.sock): the container would control every container on the server',
+      'agent bind-mounts /etc, outside the project folder',
+      'agent bind-mounts ~/.ssh, outside the project folder',
+      'agent bind-mounts ../other, outside the project folder',
+      'agent bind-mounts /srv/data, outside the project folder',
+      'volume raw binds /mnt/disk, outside the project folder',
+    ]);
+    expect(r.ports).toEqual([]);
+  });
+  test('the review travels with what a server runs; a Dockerfile alone reaches nothing', () => {
+    const dir = repo({ 'compose.yaml': 'services:\n  api:\n    build: .\n    privileged: true\n    ports: ["3000:3000"]\n' });
+    const d = serverDeployability(dir);
+    expect(d).toMatchObject({ ok: true, app: { review: { dangers: [expect.stringContaining('api runs privileged')], ports: [3000] } } });
+    rmSync(dir, { recursive: true, force: true });
+    const df = repo({ Dockerfile: 'FROM nginx\nEXPOSE 80\n' });
+    expect(serverDeployability(df)).toMatchObject({ ok: true, app: { review: { dangers: [], ports: [80], built: ['app'] } } });
+    rmSync(df, { recursive: true, force: true });
+  });
+});
+
+describe('what the readiness check sees of the server beyond Docker', () => {
+  const SS = 'LISTEN 0 511 0.0.0.0:80 0.0.0.0:* users:(("nginx",pid=812,fd=6))\nLISTEN 0 511 [::]:443 [::]:* users:(("nginx",pid=812,fd=7))\nLISTEN 0 4096 0.0.0.0:8080 0.0.0.0:* users:(("docker-proxy",pid=2001,fd=4))\nLISTEN 0 128 0.0.0.0:22 0.0.0.0:*\n';
+  test('listeners are read from ss, with the program when shown', () => {
+    expect(parseListeners(SS)).toEqual([
+      { port: 80, program: 'nginx' },
+      { port: 443, program: 'nginx' },
+      { port: 8080, program: 'docker-proxy' },
+      { port: 22, program: null },
+    ]);
+    expect(parseListeners('tcp        0      0 0.0.0.0:5432            0.0.0.0:*               LISTEN      901/postgres\n')).toEqual([{ port: 5432, program: 'postgres' }]);
+  });
+  const answers = (over: Record<string, Partial<ExecResult>> = {}) => ({ 'foundry-ok': { stdout: 'foundry-ok\n' }, 'docker compose version': { stdout: 'Docker Compose version v2.29.1\n' }, 'test -w': { stdout: 'writable\nproject=new\n' }, 'ss -ltnpH': { stdout: `${SS}::ours::\n` }, ...over });
+  test('a published port held by another program blocks; one held by this project\'s earlier deploy, or free, does not; what is in front is told', async () => {
+    const taken = await serverReadiness(server, { ...deps, project: { name: 'site-1', ports: [8080, 9090] }, run: fakeRun(answers()).run });
+    expect(taken.find((i) => i.id === 'ports')).toMatchObject({ ok: false, severity: 'error', detail: expect.stringContaining('already in use on the server: 8080 (docker-proxy)') });
+    expect(taken.find((i) => i.id === 'front')).toMatchObject({ ok: true, severity: 'warn', detail: 'nginx listens on 80, nginx listens on 443' });
+    expect(taken.find((i) => i.id === 'folder')).toMatchObject({ ok: true, detail: expect.stringContaining("the project's folder will be made") });
+    const ours = await serverReadiness(server, { ...deps, project: { name: 'site-1', ports: [8080] }, run: fakeRun(answers({ 'ss -ltnpH': { stdout: `${SS}::ours::\n0.0.0.0:8080->80/tcp\n` }, 'test -w': { stdout: 'writable\nproject=ours\n' } })).run });
+    expect(ours.find((i) => i.id === 'ports')).toMatchObject({ ok: true, detail: "8080 (this project's own, from an earlier deploy)" });
+    expect(ours.find((i) => i.id === 'folder')).toMatchObject({ ok: true, detail: expect.stringContaining("Foundry's from an earlier deploy") });
+    expect(ours.every((i) => i.ok || i.severity === 'warn')).toBe(true);
+  });
+  test('a project folder that holds something else is never written over; the check says so and points at Settings', async () => {
+    const r = await serverReadiness(server, { ...deps, project: { name: 'site-1', ports: [] }, run: fakeRun(answers({ 'test -w': { stdout: 'writable\nproject=foreign\n' } })).run });
+    expect(r.find((i) => i.id === 'folder')).toMatchObject({ ok: false, severity: 'error', detail: expect.stringContaining('already holds files that are not a Foundry deploy'), fix: { settings: 'git' } });
+    expect(r.find((i) => i.id === 'ports')).toBeUndefined();
+  });
+  test('the public address is looked at from here: answering, behind Cloudflare, a bad certificate, no DNS, nothing yet — told, never blocking', async () => {
+    const withUrl = { ...server, publicUrl: 'https://app.example.com' };
+    const at = (probe: NonNullable<(typeof deps & { probe?: unknown })['probe']>) => serverReadiness(withUrl, { ...deps, run: fakeRun(answers()).run, probe: probe as never }).then((items) => items.find((i) => i.id === 'public')!);
+    expect(await at(async () => ({ status: 200, headers: new Headers({ 'cf-ray': 'abc' }) }))).toMatchObject({ ok: true, severity: 'warn', detail: 'https://app.example.com answers (HTTP 200, behind Cloudflare)' });
+    expect(await at(async () => ({ status: 302, headers: new Headers({ server: 'nginx' }) }))).toMatchObject({ ok: true, detail: 'https://app.example.com answers (HTTP 302, nginx)' });
+    expect(await at(async () => ({ error: 'CERT_HAS_EXPIRED' }))).toMatchObject({ ok: false, severity: 'warn', detail: expect.stringContaining('a certificate the browser would refuse (CERT_HAS_EXPIRED)') });
+    expect(await at(async () => ({ error: 'ENOTFOUND' }))).toMatchObject({ ok: false, detail: expect.stringContaining('does not resolve: add a DNS record for it pointing at h.example') });
+    expect(await at(async () => ({ error: 'ECONNREFUSED' }))).toMatchObject({ ok: false, detail: expect.stringContaining('nothing answers at https://app.example.com yet') });
   });
 });

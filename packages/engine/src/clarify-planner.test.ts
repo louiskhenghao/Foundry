@@ -247,6 +247,10 @@ describe('the planner prompt', () => {
     expect(buildPlannerPrompt(base, skeleton, ctx)).toContain('# Plan lean');
     for (const nature of ['research', 'docs', 'image'] as const) expect(buildPlannerPrompt({ ...base, nature }, skeleton, ctx)).not.toContain('# Plan lean');
     expect(buildPlannerPrompt({ ...base, workflow: { ...base.workflow, ponytail: 'off' } }, skeleton, ctx)).not.toContain('# Plan lean');
+    // a server in Settings (ADR-0090): a code goal gets the task that makes its project deployable; other natures do not
+    expect(buildPlannerPrompt(base, skeleton, { ...ctx, serverDeploy: true })).toContain('# A server waits for this project');
+    expect(buildPlannerPrompt(base, skeleton, ctx)).not.toContain('# A server waits for this project');
+    expect(buildPlannerPrompt({ ...base, nature: 'docs' }, Object.assign({}, skeleton as object, { nature: 'docs' }) as never, { ...ctx, serverDeploy: true })).not.toContain('# A server waits for this project');
     // cad is code work with a geometry kernel: its own planning rules, and Plan lean with them
     // a video goal's engine shapes the plan (ADR-0077, ADR-0087): the sections name the harness, its folders and the rubric
     const hf = buildPlannerPrompt({ ...base, nature: 'video', videoPack: 'hyperframes' }, skeleton, ctx);

@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import type { Deployment } from '@foundry/core/browser';
 import type { DeployInfo } from '../src/api.ts';
-import { defaultHost, placeKey, placeLabel } from '../src/pages/goal/DeployCard.tsx';
+import { MAKE_DEPLOYABLE_PROMPT, defaultHost, placeKey, placeLabel } from '../src/pages/goal/DeployCard.tsx';
 
 const host = (id: 'vercel' | 'netlify' | 'cloudflare', over: Partial<DeployInfo['providers'][number]> = {}): DeployInfo['providers'][number] => ({ id, target: null, kind: 'host', label: id, configured: true, refused: null, ...over });
 const server = (target: string, over: Partial<DeployInfo['providers'][number]> = {}): DeployInfo['providers'][number] => ({ id: 'server', target, kind: 'server', label: `box ${target}`, configured: true, refused: null, ...over });
@@ -29,4 +29,8 @@ test('a server is a place of its own, keyed by its id (ADR-0090): the last one d
   expect(placeLabel(deployed('server', { id: 's9', label: 'the box' }), all)).toBe('the box (server)');
   expect(placeLabel(deployed('vercel'), all)).toBe('vercel');
   expect(placeLabel(deployed('netlify'), all)).toBe('netlify');
+});
+
+test('the follow-up goal that makes a project deployable asks for a Dockerfile and a compose file and forbids what the deploy refuses (ADR-0090)', () => {
+  for (const words of ['Dockerfile', 'compose.yaml', 'EXPOSE', 'HEALTHCHECK', 'named volumes', 'docker compose config', 'Never mount the Docker socket']) expect(MAKE_DEPLOYABLE_PROMPT).toContain(words);
 });

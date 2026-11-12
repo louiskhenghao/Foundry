@@ -146,6 +146,11 @@ export const DeployServer = z.object({
   dir: z.string().min(1).default('~/foundry'),
   /** the address visitors open (a domain behind a reverse proxy, with its scheme); null = http://host:<the first published port> */
   publicUrl: z.string().min(1).nullable().default(null),
+  /**
+   * let a compose file reach outside its project — a privileged container, the host's network or pid space, the Docker
+   * socket, a bind mount outside the project folder; off = such a file is refused with the reasons (ADR-0090)
+   */
+  allowPrivileged: z.boolean().default(false),
 });
 export type DeployServer = z.infer<typeof DeployServer>;
 
