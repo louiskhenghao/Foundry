@@ -1959,11 +1959,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   // the readiness check (ADR-0090): whether a deploy to this place can start, tried now (a server is reached over SSH)
   app.get('/api/goals/:id/deploy/readiness', async (c) => {
-    goalOr404(c);
+    const goal = goalOr404(c);
     const provider = DeployProvider.safeParse(c.req.query('provider'));
     if (!provider.success) throw new HttpError(400, { error: 'provider: unknown' });
     try {
-      return c.json(await engine.deployReadiness(provider.data, c.req.query('target') || null));
+      return c.json(await engine.deployReadiness(goal.id, provider.data, c.req.query('target') || null));
     } catch (e) {
       throw new HttpError(409, { error: String((e as Error).message ?? e) });
     }

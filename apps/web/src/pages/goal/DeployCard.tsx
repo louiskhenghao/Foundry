@@ -1,5 +1,5 @@
 import type { DeployReadiness, Deployment } from '@foundry/core/browser';
-import { Check, ExternalLink, Loader2, RefreshCw, Rocket, X } from 'lucide-react';
+import { AlertTriangle, Check, ExternalLink, Loader2, RefreshCw, Rocket, ShieldAlert, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type DeployInfo, type DeployPlace, type GoalDetail } from '../../api.ts';
@@ -10,6 +10,10 @@ import { SmokeView } from './DeploySmoke.tsx';
 const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of pages, uploaded as it is', built: 'built into files', ssr: 'rendered on the host’s servers' };
 /** a deploy's state as a small plate: blue while it runs, green once live, red when it failed */
 const STATUS: Record<Deployment['status'], string> = { running: 'bg-work/10 text-work-ink ring-work/30', live: 'bg-ok/10 text-ok-ink ring-ok/30', failed: 'bg-bad/10 text-bad-ink ring-bad/40' };
+
+/** the follow-up goal that makes a project deployable to a server (ADR-0090): a Dockerfile and a compose file, by a coding session that knows the stack */
+export const MAKE_DEPLOYABLE_PROMPT =
+  'Make this project deployable to a server with Docker, without changing how the application itself works: add a Dockerfile that builds and runs it (a small base image, EXPOSE on the port it listens on, a HEALTHCHECK) and a compose.yaml that starts it with the services it needs (a database, a queue, a cache) and publishes its port, keeping data in named volumes. `docker compose config` and `docker compose build` must pass. Never mount the Docker socket, run privileged, use the host network or bind-mount paths outside the project folder.';
 
 /** one place among the card's, as a key: the host's id, or `server:<its id>` */
 export const placeKey = (p: { id: string; target?: string | null }) => (p.target ? `${p.id}:${p.target}` : p.id);
@@ -25,12 +29,13 @@ export function defaultHost(providers: DeployPlace[], deployments: Deployment[])
   return pick ? placeKey(pick) : null;
 }
 
-/** the readiness check's items (ADR-0090): what the place needs, each found or not, and where to put it right */
+/** the readiness check's items (ADR-0090): what the place needs, each found or not, and where to put it right; a warn item is told, never blocks */
 function ReadinessList({ r, checking, onAgain }: { r: DeployReadiness | null; checking: boolean; onAgain: () => void }) {
+  const warns = r?.items.filter((i) => !i.ok && i.severity === 'warn').length ?? 0;
   return (
     <div className="rounded-lg border border-line bg-sunken p-3 space-y-1.5">
       <div className="flex items-center gap-2 text-[11px] text-ink-faint">
-        <span>{checking ? 'Checking the server…' : r ? (r.ok ? 'Ready: every check passed.' : 'Not ready yet: put the items below right, then check again.') : 'Not checked yet.'}</span>
+        <span>{checking ? 'Checking the server…' : r ? (r.ok ? (warns ? `Ready; ${warns} thing${warns === 1 ? '' : 's'} to know about the front door.` : 'Ready: every check passed.') : 'Not ready yet: put the items below right, then check again.') : 'Not checked yet.'}</span>
         <button type="button" className="ml-auto inline-flex items-center gap-1 font-semibold text-ink-soft hover:text-ink disabled:opacity-50" disabled={checking} onClick={onAgain}>
           {checking ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Check again
         </button>
@@ -39,9 +44,9 @@ function ReadinessList({ r, checking, onAgain }: { r: DeployReadiness | null; ch
         <ul className="space-y-1">
           {r.items.map((it) => (
             <li key={it.id} className="flex items-start gap-2 text-[11px]">
-              {it.ok ? <Check size={12} className="mt-px shrink-0 text-ok-ink" /> : <X size={12} className="mt-px shrink-0 text-bad-ink" />}
+              {it.ok ? <Check size={12} className="mt-px shrink-0 text-ok-ink" /> : it.severity === 'warn' ? <AlertTriangle size={12} className="mt-px shrink-0 text-you-ink" /> : <X size={12} className="mt-px shrink-0 text-bad-ink" />}
               <span className="min-w-0">
-                <span className={cn('font-semibold', it.ok ? 'text-ink' : 'text-bad-ink')}>{it.label}</span>
+                <span className={cn('font-semibold', it.ok ? 'text-ink' : it.severity === 'warn' ? 'text-you-ink' : 'text-bad-ink')}>{it.label}</span>
                 {it.detail && <span className="text-ink-faint"> — {it.detail}</span>}
                 {!it.ok && it.fix?.settings && (
                   <>
@@ -67,9 +72,9 @@ function ReadinessList({ r, checking, onAgain }: { r: DeployReadiness | null; ch
 
 /**
  * Deploy (ADR-0041, ADR-0090): a finished goal to Vercel, Netlify, Cloudflare Pages or a server of the person's own,
- * on their click — what is deployed (or why nothing is), the places set up, the readiness check of a server, the exact
- * commands before anything runs, and the deploys so far, each with its smoke (ADR-0058): the goal's milestone scripts
- * tried against the address afterwards.
+ * on their click — what is deployed (or why nothing is), the places set up, the readiness check and the compose review
+ * of a server, the exact commands before anything runs, and the deploys so far, each with its smoke (ADR-0058): the
+ * goal's milestone scripts tried against the address afterwards.
  */
 export function DeployCard({ d }: { d: GoalDetail }) {
   const g = d.goal;
@@ -109,7 +114,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
       alive = false;
     };
   }, [g.id, choice, production, finished, JSON.stringify(deployments)]);
-  // a server is tried over SSH when it is chosen; the button waits for every item
+  // a server is tried over SSH when it is chosen; the button waits for every item that blocks
   const check = async (place: DeployPlace | null) => {
     if (!place) return;
     setChecking(true);
@@ -117,7 +122,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
     try {
       setReady(await api.deployReadiness(g.id, place.id, place.target));
     } catch (e: any) {
-      setReady({ ok: false, at: new Date().toISOString(), items: [{ id: 'check', label: 'Readiness check', ok: false, detail: e.body?.error ?? e.message, fix: null }] });
+      setReady({ ok: false, at: new Date().toISOString(), items: [{ id: 'check', label: 'Readiness check', ok: false, severity: 'error', detail: e.body?.error ?? e.message, fix: null }] });
     } finally {
       setChecking(false);
     }
@@ -158,8 +163,23 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   const nothing = info && !info.app.ok && !info.server.ok;
   const hosts = info?.providers.filter((p) => p.kind === 'host') ?? [];
   const servers = info?.providers.filter((p) => p.kind === 'server') ?? [];
-  const canRun = !!chosen && !chosen.refused && chosen.configured && !busy && !running && (!isServer || !!ready?.ok);
+  // the compose review (ADR-0090): what the file would reach outside its project, refused unless the server allows it
+  const review = info?.server.ok ? info.server.app.review : null;
+  const dangers = review?.dangers ?? [];
+  const blocked = isServer && dangers.length > 0 && !chosen?.permissive;
+  const canRun = !!chosen && !chosen.refused && chosen.configured && !busy && !running && !blocked && (!isServer || !!ready?.ok);
   const label = running ? 'Deploying…' : isServer ? `Deploy to ${chosen?.label}` : production ? `Deploy to ${chosen?.label ?? 'a host'} production` : `Deploy a preview to ${chosen?.label ?? 'a host'}`;
+  const followUp = `/goals/new?follows=${g.id}&prompt=${encodeURIComponent(MAKE_DEPLOYABLE_PROMPT)}`;
+  const facts = review
+    ? [
+        `It starts ${info!.server.ok ? info!.server.app.services.join(', ') : ''}${review.built.length ? ` (${review.built.join(', ')} built there from the repository${review.pulled.length ? `; ${review.pulled.join(', ')} pulled as images` : ''})` : review.pulled.length ? ` (pulled as images)` : ''}`,
+        review.ports.length ? `publishes port${review.ports.length === 1 ? '' : 's'} ${review.ports.join(', ')}` : 'publishes no port',
+        review.volumes.length ? `keeps data in the named volume${review.volumes.length === 1 ? '' : 's'} ${review.volumes.join(', ')}` : '',
+        review.binds.length ? `mounts ${review.binds.join(', ')} from the project folder` : '',
+      ]
+        .filter(Boolean)
+        .join('; ')
+    : '';
   return (
     <Card id="deploy" className="scroll-mt-16" title={<span className="flex items-center gap-1.5"><Rocket size={13} /> Deploy<HelpLink to="getting-the-result#deploy" className="ml-0.5" /></span>}>
       {!info ? (
@@ -168,6 +188,10 @@ export function DeployCard({ d }: { d: GoalDetail }) {
         <div className="space-y-1 text-xs text-ink-soft">
           <div>Not deployed to a web host: {info.app.ok ? '' : info.app.reason}</div>
           <div>Not deployed to a server: {info.server.ok ? '' : info.server.reason}</div>
+          <div className="pt-1">
+            <Link to={followUp} className="font-semibold text-work-ink hover:underline">Add a Dockerfile and a compose file with a follow-up goal</Link>
+            <span className="text-ink-faint"> — a coding session writes them for this stack; then a server can run it.</span>
+          </div>
         </div>
       ) : (
         <div className="space-y-3 text-xs">
@@ -189,6 +213,12 @@ export function DeployCard({ d }: { d: GoalDetail }) {
           {(info.app.ok ? info.app.notes : []).concat(info.server.ok && isServer ? info.server.notes : []).map((n) => (
             <div key={n} className="text-[11px] font-semibold text-ink-soft">{n}</div>
           ))}
+          {!info.server.ok && servers.length > 0 && (
+            <div className="text-[11px] text-ink-faint">
+              Not for a server: {info.server.reason}{' '}
+              <Link to={followUp} className="font-semibold text-ink-soft hover:text-ink hover:underline">Add a Dockerfile and a compose file with a follow-up goal</Link>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Where">
             {hosts.map((p) => (
               <PlaceButton key={placeKey(p)} p={p} chosen={choice === placeKey(p)} onPick={() => setChoice(placeKey(p))} />
@@ -212,10 +242,27 @@ export function DeployCard({ d }: { d: GoalDetail }) {
             Try the milestone scripts against it afterwards{' '}
             <span className="text-ink-faint">{scripts ? `(${scripts} script${scripts === 1 ? '' : 's'}; off for production by default, since a script writes what it tries)` : '(the goal has no milestone scripts)'}</span>
           </label>
+          {isServer && dangers.length > 0 && (
+            <div className={cn('rounded-lg border p-3 space-y-1', blocked ? 'border-bad/40 bg-bad/5' : 'border-you/40 bg-you/5')} data-testid="compose-review">
+              <div className={cn('flex items-center gap-1.5 text-[11px] font-semibold', blocked ? 'text-bad-ink' : 'text-you-ink')}>
+                <ShieldAlert size={12} /> {info.server.ok ? info.server.app.file : 'The compose file'} reaches outside its project{blocked ? ', which this server does not allow' : ' — allowed for this server, so it runs'}:
+              </div>
+              <ul className="list-disc pl-5 text-[11px] text-ink space-y-0.5">
+                {dangers.map((x) => (
+                  <li key={x}>{x}</li>
+                ))}
+              </ul>
+              {blocked && (
+                <div className="text-[11px] text-ink-faint">
+                  Edit the file, or allow it for this server under <Link to="/settings#git" className="font-semibold text-ink-soft hover:text-ink hover:underline">Settings → Git &amp; delivery → Servers</Link>.
+                </div>
+              )}
+            </div>
+          )}
           {isServer && chosen && !chosen.refused && chosen.configured && <ReadinessList r={ready} checking={checking} onAgain={() => void check(chosen)} />}
           {chosen && !chosen.refused && info.plan.length > 0 && (
             <div className="rounded-lg border border-line bg-sunken p-3">
-              <div className="text-[11px] text-ink-faint mb-1.5">{isServer ? 'The exact commands, from a checkout of this goal\'s commit over SSH — nothing else runs; the key file exists only while they do:' : 'The exact commands, in a checkout of this goal\'s commit — nothing else runs:'}</div>
+              <div className="text-[11px] text-ink-faint mb-1.5">{isServer ? "The exact commands, from a checkout of this goal's commit over SSH — nothing else runs, nothing outside the project's folder is written, and the key file exists only while they do:" : "The exact commands, in a checkout of this goal's commit — nothing else runs:"}</div>
               <ol className="space-y-0.5">
                 {info.plan.map((s, i) => (
                   <li key={i} className="mono text-[11px] text-ink break-all">
@@ -276,10 +323,19 @@ export function DeployCard({ d }: { d: GoalDetail }) {
         </details>
       )}
       <ConfirmDialog open={confirm} title={isServer ? `Deploy to the server ${chosen?.label}?` : `Deploy to ${chosen?.label ?? 'the host'} production?`} confirmLabel={isServer ? 'Deploy to the server' : 'Deploy to production'} busy={busy} onConfirm={() => void run()} onClose={() => setConfirm(false)}>
-        {isServer
-          ? `This copies the goal's commit to ${chosen?.label} and runs docker compose up there: what the project's containers serve now is replaced; its named volumes and the files beside the code stay.`
-          : "This replaces what the production address of this project serves now with this goal's web app."}
-        {smoke && scripts > 0 && " Afterwards the goal's milestone scripts run against the address, and what they try is written there."}
+        {isServer ? (
+          <div className="space-y-2">
+            <p>This copies the goal's commit to {chosen?.label}, into its own folder under the server's deploy folder, and runs docker compose up there. {facts}.</p>
+            <p>It replaces this project's own containers only. It never deletes files on the server, and never touches other containers, other projects or the system's configuration; named volumes and files beside the code stay.</p>
+            {dangers.length > 0 && <p className="text-you-ink">The compose file reaches outside its project, as allowed for this server: {dangers.join('; ')}.</p>}
+            {smoke && scripts > 0 && <p>Afterwards the goal's milestone scripts run against the address, and what they try is written there.</p>}
+          </div>
+        ) : (
+          <>
+            This replaces what the production address of this project serves now with this goal's web app.
+            {smoke && scripts > 0 && " Afterwards the goal's milestone scripts run against the production address, and what they try is written there."}
+          </>
+        )}
       </ConfirmDialog>
     </Card>
   );

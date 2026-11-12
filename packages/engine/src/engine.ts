@@ -3319,16 +3319,16 @@ export class Engine {
       smoke: { scripts: smokeScripts(this, goalId).map((s) => s.script) },
       providers: [
         ...DEPLOY_PROVIDERS.map((id) => ({ id: id as DeployProvider, target: null as string | null, kind: 'host' as const, label: PROVIDER_LABEL[id], configured: configured(id, c), refused: unsupported(id, app) })),
-        ...servers.map((s) => ({ id: 'server' as DeployProvider, target: s.id, kind: 'server' as const, label: s.name, configured: !!s.privateKey, refused: server.ok ? null : server.reason })),
+        ...servers.map((s) => ({ id: 'server' as DeployProvider, target: s.id, kind: 'server' as const, label: s.name, configured: !!s.privateKey, refused: server.ok ? null : server.reason, permissive: s.allowPrivileged })),
       ],
       // the exact commands a deploy runs, tokens and the key file left out: nothing else runs
       plan,
       deployments: goal.deployments ?? [],
     };
   }
-  /** whether a deploy to one place can start (ADR-0090): the host's token, or the server tried over SSH now */
-  deployReadiness(provider: DeployProvider, target?: string | null): Promise<DeployReadiness> {
-    return deployReadiness(this, provider, target);
+  /** whether a deploy of the goal to one place can start (ADR-0090): the host's token, or the server tried over SSH now */
+  deployReadiness(goalId: string, provider: DeployProvider, target?: string | null): Promise<DeployReadiness> {
+    return deployReadiness(this, goalId, provider, target);
   }
 
   /** Prefill and start point for a Follow-up of this goal (the New goal form, `goal new --follows`). */

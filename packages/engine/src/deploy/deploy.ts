@@ -252,6 +252,12 @@ async function runServer(engine: Engine, goal: Goal, dir: string, ref: string, s
   const provider = 'server' as const;
   const d = serverDeployability(dir);
   if (!d.ok) return fail(d.reason);
+  // the compose file is reviewed before it runs on the server: what reaches outside its project is refused unless the
+  // server's settings allow it, and then it is said in the goal's activity
+  if (d.app.review.dangers.length) {
+    if (!server.allowPrivileged) return fail(`${d.app.file} reaches outside its project, which the server ${server.name} does not allow: ${d.app.review.dangers.join('; ')}. Edit the file, or allow it for this server under Settings → Git & delivery → Servers.`);
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `deploy: ${d.app.file} reaches outside its project, allowed for the server ${server.name}: ${d.app.review.dangers.join('; ')}` } });
+  }
   const started = store.append({ type: 'deploy.started', goalId: goal.id, payload: { provider, target, production: true, ref, framework: d.app.kind === 'compose' ? `docker compose (${d.app.file})` : 'Dockerfile', dir: '' } });
   for (const note of d.notes) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${note}` } });
   // a lone Dockerfile gets the compose file Foundry writes, in the checkout only: the repository never sees it
@@ -286,21 +292,26 @@ async function runServer(engine: Engine, goal: Goal, dir: string, ref: string, s
 }
 
 /**
- * Whether a deploy to one place can start (ADR-0090): a host needs its token in Settings; a server its key, an answer
- * over SSH, docker compose for that user and a writable folder — tried now, with the key on disk only meanwhile.
+ * Whether a deploy of this goal to one place can start (ADR-0090): a host needs its token in Settings; a server its
+ * key, an answer over SSH, docker compose for that user, the project's folder free or Foundry's, and the ports the
+ * project publishes free — tried now, with the key on disk only meanwhile. What is in front on 80/443 and whether the
+ * public address answers are told but never block.
  */
-export async function deployReadiness(engine: Engine, provider: DeployProvider, target: string | null | undefined): Promise<DeployReadiness> {
+export async function deployReadiness(engine: Engine, goalId: string, provider: DeployProvider, target: string | null | undefined): Promise<DeployReadiness> {
   const at = new Date().toISOString();
   if (isHost(provider)) {
     const ok = configured(provider, deployCredentials(engine));
-    const items: ReadinessItem[] = [{ id: 'token', label: `${PROVIDER_LABEL[provider]} token in Settings`, ok, detail: ok ? 'set' : `add it under Settings → Git & delivery → Deploy`, fix: ok ? null : { settings: 'git' } }];
+    const items: ReadinessItem[] = [{ id: 'token', label: `${PROVIDER_LABEL[provider]} token in Settings`, ok, severity: 'error', detail: ok ? 'set' : `add it under Settings → Git & delivery → Deploy`, fix: ok ? null : { settings: 'git' } }];
     return { ok, items, at };
   }
   const server = serverFor(engine, target);
-  const deps = { knownHosts: knownHostsFile(engine), ssh: engine.deploySsh, run: (argv: string[], cwd: string, opts: { timeoutMs: number }) => exec(argv, cwd, opts) };
+  const goal = getGoal(engine.store.db, goalId);
+  const app = goal ? goalServerDeployability(engine, goal) : null;
+  const project = goal ? { name: deployName(goal), ports: app?.ok ? app.app.review.ports : [] } : null;
+  const deps = { knownHosts: knownHostsFile(engine), ssh: engine.deploySsh, project, run: (argv: string[], cwd: string, opts: { timeoutMs: number }) => exec(argv, cwd, opts) };
   mkdirSync(dirname(deps.knownHosts), { recursive: true });
   const items = server.privateKey ? await withSecretFile(engine.config.dataDir, 'id_deploy', server.privateKey, (keyFile) => serverReadiness(server, { ...deps, keyFile })) : await serverReadiness(server, { ...deps, keyFile: null });
-  return { ok: items.every((i) => i.ok), items, at };
+  return { ok: items.every((i) => i.ok || i.severity === 'warn'), items, at };
 }
 
 /**

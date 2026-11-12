@@ -69,6 +69,8 @@ export const ReadinessItem = z.object({
   id: z.string(),
   label: z.string(),
   ok: z.boolean(),
+  /** error: the deploy waits for it; warn: told, never blocks (the front door on 80/443, the public address answering) */
+  severity: z.enum(['error', 'warn']).default('error'),
   /** what was found, in words: a version, the error's own last line, or why it was not tried */
   detail: z.string().default(''),
   fix: z
@@ -84,6 +86,6 @@ export const ReadinessItem = z.object({
 });
 export type ReadinessItem = z.infer<typeof ReadinessItem>;
 
-/** Whether a deploy to one place can start: every item it needs, checked now. */
+/** Whether a deploy to one place can start: every item it needs, checked now; `ok` when every error-severity item is */
 export const DeployReadiness = z.object({ ok: z.boolean(), items: z.array(ReadinessItem), at: z.string() });
 export type DeployReadiness = z.infer<typeof DeployReadiness>;

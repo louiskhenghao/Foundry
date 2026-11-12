@@ -1132,9 +1132,20 @@ export interface DeployPlace {
   configured: boolean;
   /** why this place cannot take the goal's code, or null */
   refused: string | null;
+  /** a server that allows a compose file reaching outside its project (Settings); undefined for a host */
+  permissive?: boolean;
+}
+/** what a compose file would do on the server (ADR-0090): what is refused unless the server allows it, and the facts the confirmation states */
+export interface ComposeReview {
+  dangers: string[];
+  ports: number[];
+  built: string[];
+  pulled: string[];
+  volumes: string[];
+  binds: string[];
 }
 /** what a server would run of the goal (ADR-0090) */
-export type ServerDeployability = { ok: true; app: { kind: 'compose' | 'dockerfile'; file: string; services: string[]; port: number | null }; notes: string[] } | { ok: false; reason: string };
+export type ServerDeployability = { ok: true; app: { kind: 'compose' | 'dockerfile'; file: string; services: string[]; port: number | null; review: ComposeReview }; notes: string[] } | { ok: false; reason: string };
 /** Mirrors the engine's RevertInfo (delivery/revert.ts, ADR-0059): what a Revert would undo, and whether one can start now. */
 export interface RevertInfo {
   ok: boolean;
