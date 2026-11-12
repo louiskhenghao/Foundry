@@ -1968,6 +1968,18 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       throw new HttpError(409, { error: String((e as Error).message ?? e) });
     }
   });
+  // ---------- Server recipes (ADR-0092): scripts that set a server up, run on the person's click after they read them ----------
+  app.get('/api/servers/recipes', (c) => c.json({ recipes: engine.serverRecipes() }));
+  app.get('/api/servers/:id/recipes/runs', (c) => c.json({ runs: engine.serverRecipeRuns(c.req.param('id')) }));
+  app.post('/api/servers/:id/recipes/:recipe/run', async (c) => {
+    const body = z.object({ params: z.record(z.string(), z.string()).default({}) }).parse(await c.req.json().catch(() => ({})));
+    try {
+      engine.runServerRecipe(c.req.param('id'), c.req.param('recipe'), body.params);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ started: true }, 202);
+  });
   // Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more; `deployedAt` names the deploy
   app.post('/api/goals/:id/deploy/smoke', async (c) => {
     const goal = goalOr404(c);

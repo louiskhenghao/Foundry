@@ -28,9 +28,9 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
     expect((await post(goal.id, { provider: 'heroku' })).status).toBe(400);
 
     // a server from Settings is a place of its own on the card (ADR-0091): named, with its key or without, refusing a project it cannot run
-    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: null, dir: '~/apps', publicUrl: null, allowPrivileged: false }] } });
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: null, dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'docker' as const }] } });
     const withServer = await (await app.request(`/api/goals/${goal.id}/deploy?provider=server&target=srv1`)).json();
-    expect(withServer.providers.at(-1)).toEqual({ id: 'server', target: 'srv1', kind: 'server', label: 'box', configured: false, refused: expect.stringContaining('no compose file'), permissive: false });
+    expect(withServer.providers.at(-1)).toEqual({ id: 'server', target: 'srv1', kind: 'server', label: 'box', configured: false, refused: expect.stringContaining('no compose file'), permissive: false, mode: 'docker', host: 'h.example', user: 'deploy' });
     expect(withServer.server).toEqual({ ok: false, reason: expect.stringContaining('no compose file') });
     expect(withServer.plan).toEqual([]);
     // the readiness check: a host's token, or a server's items (none tried without its key)
@@ -46,5 +46,28 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
   } finally {
     await engine.stop();
     for (const path of [home, repo, `${repo}-foundry`]) rmSync(path, { recursive: true, force: true });
+  }
+}, 30_000);
+
+test('Server recipes (ADR-0092): listed whole, run on a server the engine knows, their runs read back', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'foundry-recipes-api-'));
+  const engine = new Engine(defaultConfig(resolve(import.meta.dir, '../../..'), { dataDir: home, claudeHome: join(home, 'claude'), useGraphify: false, log: () => {} }), new FakeRunner(() => {}));
+  engine.beginUpdateDrain();
+  const app = createApp(engine);
+  try {
+    const { recipes } = await (await app.request('/api/servers/recipes')).json();
+    expect(recipes.map((r: { id: string }) => r.id)).toEqual(['install-docker', 'install-node-pm2', 'install-postgres', 'install-redis', 'nginx-site']);
+    expect(recipes[0].text).toContain('set -euo pipefail');
+    expect(recipes[0].changes.length).toBeGreaterThan(0);
+    // no such server, no key: refused before anything runs
+    expect((await app.request('/api/servers/nope/recipes/install-redis/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status).toBe(409);
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'root', privateKey: null, dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'docker' }] } });
+    const noKey = await app.request('/api/servers/srv1/recipes/install-redis/run', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ params: {} }) });
+    expect(noKey.status).toBe(409);
+    expect((await noKey.json()).error).toContain('has no SSH key');
+    expect(await (await app.request('/api/servers/srv1/recipes/runs')).json()).toEqual({ runs: [] });
+  } finally {
+    await engine.stop();
+    rmSync(home, { recursive: true, force: true });
   }
 }, 30_000);

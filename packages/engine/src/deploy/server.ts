@@ -42,15 +42,29 @@ export interface ComposeReview {
   binds: string[];
 }
 
+/** how a PM2-mode server (ADR-0092) installs, builds and starts a Node.js project */
+export type Pm2Manager = 'yarn' | 'pnpm' | 'npm' | 'bun';
+export interface Pm2Facts {
+  manager: Pm2Manager;
+  /** the install command, from the lockfile */
+  install: string;
+  /** the build command when the project has a build script */
+  build: string | null;
+  /** the PM2 ecosystem file the deploy starts, relative to the repository; Foundry's own when the project has none */
+  ecosystem: string;
+  generated: boolean;
+}
+
 export interface ServerApp {
-  /** the project's own compose file, or a Dockerfile Foundry wraps in one */
-  kind: 'compose' | 'dockerfile';
-  /** the compose file the deploy runs, relative to the repository */
+  /** the project's own compose file, a Dockerfile Foundry wraps in one, or (a server in PM2 mode) a Node.js project kept running by PM2 */
+  kind: 'compose' | 'dockerfile' | 'pm2';
+  /** the compose file the deploy runs (the ecosystem file in PM2 mode), relative to the repository */
   file: string;
   services: string[];
   /** the first port the project publishes on the server, if any */
   port: number | null;
   review: ComposeReview;
+  pm2?: Pm2Facts;
 }
 export type ServerDeployability = { ok: true; app: ServerApp; notes: string[] } | { ok: false; reason: string };
 
@@ -130,8 +144,55 @@ const read = (p: string) => {
   }
 };
 
-/** What a repository is for a server: its compose file (which services, which port, what it reaches), or its Dockerfile; else why nothing goes. */
-export function serverDeployability(root: string): ServerDeployability {
+/** the compose file Foundry writes for a lone Dockerfile, and the PM2 ecosystem file it writes for a Node.js project without one */
+export const GENERATED_ECOSYSTEM = 'ecosystem.foundry.config.cjs';
+const ECOSYSTEM_FILES = ['ecosystem.config.js', 'ecosystem.config.cjs', 'ecosystem.config.mjs', 'ecosystem.config.json'];
+
+/** the port a Node.js project listens on, as its files say: PORT in an env file, else a Dockerfile's EXPOSE */
+function nodePort(root: string): number | null {
+  for (const f of ['.env.production', '.env', '.env.example', '.env.sample']) {
+    const m = read(join(root, f)).match(/^\s*(?:export\s+)?PORT\s*=\s*"?(\d{2,5})"?\s*$/m);
+    if (m) return Number(m[1]);
+  }
+  const d = read(join(root, 'Dockerfile')).match(/^\s*EXPOSE\s+(\d+)/im);
+  return d ? Number(d[1]) : null;
+}
+
+/** What a repository is for a server in PM2 mode (ADR-0092): a Node.js project with a start script or an ecosystem file; else why nothing goes. */
+export function pm2Deployability(root: string, name: string): ServerDeployability {
+  let pkg: { scripts?: Record<string, string>; packageManager?: string } | null = null;
+  try {
+    pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  } catch {
+    return { ok: false, reason: 'PM2 mode runs Node.js projects: this repository has no package.json at its root. Switch the server to Docker mode in Settings, or pick a server in that mode' };
+  }
+  const ecosystem = ECOSYSTEM_FILES.find((f) => existsSync(join(root, f))) ?? null;
+  if (!ecosystem && !pkg?.scripts?.start) return { ok: false, reason: 'PM2 mode starts the project with its start script, and package.json has none: add `"start"` to its scripts, or an ecosystem.config.js' };
+  const berry = existsSync(join(root, '.yarnrc.yml'));
+  const manager: Pm2Manager = existsSync(join(root, 'bun.lock')) || existsSync(join(root, 'bun.lockb')) ? 'bun' : existsSync(join(root, 'pnpm-lock.yaml')) ? 'pnpm' : existsSync(join(root, 'yarn.lock')) ? 'yarn' : 'npm';
+  const install = manager === 'yarn' ? (berry ? 'yarn install --immutable' : 'yarn install --frozen-lockfile') : manager === 'pnpm' ? 'pnpm install --frozen-lockfile' : manager === 'bun' ? 'bun install --frozen-lockfile' : existsSync(join(root, 'package-lock.json')) ? 'npm ci' : 'npm install';
+  const build = pkg?.scripts?.build ? `${manager} run build` : null;
+  const port = nodePort(root);
+  const notes: string[] = [];
+  if (!ecosystem) notes.push(`No ecosystem.config.js: Foundry writes ${GENERATED_ECOSYSTEM} that starts \`${manager} start\` under PM2 as ${name}.`);
+  if (port == null) notes.push('No port found (PORT in .env.example, or EXPOSE in a Dockerfile): the project runs with no address to open, unless the server has a public address in Settings.');
+  notes.push(`The process runs as the ssh user on the server itself, with no container around it: what the project does, it does with that user's rights.`);
+  return { ok: true, app: { kind: 'pm2', file: ecosystem ?? GENERATED_ECOSYSTEM, services: [name], port, review: { dangers: [], ports: port != null ? [port] : [], built: [name], pulled: [], volumes: [], binds: [] }, pm2: { manager, install, build, ecosystem: ecosystem ?? GENERATED_ECOSYSTEM, generated: !ecosystem } }, notes };
+}
+
+/** the ecosystem file Foundry writes for a Node.js project without one: its start script under PM2, production, the port when known */
+export function generatedEcosystem(name: string, manager: Pm2Manager, port: number | null): string {
+  const env = `{ NODE_ENV: 'production'${port != null ? `, PORT: '${port}'` : ''} }`;
+  return `// written by Foundry (Deploy, PM2 mode): the repository has no ecosystem.config.js, so this starts its start script under PM2
+module.exports = {
+  apps: [{ name: ${JSON.stringify(name)}, script: ${JSON.stringify(manager)}, args: 'start', cwd: __dirname, env: ${env}, max_restarts: 10, restart_delay: 2000 }],
+};
+`;
+}
+
+/** What a repository is for a server: in Docker mode its compose file (which services, which port, what it reaches) or its Dockerfile; in PM2 mode a Node.js project; else why nothing goes. */
+export function serverDeployability(root: string, mode: 'docker' | 'pm2' = 'docker', name = 'app'): ServerDeployability {
+  if (mode === 'pm2') return pm2Deployability(root, name);
   const compose = COMPOSE_FILES.find((f) => existsSync(join(root, f)));
   if (compose) {
     let doc: Compose;
@@ -218,6 +279,16 @@ export function serverSteps(i: ServerPlanInput): DeployStep[] {
   ];
 }
 
+/** The commands a PM2-mode deploy runs (ADR-0092): the folder made, the files copied, installed and built there, started or reloaded under PM2, saved for the next boot. */
+export function pm2Steps(i: ServerPlanInput & { pm2: Pm2Facts }): DeployStep[] {
+  const [folder, copy] = serverSteps(i);
+  const ssh = sshArgv(i.server, i.keyFile, i.knownHosts, i.ssh);
+  const remote = remoteDir(i.server, i.name);
+  const corepack = i.pm2.manager === 'yarn' || i.pm2.manager === 'pnpm' ? `command -v ${i.pm2.manager} >/dev/null 2>&1 || corepack enable >/dev/null 2>&1 || true; ` : '';
+  const start = `cd ${remote} && export NODE_ENV=production && ${corepack}${i.pm2.install}${i.pm2.build ? ` && ${i.pm2.build}` : ''} && pm2 startOrReload ${shellQuote(i.pm2.ecosystem)} --update-env && pm2 save`;
+  return [folder!, copy!, { label: 'install, build and start it under PM2', argv: [...ssh, start], env: {}, cwd: i.checkout }];
+}
+
 /** the address a server deploy ends with: the server's public address, else the host and the first published port, else none */
 export function serverAddress(server: Pick<DeployServer, 'host' | 'publicUrl'>, app: Pick<ServerApp, 'port'>): string | null {
   if (server.publicUrl) return server.publicUrl.replace(/\/+$/, '');
@@ -254,6 +325,15 @@ export function parseListeners(out: string): { port: number; program: string | n
     found.push({ port, program });
   }
   return found;
+}
+
+/** the nginx recipe's inputs as this server and project would fill them: the public address's host, the project's port and name */
+export function nginxParams(server: Pick<DeployServer, 'publicUrl'>, project: { name: string; ports: number[] } | null | undefined): Record<string, string> {
+  let domain = '';
+  try {
+    domain = server.publicUrl ? new URL(server.publicUrl).hostname : '';
+  } catch {}
+  return { DOMAIN: domain, APP_PORT: project?.ports[0] != null ? String(project.ports[0]) : '', SITE_NAME: project?.name ?? 'app' };
 }
 
 export interface ReadinessDeps {
@@ -300,22 +380,38 @@ export async function serverReadiness(server: DeployServer, deps: ReadinessDeps)
     return [...items, { id: 'reach', label: 'Reachable over SSH', ok: false, severity: 'error', detail: f.detail, fix: f.fix }, ...rest('the server could not be reached').slice(1)];
   }
   items.push({ id: 'reach', label: 'Reachable over SSH', ok: true, severity: 'error', detail: `${server.user}@${server.host}:${server.port} answered`, fix: null });
-  const docker = await run("docker compose version && docker info --format '{{.ServerVersion}}'");
-  if (docker.code !== 0) {
-    const out = `${docker.stdout}\n${docker.stderr}`;
-    const socket = /permission denied.*docker daemon socket|Got permission denied/i.test(out);
+  if (server.mode === 'pm2') {
+    // PM2 mode (ADR-0092): Node.js and PM2 for this user, instead of Docker
+    const rt = await run('node -v && pm2 -v && (yarn -v 2>/dev/null || true)');
+    const lines = rt.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+    const ok = rt.code === 0 && lines.length >= 2;
     items.push({
-      id: 'docker',
-      label: 'docker compose on the server',
-      ok: false,
+      id: 'runtime',
+      label: 'Node.js and PM2 on the server',
+      ok,
       severity: 'error',
-      detail: socket ? `${server.user} may not use Docker there: ${lastLine(docker)}` : /not found/i.test(out) ? `Docker is not installed on ${server.host}: ${lastLine(docker)}` : `docker compose failed there: ${lastLine(docker)}`,
-      // Foundry installs nothing on the server: the command is the person's to run, and it changes who may use Docker / what is installed
-      fix: socket ? { command: `# on the server: lets ${server.user} use Docker (a member of the docker group can act as root through it); log out and in afterwards\nsudo usermod -aG docker ${server.user}` } : { url: 'https://docs.docker.com/engine/install/' },
+      detail: ok ? `node ${lines[0]}, pm2 ${lines[1]}${lines[2] ? `, yarn ${lines[2]}` : ''}` : `${/node: not found|node: command not found/i.test(`${rt.stdout}\n${rt.stderr}`) ? 'Node.js is not installed' : /pm2: not found|pm2: command not found/i.test(`${rt.stdout}\n${rt.stderr}`) ? 'PM2 is not installed' : 'node or pm2 failed'} for ${server.user} on ${server.host}: ${lastLine(rt)}`,
+      // Foundry installs nothing by itself: the recipe runs after the person reads it, or they run the commands
+      fix: ok ? null : { url: 'https://pm2.keymetrics.io/docs/usage/quick-start/', recipe: 'install-node-pm2', recipeParams: { TARGET_USER: server.user } },
     });
   } else {
-    const version = docker.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
-    items.push({ id: 'docker', label: 'docker compose on the server', ok: true, severity: 'error', detail: version.join(', '), fix: null });
+    const docker = await run("docker compose version && docker info --format '{{.ServerVersion}}'");
+    if (docker.code !== 0) {
+      const out = `${docker.stdout}\n${docker.stderr}`;
+      const socket = /permission denied.*docker daemon socket|Got permission denied/i.test(out);
+      items.push({
+        id: 'docker',
+        label: 'docker compose on the server',
+        ok: false,
+        severity: 'error',
+        detail: socket ? `${server.user} may not use Docker there: ${lastLine(docker)}` : /not found/i.test(out) ? `Docker is not installed on ${server.host}: ${lastLine(docker)}` : `docker compose failed there: ${lastLine(docker)}`,
+        // Foundry installs nothing by itself: the recipe runs after the person reads it (ADR-0092), or they run the command, which changes who may use Docker / what is installed
+        fix: socket ? { command: `# on the server: lets ${server.user} use Docker (a member of the docker group can act as root through it); log out and in afterwards\nsudo usermod -aG docker ${server.user}`, recipe: 'install-docker', recipeParams: { TARGET_USER: server.user } } : { url: 'https://docs.docker.com/engine/install/', recipe: 'install-docker', recipeParams: { TARGET_USER: server.user } },
+      });
+    } else {
+      const version = docker.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
+      items.push({ id: 'docker', label: 'docker compose on the server', ok: true, severity: 'error', detail: version.join(', '), fix: null });
+    }
   }
   const remote = deps.project ? remoteDir(server, deps.project.name) : null;
   const folder = await run(`d=${baseDir(server)}; mkdir -p "$d" && test -w "$d" && echo writable${remote ? `; p=${remote}; if [ -e "$p/${MARKER}" ]; then echo project=ours; elif [ -d "$p" ] && [ -n "$(ls -A "$p" 2>/dev/null)" ]; then echo project=foreign; else echo project=new; fi` : ''}`);
@@ -334,8 +430,9 @@ export async function serverReadiness(server: DeployServer, deps: ReadinessDeps)
   const [listOut = '', oursOut = ''] = listen.stdout.split('::ours::');
   const listeners = parseListeners(listOut);
   if (deps.project?.ports.length) {
+    const ours = (p: number) => new RegExp(`:${p}->`).test(oursOut) || (server.mode === 'pm2' && folder.stdout.includes('project=ours') && /^(node|PM2|pm2)/i.test(listeners.find((x) => x.port === p)?.program ?? ''));
     const taken = deps.project.ports.flatMap((p) => {
-      if (new RegExp(`:${p}->`).test(oursOut)) return [];
+      if (ours(p)) return [];
       const l = listeners.find((x) => x.port === p);
       return l ? [`${p} (${l.program ?? 'another program'})`] : [];
     });
@@ -344,7 +441,7 @@ export async function serverReadiness(server: DeployServer, deps: ReadinessDeps)
       label: 'Published ports free',
       ok: !taken.length,
       severity: 'error',
-      detail: taken.length ? `already in use on the server: ${taken.join(', ')} — change the published port in the compose file, or stop what holds it; docker compose would fail to bind it` : deps.project.ports.map((p) => (new RegExp(`:${p}->`).test(oursOut) ? `${p} (this project's own, from an earlier deploy)` : `${p} free`)).join(', '),
+      detail: taken.length ? `already in use on the server: ${taken.join(', ')} — change the port the project uses, or stop what holds it; the project could not bind it` : deps.project.ports.map((p) => (ours(p) ? `${p} (this project's own, from an earlier deploy)` : `${p} free`)).join(', '),
       fix: null,
     });
   }
@@ -355,7 +452,7 @@ export async function serverReadiness(server: DeployServer, deps: ReadinessDeps)
     ok: front.length > 0,
     severity: 'warn',
     detail: front.length ? front.map((l) => `${l.program ?? 'a program'} listens on ${l.port}`).join(', ') : `nothing listens on 80 or 443: visitors reach the project on its own port only${deps.project?.ports[0] ? ` (http://${server.host}:${deps.project.ports[0]})` : ''}. For a domain with https, put a reverse proxy in front (Caddy gets certificates itself; nginx with certbot) or proxy it through Cloudflare — Foundry does not set one up`,
-    fix: front.length ? null : { url: 'https://caddyserver.com/docs/quick-starts/reverse-proxy' },
+    fix: front.length ? null : { url: 'https://caddyserver.com/docs/quick-starts/reverse-proxy', recipe: 'nginx-site', recipeParams: nginxParams(server, deps.project) },
   });
   if (server.publicUrl) {
     const probe = deps.probe ?? probeAddress;
@@ -372,7 +469,7 @@ export async function serverReadiness(server: DeployServer, deps: ReadinessDeps)
           : /ECONNREFUSED|TimeoutError|ETIMEDOUT|ECONNRESET|EHOSTUNREACH/.test(code)
             ? `nothing answers at ${server.publicUrl} yet (${code}): once a reverse proxy on the server, or Cloudflare, forwards it to the project's port, check again`
             : `${server.publicUrl} could not be reached from here: ${code}`;
-      items.push({ id: 'public', label: 'Public address answers', ok: false, severity: 'warn', detail, fix: { url: 'https://caddyserver.com/docs/quick-starts/reverse-proxy' } });
+      items.push({ id: 'public', label: 'Public address answers', ok: false, severity: 'warn', detail, fix: { url: 'https://caddyserver.com/docs/quick-starts/reverse-proxy', recipe: 'nginx-site', recipeParams: nginxParams(server, deps.project) } });
     }
   }
   return items;

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { api, type DeployInfo, type DeployPlace, type GoalDetail } from '../../api.ts';
 import { Button, Card, ConfirmDialog, Loading, ago, choiceClass, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
+import { RecipeDialog } from '../settings/RecipeDialog.tsx';
 import { SmokeView } from './DeploySmoke.tsx';
 
 const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of pages, uploaded as it is', built: 'built into files', ssr: 'rendered on the host’s servers' };
@@ -29,8 +30,8 @@ export function defaultHost(providers: DeployPlace[], deployments: Deployment[])
   return pick ? placeKey(pick) : null;
 }
 
-/** the readiness check's items (ADR-0091): what the place needs, each found or not, and where to put it right; a warn item is told, never blocks */
-function ReadinessList({ r, checking, onAgain }: { r: DeployReadiness | null; checking: boolean; onAgain: () => void }) {
+/** the readiness check's items (ADR-0091): what the place needs, each found or not, and where to put it right; a warn item is told, never blocks; a recipe (ADR-0092) puts one right from here */
+function ReadinessList({ r, checking, onAgain, onRecipe }: { r: DeployReadiness | null; checking: boolean; onAgain: () => void; onRecipe?: (recipe: string, params: Record<string, string>) => void }) {
   const warns = r?.items.filter((i) => !i.ok && i.severity === 'warn').length ?? 0;
   return (
     <div className="rounded-lg border border-line bg-sunken p-3 space-y-1.5">
@@ -58,6 +59,14 @@ function ReadinessList({ r, checking, onAgain }: { r: DeployReadiness | null; ch
                   <>
                     {' '}
                     <a href={it.fix.url} target="_blank" rel="noreferrer" className="font-semibold text-ink-soft hover:text-ink hover:underline">how to</a>
+                  </>
+                )}
+                {!it.ok && it.fix?.recipe && onRecipe && (
+                  <>
+                    {' '}
+                    <button type="button" className="font-semibold text-work-ink hover:underline" onClick={() => onRecipe(it.fix!.recipe!, it.fix!.recipeParams ?? {})}>
+                      Set it up with a script…
+                    </button>
                   </>
                 )}
                 {!it.ok && it.fix?.command && <pre className="mono mt-1 whitespace-pre-wrap rounded-md border border-line bg-surface p-2 text-[11px] text-ink">{it.fix.command}</pre>}
@@ -89,6 +98,8 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   const [err, setErr] = useState<string | null>(null);
   const [ready, setReady] = useState<DeployReadiness | null>(null);
   const [checking, setChecking] = useState(false);
+  // a recipe (ADR-0092) opened from a readiness item: which script, with the project's values
+  const [recipe, setRecipe] = useState<{ id: string; params: Record<string, string> } | null>(null);
   const deployments = g.deployments ?? [];
   const chosen = info?.providers.find((p) => placeKey(p) === choice) ?? null;
   const isServer = chosen?.kind === 'server';
@@ -203,10 +214,12 @@ export function DeployCard({ d }: { d: GoalDetail }) {
           )}
           {info.server.ok && (
             <div className="text-[13px] font-semibold text-ink">
-              {info.server.app.kind === 'compose' ? 'docker compose' : 'Dockerfile'}
+              {info.server.app.kind === 'compose' ? 'docker compose' : info.server.app.kind === 'dockerfile' ? 'Dockerfile' : `PM2 · ${info.server.app.pm2?.manager}`}
               <span className="mono font-normal text-ink-faint"> · {info.server.app.file}</span>{' '}
               <span className="font-normal text-ink-faint">
-                — {info.server.app.services.length} service{info.server.app.services.length === 1 ? '' : 's'} ({info.server.app.services.join(', ')}){info.server.app.port != null ? `, port ${info.server.app.port}` : ''}, for a server of your own
+                {info.server.app.kind === 'pm2'
+                  ? `— ${info.server.app.pm2?.install}${info.server.app.pm2?.build ? `, ${info.server.app.pm2.build}` : ''}, then pm2 startOrReload${info.server.app.port != null ? `, port ${info.server.app.port}` : ''}, on a server of your own in PM2 mode`
+                  : `— ${info.server.app.services.length} service${info.server.app.services.length === 1 ? '' : 's'} (${info.server.app.services.join(', ')})${info.server.app.port != null ? `, port ${info.server.app.port}` : ''}, for a server of your own`}
               </span>
             </div>
           )}
@@ -259,7 +272,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
               )}
             </div>
           )}
-          {isServer && chosen && !chosen.refused && chosen.configured && <ReadinessList r={ready} checking={checking} onAgain={() => void check(chosen)} />}
+          {isServer && chosen && !chosen.refused && chosen.configured && <ReadinessList r={ready} checking={checking} onAgain={() => void check(chosen)} onRecipe={(id, params) => setRecipe({ id, params })} />}
           {chosen && !chosen.refused && info.plan.length > 0 && (
             <div className="rounded-lg border border-line bg-sunken p-3">
               <div className="text-[11px] text-ink-faint mb-1.5">{isServer ? "The exact commands, from a checkout of this goal's commit over SSH — nothing else runs, nothing outside the project's folder is written, and the key file exists only while they do:" : "The exact commands, in a checkout of this goal's commit — nothing else runs:"}</div>
@@ -325,8 +338,17 @@ export function DeployCard({ d }: { d: GoalDetail }) {
       <ConfirmDialog open={confirm} title={isServer ? `Deploy to the server ${chosen?.label}?` : `Deploy to ${chosen?.label ?? 'the host'} production?`} confirmLabel={isServer ? 'Deploy to the server' : 'Deploy to production'} busy={busy} onConfirm={() => void run()} onClose={() => setConfirm(false)}>
         {isServer ? (
           <div className="space-y-2">
-            <p>This copies the goal's commit to {chosen?.label}, into its own folder under the server's deploy folder, and runs docker compose up there. {facts}.</p>
-            <p>It replaces this project's own containers only. It never deletes files on the server, and never touches other containers, other projects or the system's configuration; named volumes and files beside the code stay.</p>
+            {info?.server.ok && info.server.app.kind === 'pm2' ? (
+              <>
+                <p>This copies the goal's commit to {chosen?.label}, into its own folder under the server's deploy folder, runs {info.server.app.pm2?.install}{info.server.app.pm2?.build ? ` and ${info.server.app.pm2.build}` : ''} there, and starts or reloads it under PM2{info.server.app.port != null ? ` on port ${info.server.app.port}` : ''}.</p>
+                <p>The process runs as {chosen?.label}'s ssh user on the host itself, with no container around it: what the project does, it does with that user's rights. Foundry touches this project's folder and its PM2 process only; it never deletes files on the server or changes its configuration.</p>
+              </>
+            ) : (
+              <>
+                <p>This copies the goal's commit to {chosen?.label}, into its own folder under the server's deploy folder, and runs docker compose up there. {facts}.</p>
+                <p>It replaces this project's own containers only. It never deletes files on the server, and never touches other containers, other projects or the system's configuration; named volumes and files beside the code stay.</p>
+              </>
+            )}
             {dangers.length > 0 && <p className="text-you-ink">The compose file reaches outside its project, as allowed for this server: {dangers.join('; ')}.</p>}
             {smoke && scripts > 0 && <p>Afterwards the goal's milestone scripts run against the address, and what they try is written there.</p>}
           </div>
@@ -337,6 +359,16 @@ export function DeployCard({ d }: { d: GoalDetail }) {
           </>
         )}
       </ConfirmDialog>
+      {recipe && chosen?.kind === 'server' && (
+        <RecipeDialog
+          open
+          server={{ id: chosen.target!, name: chosen.label, host: chosen.host ?? '', user: chosen.user ?? '' }}
+          recipe={recipe.id}
+          params={recipe.params}
+          onClose={() => setRecipe(null)}
+          onFinished={() => void check(chosen)}
+        />
+      )}
     </Card>
   );
 }
