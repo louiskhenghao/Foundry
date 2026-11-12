@@ -44,6 +44,11 @@ describe('decideNext (continuation vs fresh attempt)', () => {
     expect(adjust).toContain('https://example.com/red');
     expect(adjust).toContain('do not redo finished work');
     expect(adjust).not.toContain('# Your task');
+    // the goal follows an attached design (ADR-0093): the resumed session is told so, a goal without one is not
+    const designed = continuationMessage('adjust', { adjustment: { n: 3, text: 'move the toggle', files: [], links: [] }, design: '# Design reference\nThe person supplied the design.\n- [image] home.png → /data/a/home.png' });
+    expect(designed).toContain('# Design reference');
+    expect(designed).toContain('The adjusted result keeps to this design');
+    expect(adjust).not.toContain('keeps to this design');
   });
 });
 
