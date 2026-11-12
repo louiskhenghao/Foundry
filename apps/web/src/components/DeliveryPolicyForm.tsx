@@ -1,4 +1,4 @@
-import type { DeliveryPolicy } from '@foundry/core/browser';
+import { githubRepoName, type DeliveryPolicy } from '@foundry/core/browser';
 import { ArrowUpFromLine, GitMerge, GitPullRequest, Github, HardDrive, Lock, type LucideIcon } from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { api, type RepoInfo } from '../api.ts';
@@ -74,12 +74,15 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null, lo
   const isPr = value.mode === 'pr' || value.mode === 'pr-automerge';
   const thing = isPr ? 'PR' : 'branch';
 
-  // Prefill "create a GitHub repo" (owner = you, name = folder) when the repository has no remote and gh is signed in.
+  // Prefill "create a GitHub repo" (owner = you, name = the folder's, as GitHub will spell it) when the repository has no remote and gh is signed in.
+  const folderName = () => githubRepoName(repo?.path.split('/').filter(Boolean).pop() ?? 'repo') || 'repo';
   useEffect(() => {
     if (!prefill || value.mode === 'local' || hasRemote || !repo?.ok || !gh?.authenticated || !gh.login) return;
     if (value.createRepo || value.remoteUrl) return;
-    set({ createRepo: { owner: gh.login, name: repo.path.split('/').filter(Boolean).pop() ?? 'repo', visibility: 'private' } });
+    set({ createRepo: { owner: gh.login, name: folderName(), visibility: 'private' } });
   }, [value.mode, hasRemote, repo?.path, gh?.authenticated]);
+  // what GitHub will call the repository when the name typed is not one it allows (a space, say)
+  const githubName = value.createRepo ? githubRepoName(value.createRepo.name) : '';
 
   const modeLocked = (id: DeliveryPolicy['mode']) => !!locked && id !== value.mode && !(locked.prModes && PR_MODES.includes(id) && PR_MODES.includes(value.mode));
   return (
@@ -140,7 +143,7 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null, lo
                   <label className="block mb-1 text-xs font-semibold text-ink-soft">or create a GitHub repo {gh?.authenticated ? `(as ${gh.login})` : ''}</label>
                   <div className="flex gap-1 flex-wrap">
                     <span className="w-36">
-                      <Select disabled={!!locked || !gh?.authenticated} value={value.createRepo?.owner ?? ''} onChange={(e) => set({ createRepo: e.target.value ? { owner: e.target.value, name: value.createRepo?.name ?? repo?.path.split('/').pop() ?? 'repo', visibility: value.createRepo?.visibility ?? 'private' } : null, remoteUrl: null })}>
+                      <Select disabled={!!locked || !gh?.authenticated} value={value.createRepo?.owner ?? ''} onChange={(e) => set({ createRepo: e.target.value ? { owner: e.target.value, name: value.createRepo?.name ?? folderName(), visibility: value.createRepo?.visibility ?? 'private' } : null, remoteUrl: null })}>
                         <option value="">owner…</option>
                         {orgs.map((o) => (
                           <option key={o} value={o}>
@@ -157,6 +160,11 @@ export function DeliveryPolicyForm({ value, onChange, repo, taskCount = null, lo
                       </Select>
                     </span>
                   </div>
+                  {value.createRepo && githubName !== value.createRepo.name && (
+                    <div className="mt-1 text-xs text-ink-faint">
+                      GitHub will name it <code className="font-mono text-ink-soft">{githubName || '…'}</code>: letters, digits, <code className="font-mono">.</code> <code className="font-mono">-</code> and <code className="font-mono">_</code> only.
+                    </div>
+                  )}
                 </div>
               </div>
             </Section>
