@@ -2658,9 +2658,15 @@ export class Engine {
   stagedView(attId: string): Attachment | null {
     return this.staged.get(attId) ?? null;
   }
-  /** Latest record for a staged id (conversion may have finished since the upload response). */
+  /**
+   * Latest record for a staged id (conversion may have finished since the upload response), with what the caller set on
+   * its copy since: the design mark (ADR-0093) is ticked on the New goal form before the goal exists and travels with the
+   * record to POST /api/goals, so the server's copy must not drop it.
+   */
   private latestStaged(att: Attachment): Attachment {
-    return this.staged.get(att.id) ?? att;
+    const latest = this.staged.get(att.id);
+    if (!latest) return att;
+    return { ...latest, ...(att.design !== undefined ? { design: att.design } : {}) };
   }
 
   private planConversion(att: Attachment): Attachment {
