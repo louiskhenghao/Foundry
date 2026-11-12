@@ -54,12 +54,38 @@ them in place with the first target that needs them.
   owner's permissions, removed after the commands whatever they did, named on no command line Foundry records (the
   record shows `<key file>`). The hosts' tokens keep travelling in the environment; the key cannot, since `ssh` reads
   it from a file.
+- **What Foundry does on the server is bounded, and the compose file is reviewed before it runs.** Foundry writes
+  under `<deploy folder>/<project name>` only, and starts, replaces and removes the containers of this compose project
+  only; it never deletes a file on the server, never touches another container or project, and never changes system
+  configuration or installs anything (what the server lacks is said with the command or the page, for the person to
+  run). The project folder gets a marker file (`.foundry-deploy`) the first time; a folder that already holds files
+  without it is never written over — the deploy stops at its first step and the readiness check says so. The compose
+  file is a thing a coding session may have written, and a service in it can reach the whole server: before it runs
+  Foundry reads it, and **refuses, with each reason named by its service,** a privileged container, the host's
+  network, pid, ipc, user or cgroup namespace, added capabilities, a security profile turned off, devices, the Docker
+  socket, a bind mount whose source lies outside the project folder, and a volume bound to a device. A server's
+  settings can **allow** such a file (`allowPrivileged`, off): then it runs after the confirmation lists what it
+  reaches, and the goal's activity records it. The confirmation also states the facts the file was read for — the
+  services built here and pulled, the ports published, the named volumes and the bind mounts inside the project — and
+  what is never touched.
 - **The readiness check:** before a first deploy to a place the card runs one, and shows every item it needs with what
   was found: for a host, its token in Settings; for a server, the key in Settings, an answer over SSH with that key,
-  `docker compose` for that user there, and the deploy folder made and writable. An item that fails says where to put
-  it right — a Settings section, a command to run (on the server: adding the key's public half, `usermod -aG docker`),
-  a page (Docker's install guide) — and the items after one that could not be tried say so. The deploy button waits
-  for every item; **Check again** tries once more. The check is the person's act from the card, never run on a timer.
+  `docker compose` for that user there, the deploy folder writable and the project's folder new or Foundry's, and the
+  ports the project publishes free (or held by this project's own earlier deploy). **Told but never blocking** (a
+  `warn` item): what listens on 80 and 443 in front of the project — a reverse proxy, or nothing, in which case
+  visitors reach the project on its port only — and, when the server has a public address, whether it answers from
+  here, behind Cloudflare or not, with a certificate a browser would accept, or does not resolve, or answers nothing
+  yet. An item that fails says where to put it right — a Settings section, a command to run on the server (adding the
+  key's public half, `usermod -aG docker`, with what it changes), a page (Docker's install guide, Caddy's reverse-proxy
+  quick start) — and the items after one that could not be tried say so. The deploy button waits for every blocking
+  item; **Check again** tries once more. The check is the person's act from the card, never run on a timer. Foundry
+  sets no reverse proxy and no certificate up; detecting and telling is where it stops in this record.
+- **A project without a Dockerfile or compose file is made deployable by a coding session, not by a template.** The
+  card offers a follow-up goal with the prompt written (a Dockerfile with `EXPOSE` and a `HEALTHCHECK`, a
+  `compose.yaml` with the services it needs, its port published, data in named volumes, `docker compose config` and
+  `build` as checks, none of what the review refuses), so any language's project gets a recipe written for its stack
+  and reviewed like any goal. The planner, when Settings has a server and a code goal makes something that runs, adds
+  that task to the plan by itself; a repository that already has them gets none.
 - **SSH host keys:** a server's key is accepted the first time it is seen and kept in Foundry's own `known_hosts` under
   the data folder (`StrictHostKeyChecking=accept-new`), apart from the person's; one that changed since refuses the
   deploy, and the readiness check says so.
@@ -84,6 +110,13 @@ them in place with the first target that needs them.
   them, and a Transfer could not carry them; the settings file already holds credentials, readable by its owner only.
 - **Readiness checked on a timer, or at every card load.** Rejected: each check opens an SSH connection to the person's
   server; a check they ask for, shown with its time, costs nothing when they are not deploying.
+- **Dockerfiles from templates per language.** Rejected: a template fits the trivial project and fails the rest at
+  build time, on the server; a coding session writes one for the stack in front of it, and the goal's checks build it
+  before anything is deployed.
+- **Foundry installing Docker, or configuring nginx and a certificate on the server.** Rejected: each is a change to
+  the person's machine outside the project's folder, most need `sudo`, and a mistake there is theirs to live with.
+  Foundry detects and says what is missing, with the command; a reverse proxy Foundry runs itself in a container (Caddy
+  with its own certificates, only when 80/443 are free) is the next step if anyone needs it.
 
 ## Consequences
 
@@ -97,5 +130,10 @@ them in place with the first target that needs them.
   it is still in Settings and takes the code.
 - `GET /api/goals/:id/deploy/readiness?provider=&target=` tries a place now; `GET/POST /api/goals/:id/deploy` take
   `target`. The CLI is unchanged in this record.
-- The user guide's Deploy and Git & delivery sections describe the server, the readiness check and the servers list;
-  the Docker image installs `openssh-client`.
+- `ReadinessItem` carries a `severity` (`error` blocks, `warn` is told); `DeployServer` an `allowPrivileged` switch; a
+  server's `ServerApp` the compose review (`dangers`, ports, built and pulled services, volumes, binds). The readiness
+  route is per goal (`GET /api/goals/:id/deploy/readiness`), since the ports and the folder are the project's.
+- The planner prompt gains a section when Settings has a server (`SERVER_DEPLOY_SECTION`); the Deploy card a follow-up
+  link with `MAKE_DEPLOYABLE_PROMPT`.
+- The user guide's Deploy and Git & delivery sections describe the server, the review, the readiness check and the
+  servers list; the Docker image installs `openssh-client`.
