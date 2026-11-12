@@ -111,6 +111,6 @@ export function usageSummary(db: Database, now = Date.now(), provider?: AgentPro
       unmeasuredSessions: unmeasured(weekRows),
     },
     limited: limitedState ? { rateLimitType: limitedState.rate_limit_type, until: new Date(limitedState.resets_at! * 1000).toISOString() } : null,
-    note: 'Counts only sessions started by Foundry on this machine. Subscription plans expose no usage API; for exact percentages run /usage inside Claude Code.',
+    note: 'Counts only sessions started by Foundry on this machine. The account’s own usage windows come from Claude’s usage report, use outside Foundry included (ADR-0090).',
   };
 }

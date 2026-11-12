@@ -176,6 +176,8 @@ export interface EngineConfig {
   betaAdjust: boolean;
   /** the Editor on video goals (HyperFrames' browser editor, the motion-studio scrubber page, Re-render) is a beta feature behind Settings → Beta (ADR-0086) */
   betaEditor: boolean;
+  /** how a Claude account's sign-in token is read for its own usage (ADR-0090): unset reads where Claude Code keeps it; a test run reads none */
+  claudeCredentials?: (configDir: string | null) => Promise<{ accessToken: string; expiresAt: number | null } | null>;
   log: (msg: string) => void;
 }
 
@@ -226,6 +228,8 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     milestonePause: process.env.FOUNDRY_MILESTONE_PAUSE !== '0' && process.env.FOUNDRY_MILESTONE_PAUSE !== 'false',
     // a test run never serves ports on the machine's real tailnet
     tailscaleBin: process.env.NODE_ENV === 'test' ? null : undefined,
+    // nor reads the person's own Claude sign-in for its usage (ADR-0090)
+    claudeCredentials: process.env.NODE_ENV === 'test' ? async () => null : undefined,
     // any level: the ones the coding agent takes are known once its binary is read (engine.effortLevels, ADR-0085); a goal is refused another at creation
     effort: process.env.FOUNDRY_EFFORT?.trim() || null,
     codexPresets: {},

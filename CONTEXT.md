@@ -536,7 +536,7 @@ The fallback when Self-Update is impossible: a popup with the exact commands for
 Refusing new sessions while active Agents finish, so an update never kills running work. The human may override and update immediately.
 
 **Account quota**
-The native account’s reported allowance and usage windows, including activity outside Foundry. Separate from Foundry’s local token totals. Unknown is not zero; a percentage or reset timestamp does not prove that another session is allowed.
+The native account’s reported allowance and usage windows, including activity outside Foundry. Separate from Foundry’s local token totals. Unknown is not zero; a percentage or reset timestamp does not prove that another session is allowed. For Claude Code it is the Account's own usage as Claude's usage report says it (what `/usage` in Claude Code and the menu-bar app show): the 5-hour **Session** window, the weekly window over **All models**, a weekly window per model Claude limits on its own, and **Extra usage** while it is on — read with the Account's own sign-in, which Claude Code alone renews. Shown per Account, on the Accounts page's rows and the Usage page's Accounts card, as bars with the percent used (amber from half, red near the end, the same for every Coding agent); the Current account's as cards with the reset time. It informs the person and the length of a Usage Pause, never an early Account switch. What cannot be read is said in words, never drawn as an empty bar.
 
 ## Transfer
 

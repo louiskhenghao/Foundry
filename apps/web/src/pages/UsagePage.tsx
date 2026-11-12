@@ -1,6 +1,7 @@
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { MinimaxQuota, UsageBucket, WindowSummary } from '@foundry/engine/usage-types';
 import { agyQuotaExhausted, agyQuotaSummary, codexQuotaSummary } from '@foundry/engine/quota-windows';
+import { claudeMeters, metersSummary } from '@foundry/engine/account-meters';
 import { AGENT_PROVIDERS, PROVIDER_LABEL, PROVIDER_NAME, reportsDollars } from '@foundry/core/browser';
 import { Activity, Gauge, Pause, RefreshCw } from 'lucide-react';
 import { type ReactNode, useEffect, useState } from 'react';
@@ -85,7 +86,7 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
   // the first load at once; a live change refetches after a short quiet, so a burst of events asks once
   useEffect(() => {
     let current = true;
-    const t = setTimeout(() => api.usage(provider).then((value) => { if (current) { setU(value); setErr(null); } }).catch((e) => { if (current) setErr(e.message); }), u === null ? 0 : 150);
+    const t = setTimeout(() => api.usage(provider, true).then((value) => { if (current) { setU(value); setErr(null); } }).catch((e) => { if (current) setErr(e.message); }), u === null ? 0 : 150);
     return () => { current = false; clearTimeout(t); };
   }, [version, provider]);
   const probe = async () => {
@@ -103,7 +104,7 @@ function ProviderUsage({ provider }: { provider: AgentProvider }) {
     setBusy(true);
     try {
       await api.resumeUsage(provider);
-      setU(await api.usage(provider));
+      setU(await api.usage(provider, true));
     } catch (e: any) {
       setErr(e.message);
     } finally {
@@ -190,7 +191,7 @@ function FoundryActivity() {
       </div>
       <Breakdowns m={m} />
       <p className="text-xs leading-relaxed text-ink-faint">
-        Rows are listed by time, which every coding agent reports. Cost is estimated for Claude Code only; Codex and Antigravity report no dollar cost, so their rows show —, and <span className="mono">*</span> marks a row whose cost leaves sessions out: its Codex or Antigravity sessions, or Claude Code sessions cut before a cost was reported (unknown, not $0). Counts only sessions started by Foundry on this machine. Account limits are below, per coding agent; for exact Claude percentages run /usage inside Claude Code.
+        Rows are listed by time, which every coding agent reports. Cost is estimated for Claude Code only; Codex and Antigravity report no dollar cost, so their rows show —, and <span className="mono">*</span> marks a row whose cost leaves sessions out: its Codex or Antigravity sessions, or Claude Code sessions cut before a cost was reported (unknown, not $0). Counts only sessions started by Foundry on this machine. Account limits are below, per coding agent, with each account's own usage windows as its coding agent reports them.
       </p>
     </section>
   );
@@ -584,7 +585,7 @@ export function UsagePillView({ usages, minimaxLow = false }: { usages: Partial<
     const u = usages[provider];
     const name = PROVIDER_LABEL[provider];
     if (!u) return `${name} · usage unavailable`;
-    return `${name} · ${u.pausedUntil && Date.parse(u.pausedUntil) > Date.now() ? 'sessions paused · ' : ''}${provider === 'codex' ? codexQuotaSummary(u.codexQuota) : provider === 'agy' ? agyQuotaSummary(u.agyQuota) : `Foundry activity (5h) ${fmtUsd(u.fiveHour.costUsd)}`}`;
+    return `${name} · ${u.pausedUntil && Date.parse(u.pausedUntil) > Date.now() ? 'sessions paused · ' : ''}${provider === 'codex' ? codexQuotaSummary(u.codexQuota) : provider === 'agy' ? agyQuotaSummary(u.agyQuota) : u.claudeUsage?.state === 'available' ? metersSummary(claudeMeters(u.claudeUsage)) : `Foundry activity (5h) ${fmtUsd(u.fiveHour.costUsd)}`}`;
   });
   const title = [...summaries, ...(minimaxLow ? ['MiniMax quota low'] : []), 'Open Usage to view each coding agent separately.'].join('\n');
   // in the top bar's own colours, as the Inbox beside it; what needs a look is the yellow dot (the guide calls it amber)

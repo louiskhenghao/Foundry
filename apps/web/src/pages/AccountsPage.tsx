@@ -1,11 +1,13 @@
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
+import { agyMeters } from '@foundry/engine/account-meters';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ban, Check, ChevronRight, CircleHelp, LoaderCircle, LogIn, RefreshCw, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api, type AccountInfo, type AccountsInfo, type AgentProvider } from '../api.ts';
+import { AccountMeterBars } from '../components/AccountMeters.tsx';
 import { ProviderMark } from '../components/ProviderMark.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
-import { Button, ConfirmDialog, PageHeader, cn } from '../ui.tsx';
+import { Button, ConfirmDialog, PageHeader, ago, cn } from '../ui.tsx';
 import { AccountPoolList } from './AccountPoolList.tsx';
 
 type State = 'checking' | 'connected' | 'signin' | 'missing' | 'unknown';
@@ -35,6 +37,7 @@ export function AccountsPage() {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(true);
   const request = useRef(0);
+  /** every sign-in and every account's usage read again: the first load, Refresh status, after an action */
   const load = useCallback(async () => {
     const id = ++request.current;
     setRefreshing(true);
@@ -44,7 +47,15 @@ export function AccountsPage() {
     } catch (e: any) { if (id === request.current) setError(e.message); }
     finally { if (id === request.current) setRefreshing(false); }
   }, []);
-  useEffect(() => { void load(); return () => { request.current++; }; }, [load]);
+  // the usage windows move while the page is open: every minute each account's usage alone is read again (the engine's
+  // readings, at most a minute old) and laid over what is shown; the sign-ins are not asked again (ADR-0090)
+  useEffect(() => {
+    void load();
+    const timer = setInterval(() => {
+      void api.accountsUsage().then((usage) => setInfo((prev) => prev && { ...prev, accounts: prev.accounts.map((a) => ({ ...a, ...(a.provider === 'agy' ? { agyQuota: usage.agy } : {}), pool: a.pool && { ...a.pool, accounts: a.pool.accounts.map((p) => ({ ...p, ...(a.provider === 'claude' ? { claudeUsage: usage.claude[p.id] ?? p.claudeUsage } : { codexQuota: usage.codex[p.id] ?? p.codexQuota }) })) } })) })).catch(() => {});
+    }, 60_000);
+    return () => { request.current++; clearInterval(timer); };
+  }, [load]);
   const signOut = async () => {
     if (!logout) return;
     setBusy(true); setError('');
@@ -56,7 +67,7 @@ export function AccountsPage() {
     <PageHeader
       title="Agent accounts"
       summary="Connect Claude Code, Codex and Antigravity independently. Choose the coding agent when creating a goal; it stays fixed for that goal. Claude Code and Codex can hold several of your accounts: new sessions run on the current one."
-      actions={<Button disabled={busy || refreshing} onClick={load}><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} aria-hidden="true" />Refresh status</Button>}
+      actions={<Button disabled={busy || refreshing} onClick={() => load()}><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} aria-hidden="true" />Refresh status</Button>}
     />
     {/* the status line in its signal colour: checking blue, up to date green, a failure red */}
     <div className="min-h-5 text-xs" aria-live="polite">{error ? <p role="alert" className="text-bad-ink">{error}</p> : <p className={cn('font-semibold', refreshing ? 'text-work-ink' : 'text-ok-ink')}>{refreshing ? 'Checking native accounts…' : 'Account status is up to date.'}</p>}</div>
@@ -86,6 +97,11 @@ export function AccountsPage() {
           ? <div className="border-t border-line px-4 sm:px-5 py-4 text-[13px] text-ink-soft space-y-1.5">
               <p>Antigravity signs in from a terminal: run <code className="mono rounded-sm bg-sunken px-1 py-0.5 text-[12px] text-ink">agy</code> once (it opens the browser), then refresh. <code className="mono rounded-sm bg-sunken px-1 py-0.5 text-[12px] text-ink">/logout</code> inside agy signs out.</p>
               <p className="text-ink-faint">Antigravity holds one account: its CLI has no folder of its own to point at, and on macOS every agy sign-in shares one Keychain item.</p>
+              {/* the one account's usage windows as agy reports them (ADR-0090): the models of a group share a weekly limit */}
+              <div className="pt-1.5">
+                <AccountMeterBars meters={agyMeters(account?.agyQuota)} expanded />
+                {account?.agyQuota && <p className="mt-1.5 text-[11px] text-ink-faint">Usage as of {ago(account.agyQuota.checkedAt)} · the models of a group share one weekly limit · Refresh status reads it again</p>}
+              </div>
             </div>
           : account?.pool && <div className="border-t border-line px-4 sm:px-5 py-4"><AccountPoolList provider={provider} pool={account.pool} installed={account.installed} onChange={load} /></div>}
         <details className="group border-t border-line">

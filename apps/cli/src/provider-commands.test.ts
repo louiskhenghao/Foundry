@@ -149,3 +149,31 @@ describe('CLI provider selection and native account ownership', () => {
     }
   });
 });
+
+describe('foundry usage shows each account’s own usage windows (ADR-0090)', () => {
+  test('Claude: one block per account, percent used and the reset, and words when it cannot be read', async () => {
+    const checkedAt = new Date().toISOString();
+    const win = { label: 'x', status: null, resetsAt: null, isUsingOverage: false, sessions: 0, inputTokens: 0, outputTokens: 0, cacheReadTokens: 0, cacheCreateTokens: 0, costUsd: 0 };
+    const available = { state: 'available', checkedAt, fiveHour: null, sevenDay: { usedPercent: 53, resetsAt: '2026-11-14T02:00:00Z' }, models: [{ name: 'Fable', usedPercent: 11, resetsAt: null }], extraUsage: null };
+    const usage = {
+      provider: 'claude', costAvailable: true, pausedUntil: null, note: 'note', byModel: [], byKind: [], fiveHour: { ...win, label: '5-hour window' }, sevenDay: { ...win, label: '7-day window' }, claudeUsage: available,
+      accounts: [
+        { id: 'native', label: 'me@example.com', plan: 'Ultra', current: true, limitedUntil: null, fiveHour: win, sevenDay: win, claudeUsage: available },
+        { id: 'acc_b', label: 'b@example.com', plan: 'Max', current: false, limitedUntil: null, fiveHour: win, sevenDay: win, claudeUsage: { state: 'unavailable', checkedAt, message: 'Sign in to Claude Code to read its usage.' } },
+      ],
+    };
+    await withServer(async (url, calls) => {
+      const r = await run(['usage', '--provider', 'claude'], { FOUNDRY_URL: url });
+      expect(r.code).toBe(0);
+      expect(calls).toContain('GET /api/usage?accounts=1&provider=claude');
+      expect(r.out).toContain('me@example.com (current) · Ultra');
+      expect(r.out).toContain('Session (5-hour rolling window): 0% used · No active session');
+      expect(r.out).toContain('All models (Weekly): 53% used · resets ');
+      expect(r.out).toContain('Fable (Weekly): 11% used');
+      expect(r.out).toContain('b@example.com · Max');
+      expect(r.out).toContain('usage unavailable: Sign in to Claude Code to read its usage.');
+      // a bare token in the answer would be a leak: none is printed
+      expect(r.out).not.toContain('Bearer');
+    }, () => Response.json(usage));
+  });
+});

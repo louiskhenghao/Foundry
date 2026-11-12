@@ -35,7 +35,7 @@ const mask = async () => {
     }
     const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     for (let n = walk.nextNode(); n; n = walk.nextNode()) {
-      n.textContent = (n.textContent ?? '').replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, 'you@example.com').replace(/\/(?:private\/)?(?:var\/folders\/[^\s·]*?\/|tmp\/)foundry-demo-[^/\s]+\//g, '~/Projects/');
+      n.textContent = (n.textContent ?? '').replace(/[\w.+-]+@(?!example\.com\b)[\w-]+(\.[\w-]+)+/g, 'you@example.com').replace(/\/(?:private\/)?(?:var\/folders\/[^\s·]*?\/|tmp\/)foundry-demo-[^/\s]+\//g, '~/Projects/');
     }
   });
 };
@@ -249,7 +249,33 @@ try {
     await card.screenshot({ path: join(OUT, 'settings-data-folder.png') });
     console.log('  settings-data-folder.png');
   }
+  // Accounts reads this machine's sign-ins and their usage: the guide shows demonstration accounts instead (ADR-0090)
+  const checkedAt = new Date().toISOString();
+  const inHours = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
+  const signedIn = (provider: 'claude' | 'codex' | 'agy', email: string, plan: string | null) => ({ provider, loggedIn: true, authMethod: provider === 'codex' ? 'ChatGPT' : provider === 'agy' ? 'oauth' : 'claude.ai', apiProvider: null, email, orgName: null, subscriptionType: plan?.toLowerCase() ?? null, plan, checkedAt, error: null });
+  const capabilities = (provider: string) => ({ dollarCosts: provider === 'claude', skillTelemetry: provider === 'claude', nativeSubagents: provider === 'claude', managedMcp: provider !== 'agy', externalSessions: provider !== 'agy' });
+  const claudeUsage = (session: number | null, week: number, model: number) => ({ state: 'available', checkedAt, fiveHour: session == null ? null : { usedPercent: session, resetsAt: inHours(3) }, sevenDay: { usedPercent: week, resetsAt: inHours(70) }, models: [{ name: 'Fable', usedPercent: model, resetsAt: inHours(70) }], extraUsage: null });
+  const poolAccount = (provider: 'claude' | 'codex', id: string, email: string, plan: string, current: boolean, usage: object) => ({ id, email, orgName: null, plan, addedAt: '', current, limitedUntil: null, status: signedIn(provider, email, plan), ...usage });
+  const epoch = Math.round(Date.now() / 1000);
+  const demoAccounts = {
+    defaultProvider: 'claude',
+    accounts: [
+      { provider: 'claude', installed: true, status: signedIn('claude', 'you@example.com', 'Ultra'), capabilities: capabilities('claude'), pool: { autoSwitch: false, accounts: [poolAccount('claude', 'native', 'you@example.com', 'Ultra', true, { claudeUsage: claudeUsage(12, 53, 11) }), poolAccount('claude', 'acc_work', 'work@example.com', 'Max', false, { claudeUsage: claudeUsage(null, 88, 40) })] } },
+      { provider: 'codex', installed: true, status: signedIn('codex', 'you@example.com', 'Plus'), capabilities: capabilities('codex'), pool: { autoSwitch: false, accounts: [poolAccount('codex', 'native', 'you@example.com', 'Plus', true, { codexQuota: { state: 'available', checkedAt, ordinaryUsageAllowed: true, buckets: [{ id: 'codex', label: 'codex', primary: { usedPercent: 21, windowDurationMins: 10080, resetsAt: epoch + 5 * 86_400 }, secondary: { usedPercent: 4, windowDurationMins: 300, resetsAt: epoch + 2 * 3600 } }] } })] } },
+      { provider: 'agy', installed: true, status: signedIn('agy', 'you@example.com', null), capabilities: capabilities('agy'), agyQuota: { state: 'available', checkedAt, error: null, groups: [{ name: 'Gemini Models', description: 'Models within this group: Gemini Flash, Gemini Pro', buckets: [{ id: 'gemini', name: 'Weekly Limit Remaining', window: 'weekly', remainingFraction: 0.64, resetTime: inHours(100) }] }, { name: 'Claude and GPT models', description: 'Models within this group: Claude Opus, Claude Sonnet, GPT-OSS', buckets: [{ id: 'third', name: 'Weekly Limit Remaining', window: 'weekly', remainingFraction: 0.97, resetTime: inHours(100) }] }] } },
+    ],
+  };
+  await page.route('**/api/accounts?*', (r) => r.fulfill({ json: demoAccounts }));
+  await shot('accounts', '/accounts');
+  await page.unroute('**/api/accounts?*');
+  // the Usage page's Accounts card shows the current Claude account's usage the same way
+  await page.route('**/api/usage?provider=claude*', async (r) => {
+    const json = await (await r.fetch()).json();
+    const usage = claudeUsage(12, 53, 11);
+    await r.fulfill({ json: { ...json, claudeUsage: usage, accounts: (json.accounts ?? []).map((a: any) => ({ ...a, claudeUsage: usage })) } });
+  });
   await shot('usage', '/usage');
+  await page.unroute('**/api/usage?provider=claude*');
   // Reports (ADR-0060): the demo's goals and their sessions over the last 30 days
   await shot('reports', '/reports');
   // Agents reads this machine's own Claude Code and Codex history: the guide shows demonstration sessions instead

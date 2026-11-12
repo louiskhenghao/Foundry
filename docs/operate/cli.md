@@ -79,7 +79,8 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
                                           Who may use this Foundry from elsewhere: each person a token; once anyone has one,
                                           every request needs one (FOUNDRY_TOKEN here, the sign-in page in a browser)
   usage [--provider claude|codex|agy] [--json] [--probe]
-                                          Activity and available account quota; --probe refreshes status (Claude consumes quota)
+                                          Each account's own usage windows (percent used, resets) as its coding agent reports them,
+                                          and Foundry's activity; --probe refreshes Claude's signal with one tiny session (consumes quota)
                                           Codex shows only reported account windows; weekly-only accounts are supported
   report [--days 30|90|365] [--all] [--json]
                                           Spend, goals, hours, retries and estimate error over a window, by project and session kind
