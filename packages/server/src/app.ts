@@ -2048,18 +2048,21 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/accounts', async (c) => {
     const force = c.req.query('force') === '1';
     return c.json({ defaultProvider: engine.config.provider, accounts: await Promise.all(AGENT_PROVIDERS.map(async (provider) => {
-      const status = await engine.accounts[provider].status(force);
+      // the Antigravity account's quota beside its status: the one account's usage, as the pooled agents' rows carry theirs (ADR-0090)
+      const [status, agyQuota] = await Promise.all([engine.accounts[provider].status(force), provider === 'agy' ? engine.agyQuota.read(force).catch(() => null) : undefined]);
       return {
-        provider, status,
+        provider, status, agyQuota,
         installed: !!(provider === 'codex' ? engine.config.codexBin ?? Bun.which('codex') : provider === 'agy' ? engine.config.agyBin ?? Bun.which('agy') : engine.config.claudeBin ?? Bun.which('claude')),
         capabilities: { dollarCosts: provider === 'claude', skillTelemetry: provider === 'claude', nativeSubagents: provider === 'claude', managedMcp: provider !== 'agy', externalSessions: provider !== 'agy' },
         // Claude Code and Codex can hold several accounts (ADR-0065); their homes stay on this computer, never in the answer
         pool: isPooled(provider) ? await (async () => {
           // each account's sign-in read first: the views then carry the plan it reports now, not the one stored when it was added
           const statuses = new Map(await Promise.all(engine.accountPool.views(provider).map(async (a) => [a.id, a.id === NATIVE_ACCOUNT ? status : await engine.accountPool.auth(provider, a.id).status(force).catch(() => null)] as const)));
+          // and each account's own usage (ADR-0090): Claude's from its usage report, Codex's from its quota; the page's Refresh reads them again
+          const usage = new Map(await Promise.all(engine.accountPool.views(provider).map(async (a) => [a.id, provider === 'claude' ? await engine.accountPool.claudeUsage(a.id, engine.claudeUsage).read(force).catch(() => undefined) : await engine.accountPool.codexQuota(a.id, engine.codexQuota).read(force).catch(() => undefined)] as const)));
           return {
             autoSwitch: engine.config.autoSwitch[provider],
-            accounts: engine.accountPool.views(provider).map(({ home: _home, provider: _p, ...a }) => ({ ...a, status: statuses.get(a.id) ?? null })),
+            accounts: engine.accountPool.views(provider).map(({ home: _home, provider: _p, ...a }) => ({ ...a, status: statuses.get(a.id) ?? null, ...(provider === 'claude' ? { claudeUsage: usage.get(a.id) } : { codexQuota: usage.get(a.id) }) })),
           };
         })() : undefined,
       };
@@ -2158,7 +2161,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const q = c.req.query('days');
     return c.json(engine.report(q === 'all' ? null : Math.max(1, Math.min(3650, Math.round(Number(q) || 30)))));
   });
-  app.get('/api/usage', async (c) => c.json(await engine.readUsage(authProvider(c))));
+  // `accounts=1`: every Claude account's own usage is read, for the Accounts card; the top bar's poll reads the current one's alone (ADR-0090)
+  app.get('/api/usage', async (c) => c.json(await engine.readUsage(authProvider(c), false, { accounts: c.req.query('accounts') === '1' })));
   app.post('/api/usage/probe', async (c) => {
     const provider = authProvider(c);
     return c.json(await engine.probeUsage(provider));

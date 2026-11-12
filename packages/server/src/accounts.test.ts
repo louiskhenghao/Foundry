@@ -9,7 +9,7 @@ import { createApp } from './app.ts';
 test('a coding agent\'s accounts: listed without their homes, made current, switched to on a pause, removed (ADR-0065)', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'foundry-accounts-api-'));
   // no CLI on purpose: status reads fail fast instead of asking the machine's real one
-  const engine = new Engine(defaultConfig(resolve(import.meta.dir, '../../..'), { dataDir: dir, claudeHome: join(dir, 'claude'), codexHome: join(dir, 'codex'), claudeBin: join(dir, 'no-claude'), codexBin: join(dir, 'no-codex'), log: () => {} }), new FakeRunner(() => {}));
+  const engine = new Engine(defaultConfig(resolve(import.meta.dir, '../../..'), { dataDir: dir, claudeHome: join(dir, 'claude'), codexHome: join(dir, 'codex'), claudeBin: join(dir, 'no-claude'), codexBin: join(dir, 'no-codex'), agyBin: join(dir, 'no-agy'), log: () => {} }), new FakeRunner(() => {}));
   const app = createApp(engine);
   const json = async (path: string, init?: RequestInit) => {
     const r = await app.request(path, init);
@@ -27,6 +27,12 @@ test('a coding agent\'s accounts: listed without their homes, made current, swit
     expect(claude.accounts.map((a: any) => [a.id, a.current])).toEqual([['native', true], ['acc_b', false]]);
     // a plan stored as the token's key by an older Foundry is shown as the coding agent names it
     expect(claude.accounts[1].plan).toBe('Max');
+    // each account's own usage as Claude reports it (ADR-0090): a test run reads no sign-in, so it is unavailable, never zero
+    expect(claude.accounts.map((a: any) => a.claudeUsage)).toEqual([{ state: 'unavailable', checkedAt: expect.any(String), message: 'Sign in to Claude Code to read its usage.' }, { state: 'unavailable', checkedAt: expect.any(String), message: 'Sign in to Claude Code to read its usage.' }]);
+    expect('agyQuota' in list.find((a: any) => a.provider === 'agy')).toBe(true);
+    const usage = (await json('/api/usage?provider=claude&accounts=1')).body;
+    expect(usage.claudeUsage).toMatchObject({ state: 'unavailable' });
+    expect(usage.accounts.map((a: any) => [a.id, a.claudeUsage?.state])).toEqual([['native', 'unavailable'], ['acc_b', 'unavailable']]);
     expect(JSON.stringify(claude)).not.toContain(home);
     expect(list.find((a: any) => a.provider === 'agy').pool).toBeUndefined();
     expect((await post('/api/accounts/agy/add')).status).toBe(400);
