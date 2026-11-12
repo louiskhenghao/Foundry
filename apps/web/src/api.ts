@@ -1,4 +1,4 @@
-import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeployReadiness, DeliveryRevert, InterviewQuestion, MergeMethod } from '@foundry/core/browser';
+import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeployReadiness, DeliveryRevert, InterviewQuestion, MergeMethod, RecipeRun, ServerRecipe } from '@foundry/core/browser';
 import type { Adjustment, AdjustmentMode, Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 import type { IssueRead } from './pages/new-goal-issue.ts';
 import type { Calibration, GoalRecipe, Schedule, ScheduleCadence, ThemeEntry, ThemeProblem } from '@foundry/core/browser';
@@ -288,7 +288,7 @@ export interface FsRecent {
 }
 import type { AgentLogChunk, AgentsList, AgentsSummary } from '@foundry/engine/agents-types';
 import type { DoctorReport, InstallResult, ReleaseForecast, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from '@foundry/engine/skills-types';
-import type { AgyQuota, ClaudeUsage, CodexQuota, MinimaxQuota, Report, UsageSummary } from '@foundry/engine/usage-types';
+import type { MinimaxQuota, Report, UsageSummary } from '@foundry/engine/usage-types';
 
 export type Usage = UsageSummary & { pausedUntil: string | null };
 
@@ -347,13 +347,11 @@ export interface LoginSession {
 }
 import type { AgentProvider } from '@foundry/core/browser';
 export type { AgentProvider } from '@foundry/core/browser';
-/** one sign-in of a coding agent (ADR-0065): this computer's own (`native`) or one added in Foundry, with its own usage as the agent reports it (ADR-0090) */
-export interface PoolAccount { id: string; email: string | null; orgName: string | null; plan: string | null; addedAt: string; current: boolean; limitedUntil: string | null; status: ClaudeAuthStatus | null; claudeUsage?: ClaudeUsage; codexQuota?: CodexQuota }
+/** one sign-in of a coding agent (ADR-0065): this computer's own (`native`) or one added in Foundry */
+export interface PoolAccount { id: string; email: string | null; orgName: string | null; plan: string | null; addedAt: string; current: boolean; limitedUntil: string | null; status: ClaudeAuthStatus | null }
 export interface AccountPoolInfo { autoSwitch: boolean; accounts: PoolAccount[] }
-export interface AccountInfo { provider: AgentProvider; installed: boolean; status: ClaudeAuthStatus; capabilities: { dollarCosts: boolean; skillTelemetry: boolean; nativeSubagents: boolean; managedMcp: boolean; externalSessions: boolean }; pool?: AccountPoolInfo; /** the one Antigravity account's quota (ADR-0090) */ agyQuota?: AgyQuota | null }
+export interface AccountInfo { provider: AgentProvider; installed: boolean; status: ClaudeAuthStatus; capabilities: { dollarCosts: boolean; skillTelemetry: boolean; nativeSubagents: boolean; managedMcp: boolean; externalSessions: boolean }; pool?: AccountPoolInfo }
 export interface AccountsInfo { defaultProvider: AgentProvider; accounts: AccountInfo[] }
-/** each account's own usage alone (ADR-0090): what the Accounts page reads again while it is open */
-export interface AccountsUsage { claude: Record<string, ClaudeUsage | undefined>; codex: Record<string, CodexQuota | undefined>; agy: AgyQuota | null }
 export interface AuthInfo {
   provider: AgentProvider;
   status: ClaudeAuthStatus;
@@ -690,11 +688,15 @@ export function apiForProvider(provider?: AgentProvider) {
   repoLearnings: (repoPath: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/learnings?repo=${encodeURIComponent(repoPath)}`),
   saveLearnings: (repoPath: string, learnings: { id?: string | null; kind: LearningKind; text: string }[]) => req<{ repoPath: string; learnings: Learning[] }>('/api/learnings', { method: 'PUT', body: JSON.stringify({ repoPath, learnings }) }),
   learnFrom: (goalId: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/goals/${goalId}/learn`, { method: 'POST' }),
-  /** Deploy (ADR-0041, ADR-0091): what a finished goal is for the hosts and for a server, the places, the exact commands, the deploys so far */
+  /** Deploy (ADR-0041, ADR-0090): what a finished goal is for the hosts and for a server, the places, the exact commands, the deploys so far */
   deployInfo: (goalId: string, provider?: DeployHost | null, production = false, target?: string | null) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}${target ? `target=${encodeURIComponent(target)}&` : ''}production=${production ? 1 : 0}`),
   deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean, target?: string | null) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, target: target ?? null, production, smoke }) }),
-  /** the readiness check (ADR-0091): whether a deploy to this place can start, tried now */
+  /** the readiness check (ADR-0090): whether a deploy to this place can start, tried now */
   deployReadiness: (goalId: string, provider: DeployHost, target?: string | null) => req<DeployReadiness>(`/api/goals/${goalId}/deploy/readiness?provider=${provider}${target ? `&target=${encodeURIComponent(target)}` : ''}`),
+  /** server recipes (ADR-0091): the scripts, whole; a run on a server (on the person's click, after they read it); the runs so far */
+  serverRecipes: () => req<{ recipes: ServerRecipe[] }>('/api/servers/recipes'),
+  runServerRecipe: (serverId: string, recipeId: string, params: Record<string, string>) => req<{ started: boolean }>(`/api/servers/${encodeURIComponent(serverId)}/recipes/${encodeURIComponent(recipeId)}/run`, { method: 'POST', body: JSON.stringify({ params }) }),
+  serverRecipeRuns: (serverId: string) => req<{ runs: RecipeRun[] }>(`/api/servers/${encodeURIComponent(serverId)}/recipes/runs`),
   /** Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more */
   /** Revert (ADR-0059): what a revert of the goal would undo; and start one, with the reason and whether to merge it right away */
   revertInfo: (goalId: string) => req<RevertInfo>(`/api/goals/${goalId}/revert`),
@@ -976,7 +978,6 @@ export function apiForProvider(provider?: AgentProvider) {
   dataDirDismiss: () => req<{ ok: true }>('/api/data-dir/notice/dismiss', { method: 'POST' }),
   engineRestart: () => req<{ started: true }>('/api/engine/restart', { method: 'POST' }),
   accounts: (force = false) => req<AccountsInfo>(`/api/accounts?force=${force ? '1' : '0'}`),
-  accountsUsage: () => req<AccountsUsage>('/api/accounts/usage'),
   auth: (force = false, provider?: AgentProvider) => req<AuthInfo>(`/api/auth?force=${force ? '1' : '0'}${provider ? '&provider=' + provider : ''}`),
   startLogin: (body: { email?: string }, provider?: AgentProvider) => req<LoginSession>(`/api/auth/login${provider ? '?provider=' + provider : ''}`, { method: 'POST', body: JSON.stringify(body) }),
   loginSession: (provider?: AgentProvider) => req<LoginSession | null>(`/api/auth/login${provider ? '?provider=' + provider : ''}`),
@@ -992,11 +993,7 @@ export function apiForProvider(provider?: AgentProvider) {
   removeAccount: (provider: AgentProvider, id: string) => req<{ ok: true }>(`/api/accounts/${provider}/${id}`, { method: 'DELETE' }),
   orderAccounts: (provider: AgentProvider, order: string[]) => req<{ ok: true }>(`/api/accounts/${provider}/order`, { method: 'POST', body: JSON.stringify({ order }) }),
   setAutoSwitch: (provider: AgentProvider, on: boolean) => req<{ ok: true }>(`/api/accounts/${provider}/auto-switch`, { method: 'POST', body: JSON.stringify({ on }) }),
-  /** `accounts`: every Claude account's own usage read, for the Accounts card; the top bar reads the current one's alone (ADR-0090) */
-  usage: (provider?: AgentProvider, accounts = false) => {
-    const q = [provider && `provider=${provider}`, accounts && 'accounts=1'].filter(Boolean).join('&');
-    return req<Usage>(`/api/usage${q ? `?${q}` : ''}`);
-  },
+  usage: (provider?: AgentProvider) => req<Usage>(`/api/usage${provider ? '?provider=' + provider : ''}`),
   /** Reports (ADR-0060): the last `days`, or all time with null */
   report: (days: number | null) => req<Report>(`/api/reports?days=${days ?? 'all'}`),
   /** Access (ADR-0061) */
@@ -1128,7 +1125,7 @@ export const api = apiForProvider();
 
 /** where a goal is deployed: a web host, or `server` (one of the servers in Settings, named by `target`) */
 export type DeployHost = 'vercel' | 'netlify' | 'cloudflare' | 'server';
-/** one place the Deploy card offers: a host, or a server from Settings (ADR-0091) */
+/** one place the Deploy card offers: a host, or a server from Settings (ADR-0090) */
 export interface DeployPlace {
   id: DeployHost;
   /** the server's id when `id` is `server` */
@@ -1141,8 +1138,13 @@ export interface DeployPlace {
   refused: string | null;
   /** a server that allows a compose file reaching outside its project (Settings); undefined for a host */
   permissive?: boolean;
+  /** how a server runs the project (ADR-0091): with docker compose, or as a Node.js process under PM2 */
+  mode?: 'docker' | 'pm2';
+  /** where a server is and who logs in (for the recipe dialog); undefined for a host */
+  host?: string;
+  user?: string;
 }
-/** what a compose file would do on the server (ADR-0091): what is refused unless the server allows it, and the facts the confirmation states */
+/** what a compose file would do on the server (ADR-0090): what is refused unless the server allows it, and the facts the confirmation states */
 export interface ComposeReview {
   dangers: string[];
   ports: number[];
@@ -1151,8 +1153,16 @@ export interface ComposeReview {
   volumes: string[];
   binds: string[];
 }
-/** what a server would run of the goal (ADR-0091) */
-export type ServerDeployability = { ok: true; app: { kind: 'compose' | 'dockerfile'; file: string; services: string[]; port: number | null; review: ComposeReview }; notes: string[] } | { ok: false; reason: string };
+/** how a PM2-mode server installs, builds and starts a Node.js project (ADR-0091) */
+export interface Pm2Facts {
+  manager: 'yarn' | 'pnpm' | 'npm' | 'bun';
+  install: string;
+  build: string | null;
+  ecosystem: string;
+  generated: boolean;
+}
+/** what a server would run of the goal (ADR-0090; `pm2` for a server in PM2 mode, ADR-0091) */
+export type ServerDeployability = { ok: true; app: { kind: 'compose' | 'dockerfile' | 'pm2'; file: string; services: string[]; port: number | null; review: ComposeReview; pm2?: Pm2Facts }; notes: string[] } | { ok: false; reason: string };
 /** Mirrors the engine's RevertInfo (delivery/revert.ts, ADR-0059): what a Revert would undo, and whether one can start now. */
 export interface RevertInfo {
   ok: boolean;
@@ -1169,7 +1179,7 @@ export interface RevertInfo {
 export interface DeployInfo {
   /** what a web host would deploy: the web app found, or why none */
   app: { ok: true; app: { dir: string; framework: string; kind: 'static' | 'built' | 'ssr' }; notes: string[] } | { ok: false; reason: string };
-  /** what a server would run: the compose file or Dockerfile found, or why none (ADR-0091) */
+  /** what a server would run: the compose file or Dockerfile found, or why none (ADR-0090) */
   server: ServerDeployability;
   finished: boolean;
   running: boolean;
