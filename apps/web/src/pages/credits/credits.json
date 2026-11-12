@@ -1140,6 +1140,17 @@
   ],
   "catalog": [
     {
+      "project": "latent-spaces/brag",
+      "name": "/brag",
+      "url": "https://github.com/latent-spaces/brag",
+      "license": "MIT",
+      "kinds": [
+        "Skills"
+      ],
+      "ref": "669ab9286aa28b6c3ee30e75f181ee74319d012a",
+      "featured": false
+    },
+    {
       "project": "anthropics/skills",
       "name": "anthropics/skills",
       "url": "https://github.com/anthropics/skills",

@@ -251,6 +251,8 @@ describe('the planner prompt', () => {
     // a video goal's engine shapes the plan (ADR-0077, ADR-0087): the sections name the harness, its folders and the rubric
     const hf = buildPlannerPrompt({ ...base, nature: 'video', videoPack: 'hyperframes' }, skeleton, ctx);
     expect(hf).toContain('# Engine: HyperFrames');
+    // a launch video told by /brag keeps the harness's folders (ADR-0089): the planner is told how its tasks differ
+    expect(hf).toContain('/brag --full');
     expect(hf).toContain('video/lib/*.mjs');
     expect(hf).toContain("grep -c '^## Round' docs/video/review_log.md");
     expect(hf).not.toContain('# Engine: motion studio');
