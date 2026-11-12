@@ -5,15 +5,16 @@
  * its videos and screenshots. A failed script is said, never mended: what differs online (an environment variable, a
  * database the host lacks) is the person's to fix; Smoke again tries once they did.
  */
-import type { DeployProvider, Goal, SmokeScript, Task } from '@foundry/core';
+import type { DeployProvider, DeployTarget, Goal, SmokeScript, Task } from '@foundry/core';
 import { listTasks } from '@foundry/core';
 import { runMilestoneScript, type ScriptDeps } from '../checks/milestone-script.ts';
 import { scriptDeps } from '../checks/walkthrough.ts';
 import type { Engine } from '../engine.ts';
 
-/** the deploy a smoke is about: `deployedAt` is the deployment's `at`, which names it on the goal */
+/** the deploy a smoke is about: `deployedAt` is the deployment's `at`, which names it on the goal; `target` the server (ADR-0091) */
 export interface SmokeTarget {
   provider: DeployProvider;
+  target?: DeployTarget | null;
   production: boolean;
   url: string;
   deployedAt: string;
@@ -34,6 +35,7 @@ const LOGIN: Record<DeployProvider, string> = {
   vercel: 'the address asks for a Vercel login: the project’s Deployment Protection is on (Vercel protects previews by default; the project’s Settings → Deployment Protection)',
   netlify: 'the address asks for a Netlify login: the site lets only its team in (Site configuration → Access & security → Visitor access; a new site takes the team’s default)',
   cloudflare: 'the address asks for a login: Cloudflare Access protects it (Zero Trust → Access → Applications)',
+  server: 'the address asks for a login: something in front of the server (a reverse proxy, an access gate) asks for one',
 };
 
 /**

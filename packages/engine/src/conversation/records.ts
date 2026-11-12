@@ -157,9 +157,9 @@ function describeEvent(e: EngineEvent, title: (id: string | null | undefined) =>
     case 'delivery.cleaned':
       return `after the merge: ${clip(p.detail, 200)}`;
     case 'deploy.finished':
-      return `deployed to ${p.provider} (${p.production ? 'production' : 'preview'}): ${p.url}`;
+      return `deployed to ${p.target ? `the server ${p.target.label}` : p.provider} (${p.production ? 'production' : 'preview'}): ${p.url ?? 'no address'}`;
     case 'deploy.failed':
-      return `deploy to ${p.provider} failed: ${clip(p.reason, 200)}`;
+      return `deploy to ${p.target ? `the server ${p.target.label}` : p.provider} failed: ${clip(p.reason, 200)}`;
     case 'goal.docs_generated':
       return `completion docs ${p.status}: ${clip(p.detail, 160)}`;
     case 'goal.qa_finished':

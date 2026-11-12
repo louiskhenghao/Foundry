@@ -5,9 +5,15 @@
  * move under Foundry, run from the PATH when installed and through `npx` otherwise. Tokens travel in the environment,
  * never on a command line Foundry records.
  */
+import type { DeployProvider as AnyProvider, DeployTarget } from '@foundry/core';
+
+/** the web hosts: this module's providers (a server of the person's own is deploy/server.ts, ADR-0091) */
 export type DeployProvider = 'vercel' | 'netlify' | 'cloudflare';
 export const DEPLOY_PROVIDERS: DeployProvider[] = ['vercel', 'netlify', 'cloudflare'];
-export const PROVIDER_LABEL: Record<DeployProvider, string> = { vercel: 'Vercel', netlify: 'Netlify', cloudflare: 'Cloudflare Pages' };
+export const PROVIDER_LABEL: Record<AnyProvider, string> = { vercel: 'Vercel', netlify: 'Netlify', cloudflare: 'Cloudflare Pages', server: 'a server' };
+export const isHost = (p: AnyProvider): p is DeployProvider => p !== 'server';
+/** where a deploy went, in words: the host's name, or the server's own */
+export const whereLabel = (p: { provider: AnyProvider; target?: DeployTarget | null }) => (p.provider === 'server' ? `the server ${p.target?.label ?? ''}`.trim() : PROVIDER_LABEL[p.provider]);
 
 /** what a web app is, for a host: a folder as it is, a build that leaves static files, or a server-rendered framework */
 export type AppKind = 'static' | 'built' | 'ssr';

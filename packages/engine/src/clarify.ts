@@ -22,6 +22,7 @@ import { subjectsFromClarifier } from './subjects.ts';
 import { FIGURE_PLAN, figureClarifySection, type FigureInfo } from './figure.ts';
 import { DIAGRAM_PLAN, diagramClarifySection, diagramTasksNote, type DiagramInfo } from './diagram.ts';
 import { DECK_PLAN, deckClarifySection, type DeckInfo } from './deck.ts';
+import { deployServers } from './deploy/deploy.ts';
 
 /** Files that do not make a repository "have code": a freshly initialised repo may carry any of these. */
 const EMPTY_REPO_IGNORE = new Set(['.git', '.claude', '.agents', '.DS_Store', 'graphify-out', 'CLAUDE.md', 'AGENTS.md', 'README.md', '.gitignore', '.gitattributes', 'LICENSE', 'docs']);
@@ -213,7 +214,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
     model: plannerModel.model,
     run: (skeleton: BriefSkeleton, resume?: { sessionId: string; message: string }) =>
       engine.runner.run({
-        prompt: resume ? resume.message : buildPlannerPrompt({ ...goal, nature, videoPack: engine.videoPackOf(goal) as Goal['videoPack'] }, skeleton, { overview, attachments: renderAttachments(goal, config.dataDir), decisions, interview: goal.interview, emptyRepo: isEmptyRepo(ws), imageGen: engine.imageGenAvailable(), previous, plannerHint, delegation: goal.delegation.allow, diagram, deck }),
+        prompt: resume ? resume.message : buildPlannerPrompt({ ...goal, nature, videoPack: engine.videoPackOf(goal) as Goal['videoPack'] }, skeleton, { overview, attachments: renderAttachments(goal, config.dataDir), decisions, interview: goal.interview, emptyRepo: isEmptyRepo(ws), imageGen: engine.imageGenAvailable(), previous, plannerHint, delegation: goal.delegation.allow, diagram, deck, serverDeploy: deployServers(engine).length > 0 }),
         cwd: ws,
         model: plannerModel.model,
         meta: metaFor(goal.id, plannerModel),
@@ -849,7 +850,11 @@ Before you carve tasks, check what already exists: a helper, component, service 
 const DELEGATE_SECTION = `# Delegated goals (allowed on this goal)
 A task of kind \`goal\` is not done by one worker session: Foundry makes a goal of its own for it — its own Clarify, plan and tasks, on this goal's branch — and its result lands here as that task's commit, its files under artifacts/ with it, before the tasks that depend on it start. Use it for a step that is itself a project: research that must come first and shape the rest, a craft of its own next to the code (a 3D model, a video, a set of images), or a part so large that one plan for everything would stay shallow. Do not use it for ordinary tasks: a goal task costs a whole Clarify. Its \`spec\` is the prompt that goal gets, so write it the way the human wrote this goal — what to make, for whom, what must and must not happen, and what the other steps expect back from it; its \`scenario\` says what it produces (image, video, cad, research, docs, or a code scenario). Give it \`dependsOnKeys\` on what it needs first, and make the tasks that use its result depend on it. Goal tasks with no dependency between them run in parallel, as many as the goal's parallel limit allows; give each a \`budgetUsd\` share of the whole estimate when you can say, else they share what is left evenly.`;
 
-export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { overview: string | null; attachments: string; decisions: string; interview: Interview | null; emptyRepo: boolean; imageGen: boolean; previous: string; plannerHint: string | null; delegation?: boolean; diagram?: DiagramInfo | null; deck?: DeckInfo | null }): string {
+/** a server in Settings waits for projects (ADR-0091): a goal that makes something that runs gets a task that makes it deployable */
+export const SERVER_DEPLOY_SECTION = `# A server waits for this project (Deploy)
+The person has a server in Settings that Deploy runs projects on, whole, with docker compose. When this goal makes something that runs as a process — a service, an API, a worker, a bot — and the repository has no Dockerfile or compose file for it, include one task that adds a Dockerfile (a small base image, \`EXPOSE\` on the port it listens on, a \`HEALTHCHECK\`) and a \`compose.yaml\` that starts it with what it needs (a database, a queue) and publishes its port, keeping its data in named volumes; that task's checks run \`docker compose config\` and \`docker compose build\`. Never mount the Docker socket, run privileged, use the host's network or bind-mount a path outside the project folder: the deploy refuses those. A repository that already has them needs no such task.`;
+
+export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { overview: string | null; attachments: string; decisions: string; interview: Interview | null; emptyRepo: boolean; imageGen: boolean; previous: string; plannerHint: string | null; delegation?: boolean; diagram?: DiagramInfo | null; deck?: DeckInfo | null; serverDeploy?: boolean }): string {
   const { planningNotes, ...brief } = skeleton;
   const answers = c.interview ? interviewAnswers(c.interview) : [];
   return [
@@ -861,6 +866,7 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
     renderReferences(goal),
     plannerNatureSection({ ...goal, nature: skeleton.nature ?? goal.nature }, c.emptyRepo, c.diagram ?? null, c.deck ?? null),
     c.delegation ? DELEGATE_SECTION : '',
+    c.serverDeploy && (skeleton.nature ?? goal.nature) === 'code' ? SERVER_DEPLOY_SECTION : '',
     c.attachments,
     c.overview ? `# Repository overview\n${c.overview}` : '',
     renderCompanions(goal),

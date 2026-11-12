@@ -175,7 +175,13 @@ CAD goal 的预览卡片上还会显示 **CAD Viewer**，也就是 text-to-cad �
 ![Deploy 卡片：找到的应用、几个托管平台、要执行的确切命令，以及一个已上线的预览和它的冒烟测试](images/deploy.png)
 
 - **会部署的**：一个装着网页的文件夹、用常见工具构建的网站或单页应用（Vite、Astro、Gatsby、Docusaurus、Eleventy、Create React App、Angular），或者托管平台能运行的全栈网页框架（Next.js、Nuxt、SvelteKit、带适配器的 Astro、Remix、React Router、SolidStart）。卡片会写明它找到的是哪一种、在 monorepo 的哪个文件夹里。
-- **不会部署的**：Docker 或 Procfile 里的 worker、和页面分开部署的后端（独立文件夹里的 API、Go 或 Python 服务）、自带服务器的应用，或者有好几个网页应用的仓库。卡片会写明它找到了什么。只上线半个系统等于上线一个坏掉的系统，所以这时什么都不部署。
+- **托管平台不会部署的**：Docker 或 Procfile 里的 worker、和页面分开部署的后端（独立文件夹里的 API、Go 或 Python 服务）、自带服务器的应用，或者有好几个网页应用的仓库。卡片会写明它找到了什么。只上线半个系统等于上线一个坏掉的系统，所以托管平台拿不到它的任何一部分——你自己的服务器可以整个运行它（见下）。
+- **你自己的服务器**：一台你能用 SSH 登录的机器，在 [Settings → Git & delivery](./settings.zh.md#git--delivery) 的 **Servers** 里登记。它接收整个项目，按项目的 compose 文件运行（`compose.yaml` 或 `docker-compose.yml`：每一个服务，数据库和 worker 都包括），或者只有一个带 `EXPOSE` 行的 `Dockerfile`，Foundry 会在自己的检出里把它包成一个单服务的 compose 文件。卡片会写明它找到了什么（文件、服务、端口），运行不了的会用文字说明原因：既没有 compose 文件也没有 Dockerfile，或者 Dockerfile 没有端口。在托管平台旁边按名字选服务器；一个仓库可以既是托管平台的网页应用，也是服务器上的项目。
+- **就绪检查**：第一次选中某台服务器时，卡片会试一试它——Settings 里有 SSH key、服务器用这个 key 应答、那个用户在服务器上能跑 `docker compose`、部署文件夹能写且项目文件夹是新的或 Foundry 自己的、项目要发布的端口没被占——并逐项列出结果。没过的项会说明去哪里改：某个 Settings 区块、要你自己在服务器上跑的命令（把 key 的公钥加进那个用户的 `authorized_keys`、`usermod -aG docker`，每条都写明它会改什么），或者 Docker 的安装页面；Foundry 不会在你的服务器上安装或配置任何东西。另外两项只告知、不拦截：80 和 443 上前面有什么在听（nginx、Caddy，或者什么都没有——那样访客只能通过项目自己的端口访问），以及服务器填了 **Public address** 时，从这里能不能打开它——是否经过 Cloudflare、证书浏览器认不认、域名解析不解析、还是暂时没有东西应答。一台没有反向代理也没有证书的新服务器照样能部署；检查会告诉你想要域名加 https 该设置什么（Caddy 自己申请证书、nginx 加 certbot，或者前面挂 Cloudflare）。**Deploy** 要等每一项拦截项都通过；**Check again** 再试一次。不会定时检查。
+- **Foundry 在你服务器上做什么、绝不做什么**：它只写 `<部署文件夹>/<项目名>`，第一次会给这个文件夹打上自己的标记，已经放着别的东西的文件夹绝不覆盖（部署会停下来并说明）。它只启动、替换、移除这个 compose 项目自己的容器：绝不删除服务器上的文件，绝不碰其他容器、其他项目或系统配置，也不安装任何东西。确认框会写明这次部署会启动什么、发布哪些端口、哪些 named volume 保存数据，以及什么不会被动到。
+- **compose 文件会先过审**：它可能是编码会话写的，里面一个服务就能碰到整台服务器。执行之前卡片会先读它，拒绝并点名服务和原因：特权容器、宿主机网络或 pid 空间、额外 capabilities、关掉的安全配置、设备、Docker socket，或者挂载项目文件夹以外的路径。改掉文件，或者在 Settings 里给那台服务器勾上 **Allow a compose file that reaches outside its project**（当你确实需要时）：那样它会在确认框列出它碰到的东西之后运行，活动记录里也会写明。
+- **服务器部署怎么进行**：这个 goal 的提交通过同一条 SSH 连接以 tar 流的形式送进服务器上的 `<部署文件夹>/<项目名>`（不带 `.git` 和安装的依赖；已有的文件会被覆盖，但不会删除，所以代码旁边的数据文件夹会留着），然后在那里以项目名运行 `docker compose up -d --build`。**服务器部署永远是正式部署**，每次都要确认：没有第二个地址可以放预览。地址是你在 Settings 里填的 **Public address**（前面有域名时），否则是 `http://<host>:<compose 文件发布的第一个端口>`；不发布端口的项目会运行起来但没有可打开的地址，卡片会说明。SSH key 只在命令运行期间以文件形式存在，命令记录里用 `<key file>` 代替它。
+- **任何语言的项目**：服务器运行的是 Dockerfile 或 compose 文件构建出来的东西——Go、Python、PHP、Rust、Java、Ruby、Node 都一样。没有这两样的仓库不会靠模板硬凑：卡片会提供 **Add a Dockerfile and a compose file with a follow-up goal**，一个已经替你写好提示词的 goal（带 `EXPOSE` 和 `HEALTHCHECK` 的 Dockerfile、带它所需服务的 `compose.yaml`、数据放 named volume、以 `docker compose config` 和 `build` 为检查），由编码会话按这个技术栈来写，并像任何 goal 的工作一样经过审查。Settings 里有服务器时，planner 会自动给"做出会运行的东西"的代码 goal 加上这个任务。
 - **托管平台**：Vercel 自己构建源码。Netlify 的工具在这台电脑上用 Netlify 自己的构建流程构建。Cloudflare Pages 拿到的是在这里构建好的文件，所以只接受静态网站：服务端渲染的应用请部署到 Vercel 或 Netlify。
 - **执行之前**，卡片会列出确切的命令。它们在 Foundry 数据文件夹里这个 goal 提交的一份检出中执行，从不在你的文件夹里执行，也不会往你的仓库推送任何东西。每个托管平台为每个仓库建一个项目，以文件夹名命名，所以之后的部署都去同一个地方。
 - **预览还是正式**：预览会有一个自己的地址。**Production** 会先请你确认，因为它会替换这个项目正式地址上现在的内容。托管平台对一个新项目的第一次部署就是正式部署：即使你选的是预览，Vercel 也会把它放进正式环境，所以卡片会把它列为 production，为预览勾选的冒烟测试也不会在它上面跑。
@@ -183,7 +189,7 @@ CAD goal 的预览卡片上还会显示 **CAD Viewer**，也就是 text-to-cad �
 - **部署给项目加的东西**：托管平台的工具可能会改仓库（Vercel 会把自己的文件夹加进 `.gitignore`）。如果这个 goal 交付到了 GitHub，这些改动也会一起过去：goal 的 PR 还开着时提交到 goal 的分支，否则开一个单独的小 PR，goal 的交付会合并的话它也会被合并。不该提交的永远不会提交：平台自己的文件夹（`.vercel`、`.netlify`、`.wrangler`，里面是站点链接和它们构建的产物）改为加进 `.gitignore`，安装的依赖、构建产物、以及 Foundry 安装时动到的 package 文件都不会进去。Local only 的 goal 什么都不提交；活动记录里会写明提交了什么、提交到了哪里。
 - **之后的冒烟测试（smoke）**：预览地址上线后，Foundry 会用这个 goal 的里程碑脚本去跑这个地址——就是记录每个功能时用的那些 Playwright 脚本，只是不再自己启动服务器——并把结果留在这次部署下面：通过还是失败、每个脚本的视频和截图、运行日志。脚本失败时会像交付失败一样通知你，由你来查：线上不一样的多半是托管平台的环境（某个变量、数据库，或缺的服务）。改好之后点 **Smoke again** 再试一次。如果地址前面挡着托管平台的登录页，就不会去试，因为脚本只能看到登录页：Vercel 默认保护预览地址（项目的 **Settings → Deployment Protection**），Netlify 团队也可以只让成员访问（**Visitor access**）。冒烟测试会说明是哪个设置要求登录。正式（production）部署默认不做冒烟测试，除非你勾上 **Try the milestone scripts against it afterwards**：脚本会真的写入它试的东西（一笔订单、一个账号），那会进到正式环境的数据里。没有里程碑脚本的 goal 不会做。
 
-每个托管平台都需要在 **Settings → Git & delivery → Deploy** 里填上它的 token：见 [Git & delivery](./settings.zh.md#git--delivery)。这些 token 只由引擎保管，任何编码会话都拿不到。编码会话也不能自己去部署：边界守卫会拦下托管平台的部署命令，不管它怎么写。
+每个托管平台都需要它的 token，每台服务器都需要它的 key，都填在 **Settings → Git & delivery** 里：见 [Git & delivery](./settings.zh.md#git--delivery)。这些只由引擎保管，任何编码会话都拿不到。编码会话也不能自己去部署：边界守卫会拦下托管平台的部署命令、通过 `ssh` 执行的 `docker compose up`，以及商店和平台的部署命令（EAS、fastlane、Fly、Railway、Render），不管它怎么写。
 
 ## 完成后的附加项
 
