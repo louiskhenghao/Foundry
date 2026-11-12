@@ -552,7 +552,11 @@ describe('deploying to a platform (ADR-0093)', () => {
   test('Render: through its API — the service made once from the repository’s pushed branch, the variables, the deploy watched to live, the address; a Local only goal and an unpushed commit are refused in words', async () => {
     const { engine, goal, fakes } = await paasGoal({ Dockerfile: 'FROM nginx\nEXPOSE 80\n' });
     const calls: string[] = [];
+    let sha = '';
     let status = 'build_in_progress';
+    // the real API (the live run): a new service starts its first deploy and names it; a second deploy asked while one runs is answered 202 with no body
+    let queued = false;
+    let created = false;
     engine.paasPollMs = 5;
     engine.paasFetch = async (url, init) => {
       const path = url.replace('https://api.render.com/v1', '');
@@ -560,14 +564,21 @@ describe('deploying to a platform (ADR-0093)', () => {
       expect((init.headers as Record<string, string>).authorization).toBe('Bearer rnd_SECRET_KEY_1');
       const json = (data: unknown, s = 200) => new Response(JSON.stringify(data), { status: s, headers: { 'content-type': 'application/json' } });
       if (path.startsWith('/owners')) return json([{ owner: { id: 'tea-1', name: 'Acme' } }]);
-      if (path.startsWith('/services?')) return json(calls.some((c) => c.startsWith('POST /services ')) ? [{ service: { id: 'srv-1', name: `${deployName(goal)}-preview` } }] : []);
-      if (path === '/services' && init.method === 'POST') return json({ service: { id: 'srv-1', name: `${deployName(goal)}-preview` } }, 201);
+      if (path.startsWith('/services?')) return json(created ? [{ service: { id: 'srv-1', name: `${deployName(goal)}-preview` } }] : []);
+      if (path === '/services' && init.method === 'POST') {
+        created = true;
+        return json({ deployId: 'dep-1', service: { id: 'srv-1', name: `${deployName(goal)}-preview` } }, 201);
+      }
       if (path === '/services/srv-1/env-vars') return json([]);
-      if (path === '/services/srv-1/deploys' && init.method === 'POST') return json({ id: 'dep-1', status: 'created' }, 201);
-      if (path === '/services/srv-1/deploys/dep-1') {
+      if (path === '/services/srv-1/deploys' && init.method === 'POST') {
+        queued = true;
+        return new Response('', { status: 202 });
+      }
+      if (path === '/services/srv-1/deploys?limit=5') return json([{ deploy: { id: 'dep-old', commit: { id: 'ffff' } } }, { deploy: { id: 'dep-2', commit: { id: sha } } }]);
+      if (path === '/services/srv-1/deploys/dep-1' || path === '/services/srv-1/deploys/dep-2') {
         const s = status;
         status = 'live';
-        return json({ id: 'dep-1', status: s });
+        return json({ id: path.split('/').at(-1), status: s, commit: { id: path.endsWith('dep-1') && queued ? 'eeee' : sha } });
       }
       if (path === '/services/srv-1') return json({ id: 'srv-1', serviceDetails: { url: 'https://x-preview.onrender.com' } });
       return json({ message: `unexpected ${path}` }, 404);
@@ -584,7 +595,7 @@ describe('deploying to a platform (ADR-0093)', () => {
     expect(last(engine, goal.id)!.reason).toContain('does not have this commit yet');
     // pushed (the remote-tracking ref stands in for the push): the service is made from that branch, the commit deployed and watched
     const g = getGoal(engine.store.db, goal.id)!;
-    const sha = (await sh(`git rev-parse ${g.branch}`, repo)).trim();
+    sha = (await sh(`git rev-parse ${g.branch}`, repo)).trim();
     await sh(`git update-ref refs/remotes/origin/${g.branch} ${sha}`, repo);
     engine.setDeployEnv(goal.id, 'render', { API_KEY: 'api-key-value-0123' }, 0);
     const ready = await engine.deployReadiness(goal.id, 'render', null);
@@ -595,13 +606,21 @@ describe('deploying to a platform (ADR-0093)', () => {
     expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://x-preview.onrender.com' });
     const made = calls.find((c) => c.startsWith('POST /services '))!;
     expect(JSON.parse(made.slice('POST /services '.length))).toMatchObject({ type: 'web_service', name: `${deployName(goal)}-preview`, ownerId: 'tea-1', repo: 'https://github.com/o/r', branch: g.branch, autoDeploy: 'no', envVars: [{ key: 'API_KEY', value: 'api-key-value-0123' }], serviceDetails: { env: 'docker', region: 'oregon', plan: 'free' } });
-    expect(calls.filter((c) => !c.startsWith('GET /owners') && !c.startsWith('GET /services?'))).toEqual([made, `POST /services/srv-1/deploys {"commitId":"${sha}"}`, 'GET /services/srv-1/deploys/dep-1', 'GET /services/srv-1/deploys/dep-1', 'GET /services/srv-1']);
+    // the new service's own first deploy is this commit: watched, no second deploy asked for
+    expect(calls.filter((c) => !c.startsWith('GET /owners') && !c.startsWith('GET /services?'))).toEqual([made, 'GET /services/srv-1/deploys/dep-1', 'GET /services/srv-1/deploys/dep-1', 'GET /services/srv-1']);
+    // a deploy to the service that exists now: asked for, answered 202 with no body, found in the list by its commit
+    status = 'build_in_progress';
+    calls.length = 0;
+    engine.deploy(goal.id, { provider: 'render', production: false, smoke: false });
+    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 4 && last(engine, goal.id)?.status !== 'running');
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://x-preview.onrender.com' });
+    expect(calls.filter((c) => !c.startsWith('GET /owners') && !c.startsWith('GET /services?'))).toEqual(['PUT /services/srv-1/env-vars [{"key":"API_KEY","value":"api-key-value-0123"}]', `POST /services/srv-1/deploys {"commitId":"${sha}"}`, 'GET /services/srv-1/deploys?limit=5', 'GET /services/srv-1/deploys/dep-2', 'GET /services/srv-1/deploys/dep-2', 'GET /services/srv-1']);
     const recorded = JSON.stringify(engine.store.listByGoal(goal.id, 5000));
     expect(recorded).not.toContain('SECRET');
     expect(recorded).not.toContain('api-key-value');
     // production deploys from the base branch on GitHub, which must hold the commit
     engine.deploy(goal.id, { provider: 'render', production: true, smoke: false });
-    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 4 && last(engine, goal.id)?.status !== 'running');
+    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 5 && last(engine, goal.id)?.status !== 'running');
     expect(last(engine, goal.id)!.reason).toContain(`production from ${g.baseBranch} on GitHub`);
     rmSync(fakes, { recursive: true, force: true });
   }, 60_000);

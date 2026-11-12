@@ -403,9 +403,12 @@ async function renderDeploy(engine: Engine, goal: Goal, ref: string, production:
   const svcName = paasTarget('render', name, production).service;
   const list = await call(`find the service ${svcName}`, { method: 'GET', path: `/services?name=${encodeURIComponent(svcName)}&limit=20` });
   let service = (Array.isArray(list.data) ? (list.data as { service?: { id: string; name: string } }[]).map((x) => x.service).find((x) => x?.name === svcName) : undefined) ?? null;
+  // a new service starts its first deploy by itself (the branch's head, which is this commit when it was just pushed): watched instead of a second one
+  let deployId: string | null = null;
   if (!service) {
     const made = await call(`make the service ${svcName} from ${repo} (${branch}), once`, { method: 'POST', path: '/services', body: renderServiceBody({ name: svcName, ownerId: owner, repo, branch, rootDir: app.dir, app, region: c.renderRegion, plan: c.renderPlan, vars }) });
     service = (made.data as { service?: { id: string; name: string } } | null)?.service ?? null;
+    deployId = (made.data as { deployId?: string } | null)?.deployId ?? null;
     if (made.status >= 300 || !service) {
       const msg = typeof made.data === 'object' && made.data && 'message' in made.data ? String((made.data as { message: unknown }).message) : String(made.data).slice(0, 300);
       fail(/not access repo|repository|permission/i.test(msg) ? `Render cannot reach ${repo}: connect Render's GitHub app to the repository first (github.com/apps/render/installations/new), then deploy again (${msg})` : `Render refused to make the service (HTTP ${made.status}): ${msg}`);
@@ -418,18 +421,38 @@ async function renderDeploy(engine: Engine, goal: Goal, ref: string, production:
       return null;
     }
   }
-  const dep = await call(`deploy ${ref.slice(0, 7)} on ${svcName}`, { method: 'POST', path: `/services/${service.id}/deploys`, body: { commitId: ref } });
-  const deployId = (dep.data as { id?: string } | null)?.id;
-  if (dep.status >= 300 || !deployId) {
-    fail(`Render refused the deploy (HTTP ${dep.status}): ${String(typeof dep.data === 'object' && dep.data && 'message' in dep.data ? (dep.data as { message: unknown }).message : dep.data).slice(0, 300)}`);
-    return null;
+  type RenderDeploy = { id?: string; status?: string; commit?: { id?: string } };
+  // the first deploy of a new service: used when it builds this commit, else a deploy of the commit is asked for
+  if (deployId) {
+    const d = await call('the service’s first deploy', { method: 'GET', path: `/services/${service.id}/deploys/${deployId}` });
+    const commit = (d.data as RenderDeploy | null)?.commit?.id;
+    if (commit && commit !== ref) deployId = null;
+  }
+  if (!deployId) {
+    const dep = await call(`deploy ${ref.slice(0, 7)} on ${svcName}`, { method: 'POST', path: `/services/${service.id}/deploys`, body: { commitId: ref } });
+    if (dep.status >= 300) {
+      fail(`Render refused the deploy (HTTP ${dep.status}): ${String(typeof dep.data === 'object' && dep.data && 'message' in dep.data ? (dep.data as { message: unknown }).message : dep.data).slice(0, 300)}`);
+      return null;
+    }
+    deployId = (dep.data as RenderDeploy | null)?.id ?? null;
+    // Render answers 202 with no body when the deploy waits behind another: it is found in the service's list
+    for (let i = 0; i < 12 && !deployId; i++) {
+      await new Promise((r) => setTimeout(r, engine.paasPollMs));
+      const l = await call('find the queued deploy', { method: 'GET', path: `/services/${service.id}/deploys?limit=5` });
+      const deploys = Array.isArray(l.data) ? (l.data as { deploy?: RenderDeploy }[]).map((x) => x.deploy) : [];
+      deployId = deploys.find((x) => x?.commit?.id === ref)?.id ?? null;
+    }
+    if (!deployId) {
+      fail('Render accepted the deploy but never listed it: see the service in the dashboard');
+      return null;
+    }
   }
   const until = Date.now() + STEP_TIMEOUT_MS;
   let status = 'created';
   while (Date.now() < until) {
     await new Promise((r) => setTimeout(r, engine.paasPollMs));
     const d = await call('watch the deploy', { method: 'GET', path: `/services/${service.id}/deploys/${deployId}` });
-    status = String((d.data as { status?: string } | null)?.status ?? status);
+    status = String((d.data as RenderDeploy | null)?.status ?? status);
     if (RENDER_DONE.has(status)) break;
   }
   if (status !== 'live') {
