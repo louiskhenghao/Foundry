@@ -37,6 +37,7 @@
 | **Second opinion on every Brief** | 关 | goal 的 Brief 准备好等你批准时，一个没写过它的审阅者对着仓库读一遍并提出修改建议，用 goal reviewer 的模型；在 Brief 页面上以清单形式出现，你决定采不采纳。关掉：Brief 页面上仍有这个按钮。见 [Second opinion](./approving-the-brief.zh.md#second-opinion)。 |
 | **Share Learnings with your own sessions** | 开 | 把每个文件夹的 Learnings 写进仓库，作为一个项目技能（`foundry-learnings`，不进 git），你自己在那里开的编码智能体会话会读到；Learnings 一变就重写。关掉：删除这个文件。 |
 | **Audit at the end of new goals** | off | 新 goal 在最终审查前对完成的分支运行 `ponytail-audit`；goal 改过的代码里的 must fix 发现会变成修复任务。批准 Brief 时按 goal 选择。 |
+| **Compare the screens with the attached design** | on | 跟随你附上的设计稿的 goal，其前端任务在 review 前会从自己的 worktree 启动并在 1440 和 390 像素宽度各拍一张；task reviewer 和 goal reviewer 拿着设计稿对照（缺了或被重新设计的元素算 blocker，小偏差算备注）。关掉后只看 diff 和文件。需要 Playwright 的 Chromium。见[带上你自己的设计稿](./bringing-your-own-design.zh.md)。 |
 | **Browser QA at the end of new goals** | off | 有网页应用的新 goal：每个任务都完成之后，一个会话在 Chromium 里打开做好的应用，用 Playwright 逐条尝试验收检查；没通过的 must 检查会在最终审查前变成修复任务。批准 Brief 时按 goal 选择；需要 Playwright 的 Chromium。 |
 | **Goal-level fix cycles** | 1 | 最终审查在问你之前，最多可以派几轮修复任务。只用于 thorough 节奏。 |
 | **Small goal (diff lines)** | 400 | 改动行数不超过这个数的 goal，最终审查更轻、更便宜。0 = 从不。 |

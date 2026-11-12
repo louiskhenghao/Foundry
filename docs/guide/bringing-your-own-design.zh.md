@@ -24,10 +24,12 @@ Clarifier 会打开每个设计文件，把它的清单（每个页面、页面�
 
 每个做页面的工人都会在任务之后、任何风格方向之前看到设计参考，并附带规则：风格方向或设计技能与设计稿有出入时，设计稿说了算。goal 的设计技能（见[设置说明](./settings.zh.md#skills)）仍然在，用来补设计稿没定的部分：没画出来的状态、页面在手机上的表现、无障碍、动效。它用你设计稿的语言去补这些空缺，从不重新选方向。
 
+审稿人也会对照。页面任务进 review 之前，Foundry 会从它自己的 worktree 启动这个任务的应用，在 1440 和 390 像素宽度各拍一张，连同你的设计文件一起交给 task reviewer；goal reviewer 拿到的是合并后结果的同样两张。两边规则一样：设计稿画了而成品缺了或被重新设计的区块、元素、状态算 blocker，几个像素、一个色阶的偏差算备注。Foundry 还会按文件内容检查你的设计文件有没有被提交进项目（移植可以，原样拷贝不行）。Settings → New goal defaults 里的 **Compare the screens with the attached design** 可以关掉拍照；关掉后审稿人只看代码，并会说明这一点。
+
 ## 每个 goal 自己的设计技能
 
 一个 goal 的 UI 任务遵循哪套设计技能，来自 Settings → Skills → **Design skills**。代码 goal 可以在 New goal 表单上、goal 类型下面另选一套：**Design skills** 列出各个包，Settings 的包排在前面，没为你的编码 agent 安装的会标出来。命令行里 `foundry goal new … --design-pack bencium` 效果一样。附了设计稿之后，不管选哪个包，它都只补设计稿没定的部分。
 
 ## 结果仍有出入时
 
-把结果和你的设计稿逐页对照。有出入的地方，用 **Adjust the result**（beta，Settings → Beta）说明是哪个页面、该对上哪个设计文件；或者用一条 Decision 来 **Revise** Brief。两者都会把你的话带给会话，设计参考也一直留在 goal 上供它们读。
+把结果和你的设计稿逐页对照。有出入的地方，用 **Adjust the result**（beta，Settings → Beta）说明是哪个页面、该对上哪个设计文件；或者用一条 Decision 来 **Revise** Brief。两者都会把你的话带给会话，设计参考也一直留在 goal 上供它们读：调整会用设计稿的语言来做，并像第一次构建那样和它对照。
