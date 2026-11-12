@@ -116,7 +116,7 @@ import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf,
 import { Memory, memorySessionEnv, type MemoryDeps } from './memory/memory.ts';
 import { Conversations } from './conversation/conversations.ts';
 import { DEPLOYABLE_STATES, type DeployRequest, checkStoreDeploys, defaultCli, deployCredentials, deployName, deployReadiness, deployServers, deployWork, deploying, goalDeployability, goalPaasDeployability, goalServerDeployability, goalStoreDeployability, paasCredentials, smokeAgain, smoking, startDeploy, storeCredentials, unsupported } from './deploy/deploy.ts';
-import { FOUNDRY_PROFILE, STORE_LABEL, STORE_PLATFORM, STORE_PROVIDERS } from './deploy/eas.ts';
+import { FOUNDRY_PROFILE, STORE_LABEL, STORE_PLATFORM, STORE_PROVIDERS, needsInstall } from './deploy/eas.ts';
 import { PAAS_LABEL, PAAS_PROVIDERS, RENDER_API, paasConfigured, paasSteps, paasTarget } from './deploy/paas.ts';
 import { pm2Steps, serverSteps } from './deploy/server.ts';
 import { listRecipes, recipeRuns, recipeWork, startRecipe } from './deploy/recipes.ts';
@@ -3383,7 +3383,7 @@ export class Engine {
       const platform = STORE_PLATFORM[p];
       const profile = production ? FOUNDRY_PROFILE.production : FOUNDRY_PROFILE.preview;
       return [
-        ...(d.app.dynamic ? [{ label: 'install the packages (the app config is dynamic)', command: d.app.install.join(' ') }] : []),
+        ...(needsInstall(d.app) ? [{ label: d.app.dynamic ? 'install the packages (the app config is dynamic)' : 'install the packages (no lockfile: EAS wants one)', command: d.app.install.join(' ') }] : []),
         { label: `start the ${platform === 'ios' ? 'iOS' : 'Android'} build on EAS, then watch it`, command: `${eas} build --platform ${platform} --profile ${profile} --non-interactive --no-wait --json · ${eas} build:view <id> --json` },
         ...(p === 'play' && !production ? [] : [{ label: p === 'appstore' ? 'upload the build to App Store Connect (TestFlight)' : 'submit the build to Google Play (production track, released when Google is done)', command: `${eas} submit --platform ${platform} --profile ${FOUNDRY_PROFILE.submit} --id <build id> --non-interactive --wait` }]),
       ];

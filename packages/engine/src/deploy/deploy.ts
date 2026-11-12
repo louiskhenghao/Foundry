@@ -19,7 +19,7 @@ import { goalWorkspacePath } from '../workspace.ts';
 import { type Deployability, deployability } from './detect.ts';
 import { keepDeployFiles } from './keep-files.ts';
 import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, type DeployProvider as HostProvider, configured, deploySteps, deployedUrl, failureHint, isHost, isPaas, isStore, lastWords, plain, projectName, redact, wentToProduction, whereLabel } from './providers.ts';
-import { EAS_BUILD_DONE, EAS_CLI, FOUNDRY_PROFILE, STORE_LABEL, STORE_PLATFORM, type ExpoDeployability, type StoreProvider, easBuildPage, easEnv, easFailureHint, easSubmissionUrl, expoDeployability, parseEasBuild, parseEasSubmission, writeEasProfiles } from './eas.ts';
+import { EAS_BUILD_DONE, EAS_CLI, FOUNDRY_PROFILE, STORE_LABEL, STORE_PLATFORM, type ExpoDeployability, type StoreProvider, easBuildPage, easEnv, easFailureHint, easSubmissionUrl, expoDeployability, needsInstall, parseEasBuild, parseEasSubmission, writeEasProfiles } from './eas.ts';
 import { type AscCredentials, appStoreUrl, ascApp, ascBuild, ascConsoleUrl, ascVersionFor, storeStanding } from './asc.ts';
 import { parseServiceAccount, playAppReachable, playConsoleUrl } from './play.ts';
 import { FLY_CONFIG, PAAS_LABEL, RENDER_API, RENDER_DONE, type PaasApp, type PaasCredentials, type PaasDeployability, type PaasProvider, type RenderCall, flyConfig, paasConfigured, paasDeployability, paasFailureHint, paasSecrets, paasSteps, paasTarget, paasUrl, renderApi, renderRepoUrl, renderServiceBody } from './paas.ts';
@@ -518,9 +518,9 @@ async function runStore(engine: Engine, goal: Goal, dir: string, ref: string, pr
   if (sa && !sa.ok) return fail(sa.reason);
   store.append({ type: 'deploy.started', goalId: goal.id, payload: { provider, target: null, production, ref, framework: `Expo (EAS) — ${platform === 'ios' ? 'iOS' : 'Android'}${app.name ? ` · ${app.name}` : ''}`, dir: app.dir } });
   for (const note of d.notes) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${note}` } });
-  // a dynamic config is read by the CLI with the project's packages: installed in the checkout first
-  if (app.dynamic) {
-    const r = await step(`install the packages (${app.install.join(' ')})`, app.install);
+  // a dynamic config is read by the CLI with the project's packages, and EAS builds only with a lockfile: installed in the checkout first
+  if (needsInstall(app)) {
+    const r = await step(`install the packages (${app.install.join(' ')})${app.lockfile ? '' : ', which makes the lockfile EAS wants'}`, app.install, 30 * 60_000);
     if (r.code !== 0) return failed('the install', r);
   }
   const profile = production ? FOUNDRY_PROFILE.production : FOUNDRY_PROFILE.preview;

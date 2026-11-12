@@ -1201,7 +1201,7 @@ export interface RevertInfo {
 }
 
 /** what a store would build (ADR-0094): the Expo app and the ids the stores want, or why nothing */
-export type ExpoDeployability = { ok: true; app: { dir: string; name: string | null; slug: string | null; projectId: string | null; owner: string | null; bundleId: string | null; package: string | null; version: string | null; configFile: string; dynamic: boolean; install: string[] }; notes: string[] } | { ok: false; reason: string };
+export type ExpoDeployability = { ok: true; app: { dir: string; name: string | null; slug: string | null; projectId: string | null; owner: string | null; bundleId: string | null; package: string | null; version: string | null; configFile: string; dynamic: boolean; install: string[]; lockfile: boolean }; notes: string[] } | { ok: false; reason: string };
 /** what a platform would run (ADR-0093): the Dockerfile, or the stack it builds itself, or why nothing */
 export type PaasDeployability = { ok: true; app: { dir: string; runtime: 'docker' | 'node' | 'python' | 'go' | 'ruby' | 'rust' | 'elixir'; port: number | null; build: string | null; start: string | null; from: string }; notes: string[] } | { ok: false; reason: string };
 export interface DeployInfo {

@@ -32,8 +32,10 @@ export interface ExpoApp {
   /** app.json, or a dynamic app.config.* (read at build time, so the facts above may be missing here) */
   configFile: string;
   dynamic: boolean;
-  /** how the project installs, for a dynamic config that needs its packages to be read */
+  /** how the project installs, for a dynamic config that needs its packages to be read, or a project without a lockfile */
   install: string[];
+  /** a lockfile is in the project; EAS refuses to build without one, so Foundry installs in its checkout first to make one */
+  lockfile: boolean;
 }
 export type ExpoDeployability = { ok: true; app: ExpoApp; notes: string[] } | { ok: false; reason: string };
 
@@ -44,6 +46,7 @@ const readJson = (p: string): Record<string, unknown> | null => {
     return null;
   }
 };
+const LOCKFILES = ['bun.lock', 'bun.lockb', 'pnpm-lock.yaml', 'yarn.lock', 'package-lock.json'];
 const installCommand = (root: string): string[] => (existsSync(join(root, 'bun.lock')) || existsSync(join(root, 'bun.lockb')) ? ['bun', 'install', '--frozen-lockfile'] : existsSync(join(root, 'pnpm-lock.yaml')) ? ['pnpm', 'install', '--frozen-lockfile'] : existsSync(join(root, 'yarn.lock')) ? ['yarn', 'install'] : existsSync(join(root, 'package-lock.json')) ? ['npm', 'ci'] : ['npm', 'install']);
 
 /**
@@ -82,9 +85,11 @@ export function expoDeployability(root: string, provider: StoreProvider, dir = '
     configFile: dynamic ?? 'app.json',
     dynamic: !!dynamic && !expo,
     install: installCommand(at),
+    lockfile: LOCKFILES.some((f) => existsSync(join(at, f))),
   };
   const notes: string[] = [];
   if (app.dynamic) notes.push(`The app’s config is ${dynamic}, read when the build starts: the packages are installed in the checkout first, and the bundle id and package name are what it says then.`);
+  if (!app.lockfile) notes.push('The project has no lockfile, and EAS builds only with one: the packages are installed in the checkout first to make it. Commit a lockfile to keep the builds the same every time.');
   if (!app.dynamic && provider === 'appstore' && !app.bundleId) return { ok: false, reason: 'app.json names no ios.bundleIdentifier: the App Store needs one (com.yourcompany.app), set once' };
   if (!app.dynamic && provider === 'play' && !app.package) return { ok: false, reason: 'app.json names no android.package: Google Play needs one (com.yourcompany.app), set once' };
   return { ok: true, app, notes };
@@ -96,6 +101,9 @@ export interface EasProfilesInput {
   /** Google Play: the service account's key as a file, for the Android production submit */
   play?: { keyPath: string } | null;
 }
+/** whether the checkout's packages must be installed before EAS reads the project: a dynamic config, or no lockfile */
+export const needsInstall = (app: ExpoApp) => app.dynamic || !app.lockfile;
+
 /**
  * Foundry's profiles, merged into the checkout's eas.json (the project's own profiles kept, Foundry's built on them):
  * `foundry-preview` — an internal-distribution APK for Android, a store build for iOS (TestFlight takes those alone);
@@ -155,8 +163,10 @@ export function parseEasBuild(stdout: string): EasBuild | null {
   const b = (Array.isArray(json) ? json[0] : json) as Record<string, unknown> | undefined;
   if (!b || typeof b.id !== 'string') return null;
   const artifacts = (b.artifacts as Record<string, unknown>) ?? {};
-  const project = (b.project as Record<string, unknown>) ?? {};
+  // the CLI names the project under `app` (its id, slug and the account that owns it); older outputs said `project`
+  const project = ((b.app ?? b.project) as Record<string, unknown>) ?? {};
   const owner = (project.ownerAccount as Record<string, unknown>) ?? {};
+  const actor = (b.initiatingActor as Record<string, unknown>) ?? {};
   const error = (b.error as Record<string, unknown>) ?? null;
   return {
     id: b.id,
@@ -165,7 +175,7 @@ export function parseEasBuild(stdout: string): EasBuild | null {
     appVersion: str(b.appVersion),
     appBuildVersion: str(b.appBuildVersion),
     artifacts: { buildUrl: str(artifacts.buildUrl), applicationArchiveUrl: str(artifacts.applicationArchiveUrl) },
-    project: { slug: str(project.slug), account: str(owner.name) },
+    project: { slug: str(project.slug), account: str(owner.name) ?? str(actor.displayName) },
     error: error ? (str(error.message) ?? str(error.errorCode)) : null,
   };
 }

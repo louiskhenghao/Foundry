@@ -621,7 +621,7 @@ function fakeEas(dir: string): string {
 cli="$1"; shift
 printf '%s|%s|token=%s novcs=%s|%s\\n' "$cli" "$*" "\${EXPO_TOKEN:+set}" "$EAS_NO_VCS" "$(pwd)" >> "${join(dir, 'eas.log')}"
 plat=android; case "$*" in *"--platform ios"*) plat=ios ;; esac
-build='"id":"b-1","platform":"'$plat'","appVersion":"1.2.0","appBuildVersion":"7","artifacts":{"buildUrl":"https://expo.dev/artifacts/eas/app.apk","applicationArchiveUrl":"https://expo.dev/artifacts/eas/app.apk"},"project":{"slug":"shop","ownerAccount":{"name":"acme"}}'
+build='"id":"b-1","platform":"'$plat'","appVersion":"1.2.0","appBuildVersion":"7","artifacts":{"buildUrl":"https://expo.dev/artifacts/eas/app.apk","applicationArchiveUrl":"https://expo.dev/artifacts/eas/app.apk"},"initiatingActor":{"displayName":"acme"},"app":{"id":"p-1","name":"Shop","slug":"shop","ownerAccount":{"id":"a-1","name":"acme"}}'
 case "$*" in
   whoami) echo "acme" ;;
   "build:list"*) echo '[]' ;;
