@@ -78,6 +78,8 @@ export const WorkflowSettings = z.object({
   audit: z.boolean().default(false),
   /** new goals with a web app test it in a browser once every task is done, before the goal review (chosen per goal at Brief approval, ADR-0057) */
   qa: z.boolean().default(false),
+  /** a frontend task of a goal that follows an attached design is photographed before its review and the reviewers compare the screens with the design (ADR-0094) */
+  designCheck: z.boolean().default(true),
   /** once a Brief fills in, a reviewer that did not write it proposes what to change — a second opinion (ADR-0051) */
   briefSecondOpinion: z.boolean().default(false),
   /** which view new goals open in */
@@ -173,7 +175,7 @@ export const DeliverySettings = z.object({
   cloudflareAccountId: z.string().min(1).nullable().default(null),
   /** the person's own servers Deploy can reach over SSH (ADR-0091); the Deploy card offers each by name */
   servers: z.array(DeployServer).default([]),
-  /** a Fly.io token (deploy or org token) for Deploy (ADR-0093); null = Fly.io not set up */
+  /** a Fly.io token (deploy or org token) for Deploy (ADR-0095); null = Fly.io not set up */
   flyToken: z.string().min(1).nullable().default(null),
   /** the Fly.io organization new apps are made in; null = the token's personal org */
   flyOrg: z.string().min(1).nullable().default(null),
@@ -190,7 +192,7 @@ export const DeliverySettings = z.object({
   /** the Render region and plan new services start on */
   renderRegion: z.string().min(1).default('oregon'),
   renderPlan: z.string().min(1).default('free'),
-  /** an Expo access token for Deploy to the stores through EAS (ADR-0094); null = the stores not set up */
+  /** an Expo access token for Deploy to the stores through EAS (ADR-0096); null = the stores not set up */
   expoToken: z.string().min(1).nullable().default(null),
   /** an App Store Connect API key for the iOS upload and the review watch: its id, its issuer id, and the .p8 file's contents */
   ascKeyId: z.string().min(1).nullable().default(null),

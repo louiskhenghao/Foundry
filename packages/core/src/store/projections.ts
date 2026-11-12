@@ -87,6 +87,11 @@ function project(db: Database, e: EngineEvent): void {
       upsertBrief(db, { ...b.brief, provides: (b.brief.provides ?? []).map((m) => (m.key === p.key ? { ...m, status: p.waived ? ('waived' as const) : ('received' as const), receivedAt: e.ts, attachmentIds: [...m.attachmentIds, ...(p.attachmentIds ?? []).filter((id) => !m.attachmentIds.includes(id))], note: p.note ?? m.note } : m)) }, b.approved, b.skeleton);
       break;
     }
+    case 'goal.attachment_marked': {
+      const g = getGoal(db, e.goalId!);
+      if (g) upsertGoal(db, { ...g, attachments: g.attachments.map((a) => (a.id === e.payload.attachmentId ? { ...a, design: e.payload.design } : a)) });
+      break;
+    }
     case 'goal.attachment_removed': {
       const g = getGoal(db, e.goalId!);
       if (g) upsertGoal(db, { ...g, attachments: g.attachments.filter((a) => a.id !== e.payload.attachmentId) });
@@ -731,7 +736,7 @@ function project(db: Database, e: EngineEvent): void {
       upsertGoal(db, { ...g, deployments: list, updatedAt: e.ts });
       break;
     }
-    // a store deploy (ADR-0094): handed to the store, then its state as the watch reads it
+    // a store deploy (ADR-0096): handed to the store, then its state as the watch reads it
     case 'deploy.submitted': {
       const g = getGoal(db, e.goalId!);
       if (!g) break;
@@ -831,6 +836,7 @@ function normalizeGoal(g: Goal): Goal {
   g.videoPack ??= null;
   if (g.budgets) g.budgets.attemptTimeoutMin ??= null;
   g.figurePack ??= null;
+  g.designPack ??= null;
   g.adjustments ??= [];
   g.template ??= null;
   g.pausedFrom ??= null;

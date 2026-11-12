@@ -76,7 +76,7 @@ describe('deploys', () => {
     expect(failed.text).toBe('⚠️ Deploy to Cloudflare Pages failed — Add dark mode\nthe build failed');
   });
 
-  test('a store build (ADR-0094): uploaded to TestFlight or submitted to Google Play, an Android APK built, and each move App Store Connect reports', () => {
+  test('a store build (ADR-0096): uploaded to TestFlight or submitted to Google Play, an Android APK built, and each move App Store Connect reports', () => {
     const store = { platform: 'ios' as const, buildId: 'b-1', buildUrl: 'https://expo.dev/accounts/acme/projects/shop/builds/b-1', artifactUrl: null, appVersion: '1.2.0', buildNumber: '7', appId: '1234567890', submissionUrl: null, consoleUrl: 'https://appstoreconnect.apple.com/apps/1234567890/distribution', state: 'uploaded; App Store Connect is processing the build', code: null, checkedAt: null, done: false };
     expect(compose(ev('deploy.submitted', { provider: 'appstore', production: true, store }), title)).toEqual({ family: 'delivery', text: '📦 Uploaded to TestFlight (production build) — Add dark mode\nuploaded; App Store Connect is processing the build\nhttps://appstoreconnect.apple.com/apps/1234567890/distribution', path: '/goals/g1#delivery' });
     expect(compose(ev('deploy.submitted', { provider: 'play', production: true, store: { ...store, platform: 'android', consoleUrl: 'https://play.google.com/console/', state: 'submitted to Google Play’s production track', done: true } }), title)!.text).toStartWith('📦 Submitted to Google Play — Add dark mode\nsubmitted to Google Play’s production track');

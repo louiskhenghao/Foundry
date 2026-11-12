@@ -25,9 +25,9 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
       ['railway', 'paas', false],
       ['render', 'paas', false],
     ]);
-    // the platforms (ADR-0093): what each would run of the project, and a token missing refuses the deploy in words
+    // the platforms (ADR-0095): what each would run of the project, and a token missing refuses the deploy in words
     expect(info.paas).toEqual({ fly: { ok: false, reason: expect.stringContaining('from a Dockerfile') }, railway: { ok: false, reason: expect.stringContaining('no Dockerfile and no known stack') }, render: { ok: false, reason: expect.stringContaining('no Dockerfile and no known stack') } });
-    // the stores (ADR-0094) stay off the card for a project that is no Expo app; the watch has nothing to check
+    // the stores (ADR-0096) stay off the card for a project that is no Expo app; the watch has nothing to check
     expect(info.stores).toEqual({ appstore: { ok: false, reason: expect.stringContaining('no package.json') }, play: { ok: false, reason: expect.stringContaining('no package.json') } });
     expect(await (await app.request(`/api/goals/${goal.id}/deploy/store-check`, { method: 'POST' })).json()).toEqual({ changed: 0, deployments: [] });
     expect((await (await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=appstore`)).json()).items[0]).toMatchObject({ id: 'token', ok: false, label: 'Expo token in Settings' });
@@ -49,7 +49,7 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
     const server = await (await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=server&target=srv1`)).json();
     expect(server.ok).toBe(false);
     expect(server.items.map((i: { id: string; ok: boolean; severity: string }) => [i.id, i.ok, i.severity])).toEqual([['key', false, 'error'], ['reach', false, 'error'], ['docker', false, 'error'], ['folder', false, 'error'], ['front', false, 'warn'], ['env', true, 'warn']]);
-    // the runtime variables of a place (ADR-0093): names only come back, a save needs the revision, other sources add names
+    // the runtime variables of a place (ADR-0095): names only come back, a save needs the revision, other sources add names
     const envUrl = `/api/goals/${goal.id}/deploy/env?place=server:srv1`;
     expect(await (await app.request(envUrl)).json()).toMatchObject({ place: 'server:srv1', rev: 0, keys: [], missing: [], fromPreview: [] });
     const put = (body: unknown) => app.request(envUrl, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });

@@ -10,7 +10,7 @@ import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnin
 import { delegationNeedsHuman, readHomeConfig, writeHomeConfig } from '@foundry/engine';
 import { AdjustError, ConversationError, EditorError, motionFilms } from '@foundry/engine';
 import { SEEK_LISTENER, filmFileType, filmPage } from './film-page.ts';
-import { Attachment, BudgetPreset, DeliveryPolicy, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, VideoPack, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
+import { Attachment, BudgetPreset, DeliveryPolicy, DesignPack, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, VideoPack, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
 import { Hono } from 'hono';
 import { FileRefused, type FileSource, commitTree, fileKind, fileResponse, goalFileSource, goalRoots, landedPath, pathInGoal, resolveServable, servedType, taskFileSource, taskMadeFiles, deliveredFile } from './files.ts';
 import { listGuide, readGuide } from './guide.ts';
@@ -71,6 +71,8 @@ const CreateGoalBody = z.object({
   videoPack: VideoPack.nullable().optional(),
   /** the Figure pack this goal follows when it should differ from Settings' (ADR-0076) */
   figurePack: FigurePack.nullable().optional(),
+  /** the Design pack this goal's UI tasks follow when it should differ from Settings' (ADR-0093) */
+  designPack: DesignPack.nullable().optional(),
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
   milestonePause: z.boolean().optional(),
@@ -437,6 +439,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ ok: true, brief: getBrief(db, goal.id)?.brief ?? null });
   });
   app.post('/api/goals/:id/attachments/:attId/convert', async (c) => c.json({ markdown: await engine.reconvertAttachment(c.req.param('id'), c.req.param('attId')) }));
+  // the person marks an attachment as the design the result follows, or unmarks it (ADR-0093)
+  app.post('/api/goals/:id/attachments/:attId/mark', async (c) => {
+    const { design } = z.object({ design: z.boolean() }).parse(await c.req.json());
+    return c.json({ attachment: engine.markAttachment(c.req.param('id'), c.req.param('attId'), design) });
+  });
   // one-click tool installs (markitdown, catalog cli entries such as graphify), in the background as a Skills operation.
   // A caller that names its own operation (`opId`, the Skills page) follows `skills-op:<id>`; the others (Setup,
   // Settings) keep following the shared `tool-install` channel, which gets the same lines.
@@ -1968,13 +1975,13 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       throw new HttpError(409, { error: String((e as Error).message ?? e) });
     }
   });
-  // ---------- Runtime variables of a deploy (ADR-0093): per repository and place; values never come back to a page ----------
+  // ---------- Runtime variables of a deploy (ADR-0095): per repository and place; values never come back to a page ----------
   const placeOf = (c: { req: { query: (k: string) => string | undefined } }) => {
     const place = c.req.query('place') ?? '';
     if (!/^(vercel|netlify|cloudflare|fly|railway|render|server:[A-Za-z0-9_-]+)$/.test(place)) throw new HttpError(400, { error: 'place: a host, a platform, or server:<id>' });
     return place;
   };
-  // ask App Store Connect now where the goal's submitted builds stand (ADR-0094)
+  // ask App Store Connect now where the goal's submitted builds stand (ADR-0096)
   app.post('/api/goals/:id/deploy/store-check', async (c) => {
     const goal = goalOr404(c);
     const changed = await engine.checkStores(goal.id);

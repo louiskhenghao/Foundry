@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import type { Brief, Goal, GoalNature, Interview, InterviewQuestion, InterviewRound, TaskScenario } from '@foundry/core';
 import { renderCompanions } from './companions.ts';
-import { jsonSchemaFor, BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, getBrief, getGoal, interviewAnswers, interviewDepth, interviewNotes, mergeSubjects, newId, noteQuestion, planOutputSchema, titleFromPrompt, uncoveredAreas, assignMaterials } from '@foundry/core';
+import { jsonSchemaFor, BriefOutput, BriefSkeleton, INTERVIEW_MAX_QUESTIONS, PlanOutput, INTERVIEW_MAX_ROUNDS, IdPrefix, InterviewOutput, designReferences, getBrief, getGoal, interviewAnswers, interviewDepth, interviewNotes, mergeSubjects, newId, noteQuestion, planOutputSchema, titleFromPrompt, uncoveredAreas, unreadableDesignLinks, assignMaterials } from '@foundry/core';
 import { delegationContext } from './delegation.ts';
 import { learningsContext } from './learnings.ts';
 import type { RunHandle, RunResult } from '@foundry/runner';
@@ -678,6 +678,38 @@ const TECH_STACK_SECTION = `This repository has no code yet, so there is nothing
 const SUBJECTS_ASK = `# Subjects: real things the result must look like
 When the result depicts something that exists (a specific vehicle, building, landmark, product or artwork; never a person), name it in \`subjects\` (at most 3), precisely enough to search for pictures of exactly that one (make, model, generation or year), with \`lookFor\`: what must match (the proportions, the distinctive features, colours and materials). Foundry finds pictures of each before the plan runs, and every worker and reviewer compares against them. When the user attached pictures of it, list their file names in \`pictures\`. Leave \`subjects\` empty for invented designs, generic styles and anything that is not a physical thing.`;
 
+/** is the design the result follows attached to the goal (ADR-0093) */
+const designSupplied = (goal: Pick<Goal, 'attachments'>): boolean => designReferences(goal.attachments ?? []).length > 0;
+
+/** the Clarifier's rules when the person attached the design (ADR-0093): it is read, not re-imagined; the Brief binds every page to it */
+const DESIGN_SUPPLIED_CLARIFY = `# The design is supplied
+The person attached the design the result follows (see *Design reference* below). Open every design reference before you write anything: a picture with the Read tool, an HTML export by reading its markup and styles, a zip by its files.
+- Output exactly ONE \`styleOptions\` entry, read from the design: key \`S1\`, name "From your design", its real hex colours (dominant first), its typefaces, 3–6 keywords, one line on its look, with \`chosen: true\`. Never invent other directions: the direction is settled by the design.
+- Take an inventory of the design and put it in \`planningNotes\` under a heading **Design inventory**, page by page: every page or screen it shows and which file shows it, the sections and components on each, the states it shows (filled, empty, hover, error, a phone width…), and the copy. The planner gives each page its task from it.
+- For every page or screen the design shows, add a goal-level must check of type reviewer named "Matches the design: <page>", with the rubric "<file>: the layout and sections as the design shows them, the copy, colours, type, spacing, components and states; a section, element or state the design shows that is missing or re-designed is a blocker; a small drift (a few pixels, an opacity, a shade) is a note, not a failure".
+- Never add a check about the reference files themselves (no \`git ls-files | grep\` for their names, no "not committed" command): Foundry verifies by content that no reference file was committed, and a name pattern would also match the goal's own scripts and pages named after the design.
+- What the work needs that the design does not show (an empty, loading or error state, a phone width, a secondary page) goes into \`assumptions\`, one each, saying how it will be done in the design's own language. The person can change them on the Brief page.
+- Treat the design as the answer to every question about the look; ask only about what it leaves open.
+- A marked file that is plainly not a design of the result (a screenshot of a bug, a photo of a thing, a logo) is a reference, not the design: say so in \`understanding\`, derive no style card from it, add no "Matches the design" check for it, and plan the goal as one without a design.`;
+
+/**
+ * The goal points to a design-tool page behind a sign-in and no design is attached (ADR-0093): the Clarifier is told so
+ * outright, so it neither spends an interview round on it (the Brief itself asks the person for an export) nor invents a
+ * way the workers would read it — a live run offered "Foundry hands the artifact to every task, proceed as is".
+ */
+function unreadableLinkSection(goal: Pick<Goal, 'prompt' | 'attachments'>): string {
+  if (designSupplied(goal)) return '';
+  const links = unreadableDesignLinks(goal);
+  if (!links.length) return '';
+  return `# A design link no session can open
+${links.map(({ url, tool }) => `- ${url} is a ${tool} page.`).join('\n')}
+Such a page needs a sign-in: neither you nor any worker can open it, and no tool, fetch or browser will. The design behind it has NOT been supplied. Do not ask the person about it in an interview round, and do not offer to proceed as though it will be read: the Brief itself asks the person for an export (an HTML file, a zip or screenshots attached as the Design reference) or to go without. Write the Brief as for a goal without a design: say in \`understanding\` that the design was not supplied, propose \`styleOptions\` as usual, and plan the pages from the goal's words.`;
+}
+
+/** the planner's rules when the design is supplied (ADR-0093): a task per page it shows, each naming its file and checked against it */
+const DESIGN_SUPPLIED_PLANNER = `# The design is supplied
+The design reference below is the law for every page it shows. Give every page or screen in the Clarifier's **Design inventory** a task of its own (or a clearly named part of one): the task's spec names the design file it follows and what that page shows, and the task gets a task-level reviewer check named "Matches the design: <page>" whose rubric names the file and what must match (layout and sections, copy, colours, type, spacing, components, states; a missing or re-designed element is a blocker, a small drift a note). A state the design does not show follows the Brief's assumptions. A milestone's text names the design page to compare with. Never plan a check about the reference files themselves: Foundry verifies by content that none was committed. Count the design comparison in the estimate: Foundry photographs each frontend task's result and the merged result at the design's widths before their reviews (about a minute and a dollar per frontend task, and once more for the goal review).`;
+
 /** the Subjects a goal starts with (a main goal's or an earlier goal's, with their pictures): named once, never again */
 function keptSubjectsNote(goal: Goal): string {
   const kept = goal.delegatedFrom?.subjects ?? goal.follows?.subjects ?? [];
@@ -749,7 +781,7 @@ function mediaConventions(kind: 'image' | 'video', ffprobe: boolean): string {
  */
 function plannerNatureSection(goal: Goal, emptyRepo: boolean, diagram: DiagramInfo | null = null, deck: DeckInfo | null = null): string {
   const ffprobe = Bun.which('ffprobe') != null;
-  const scaffold = '# Empty repository\nThere is no code yet. The Brief records the tech stack (as a question or an assumption): make the FIRST task scaffold that stack (package manifest, build and test commands) and make every other task depend on it. Checks may only use commands that exist once it is done.';
+  const scaffold = '# Empty repository\nThere is no code yet. The Brief records the tech stack (as a question or an assumption): make the FIRST task scaffold that stack (package manifest, build and test commands) — rated `difficulty: simple`, since it is template work (`npm create vite`, `cargo new`, a generator run once), not a judgement call — and make every other task depend on it. Checks may only use commands that exist once it is done.';
   const docs = '# Documents\nOne writing task per document or chapter (scenario `docs`). Checks are reviewer rubrics (audience, structure, tone, completeness, factual grounding) or objective file checks; never build/test/lint.';
   const research = '# Research\nInvestigation tasks (scenario `research`) whose output is cited markdown reports committed to the repository. Checks: reviewer rubrics verifying sources are cited and conclusions follow from them, plus checks that the report files exist; never build/test/lint.';
   const media = (kind: 'image' | 'video') => `# Media: ${kind}\nTasks per deliverable batch (scenario \`${kind}\`), following the style direction the Brief recommends. ${mediaConventions(kind, ffprobe)} Never build/test/lint checks.`;
@@ -803,12 +835,14 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
     case 'cad':
       return [cad, subjectsSection(goal)].join('\n\n');
     case 'code':
-      return [emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '', `# Style directions for UI goals\nWhen this goal's main deliverable is a user interface (a landing page, a product UI), also output 2–4 \`styleOptions\` (real hex palette, typefaces, keywords, a one-line feel; recommendation first) so the human can SEE the direction before work starts; one the interview already settled goes first with \`chosen: true\`. Skip them for backend/tooling goals.`, diagrams, subjectsSection(goal)]
+      // the person attached the design (ADR-0093): it is read, not re-imagined — no invented directions to pick from
+      return [emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '', designSupplied(goal) ? DESIGN_SUPPLIED_CLARIFY : `# Style directions for UI goals\nWhen this goal's main deliverable is a user interface (a landing page, a product UI), also output 2–4 \`styleOptions\` (real hex palette, typefaces, keywords, a one-line feel; recommendation first) so the human can SEE the direction before work starts; one the interview already settled goes first with \`chosen: true\`. Skip them for backend/tooling goals.`, diagrams, subjectsSection(goal)]
         .filter(Boolean)
         .join('\n\n');
     case 'auto':
       return [
         `# Judge the nature first\nThe user did not say what kind of goal this is. Decide from the prompt and set \`nature\` accordingly: code (software), docs (prose), research (a cited report), image or video (media files)${cadAvailable ? ', cad (parts, drawings, robot description files)' : ''}${figure ? ', figure (an interactive isometric figure of an object or machine, one HTML page)' : ''}${diagram ? ', diagram (editorial diagrams — an architecture, a flow, a timeline, a chart — as web pages with an SVG each, when the drawings are the deliverable)' : ''}${deck ? ', deck (a slide deck — a presentation, a lecture, a pitch, a document turned into slides — as a native PPTX file)' : ''}. Then follow the matching rules:\n- code${emptyRepo ? `, empty repository: ${TECH_STACK_SECTION}` : ': explore the repo as below.'}\n- docs / research / image / video${cadAvailable ? ' / cad' : ''}${figure ? ' / figure' : ''}${diagram ? ' / diagram' : ''}${deck ? ' / deck' : ''}: apply the corresponding section below and ignore build/test/stack concerns entirely.`,
+        ...(designSupplied(goal) ? [DESIGN_SUPPLIED_CLARIFY] : []),
         docs,
         research,
         media('image'),
@@ -831,6 +865,7 @@ function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: str
     previous,
     goal.references.length ? `${renderReferences(goal)}\nGround the Brief in the report: what the reference does becomes the understanding and the acceptance checks, in the person's words. A goal that only asks to understand the reference, not to change this repository, is of nature research: its deliverable is the report under docs/, and its tasks analyse rather than build. Never plan copying the reference's code or assets.` : '',
     natureSection(goal, emptyRepo, imageGen, cadAvailable, figure, diagram, deck),
+    unreadableLinkSection(goal),
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
     renderCompanions(goal),
@@ -865,6 +900,7 @@ export function buildPlannerPrompt(goal: Goal, skeleton: BriefSkeleton, c: { ove
     c.previous,
     renderReferences(goal),
     plannerNatureSection({ ...goal, nature: skeleton.nature ?? goal.nature }, c.emptyRepo, c.diagram ?? null, c.deck ?? null),
+    designSupplied(goal) ? DESIGN_SUPPLIED_PLANNER : '',
     c.delegation ? DELEGATE_SECTION : '',
     c.serverDeploy && (skeleton.nature ?? goal.nature) === 'code' ? SERVER_DEPLOY_SECTION : '',
     c.attachments,
@@ -919,13 +955,32 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
   const assigned = assignMaterials(o.tasks, (o.provides ?? []).map((p) => ({ key: p.key, what: p.what, neededBy: [], mode: p.mode ?? ('wait' as const), status: 'waiting' as const, receivedAt: null, attachmentIds: [], note: null })));
   const areaKeys = new Set(o.areas.map((a) => a.key));
   const area = (k: string | null | undefined) => (k && areaKeys.has(k) ? k : null);
-  const styleOptions = (o.styleOptions ?? []).map((s) => ({ key: s.key, name: s.name, palette: s.palette ?? [], fonts: s.fonts ?? [], keywords: s.keywords ?? [], description: s.description ?? '', samples: [] as string[], chosenSample: null as string | null }));
+  let styleOptions = (o.styleOptions ?? []).map((s) => ({ key: s.key, name: s.name, palette: s.palette ?? [], fonts: s.fonts ?? [], keywords: s.keywords ?? [], description: s.description ?? '', samples: [] as string[], chosenSample: null as string | null }));
+  // the design is supplied (ADR-0093): the one card read from it is the direction, settled — never a choice among invented ones
+  const supplied = designSupplied(goal);
+  if (supplied && styleOptions.length > 1) {
+    const read = (o.styleOptions ?? []).find((s) => s.chosen)?.key ?? styleOptions[0]!.key;
+    styleOptions = styleOptions.filter((s) => s.key === read);
+  }
   // a Follow-up that kept its predecessor's style: when this goal has a look at all, that direction comes first and is already picked
   const kept = goal.follows?.style ?? goal.delegatedFrom?.style ?? null;
   if (kept && styleOptions.length && !styleOptions.some((s) => s.name === kept.name)) styleOptions.unshift({ ...kept, key: styleOptions.some((s) => s.key === kept.key) ? `${kept.key}-kept` : kept.key, samples: [], chosenSample: null });
   // a direction the human already picked in the interview is not asked again: the question starts answered, still changeable
-  const picked = kept ? null : (o.styleOptions ?? []).find((s) => s.chosen)?.name ?? null;
+  const picked = kept ? null : supplied ? (styleOptions[0]?.name ?? null) : ((o.styleOptions ?? []).find((s) => s.chosen)?.name ?? null);
   const keptAnswer = kept && styleOptions.some((s) => s.name === kept.name) ? kept.name : picked;
+  // a link into a design tool no session can open, and no design attached (ADR-0093): the person is asked for an export
+  // before the Brief is approved — once; a Decision kept over a Re-run Clarify is not asked again
+  const unreadable = supplied ? [] : unreadableDesignLinks(goal).filter(({ url }) => !extraQuestions.some((q) => q.text.includes(url)));
+  const linkQuestions: Brief['questions'] = unreadable.map(({ url, tool }) => ({
+    id: newId('q'),
+    text: `Your goal points to a ${tool} design (${url}) that Foundry cannot open: the page needs a sign-in, so no session has seen it. Export the design from ${tool} (an HTML file or a zip, or screenshots of every screen), drop the files right here (or attach them on the goal page with "Design reference" ticked) and press "Re-run Clarify with the design" so the Brief is written from it. Or go without it: this Brief's style direction stands.`,
+    answer: null,
+    blocking: true,
+    areaKey: null,
+    options: ['I attached the export — run Re-run Clarify', 'Go without the design'],
+    kind: 'design' as const,
+    applied: false,
+  }));
   return {
     goalId: goal.id,
     title: o.title?.trim() ?? '',
@@ -944,6 +999,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
     timeEstimateMin: o.timeEstimateMin,
     questions: [
       ...extraQuestions,
+      ...linkQuestions,
       ...(o.openQuestions ?? []).map((q) => ({ id: newId('q'), text: q.text, answer: null, blocking: q.blocking, areaKey: area(q.areaKey), options: q.options ?? [], kind: 'text' as const, applied: false })),
       // the style question is engine-generated (never left to the LLM to remember): its options are the proposal names, recommendation first
       ...(styleOptions.length

@@ -6,7 +6,7 @@ const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 20
 const sa = { type: 'service_account', client_email: 'deploy@proj.iam.gserviceaccount.com', private_key: privateKey.export({ type: 'pkcs8', format: 'pem' }).toString(), token_uri: 'https://oauth2.googleapis.com/token' };
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
 
-describe('Google Play (ADR-0094)', () => {
+describe('Google Play (ADR-0096)', () => {
   test('the service account key is read, or refused in words', () => {
     expect(parseServiceAccount(JSON.stringify(sa))).toMatchObject({ ok: true, account: { client_email: sa.client_email } });
     expect(parseServiceAccount('{"type":"authorized_user"}')).toMatchObject({ ok: false, reason: expect.stringContaining('not a service account key') });

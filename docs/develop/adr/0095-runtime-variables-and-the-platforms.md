@@ -1,4 +1,4 @@
-# ADR-0093: Runtime variables per deploy place, and the platforms — Fly.io, Railway and Render — beside the servers
+# ADR-0095: Runtime variables per deploy place, and the platforms — Fly.io, Railway and Render — beside the servers
 
 **Status:** accepted · 2026-11-12 · amends ADR-0091 and ADR-0041
 

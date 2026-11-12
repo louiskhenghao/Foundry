@@ -10,7 +10,7 @@ import { RecipeDialog } from '../settings/RecipeDialog.tsx';
 import { SmokeView } from './DeploySmoke.tsx';
 
 const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of pages, uploaded as it is', built: 'built into files', ssr: 'rendered on the host’s servers' };
-/** a platform's runtime in words (ADR-0093) */
+/** a platform's runtime in words (ADR-0095) */
 const RUNTIME: Record<string, string> = { docker: 'the Dockerfile', node: 'Node.js', python: 'Python', go: 'Go', ruby: 'Ruby', rust: 'Rust', elixir: 'Elixir' };
 /** a deploy's state as a small plate: blue while it runs, green once live, red when it failed */
 const STATUS: Record<Deployment['status'], string> = { running: 'bg-work/10 text-work-ink ring-work/30', live: 'bg-ok/10 text-ok-ink ring-ok/30', failed: 'bg-bad/10 text-bad-ink ring-bad/40', submitted: 'bg-you/10 text-you-ink ring-you/30' };
@@ -105,17 +105,17 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   const [checking, setChecking] = useState(false);
   // a recipe (ADR-0092) opened from a readiness item: which script, with the project's values
   const [recipe, setRecipe] = useState<{ id: string; params: Record<string, string> } | null>(null);
-  // the runtime variables of the chosen place (ADR-0093): names only, edited in the dialog
+  // the runtime variables of the chosen place (ADR-0095): names only, edited in the dialog
   const [env, setEnv] = useState<DeployEnvView | null>(null);
   const [envOpen, setEnvOpen] = useState(false);
   const [envSaved, setEnvSaved] = useState<string | null>(null);
   const deployments = g.deployments ?? [];
   const chosen = info?.providers.find((p) => placeKey(p) === choice) ?? null;
   const isServer = chosen?.kind === 'server';
-  // a platform (ADR-0093) takes the whole project like a server, with a preview beside production like a host
+  // a platform (ADR-0095) takes the whole project like a server, with a preview beside production like a host
   const isPaas = chosen?.kind === 'paas';
   const paasApp = isPaas && chosen && info ? info.paas[chosen.id as PaasId] : null;
-  // a store (ADR-0094): an Expo app built on EAS; iOS goes to TestFlight either way, Android to an APK or to Google Play
+  // a store (ADR-0096): an Expo app built on EAS; iOS goes to TestFlight either way, Android to an APK or to Google Play
   const isStore = chosen?.kind === 'store';
   const storeApp = isStore && chosen && info ? info.stores[chosen.id as StoreId] : null;
   const ios = chosen?.id === 'appstore';
@@ -516,7 +516,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   );
 }
 
-/** a store deploy's standing (ADR-0094): the words from the store, the pages to open, when it was last asked, and a way to ask now */
+/** a store deploy's standing (ADR-0096): the words from the store, the pages to open, when it was last asked, and a way to ask now */
 function StoreLine({ goalId, deployment: x }: { goalId: string; deployment: Deployment }) {
   const st = x.store!;
   const [busy, setBusy] = useState(false);

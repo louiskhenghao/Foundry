@@ -188,7 +188,7 @@ export interface SecretsPreview {
   settings: { key: string; imported: string; mine: string | null; same: boolean }[];
   /** the repositories whose preview variables it holds, and their names */
   previewEnv: { repo: string; keys: string[] }[];
-  /** the runtime variables of deploys (ADR-0093), per repository and place */
+  /** the runtime variables of deploys (ADR-0095), per repository and place */
   deployEnv: { repo: string; place: string; keys: string[] }[];
 }
 
@@ -325,7 +325,7 @@ export async function applyIncoming(engine: Engine, uploadId: string, choicesIn:
       if (here) (engine.preview.env.merge(resolve(here), vars), report.previewEnv.applied.push(original));
       else (holdPreviewEnv(dataDir, original, vars), report.previewEnv.waiting.push(original));
     }
-    // the deploys' runtime variables (ADR-0093) go to the same repository here, place by place; keys already set stay
+    // the deploys' runtime variables (ADR-0095) go to the same repository here, place by place; keys already set stay
     for (const [original, places] of Object.entries(secrets.deployEnv ?? {})) {
       const here = mapped.get(original) ?? (choices.repos && original in choices.repos ? choices.repos[original] : await matchRepo(original, m.goals.find((g) => g.repoPath === original)?.remoteUrl ?? null));
       for (const [place, vars] of Object.entries(places)) {

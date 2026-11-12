@@ -1,10 +1,10 @@
-# ADR-0094: Store builds through Expo EAS — iOS to TestFlight, Android to Google Play — and a watch on the review
+# ADR-0096: Store builds through Expo EAS — iOS to TestFlight, Android to Google Play — and a watch on the review
 
 **Status:** accepted · 2026-11-12 · amends ADR-0091 and ADR-0041
 
 ## Context
 
-ADR-0091 and ADR-0093 took Deploy from the web hosts to servers and platforms. The third place people asked for is a
+ADR-0091 and ADR-0095 took Deploy from the web hosts to servers and platforms. The third place people asked for is a
 phone: an app in the App Store and on Google Play. Both stores are unlike every place so far. Nothing is served at an
 address; a signed binary is built, uploaded, processed by the store, and — for the App Store — submitted for a human
 review that takes hours or days and ends in a release or a rejection. Signing needs a certificate and a provisioning

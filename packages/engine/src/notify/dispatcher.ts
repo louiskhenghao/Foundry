@@ -110,10 +110,10 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
     case 'delivery.revert_closed':
       return { family: 'delivery', text: `↩️ Revert PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}closed without merging — ${goalTitle(e.goalId)}\nThe goal's work stays merged.`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.finished':
-      // a store build that ends here is an Android APK to install (ADR-0094)
+      // a store build that ends here is an Android APK to install (ADR-0096)
       if (e.payload.store) return { family: 'delivery', text: `📦 Android APK built — ${goalTitle(e.goalId)}\n${e.payload.store.artifactUrl ?? e.payload.url ?? ''}`.trimEnd(), path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
       return { family: 'delivery', text: `🚀 Deployed to ${whereLabel(e.payload)}${e.payload.production ? '' : ' (preview)'} — ${goalTitle(e.goalId)}\n${e.payload.url ?? 'running, with no address to open (no port is published and the server has no public address)'}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
-    // a build handed to a store (ADR-0094), and every move App Store Connect reports after
+    // a build handed to a store (ADR-0096), and every move App Store Connect reports after
     case 'deploy.submitted': {
       const s = e.payload.store;
       const head = s.platform === 'ios' ? `📦 Uploaded to TestFlight${e.payload.production ? ' (production build)' : ''}` : '📦 Submitted to Google Play';

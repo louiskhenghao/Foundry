@@ -77,7 +77,7 @@ export type SealedSecrets = z.infer<typeof SealedSecrets>;
 export const TransferSecrets = z.object({
   settings: z.record(z.string(), z.string()).default({}),
   previewEnv: z.record(z.string(), z.record(z.string(), z.string())).default({}),
-  /** the runtime variables of deploys (ADR-0093), by repository path, then by place (`server:<id>`, `fly`, …) */
+  /** the runtime variables of deploys (ADR-0095), by repository path, then by place (`server:<id>`, `fly`, …) */
   deployEnv: z.record(z.string(), z.record(z.string(), z.record(z.string(), z.string()))).default({}),
 });
 export type TransferSecrets = z.infer<typeof TransferSecrets>;

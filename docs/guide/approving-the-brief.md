@@ -65,6 +65,7 @@ For goals with a look (a web page, an app, a poster, a video), one question may 
 
 - **Pick a card** by clicking it. That is your answer to the question.
 - When you already chose a direction in the interview, that card comes first and is already picked; click another to change it.
+- When you attached a design, there is one card, **From your design**, already picked: the colours and typefaces the Clarifier read from it. The design itself, not the card, is what the workers follow; see [Bringing your own design](./bringing-your-own-design.md).
 
 ### Generate a sample
 

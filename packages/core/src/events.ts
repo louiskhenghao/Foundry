@@ -74,6 +74,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** a material the person promised in the Brief arrived (or was waived: there is none, the tasks go on with a stand-in) — ADR-0074 */
   ev('goal.material_received', { key: z.string(), attachmentIds: z.array(z.string()).default([]), note: z.string().nullable().default(null), by: z.string().nullable().default(null), waived: z.boolean().default(false) }),
   ev('goal.attachment_converted', { attachmentId: z.string(), markdown: AttachmentMarkdown }),
+  /** the person marked (or unmarked) an attachment as the design the result follows (ADR-0093) */
+  ev('goal.attachment_marked', { attachmentId: z.string(), design: z.boolean() }),
   /** tombstone: read models for the goal are dropped; the log keeps its history */
   ev('goal.deleted', { title: z.string(), deletedBranch: z.string().nullable(), reason: z.string() }),
   /** a session's model was unavailable and the engine fell back to another one; tier updates the goal's model snapshot */
@@ -387,9 +389,9 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('deploy.command', { provider: DeployProvider, target: DeployTarget.nullable().optional(), label: z.string(), command: z.string(), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string() }),
   /** `url` is null when a server deploy publishes no port and the server has no public address: it runs, with nothing to open */
   ev('deploy.finished', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), url: z.string().nullable(), store: DeployStore.nullable().optional() }),
-  /** a store deploy (ADR-0094) handed to the store: the build uploaded to TestFlight, or submitted to Google Play; `store` says where it stands */
+  /** a store deploy (ADR-0096) handed to the store: the build uploaded to TestFlight, or submitted to Google Play; `store` says where it stands */
   ev('deploy.submitted', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), store: DeployStore }),
-  /** the store's state moved (ADR-0094): processing, in TestFlight, waiting for review, in review, live, rejected; `deployedAt` names the deploy */
+  /** the store's state moved (ADR-0096): processing, in TestFlight, waiting for review, in review, live, rejected; `deployedAt` names the deploy */
   ev('deploy.store_changed', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), deployedAt: z.string(), status: z.enum(['submitted', 'live', 'failed']), url: z.string().nullable(), reason: z.string().nullable(), store: DeployStore }),
   ev('deploy.failed', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), reason: z.string() }),
   /** the smoke of a deploy (ADR-0058): the goal's milestone scripts against the deployed address; `deployedAt` names the deploy (its `at`) */

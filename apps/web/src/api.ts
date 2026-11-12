@@ -696,7 +696,7 @@ export function apiForProvider(provider?: AgentProvider) {
   /** the readiness check (ADR-0091): whether a deploy to this place can start, tried now */
   deployStoreCheck: (goalId: string) => req<{ changed: number; deployments: Deployment[] }>(`/api/goals/${goalId}/deploy/store-check`, { method: 'POST' }),
   deployReadiness: (goalId: string, provider: DeployHost, target?: string | null) => req<DeployReadiness>(`/api/goals/${goalId}/deploy/readiness?provider=${provider}${target ? `&target=${encodeURIComponent(target)}` : ''}`),
-  /** the runtime variables of a deploy (ADR-0093): a place's set for the goal's repository, names only */
+  /** the runtime variables of a deploy (ADR-0095): a place's set for the goal's repository, names only */
   deployEnv: (goalId: string, place: string) => req<DeployEnvView>(`/api/goals/${goalId}/deploy/env?place=${encodeURIComponent(place)}`),
   deploySetEnv: (goalId: string, place: string, vars: Record<string, string | null>, rev: number) => req<DeployEnvView>(`/api/goals/${goalId}/deploy/env?place=${encodeURIComponent(place)}`, { method: 'PUT', body: JSON.stringify({ vars, rev }) }),
   deployEnvFromPreview: (goalId: string, place: string) => req<{ added: string[]; view: DeployEnvView }>(`/api/goals/${goalId}/deploy/env/from-preview?place=${encodeURIComponent(place)}`, { method: 'POST' }),
@@ -780,6 +780,8 @@ export function apiForProvider(provider?: AgentProvider) {
   installCodeServer: () => req<{ started: true; channel: string }>('/api/tools/code-server/install', { method: 'POST' }),
   installMarkitdown: () => req<{ started: true; channel: string }>('/api/tools/markitdown/install', { method: 'POST' }),
   removeAttachment: (goalId: string, attId: string) => req<{ ok: true }>(`/api/goals/${goalId}/attachments/${attId}`, { method: 'DELETE' }),
+  /** mark an attachment as the design the result follows, or unmark it (ADR-0093) */
+  markAttachment: (goalId: string, attId: string, design: boolean) => req<{ attachment: Attachment }>(`/api/goals/${goalId}/attachments/${attId}/mark`, { method: 'POST', body: JSON.stringify({ design }) }).then((r) => r.attachment),
   attachmentUrl: (goalId: string, attId: string, download = false) => `/api/goals/${goalId}/attachments/${attId}${download ? '?download=1' : ''}`,
   /** the markdown rendition (markitdown / link snapshot) as text; staged uploads have no goal yet */
   attachmentMarkdown: (goalId: string | null, attId: string) => fetch(goalId ? `/api/goals/${goalId}/attachments/${attId}/markdown` : `/api/uploads/${attId}/markdown`).then((r) => (r.ok ? r.text() : Promise.reject(new Error(`markdown not available (${r.status})`)))),
@@ -1140,9 +1142,9 @@ export const api = apiForProvider();
 
 /** where a goal is deployed: a web host, or `server` (one of the servers in Settings, named by `target`) */
 export type DeployHost = 'vercel' | 'netlify' | 'cloudflare' | 'server' | 'fly' | 'railway' | 'render' | 'appstore' | 'play';
-/** the platforms (ADR-0093): the whole project, a preview beside production */
+/** the platforms (ADR-0095): the whole project, a preview beside production */
 export type PaasId = 'fly' | 'railway' | 'render';
-/** the stores (ADR-0094): an Expo app built on EAS, to TestFlight or Google Play */
+/** the stores (ADR-0096): an Expo app built on EAS, to TestFlight or Google Play */
 export type StoreId = 'appstore' | 'play';
 /** one place the Deploy card offers: a host, or a server from Settings (ADR-0091) */
 export interface DeployPlace {
@@ -1172,7 +1174,7 @@ export interface ComposeReview {
   volumes: string[];
   binds: string[];
 }
-/** the runtime variables of a deploy place (ADR-0093): the previews' shape, plus the previews' keys the place lacks */
+/** the runtime variables of a deploy place (ADR-0095): the previews' shape, plus the previews' keys the place lacks */
 export interface DeployEnvView extends PreviewEnv {
   place: string;
   fromPreview: string[];
@@ -1200,18 +1202,18 @@ export interface RevertInfo {
   open: DeliveryRevert | null;
 }
 
-/** what a store would build (ADR-0094): the Expo app and the ids the stores want, or why nothing */
+/** what a store would build (ADR-0096): the Expo app and the ids the stores want, or why nothing */
 export type ExpoDeployability = { ok: true; app: { dir: string; name: string | null; slug: string | null; projectId: string | null; owner: string | null; bundleId: string | null; package: string | null; version: string | null; configFile: string; dynamic: boolean; install: string[]; lockfile: boolean }; notes: string[] } | { ok: false; reason: string };
-/** what a platform would run (ADR-0093): the Dockerfile, or the stack it builds itself, or why nothing */
+/** what a platform would run (ADR-0095): the Dockerfile, or the stack it builds itself, or why nothing */
 export type PaasDeployability = { ok: true; app: { dir: string; runtime: 'docker' | 'node' | 'python' | 'go' | 'ruby' | 'rust' | 'elixir'; port: number | null; build: string | null; start: string | null; from: string }; notes: string[] } | { ok: false; reason: string };
 export interface DeployInfo {
   /** what a web host would deploy: the web app found, or why none */
   app: { ok: true; app: { dir: string; framework: string; kind: 'static' | 'built' | 'ssr' }; notes: string[] } | { ok: false; reason: string };
   /** what a server would run: the compose file or Dockerfile found, or why none (ADR-0091) */
   server: ServerDeployability;
-  /** what each platform would run (ADR-0093) */
+  /** what each platform would run (ADR-0095) */
   paas: Record<PaasId, PaasDeployability>;
-  /** what each store would build (ADR-0094) */
+  /** what each store would build (ADR-0096) */
   stores: Record<StoreId, ExpoDeployability>;
   finished: boolean;
   running: boolean;

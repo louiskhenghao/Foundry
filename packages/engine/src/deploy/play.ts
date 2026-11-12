@@ -1,5 +1,5 @@
 /**
- * Google Play (ADR-0094): the one thing Foundry asks its API is whether the service account from Settings reaches the
+ * Google Play (ADR-0096): the one thing Foundry asks its API is whether the service account from Settings reaches the
  * app's record — an edit opened and dropped again, nothing published. The submit itself goes through EAS. Google tells
  * no review state through an API, so a production deploy's record stops at submitted and points to the Play Console.
  */

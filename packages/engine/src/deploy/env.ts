@@ -1,5 +1,5 @@
 /**
- * The runtime variables of a deploy (ADR-0093): what the project needs online — a database address, an API key — kept
+ * The runtime variables of a deploy (ADR-0095): what the project needs online — a database address, an API key — kept
  * per repository and per place (a server, Fly, Railway, Render), the way the previews' variables are kept per
  * repository: on this computer only, values never shown back to a page, sealed in a Transfer's Keys & secrets. They
  * reach the place at deploy time — a `.foundry.env` file the compose services read, the environment PM2 starts the

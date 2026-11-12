@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import type { BriefOutput, BriefSkeleton, PlanOutput } from '@foundry/core';
+import type { Attachment, BriefOutput, BriefSkeleton, PlanOutput } from '@foundry/core';
 import { INTERVIEW_MAX_ROUNDS, getBrief, getGoal, listChecks, listTasks, noteQuestion, renderDecisions } from '@foundry/core';
 import { FIGURE_CHECK_NAME } from './checks/figure.ts';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from '@foundry/runner';
@@ -830,5 +830,144 @@ describe('the Clarifier names the goal', () => {
     await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
     expect(getGoal(engine.store.db, goal.id)!.title).toBe(line.slice(0, 80));
     expect(renames(engine, goal.id)).toEqual([]);
+  }, 20_000);
+});
+
+describe('a design reference (ADR-0093)', () => {
+  const styles = [
+    { key: 'S1', name: 'From your design', palette: ['#111111', '#F4B400'], fonts: ['Inter'], keywords: ['dense'], description: 'As the export shows.', chosen: true },
+    { key: 'S2', name: 'Minimal café', palette: ['#FFFFFF'], fonts: ['Inter'], keywords: ['clean'], description: 'Airy.' },
+  ];
+  const design = { id: 'att_d', kind: 'file' as const, name: 'home.png', mime: 'image/png', size: 10, path: 'attachments/g/att_d/home.png', url: null, note: null, addedAt: 't', markdown: null, design: true };
+  test('toBrief keeps one style card, the one read from the design, already answered; no card without one', async () => {
+    const { toBrief } = await import('./clarify.ts');
+    const goal = { id: 'g_design', follows: null, prompt: 'build it', attachments: [design] } as never;
+    const b = toBrief(goal, { ...briefWith([task('T1', 'A1', 'build page')], []), styleOptions: styles }, []);
+    expect(b.styleOptions.map((s) => s.name)).toEqual(['From your design']);
+    expect(b.questions.find((q) => q.kind === 'style')).toMatchObject({ answer: 'From your design', applied: true, options: ['From your design'] });
+    // several cards and none marked: the first is the one read from the design
+    const first = toBrief(goal, { ...briefWith([task('T1', 'A1', 'build page')], []), styleOptions: styles.map(({ chosen: _c, ...s }) => s).reverse() }, []);
+    expect(first.styleOptions.map((s) => s.name)).toEqual(['Minimal café']);
+    expect(toBrief(goal, { ...briefWith([task('T1', 'A1', 'build page')], []), styleOptions: [] }, []).questions.find((q) => q.kind === 'style')).toBeUndefined();
+  });
+  test('a link into a design tool with no design attached raises a blocking question; not with a design, not twice', async () => {
+    const { toBrief } = await import('./clarify.ts');
+    const out = briefWith([task('T1', 'A1', 'build page')], []);
+    const linked = { id: 'g_link', follows: null, prompt: 'Build this: https://claude.ai/public/artifacts/abc-123 please', attachments: [] as Attachment[] };
+    const q = toBrief(linked as never, out, []).questions.find((x) => x.text.includes('claude.ai/public/artifacts/abc-123'))!;
+    expect(q).toMatchObject({ kind: 'design', blocking: true, answer: null, options: ['I attached the export — run Re-run Clarify', 'Go without the design'] });
+    expect(q.text).toContain('a Claude design');
+    expect(q.text).toContain('needs a sign-in');
+    expect(q.text).toContain('Design reference');
+    // a link attachment counts too
+    const asLink = { ...linked, prompt: 'build it', attachments: [{ ...design, id: 'att_l', kind: 'link', name: 'figma', path: null, url: 'https://www.figma.com/design/Q/App', design: false }] } as never;
+    expect(toBrief(asLink, out, []).questions.some((x) => x.text.includes('a Figma design'))).toBe(true);
+    // with the design attached, or once the person answered it (a Decision kept over a Re-run), the question is not asked
+    expect(toBrief({ ...linked, attachments: [design] } as never, out, []).questions.some((x) => x.text.includes('claude.ai'))).toBe(false);
+    const answered = { ...q, answer: 'Go without the design', applied: true };
+    expect(toBrief(linked as never, out, [answered]).questions.filter((x) => x.text.includes('claude.ai'))).toHaveLength(1);
+  });
+  test('Clarify and the planner are told the design is supplied: one card read from it, an inventory, a check per page', async () => {
+    const { stageFile } = await import('./attachments.ts');
+    // skeleton first (the Clarifier), then the plan (the planner)
+    const skeleton: BriefSkeleton = { title: 'feat(site): landing page', understanding: 'One page.', nature: 'code', areas: [areas[0]!], assumptions: [], openQuestions: [], styleOptions: styles, run: null, apps: null, goalChecks: [{ key: 'G1', name: 'Matches the design: Home', tier: 'must', areaKey: null, type: 'reviewer', cmd: null, rubric: 'home.png: layout, copy, colours' }], planningNotes: '**Design inventory**: Home (home.png)' };
+    const runner = new StructuredRunner((_spec, n) => (n === 1 ? skeleton : { tasks: [task('T1', 'A1', 'build page')], checks: [check('C1', 'T1')], costEstimateUsd: 1, timeEstimateMin: 5 }));
+    const engine = track(new Engine(cfg(), runner));
+    const staged = stageFile(dataDir, { name: 'home.png', mime: 'image/png', bytes: new Uint8Array(16) });
+    const goal = await engine.createGoal({ prompt: 'Build the landing page as designed', repoPath: repo, nature: 'code', attachments: [{ ...staged, design: true }] });
+    await waitFor(() => getGoal(engine.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    const clarify = runner.calls.find((c) => c.label?.startsWith('clarify'))!.prompt;
+    expect(clarify).toContain('# Design reference');
+    expect(clarify).toContain('# The design is supplied');
+    expect(clarify).toContain('exactly ONE `styleOptions` entry');
+    expect(clarify).toContain('Design inventory');
+    expect(clarify).toContain('Matches the design: <page>');
+    expect(clarify).toContain('a small drift (a few pixels, an opacity, a shade) is a note, not a failure');
+    expect(clarify).toContain('Never add a check about the reference files themselves');
+    expect(clarify).not.toContain('2–4 `styleOptions`');
+    const planner = runner.calls.find((c) => c.label?.startsWith('plan'))!.prompt;
+    expect(planner).toContain('# The design is supplied');
+    expect(planner).toContain('Matches the design: <page>');
+    expect(planner).toContain('Never plan a check about the reference files themselves');
+    const brief = getBrief(engine.store.db, goal.id)!.brief;
+    expect(brief.styleOptions.map((s) => s.name)).toEqual(['From your design']);
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+});
+
+describe('the goal\'s own Design pack and the design mark (ADR-0093)', () => {
+  test('a goal made with a Design pack keeps it and lays it over Settings\' packs; without one Settings\' stands', async () => {
+    const runner = new StructuredRunner(() => briefWith([task('T1', 'A1', 'build page')], [check('C1', 'T1')]));
+    const engine = track(new Engine(cfg(), runner));
+    const own = await engine.createGoal({ prompt: 'landing page', repoPath: repo, nature: 'code', designPack: 'bencium', interviewDepth: 0 });
+    expect(getGoal(engine.store.db, own.id)!.designPack).toBe('bencium');
+    expect(engine.packsFor(getGoal(engine.store.db, own.id)!)).toEqual({ design: 'bencium' });
+    const plain = await engine.createGoal({ prompt: 'landing page', repoPath: repo, nature: 'code', interviewDepth: 0 });
+    expect(getGoal(engine.store.db, plain.id)!.designPack).toBeNull();
+    expect(engine.packsFor(getGoal(engine.store.db, plain.id)!)).toEqual({});
+    engine.cancelGoal(own.id);
+    engine.cancelGoal(plain.id);
+    await Bun.sleep(150);
+  }, 20_000);
+  test('markAttachment marks a file as the design and unmarks it; a link cannot be the design', async () => {
+    const { stageFile, linkAttachment } = await import('./attachments.ts');
+    const runner = new StructuredRunner(() => briefWith([task('T1', 'A1', 'build page')], [check('C1', 'T1')]));
+    const engine = track(new Engine(cfg(), runner));
+    const staged = stageFile(dataDir, { name: 'home.png', mime: 'image/png', bytes: new Uint8Array(16) });
+    const link = linkAttachment('https://www.figma.com/design/Q/App');
+    const goal = await engine.createGoal({ prompt: 'landing page', repoPath: repo, nature: 'code', attachments: [staged, link], interviewDepth: 0 });
+    expect(getGoal(engine.store.db, goal.id)!.attachments.map((a) => a.design)).toEqual([undefined, undefined]);
+    expect(engine.markAttachment(goal.id, staged.id, true).design).toBe(true);
+    expect(getGoal(engine.store.db, goal.id)!.attachments.find((a) => a.id === staged.id)!.design).toBe(true);
+    expect(engine.markAttachment(goal.id, staged.id, false).design).toBe(false);
+    expect(() => engine.markAttachment(goal.id, link.id, true)).toThrow('a link cannot be the design reference');
+    expect(() => engine.markAttachment(goal.id, 'att_nope', true)).toThrow('not found');
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+});
+
+describe('a design link no session can open (ADR-0093)', () => {
+  test('the Clarifier is told the link is unreadable and not to ask or pretend; not when a design is attached', async () => {
+    const { stageFile } = await import('./attachments.ts');
+    const skeleton: BriefSkeleton = { title: 'feat(site): landing page', understanding: 'One page.', nature: 'code', areas: [areas[0]!], assumptions: [], openQuestions: [], styleOptions: [], run: null, apps: null, goalChecks: [{ key: 'G1', name: 'G1', tier: 'must', areaKey: null, type: 'command', cmd: 'true', rubric: null }], planningNotes: 'notes' };
+    const runner = new StructuredRunner((_spec, n) => (n % 2 === 1 ? skeleton : { tasks: [task('T1', 'A1', 'build page')], checks: [check('C1', 'T1')], costEstimateUsd: 1, timeEstimateMin: 5 }));
+    const engine = track(new Engine(cfg(), runner));
+    const linked = await engine.createGoal({ prompt: 'Build it as designed: https://claude.ai/artifact/abc#page-1', repoPath: repo, nature: 'code', interviewDepth: 0 });
+    await waitFor(() => getGoal(engine.store.db, linked.id)!.state === 'awaiting_brief_approval');
+    const clarify = runner.calls.filter((c) => c.label?.startsWith('clarify')).at(-1)!.prompt;
+    expect(clarify).toContain('# A design link no session can open');
+    expect(clarify).toContain('https://claude.ai/artifact/abc#page-1');
+    expect(clarify).toContain('neither you nor any worker can open it');
+    expect(clarify).toContain('do not offer to proceed as though it will be read');
+    expect(clarify).toContain('# Style directions for UI goals');
+    const brief = getBrief(engine.store.db, linked.id)!.brief;
+    expect(brief.questions.some((q) => q.blocking && q.text.includes('https://claude.ai/artifact/abc#page-1'))).toBe(true);
+    // the design attached beside the link: the section is gone, the design is supplied
+    const staged = stageFile(dataDir, { name: 'home.png', mime: 'image/png', bytes: new Uint8Array(16) });
+    const withDesign = await engine.createGoal({ prompt: 'Build it as designed: https://claude.ai/artifact/abc#page-1', repoPath: repo, nature: 'code', interviewDepth: 0, attachments: [{ ...staged, design: true }] });
+    await waitFor(() => getGoal(engine.store.db, withDesign.id)!.state === 'awaiting_brief_approval');
+    const second = runner.calls.filter((c) => c.label?.startsWith('clarify')).at(-1)!.prompt;
+    expect(second).not.toContain('# A design link no session can open');
+    expect(second).toContain('# The design is supplied');
+    engine.cancelGoal(linked.id);
+    engine.cancelGoal(withDesign.id);
+    await Bun.sleep(150);
+  }, 30_000);
+});
+
+describe('the design mark set on the form (ADR-0093)', () => {
+  test('survives the server\'s own staged copy of the upload when the goal is made', async () => {
+    const { stageFile } = await import('./attachments.ts');
+    const runner = new StructuredRunner(() => briefWith([task('T1', 'A1', 'build page')], [check('C1', 'T1')]));
+    const engine = track(new Engine(cfg(), runner));
+    // the form uploads first (the server keeps its own record of the staged file), then marks its copy as the design
+    const staged = engine.stage(stageFile(dataDir, { name: 'home.png', mime: 'image/png', bytes: new Uint8Array(16) }));
+    const plain = engine.stage(stageFile(dataDir, { name: 'notes.png', mime: 'image/png', bytes: new Uint8Array(16) }));
+    const goal = await engine.createGoal({ prompt: 'landing page', repoPath: repo, nature: 'code', attachments: [{ ...staged, design: true }, plain], interviewDepth: 0 });
+    expect(getGoal(engine.store.db, goal.id)!.attachments.map((a) => [a.name, a.design])).toEqual([['home.png', true], ['notes.png', undefined]]);
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
   }, 20_000);
 });

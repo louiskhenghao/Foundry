@@ -2,23 +2,23 @@ import { z } from 'zod';
 
 /**
  * where a finished goal is deployed: the web hosts (ADR-0041), a server of the person's own over SSH (ADR-0091), a
- * platform that runs the whole project — Fly.io, Railway, Render (ADR-0093) — or the stores an Expo app goes to
- * through EAS: the App Store by way of TestFlight, Google Play (ADR-0094)
+ * platform that runs the whole project — Fly.io, Railway, Render (ADR-0095) — or the stores an Expo app goes to
+ * through EAS: the App Store by way of TestFlight, Google Play (ADR-0096)
  */
 export const DeployProvider = z.enum(['vercel', 'netlify', 'cloudflare', 'server', 'fly', 'railway', 'render', 'appstore', 'play']);
 export type DeployProvider = z.infer<typeof DeployProvider>;
 /** the web hosts: a CLI run here with a token, one project per repository, a web page or an all-in-one web app only */
 export const DeployHostProvider = z.enum(['vercel', 'netlify', 'cloudflare']);
 export type DeployHostProvider = z.infer<typeof DeployHostProvider>;
-/** the platforms (ADR-0093): the whole project from its Dockerfile or its stack, a preview app or environment beside production */
+/** the platforms (ADR-0095): the whole project from its Dockerfile or its stack, a preview app or environment beside production */
 export const DeployPaasProvider = z.enum(['fly', 'railway', 'render']);
 export type DeployPaasProvider = z.infer<typeof DeployPaasProvider>;
-/** the stores (ADR-0094): an Expo app built on EAS, uploaded to TestFlight or Google Play; never submitted for review by Foundry */
+/** the stores (ADR-0096): an Expo app built on EAS, uploaded to TestFlight or Google Play; never submitted for review by Foundry */
 export const DeployStoreProvider = z.enum(['appstore', 'play']);
 export type DeployStoreProvider = z.infer<typeof DeployStoreProvider>;
 
 /**
- * What a store deploy (ADR-0094) left and where it stands: the EAS build and its file, the submission, and the store's
+ * What a store deploy (ADR-0096) left and where it stands: the EAS build and its file, the submission, and the store's
  * own state — read from App Store Connect for iOS while it changes; Google Play tells nothing, so its record stops at
  * submitted and points to the Play Console.
  */
@@ -84,7 +84,7 @@ export const Deployment = z.object({
   /** the server it went to (ADR-0091); absent on the hosts, and on deploys written before servers existed */
   target: DeployTarget.nullable().optional(),
   production: z.boolean(),
-  /** submitted: uploaded to a store and in its hands (ADR-0094) */
+  /** submitted: uploaded to a store and in its hands (ADR-0096) */
   status: z.enum(['running', 'live', 'failed', 'submitted']),
   /** the deployed address; null while it runs, when it failed, or when a server deploy publishes no port and the server has no public address */
   url: z.string().nullable(),
@@ -97,7 +97,7 @@ export const Deployment = z.object({
   endedAt: z.string().nullable(),
   /** the milestone scripts tried against the address afterwards (ADR-0058); absent when none was asked for */
   smoke: DeploySmoke.nullable().optional(),
-  /** a store deploy's build, submission and state (ADR-0094); absent elsewhere */
+  /** a store deploy's build, submission and state (ADR-0096); absent elsewhere */
   store: DeployStore.nullable().optional(),
 });
 export type Deployment = z.infer<typeof Deployment>;

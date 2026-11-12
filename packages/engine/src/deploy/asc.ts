@@ -1,5 +1,5 @@
 /**
- * App Store Connect's API (ADR-0094): the app behind a bundle id, a build's processing after the upload, and the App
+ * App Store Connect's API (ADR-0096): the app behind a bundle id, a build's processing after the upload, and the App
  * Store version's state once the person submits it for review — read with the API key from Settings (a JWT signed
  * here, nothing else), never written to. What Foundry never does through it: submit a version for review, or release.
  */

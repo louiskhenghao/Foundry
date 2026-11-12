@@ -337,9 +337,9 @@ try {
         app: { ok: true, app: { dir: '', framework: 'Vite', kind: 'built' }, notes: [] },
         // a server of the person's own beside the hosts (ADR-0091): the site has no compose file, so it is offered and refuses
         server: { ok: false, reason: 'no compose file (compose.yaml, docker-compose.yml) and no Dockerfile: a server runs the project with docker compose, so add one that builds and starts it' },
-        // the platforms (ADR-0093): a site has no Dockerfile, so Fly.io refuses; Railway and Render would build the stack themselves
+        // the platforms (ADR-0095): a site has no Dockerfile, so Fly.io refuses; Railway and Render would build the stack themselves
         paas: { fly: { ok: false, reason: 'Fly.io deploys here from a Dockerfile, and the project has none: add one (the follow-up goal on the card writes it), or deploy to Railway, which builds from the stack itself' }, railway: { ok: true, app: { dir: '', runtime: 'node', port: null, build: 'npm ci && npm run build', start: 'npm start', from: 'package.json' }, notes: [] }, render: { ok: true, app: { dir: '', runtime: 'node', port: null, build: 'npm ci && npm run build', start: 'npm start', from: 'package.json' }, notes: [] } },
-        // the stores (ADR-0094) take an Expo app; a site is none, so they stay off the card
+        // the stores (ADR-0096) take an Expo app; a site is none, so they stay off the card
         stores: { appstore: { ok: false, reason: 'not an Expo app (no expo package): the stores take an Expo app built on EAS' }, play: { ok: false, reason: 'not an Expo app (no expo package): the stores take an Expo app built on EAS' } },
         finished: true,
         running: false,

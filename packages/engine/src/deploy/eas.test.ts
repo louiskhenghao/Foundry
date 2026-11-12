@@ -15,7 +15,7 @@ const tmp = (files: Record<string, string>) => {
 const expoPkg = JSON.stringify({ dependencies: { expo: '~54.0.0', react: '19' } });
 const appJson = JSON.stringify({ expo: { name: 'Shop', slug: 'shop', version: '1.2.0', owner: 'acme', ios: { bundleIdentifier: 'com.acme.shop' }, android: { package: 'com.acme.shop' }, extra: { eas: { projectId: 'p-1' } } } });
 
-describe('what a store would build (ADR-0094)', () => {
+describe('what a store would build (ADR-0096)', () => {
   test('an Expo app with app.json: its ids for both stores; a bare React Native, Flutter or native project is refused; missing ids are named', () => {
     const d = tmp({ 'package.json': expoPkg, 'app.json': appJson, 'yarn.lock': '' });
     expect(expoDeployability(d, 'appstore')).toEqual({ ok: true, app: { dir: '', name: 'Shop', slug: 'shop', projectId: 'p-1', owner: 'acme', bundleId: 'com.acme.shop', package: 'com.acme.shop', version: '1.2.0', configFile: 'app.json', dynamic: false, install: ['yarn', 'install'], lockfile: true }, notes: [] });

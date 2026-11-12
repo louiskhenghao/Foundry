@@ -14,7 +14,7 @@ const tmp = (files: Record<string, string>) => {
   return dir;
 };
 
-describe('what a platform would run (ADR-0093)', () => {
+describe('what a platform would run (ADR-0095)', () => {
   test('a Dockerfile goes anywhere, its EXPOSE as the port; Fly.io wants one; Node.js needs a start script on Render; a Procfile names the start of other stacks', () => {
     const docker = tmp({ Dockerfile: 'FROM node\nEXPOSE 3000\n' });
     expect(paasDeployability(docker, 'fly')).toEqual({ ok: true, app: { dir: '', runtime: 'docker', port: 3000, build: null, start: null, from: 'the Dockerfile' }, notes: [] });

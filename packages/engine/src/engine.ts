@@ -19,6 +19,7 @@ import {
   renderDecisions,
   IDLE_COMPLETION,
   MEDIA_NATURES,
+  DesignPack,
   FigurePack,
   depthOfMode,
   EventStore,
@@ -193,6 +194,8 @@ export interface CreateGoalInput {
   /** effort level for every session of this goal; default = Settings → workflow.effort */
   /** a level the coding agent takes (engine.effortLevels, ADR-0085); null = the Settings default */
   effort?: string | null;
+  /** the Design pack this goal's UI tasks follow when it should differ from Settings' (ADR-0093); null or absent = Settings' default */
+  designPack?: DesignPack | null;
   /** model preset for this goal; default = the preset Settings picks for its nature */
   modelPreset?: string | null;
   /** Skip Clarify: one task = the prompt, with these command checks. */
@@ -449,13 +452,13 @@ export class Engine {
   autoskillsDeps: AutoskillsDeps = {};
   /** test seam: deps handed to runGraphRefresh (fake which/exec) */
   graphRefreshDeps: GraphRefreshDeps = {};
-  /** how a host's, a platform's or EAS's CLI is run for Deploy (ADR-0041, ADR-0093, ADR-0094); tests point it at stand-ins */
+  /** how a host's, a platform's or EAS's CLI is run for Deploy (ADR-0041, ADR-0095, ADR-0096); tests point it at stand-ins */
   deployCli: (p: DeployHostProvider | 'fly' | 'railway' | 'eas') => string[] = defaultCli;
-  /** how Render's API is reached (ADR-0093); tests stand in for the network */
+  /** how Render's API is reached (ADR-0095); tests stand in for the network */
   paasFetch: (url: string, init: RequestInit) => Promise<Response> = (url, init) => fetch(url, init);
   /** how often a Render deploy is looked at while it runs */
   paasPollMs = 10_000;
-  /** how App Store Connect and Google Play are reached (ADR-0094); tests stand in for the network */
+  /** how App Store Connect and Google Play are reached (ADR-0096); tests stand in for the network */
   storeFetch: (url: string, init: RequestInit) => Promise<Response> = (url, init) => fetch(url, init);
   /** how often an EAS build is looked at while it runs */
   easPollMs = 30_000;
@@ -898,9 +901,9 @@ export class Engine {
     return { pack, installed: statuses.some((s) => s.entry.pack === 'diagram' && s.entry.packOption === pack && SATISFIED.includes(s.status)) };
   }
 
-  /** the goal's own pack choices laid over Settings' (its Figure pack, ADR-0076; its video engine, ADR-0077): what its sessions' skill sections are filtered by */
-  packsFor(goal: Pick<Goal, 'figurePack' | 'videoPack'>): Record<string, string | undefined> {
-    return { ...(goal.figurePack ? { figure: goal.figurePack } : {}), ...(goal.videoPack ? { video: goal.videoPack } : {}) };
+  /** the goal's own pack choices laid over Settings' (its Figure pack, ADR-0076; its video engine, ADR-0077; its Design pack, ADR-0093): what its sessions' skill sections are filtered by */
+  packsFor(goal: Pick<Goal, 'figurePack' | 'videoPack' | 'designPack'>): Record<string, string | undefined> {
+    return { ...(goal.figurePack ? { figure: goal.figurePack } : {}), ...(goal.videoPack ? { video: goal.videoPack } : {}), ...(goal.designPack ? { design: goal.designPack } : {}) };
   }
 
   /**
@@ -1274,7 +1277,7 @@ export class Engine {
     }, 60_000);
     this.scheduleTimer.unref?.();
     void checkSchedules(this).catch((err) => this.config.log(`[schedules] the check failed: ${String((err as Error).message ?? err)}`));
-    // builds handed to App Store Connect (ADR-0094): where each stands, every storePollMin minutes, and once now
+    // builds handed to App Store Connect (ADR-0096): where each stands, every storePollMin minutes, and once now
     this.storeWatchTimer = setInterval(() => {
       if (!this.stopped) void checkStoreDeploys(this).catch((err) => this.config.log(`[deploy] the store watch failed: ${String((err as Error).message ?? err)}`));
     }, this.settings.values().delivery.storePollMin * 60_000);
@@ -2577,6 +2580,7 @@ export class Engine {
       mode,
       nature,
       figurePack: input.figurePack ?? null,
+      designPack: input.designPack ?? null,
       outputDir: input.outputDir ?? null,
       workflow: (() => {
         // media goals default to fast: their deliverables are judged by the human's eye, not by $5 review sessions
@@ -2673,9 +2677,15 @@ export class Engine {
   stagedView(attId: string): Attachment | null {
     return this.staged.get(attId) ?? null;
   }
-  /** Latest record for a staged id (conversion may have finished since the upload response). */
+  /**
+   * Latest record for a staged id (conversion may have finished since the upload response), with what the caller set on
+   * its copy since: the design mark (ADR-0093) is ticked on the New goal form before the goal exists and travels with the
+   * record to POST /api/goals, so the server's copy must not drop it.
+   */
   private latestStaged(att: Attachment): Attachment {
-    return this.staged.get(att.id) ?? att;
+    const latest = this.staged.get(att.id);
+    if (!latest) return att;
+    return { ...latest, ...(att.design !== undefined ? { design: att.design } : {}) };
   }
 
   private planConversion(att: Attachment): Attachment {
@@ -2997,6 +3007,16 @@ export class Engine {
     if (!att) throw new Error(`attachment ${attachmentId} not found`);
     trashAttachment(this.config.dataDir, goalId, att);
     this.store.append({ type: 'goal.attachment_removed', goalId, payload: { attachmentId } });
+  }
+
+  /** The person marks an attachment as the design the result follows, or unmarks it (ADR-0093): every later session reads it as such. */
+  markAttachment(goalId: string, attachmentId: string, design: boolean): Attachment {
+    const goal = this.mustGoal(goalId);
+    const att = goal.attachments.find((a) => a.id === attachmentId);
+    if (!att) throw new Error(`attachment ${attachmentId} not found`);
+    if (att.kind !== 'file') throw new Error('a link cannot be the design reference: attach an export of the design (HTML, a zip or screenshots)');
+    if ((att.design === true) !== design) this.store.append({ type: 'goal.attachment_marked', goalId, payload: { attachmentId, design } });
+    return this.mustGoal(goalId).attachments.find((a) => a.id === attachmentId)!;
   }
 
   /** The AI analyses a blocked task and proposes an action + hint (recorded on the escalation; nothing is applied here). */
@@ -3363,7 +3383,7 @@ export class Engine {
     const byMode = { docker: goalServerDeployability(this, goal, 'docker'), pm2: goalServerDeployability(this, goal, 'pm2') };
     const server = byMode[chosen?.mode ?? 'docker'];
     const name = deployName(goal);
-    // the platforms (ADR-0093): what each would run, and the chosen one's commands
+    // the platforms (ADR-0095): what each would run, and the chosen one's commands
     const pc = paasCredentials(this);
     const paas = Object.fromEntries(PAAS_PROVIDERS.map((p) => [p, goalPaasDeployability(this, goal, p)])) as Record<(typeof PAAS_PROVIDERS)[number], ReturnType<typeof goalPaasDeployability>>;
     const paasPlan = (p: 'fly' | 'railway' | 'render') => {
@@ -3373,7 +3393,7 @@ export class Engine {
       if (p === 'render') return [{ label: 'the Render workspace', command: `GET ${RENDER_API}/owners` }, { label: `find or make the service ${t.service}`, command: `GET ${RENDER_API}/services?name=${t.service} · POST ${RENDER_API}/services` }, { label: 'set the runtime variables', command: `PUT ${RENDER_API}/services/<id>/env-vars` }, { label: 'deploy the commit and watch it', command: `POST ${RENDER_API}/services/<id>/deploys · GET …/deploys/<id>` }, { label: 'read the address', command: `GET ${RENDER_API}/services/<id>` }];
       return paasSteps({ provider: p, cwd: `<deploy folder>/${d.app.dir}`.replace(/\/$/, ''), app: d.app, name, production, credentials: pc, vars: Object.fromEntries(Object.keys(deployEnvView(this, goal, p).keys).map(() => ['', ''])), cli: this.deployCli }).map((s) => ({ label: s.label, command: s.argv.join(' ').replace(/(\b[A-Z_][A-Z0-9_]*=)[^\s']*/g, '$1***') }));
     };
-    // the stores (ADR-0094): offered when the project is an Expo app; the commands are EAS's
+    // the stores (ADR-0096): offered when the project is an Expo app; the commands are EAS's
     const sc = storeCredentials(this);
     const stores = { appstore: goalStoreDeployability(this, goal, 'appstore'), play: goalStoreDeployability(this, goal, 'play') };
     const storePlan = (p: 'appstore' | 'play') => {
@@ -3427,12 +3447,12 @@ export class Engine {
   deployReadiness(goalId: string, provider: DeployProvider, target?: string | null): Promise<DeployReadiness> {
     return deployReadiness(this, goalId, provider, target);
   }
-  /** ask App Store Connect now where the goal's submitted builds stand (ADR-0094); returns how many changed */
+  /** ask App Store Connect now where the goal's submitted builds stand (ADR-0096); returns how many changed */
   checkStores(goalId: string): Promise<number> {
     this.mustGoal(goalId);
     return checkStoreDeploys(this, goalId);
   }
-  /** the runtime variables of a deploy (ADR-0093): a place's set for the goal's repository, what each name is, what the example files list */
+  /** the runtime variables of a deploy (ADR-0095): a place's set for the goal's repository, what each name is, what the example files list */
   deployEnv(goalId: string, place: string): DeployEnvView {
     return deployEnvView(this, this.mustGoal(goalId), place);
   }

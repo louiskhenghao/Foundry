@@ -1,5 +1,5 @@
 /**
- * The platforms (ADR-0093): Fly.io, Railway and Render run the whole project — from its Dockerfile, or from its stack
+ * The platforms (ADR-0095): Fly.io, Railway and Render run the whole project — from its Dockerfile, or from its stack
  * where the platform builds one itself — with a preview beside production: a second app on Fly.io (`<name>-preview`),
  * a `preview` environment of the same project on Railway, a second service on Render. Fly.io and Railway take the
  * checkout from here, through their CLIs with a token in the environment; Render deploys from the repository's pushed

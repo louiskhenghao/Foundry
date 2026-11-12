@@ -8,7 +8,7 @@ const creds = { keyId: 'KEY1', issuerId: 'ISS1', key: p8 };
 const b64 = (s: string) => Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
 
-describe('App Store Connect (ADR-0094)', () => {
+describe('App Store Connect (ADR-0096)', () => {
   test('the token is an ES256 JWT Apple accepts: the key id in the header, the issuer and a short expiry in the claims, a raw signature', () => {
     const now = Date.UTC(2026, 10, 12, 10, 0, 0);
     const t = ascToken(creds, now);

@@ -1,5 +1,5 @@
 /**
- * The stores (ADR-0094): an Expo app built in the cloud by EAS and handed to the store — iOS to App Store Connect, where
+ * The stores (ADR-0096): an Expo app built in the cloud by EAS and handed to the store — iOS to App Store Connect, where
  * it lands in TestFlight (a preview and a production deploy alike: production is the one the person then submits for
  * review there, which Foundry never does); Android as an APK to install for a preview, or submitted to Google Play's
  * production track for production. Only Expo apps: EAS holds the signing, so Foundry never sees a certificate or a
