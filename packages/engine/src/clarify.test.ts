@@ -953,3 +953,18 @@ describe('a design link no session can open (ADR-0093)', () => {
     await Bun.sleep(150);
   }, 30_000);
 });
+
+describe('the design mark set on the form (ADR-0093)', () => {
+  test('survives the server\'s own staged copy of the upload when the goal is made', async () => {
+    const { stageFile } = await import('./attachments.ts');
+    const runner = new StructuredRunner(() => briefWith([task('T1', 'A1', 'build page')], [check('C1', 'T1')]));
+    const engine = track(new Engine(cfg(), runner));
+    // the form uploads first (the server keeps its own record of the staged file), then marks its copy as the design
+    const staged = engine.stage(stageFile(dataDir, { name: 'home.png', mime: 'image/png', bytes: new Uint8Array(16) }));
+    const plain = engine.stage(stageFile(dataDir, { name: 'notes.png', mime: 'image/png', bytes: new Uint8Array(16) }));
+    const goal = await engine.createGoal({ prompt: 'landing page', repoPath: repo, nature: 'code', attachments: [{ ...staged, design: true }, plain], interviewDepth: 0 });
+    expect(getGoal(engine.store.db, goal.id)!.attachments.map((a) => [a.name, a.design])).toEqual([['home.png', true], ['notes.png', undefined]]);
+    engine.cancelGoal(goal.id);
+    await Bun.sleep(150);
+  }, 20_000);
+});

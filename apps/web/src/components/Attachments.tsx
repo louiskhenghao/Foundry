@@ -70,6 +70,13 @@ const fmtSize = (n: number | null) => (n == null ? '' : n < 1024 ? `${n} B` : n 
 export const previews = new Map<string, string>();
 
 /**
+ * A staged upload as the server knows it again (its markdown conversion done), keeping what only this page knows: the
+ * design mark (ADR-0093) is set here before the goal exists and travels with the record to POST /api/goals, so a refresh
+ * from the server must not drop it.
+ */
+export const refreshedStaged = (fresh: Attachment, local: Attachment): Attachment => ({ ...fresh, ...(local.design !== undefined ? { design: local.design } : {}) });
+
+/**
  * Each kind of attachment in a category colour of its own (ADR-0067), the hues the kinds had before themes: images blue,
  * links green, office documents violet, PDFs rose; plain text and any other file in ink.
  */
@@ -262,7 +269,7 @@ export function AttachmentInput({ items, onChange, goalId, className, markDesign
     const t = setInterval(async () => {
       for (const a of pending) {
         const fresh = await api.stagedAttachment(a.id).catch(() => null);
-        if (fresh && fresh.markdown?.status !== 'pending') onChange(itemsRef.current.map((x) => (x.id === a.id ? fresh : x)));
+        if (fresh && fresh.markdown?.status !== 'pending') onChange(itemsRef.current.map((x) => (x.id === a.id ? refreshedStaged(fresh, x) : x)));
       }
     }, 2000);
     return () => clearInterval(t);
