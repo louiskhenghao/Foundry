@@ -129,7 +129,7 @@ export const ReviewSettings = z.object({
   smallGoalLines: z.number().int().min(0).max(5000).default(400),
 });
 /**
- * A server of the person's own that Deploy reaches over SSH (ADR-0090): the whole project runs there with docker
+ * A server of the person's own that Deploy reaches over SSH (ADR-0091): the whole project runs there with docker
  * compose. Its private key is a credential: null in the settings view, masked, sealed in a Transfer, written to a
  * file only while a command runs.
  */
@@ -148,7 +148,7 @@ export const DeployServer = z.object({
   publicUrl: z.string().min(1).nullable().default(null),
   /**
    * let a compose file reach outside its project — a privileged container, the host's network or pid space, the Docker
-   * socket, a bind mount outside the project folder; off = such a file is refused with the reasons (ADR-0090)
+   * socket, a bind mount outside the project folder; off = such a file is refused with the reasons (ADR-0091)
    */
   allowPrivileged: z.boolean().default(false),
 });
@@ -166,7 +166,7 @@ export const DeliverySettings = z.object({
   /** a Cloudflare API token (Pages: Edit) and its account id for Deploy; null = Cloudflare Pages not set up */
   cloudflareToken: z.string().min(1).nullable().default(null),
   cloudflareAccountId: z.string().min(1).nullable().default(null),
-  /** the person's own servers Deploy can reach over SSH (ADR-0090); the Deploy card offers each by name */
+  /** the person's own servers Deploy can reach over SSH (ADR-0091); the Deploy card offers each by name */
   servers: z.array(DeployServer).default([]),
   defaultMode: DeliveryMode.default('local'),
   /** one PR per goal by default; per-task stacked PRs are opt-in (each PR is a full push / wait / merge cycle) */
@@ -371,7 +371,7 @@ export interface SecretState {
 export const maskSecret = (v: string): string => (v.length >= 12 ? `${v.slice(0, 4)}…${v.slice(-4)}` : '••••');
 
 /**
- * Lists of records with a credential inside each (the servers' SSH keys, ADR-0090): the list itself is an ordinary
+ * Lists of records with a credential inside each (the servers' SSH keys, ADR-0091): the list itself is an ordinary
  * setting, each item's secret fields are treated as SECRET_SETTINGS are, named `<list>.<item id>.<field>` — null in the
  * view with a masked hint beside, kept when a saved list comes back without them, sealed apart in a Transfer.
  */

@@ -1940,7 +1940,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
     return c.json({ repoPath: goal.repoPath, learnings: engine.learnings(goal.repoPath) });
   });
-  // ---------- Deploy (ADR-0041, ADR-0090): a finished goal to a web host or a server of the person's own, on their click ----------
+  // ---------- Deploy (ADR-0041, ADR-0091): a finished goal to a web host or a server of the person's own, on their click ----------
   app.get('/api/goals/:id/deploy', (c) => {
     const goal = goalOr404(c);
     const provider = DeployProvider.safeParse(c.req.query('provider'));
@@ -1948,7 +1948,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.post('/api/goals/:id/deploy', async (c) => {
     const goal = goalOr404(c);
-    // smoke (ADR-0058) left out: a preview gets one, production does not; `target` names the server (ADR-0090)
+    // smoke (ADR-0058) left out: a preview gets one, production does not; `target` names the server (ADR-0091)
     const body = z.object({ provider: DeployProvider, target: z.string().nullable().optional(), production: z.boolean().default(false), smoke: z.boolean().optional() }).parse(await c.req.json());
     try {
       engine.deploy(goal.id, body);
@@ -1957,7 +1957,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
     return c.json({ started: true }, 202);
   });
-  // the readiness check (ADR-0090): whether a deploy to this place can start, tried now (a server is reached over SSH)
+  // the readiness check (ADR-0091): whether a deploy to this place can start, tried now (a server is reached over SSH)
   app.get('/api/goals/:id/deploy/readiness', async (c) => {
     const goal = goalOr404(c);
     const provider = DeployProvider.safeParse(c.req.query('provider'));

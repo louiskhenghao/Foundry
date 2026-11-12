@@ -31,7 +31,7 @@ const DEPLOYS = [
   'wrangler deploy',
   'wrangler versions deploy',
   'wrangler secret put KEY',
-  // the stores, the PaaS and a server of the person's own (ADR-0090): the same rule, however they are reached
+  // the stores, the PaaS and a server of the person's own (ADR-0091): the same rule, however they are reached
   'eas build --platform ios --non-interactive',
   'npx eas-cli submit -p android --latest',
   'eas update --branch production --message "fix"',

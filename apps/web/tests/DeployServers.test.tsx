@@ -6,7 +6,7 @@ import { DeployServers, newServerId } from '../src/pages/settings/DeployServers.
 
 const box: DeployServer = { id: 'srv1', name: 'hostinger', host: '203.0.113.4', port: 22, user: 'deploy', privateKey: null, dir: '~/foundry', publicUrl: 'https://app.example.com', allowPrivileged: false };
 
-test('the servers are edited in place: each field shown, the saved key never, only its hint; an empty list says what a server is for (ADR-0090)', () => {
+test('the servers are edited in place: each field shown, the saved key never, only its hint; an empty list says what a server is for (ADR-0091)', () => {
   const html = renderToStaticMarkup(<DeployServers servers={[box]} secrets={{ 'delivery.servers.srv1.privateKey': { set: true, hint: '----…END-' } }} onChange={() => {}} />);
   expect(html).toContain('value="hostinger"');
   expect(html).toContain('value="203.0.113.4"');
@@ -14,7 +14,7 @@ test('the servers are edited in place: each field shown, the saved key never, on
   expect(html).toContain('saved: ----…END- — paste a key to replace it');
   expect(html).not.toContain('BEGIN OPENSSH');
   expect(html).toContain('Add a server');
-  // the switch that lets a compose file reach outside its project is off, and says what it would allow (ADR-0090)
+  // the switch that lets a compose file reach outside its project is off, and says what it would allow (ADR-0091)
   expect(html).toContain('Allow a compose file that reaches outside its project');
   expect(html).not.toContain('checked=""');
   const empty = renderToStaticMarkup(<DeployServers servers={[]} secrets={{}} onChange={() => {}} />);

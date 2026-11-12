@@ -2,7 +2,7 @@ import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:f
 import { join } from 'node:path';
 
 /**
- * A credential kept in Settings, handed to a command as a file (a server's SSH key, ADR-0090): written under the data
+ * A credential kept in Settings, handed to a command as a file (a server's SSH key, ADR-0091): written under the data
  * folder readable by its owner only, for as long as `fn` runs, and removed after it whatever `fn` did. Nothing of it
  * stays on disk between two runs, and no command line Foundry records carries its value.
  */

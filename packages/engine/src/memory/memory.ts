@@ -268,7 +268,7 @@ export class Memory {
         const [section, key] = p.split('.');
         return s[section!]?.[key!];
       }),
-      // the servers' SSH keys (ADR-0090), and each line of them: a key is pasted in lines
+      // the servers' SSH keys (ADR-0091), and each line of them: a key is pasted in lines
       ...Object.values(listSecrets(s)).flatMap((k) => [k, ...k.split('\n').filter((l) => l.length >= 16)]),
       ...Object.entries(this.engine.sessionEnvExtra()).flatMap(([k, v]) => (SECRET_ENV.test(k) ? [v] : [])),
       ...Object.values(this.previewEnv.all()).flatMap((vars) => Object.values(vars)),

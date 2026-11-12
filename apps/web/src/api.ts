@@ -690,10 +690,10 @@ export function apiForProvider(provider?: AgentProvider) {
   repoLearnings: (repoPath: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/learnings?repo=${encodeURIComponent(repoPath)}`),
   saveLearnings: (repoPath: string, learnings: { id?: string | null; kind: LearningKind; text: string }[]) => req<{ repoPath: string; learnings: Learning[] }>('/api/learnings', { method: 'PUT', body: JSON.stringify({ repoPath, learnings }) }),
   learnFrom: (goalId: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/goals/${goalId}/learn`, { method: 'POST' }),
-  /** Deploy (ADR-0041, ADR-0090): what a finished goal is for the hosts and for a server, the places, the exact commands, the deploys so far */
+  /** Deploy (ADR-0041, ADR-0091): what a finished goal is for the hosts and for a server, the places, the exact commands, the deploys so far */
   deployInfo: (goalId: string, provider?: DeployHost | null, production = false, target?: string | null) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}${target ? `target=${encodeURIComponent(target)}&` : ''}production=${production ? 1 : 0}`),
   deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean, target?: string | null) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, target: target ?? null, production, smoke }) }),
-  /** the readiness check (ADR-0090): whether a deploy to this place can start, tried now */
+  /** the readiness check (ADR-0091): whether a deploy to this place can start, tried now */
   deployReadiness: (goalId: string, provider: DeployHost, target?: string | null) => req<DeployReadiness>(`/api/goals/${goalId}/deploy/readiness?provider=${provider}${target ? `&target=${encodeURIComponent(target)}` : ''}`),
   /** Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more */
   /** Revert (ADR-0059): what a revert of the goal would undo; and start one, with the reason and whether to merge it right away */
@@ -1128,7 +1128,7 @@ export const api = apiForProvider();
 
 /** where a goal is deployed: a web host, or `server` (one of the servers in Settings, named by `target`) */
 export type DeployHost = 'vercel' | 'netlify' | 'cloudflare' | 'server';
-/** one place the Deploy card offers: a host, or a server from Settings (ADR-0090) */
+/** one place the Deploy card offers: a host, or a server from Settings (ADR-0091) */
 export interface DeployPlace {
   id: DeployHost;
   /** the server's id when `id` is `server` */
@@ -1142,7 +1142,7 @@ export interface DeployPlace {
   /** a server that allows a compose file reaching outside its project (Settings); undefined for a host */
   permissive?: boolean;
 }
-/** what a compose file would do on the server (ADR-0090): what is refused unless the server allows it, and the facts the confirmation states */
+/** what a compose file would do on the server (ADR-0091): what is refused unless the server allows it, and the facts the confirmation states */
 export interface ComposeReview {
   dangers: string[];
   ports: number[];
@@ -1151,7 +1151,7 @@ export interface ComposeReview {
   volumes: string[];
   binds: string[];
 }
-/** what a server would run of the goal (ADR-0090) */
+/** what a server would run of the goal (ADR-0091) */
 export type ServerDeployability = { ok: true; app: { kind: 'compose' | 'dockerfile'; file: string; services: string[]; port: number | null; review: ComposeReview }; notes: string[] } | { ok: false; reason: string };
 /** Mirrors the engine's RevertInfo (delivery/revert.ts, ADR-0059): what a Revert would undo, and whether one can start now. */
 export interface RevertInfo {
@@ -1169,7 +1169,7 @@ export interface RevertInfo {
 export interface DeployInfo {
   /** what a web host would deploy: the web app found, or why none */
   app: { ok: true; app: { dir: string; framework: string; kind: 'static' | 'built' | 'ssr' }; notes: string[] } | { ok: false; reason: string };
-  /** what a server would run: the compose file or Dockerfile found, or why none (ADR-0090) */
+  /** what a server would run: the compose file or Dockerfile found, or why none (ADR-0091) */
   server: ServerDeployability;
   finished: boolean;
   running: boolean;

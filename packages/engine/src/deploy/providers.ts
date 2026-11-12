@@ -7,7 +7,7 @@
  */
 import type { DeployProvider as AnyProvider, DeployTarget } from '@foundry/core';
 
-/** the web hosts: this module's providers (a server of the person's own is deploy/server.ts, ADR-0090) */
+/** the web hosts: this module's providers (a server of the person's own is deploy/server.ts, ADR-0091) */
 export type DeployProvider = 'vercel' | 'netlify' | 'cloudflare';
 export const DEPLOY_PROVIDERS: DeployProvider[] = ['vercel', 'netlify', 'cloudflare'];
 export const PROVIDER_LABEL: Record<AnyProvider, string> = { vercel: 'Vercel', netlify: 'Netlify', cloudflare: 'Cloudflare Pages', server: 'a server' };

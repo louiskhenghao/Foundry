@@ -9,7 +9,7 @@ export const newServerId = () => `srv_${Date.now().toString(36)}${Math.random().
 const keyPlaceholder = (saved: SecretState | undefined) => (saved?.set ? `saved: ${saved.hint} — paste a key to replace it` : '-----BEGIN OPENSSH PRIVATE KEY-----\n…');
 
 /**
- * The servers Deploy can reach over SSH (ADR-0090), edited in place: each with a name, where it is, who logs in, the
+ * The servers Deploy can reach over SSH (ADR-0091), edited in place: each with a name, where it is, who logs in, the
  * key (a secret: the saved one never comes back, pasting replaces it), the folder the projects go under and the
  * address visitors open. Saved with the rest of the Settings page.
  */

@@ -335,7 +335,7 @@ try {
     r.fulfill({
       json: {
         app: { ok: true, app: { dir: '', framework: 'Vite', kind: 'built' }, notes: [] },
-        // a server of the person's own beside the hosts (ADR-0090): the site has no compose file, so it is offered and refuses
+        // a server of the person's own beside the hosts (ADR-0091): the site has no compose file, so it is offered and refuses
         server: { ok: false, reason: 'no compose file (compose.yaml, docker-compose.yml) and no Dockerfile: a server runs the project with docker compose, so add one that builds and starts it' },
         finished: true,
         running: false,

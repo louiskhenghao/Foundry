@@ -19,7 +19,7 @@ test('the host chosen at first: the one the goal last deployed to, while it is s
   expect(defaultHost([host('vercel', { configured: false })], [])).toBeNull();
 });
 
-test('a server is a place of its own, keyed by its id (ADR-0090): the last one deployed to comes first, and a deploy names it by the name it had', () => {
+test('a server is a place of its own, keyed by its id (ADR-0091): the last one deployed to comes first, and a deploy names it by the name it had', () => {
   const all = [host('vercel'), server('s1'), server('s2')];
   expect(placeKey(server('s1'))).toBe('server:s1');
   expect(defaultHost(all, [deployed('server', { id: 's2', label: 'box s2' })])).toBe('server:s2');
@@ -31,6 +31,6 @@ test('a server is a place of its own, keyed by its id (ADR-0090): the last one d
   expect(placeLabel(deployed('netlify'), all)).toBe('netlify');
 });
 
-test('the follow-up goal that makes a project deployable asks for a Dockerfile and a compose file and forbids what the deploy refuses (ADR-0090)', () => {
+test('the follow-up goal that makes a project deployable asks for a Dockerfile and a compose file and forbids what the deploy refuses (ADR-0091)', () => {
   for (const words of ['Dockerfile', 'compose.yaml', 'EXPOSE', 'HEALTHCHECK', 'named volumes', 'docker compose config', 'Never mount the Docker socket']) expect(MAKE_DEPLOYABLE_PROMPT).toContain(words);
 });

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-/** where a finished goal is deployed: the web hosts (ADR-0041), or a server of the person's own over SSH (ADR-0090) */
+/** where a finished goal is deployed: the web hosts (ADR-0041), or a server of the person's own over SSH (ADR-0091) */
 export const DeployProvider = z.enum(['vercel', 'netlify', 'cloudflare', 'server']);
 export type DeployProvider = z.infer<typeof DeployProvider>;
 /** the web hosts: a CLI run here with a token, one project per repository */
@@ -43,7 +43,7 @@ export type DeploySmoke = z.infer<typeof DeploySmoke>;
 /** One deploy of a goal: where, preview or production, how it went, the address it got, and its smoke. */
 export const Deployment = z.object({
   provider: DeployProvider,
-  /** the server it went to (ADR-0090); absent on the hosts, and on deploys written before servers existed */
+  /** the server it went to (ADR-0091); absent on the hosts, and on deploys written before servers existed */
   target: DeployTarget.nullable().optional(),
   production: z.boolean(),
   status: z.enum(['running', 'live', 'failed']),
@@ -62,7 +62,7 @@ export const Deployment = z.object({
 export type Deployment = z.infer<typeof Deployment>;
 
 /**
- * One item of a readiness check (ADR-0090): something a deploy to this place needs, whether it is there, and where to
+ * One item of a readiness check (ADR-0091): something a deploy to this place needs, whether it is there, and where to
  * do it when it is not — a Settings section, a command the person runs themselves, or a page to open.
  */
 export const ReadinessItem = z.object({

@@ -247,7 +247,7 @@ describe('the planner prompt', () => {
     expect(buildPlannerPrompt(base, skeleton, ctx)).toContain('# Plan lean');
     for (const nature of ['research', 'docs', 'image'] as const) expect(buildPlannerPrompt({ ...base, nature }, skeleton, ctx)).not.toContain('# Plan lean');
     expect(buildPlannerPrompt({ ...base, workflow: { ...base.workflow, ponytail: 'off' } }, skeleton, ctx)).not.toContain('# Plan lean');
-    // a server in Settings (ADR-0090): a code goal gets the task that makes its project deployable; other natures do not
+    // a server in Settings (ADR-0091): a code goal gets the task that makes its project deployable; other natures do not
     expect(buildPlannerPrompt(base, skeleton, { ...ctx, serverDeploy: true })).toContain('# A server waits for this project');
     expect(buildPlannerPrompt(base, skeleton, ctx)).not.toContain('# A server waits for this project');
     expect(buildPlannerPrompt({ ...base, nature: 'docs' }, Object.assign({}, skeleton as object, { nature: 'docs' }) as never, { ...ctx, serverDeploy: true })).not.toContain('# A server waits for this project');

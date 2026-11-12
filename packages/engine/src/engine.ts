@@ -447,7 +447,7 @@ export class Engine {
   graphRefreshDeps: GraphRefreshDeps = {};
   /** how a host's CLI is run for Deploy (ADR-0041); tests point it at stand-ins */
   deployCli: (p: DeployHostProvider) => string[] = npxCli;
-  /** how a server is reached for Deploy (ADR-0090): `ssh` from the PATH; tests point it at a stand-in */
+  /** how a server is reached for Deploy (ADR-0091): `ssh` from the PATH; tests point it at a stand-in */
   deploySsh: string[] = ['ssh'];
 
   constructor(
@@ -3330,7 +3330,7 @@ export class Engine {
   }
   /**
    * what Deploy can do for a goal now: whether its code is a web app (for the hosts) and what a server would run (its
-   * compose file or Dockerfile, ADR-0090), which hosts are set up and take it, the servers in Settings, the exact
+   * compose file or Dockerfile, ADR-0091), which hosts are set up and take it, the servers in Settings, the exact
    * commands of the chosen place, the deploys so far
    */
   deployInfo(goalId: string, provider?: DeployProvider, production = false, target?: string | null) {
@@ -3364,7 +3364,7 @@ export class Engine {
       deployments: goal.deployments ?? [],
     };
   }
-  /** whether a deploy of the goal to one place can start (ADR-0090): the host's token, or the server tried over SSH now */
+  /** whether a deploy of the goal to one place can start (ADR-0091): the host's token, or the server tried over SSH now */
   deployReadiness(goalId: string, provider: DeployProvider, target?: string | null): Promise<DeployReadiness> {
     return deployReadiness(this, goalId, provider, target);
   }

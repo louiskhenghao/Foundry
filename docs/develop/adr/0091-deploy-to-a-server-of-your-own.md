@@ -1,4 +1,4 @@
-# ADR-0090: Deploy — the whole project to a server of the person's own over SSH, after a readiness check, with credentials kept as files
+# ADR-0091: Deploy — the whole project to a server of the person's own over SSH, after a readiness check, with credentials kept as files
 
 **Status:** accepted · 2026-11-12 · amends ADR-0041 (the web hosts) and ADR-0003 (what the engine keeps)
 

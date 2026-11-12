@@ -26,7 +26,7 @@ describe('what a Transfer carries of the settings', () => {
     expect(secretSettings(file)).toEqual({ 'tools.openaiApiKey': 'sk-secret-123456', 'notifications.telegramBotToken': 'tok' });
   });
 
-  test('the servers travel as Settings without their SSH keys; each key is a secret of its own, named by the server (ADR-0090)', () => {
+  test('the servers travel as Settings without their SSH keys; each key is a secret of its own, named by the server (ADR-0091)', () => {
     const servers = [
       { id: 's1', name: 'box', host: 'h', port: 22, user: 'deploy', privateKey: 'KEY-ONE', dir: '~/apps', publicUrl: null, allowPrivileged: false },
       { id: 's2', name: 'other', host: 'o', port: 22, user: 'root', privateKey: null, dir: '~/foundry', publicUrl: 'https://o.example', allowPrivileged: false },

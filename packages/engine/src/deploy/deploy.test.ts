@@ -192,7 +192,7 @@ describe('deploying a finished goal', () => {
 });
 
 /**
- * A stand-in for ssh (ADR-0090): it logs what it was asked (the destination, the remote command, whether the key file
+ * A stand-in for ssh (ADR-0091): it logs what it was asked (the destination, the remote command, whether the key file
  * existed), swallows the tar stream into a file, and answers the remote commands as a server with Docker would — or
  * as a broken one, when FAIL_UP or FAIL_DOCKER sits in its folder.
  */
@@ -223,7 +223,7 @@ esac
 }
 const KEY = '-----BEGIN OPENSSH PRIVATE KEY-----\nFAKEKEYLINE0123456789abcdefghijklmnop\n-----END OPENSSH PRIVATE KEY-----';
 
-describe('deploying to a server of the person’s own (ADR-0090)', () => {
+describe('deploying to a server of the person’s own (ADR-0091)', () => {
   async function serverGoal(files: Record<string, string>) {
     const { engine, goal } = await finishedGoal(files);
     const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));
@@ -326,7 +326,7 @@ describe('deploying to a server of the person’s own (ADR-0090)', () => {
   }, 60_000);
 });
 
-describe('what a server deploy refuses before it touches anything (ADR-0090)', () => {
+describe('what a server deploy refuses before it touches anything (ADR-0091)', () => {
   test('a compose file that reaches outside its project is refused with the reasons; allowed for the server, it runs and the activity says what it reaches', async () => {
     const { engine, goal } = await finishedGoal({ 'compose.yaml': 'services:\n  agent:\n    build: .\n    ports: ["8080:80"]\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - /etc:/host-etc:ro\n', Dockerfile: 'FROM nginx\n' });
     const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));

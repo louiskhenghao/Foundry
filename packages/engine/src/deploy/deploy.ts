@@ -1,5 +1,5 @@
 /**
- * Deploy (ADR-0041, ADR-0090): a finished goal, published when the person asks — a web page or an all-in-one web app
+ * Deploy (ADR-0041, ADR-0091): a finished goal, published when the person asks — a web page or an all-in-one web app
  * to a host (a preview address by default, production when they say so), or the whole project to a server of their
  * own over SSH (always production, confirmed each time).
  *
@@ -44,7 +44,7 @@ export function deployCredentials(engine: Engine): DeployCredentials {
   const d = engine.settings.values().delivery;
   return { vercelToken: d.vercelToken, vercelScope: d.vercelScope, netlifyToken: d.netlifyToken, netlifyTeam: d.netlifyTeam, cloudflareToken: d.cloudflareToken, cloudflareAccountId: d.cloudflareAccountId };
 }
-/** the servers in Settings (ADR-0090) */
+/** the servers in Settings (ADR-0091) */
 export const deployServers = (engine: Engine): DeployServer[] => engine.settings.values().delivery.servers;
 /** the server a request names, or why there is none */
 export function serverFor(engine: Engine, target: string | null | undefined): DeployServer {
@@ -116,7 +116,7 @@ const codeDir = (engine: Engine, goal: Goal) => {
 export function goalDeployability(engine: Engine, goal: Goal): Deployability {
   return deployability(codeDir(engine, goal));
 }
-/** what a server can run of a goal now (ADR-0090): its compose file or Dockerfile */
+/** what a server can run of a goal now (ADR-0091): its compose file or Dockerfile */
 export function goalServerDeployability(engine: Engine, goal: Goal): ServerDeployability {
   return serverDeployability(codeDir(engine, goal));
 }
@@ -243,7 +243,7 @@ async function run(engine: Engine, goal: Goal, dir: string, req: DeployRequest):
 }
 
 /**
- * A server deploy (ADR-0090): the checkout copied over SSH and started there with docker compose, the key on disk only
+ * A server deploy (ADR-0091): the checkout copied over SSH and started there with docker compose, the key on disk only
  * while the commands run. The address is the server's public one, else its host and the first published port; a smoke
  * follows only when asked, since a server deploy is production.
  */
@@ -292,7 +292,7 @@ async function runServer(engine: Engine, goal: Goal, dir: string, ref: string, s
 }
 
 /**
- * Whether a deploy of this goal to one place can start (ADR-0090): a host needs its token in Settings; a server its
+ * Whether a deploy of this goal to one place can start (ADR-0091): a host needs its token in Settings; a server its
  * key, an answer over SSH, docker compose for that user, the project's folder free or Foundry's, and the ports the
  * project publishes free — tried now, with the key on disk only meanwhile. What is in front on 80/443 and whether the
  * public address answers are told but never block.

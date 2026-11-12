@@ -11,7 +11,7 @@ import { runMilestoneScript, type ScriptDeps } from '../checks/milestone-script.
 import { scriptDeps } from '../checks/walkthrough.ts';
 import type { Engine } from '../engine.ts';
 
-/** the deploy a smoke is about: `deployedAt` is the deployment's `at`, which names it on the goal; `target` the server (ADR-0090) */
+/** the deploy a smoke is about: `deployedAt` is the deployment's `at`, which names it on the goal; `target` the server (ADR-0091) */
 export interface SmokeTarget {
   provider: DeployProvider;
   target?: DeployTarget | null;

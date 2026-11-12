@@ -17,7 +17,7 @@ function repo(files: Record<string, string>): string {
   return dir;
 }
 
-describe('what a server runs (ADR-0090)', () => {
+describe('what a server runs (ADR-0091)', () => {
   test('a compose entry’s published port, in every spelling', () => {
     expect(publishedPort('8080:80')).toBe(8080);
     expect(publishedPort('127.0.0.1:8080:80')).toBe(8080);
@@ -141,7 +141,7 @@ describe('the readiness check of a server', () => {
   });
 });
 
-describe('the compose review (ADR-0090): what a file would reach outside its project', () => {
+describe('the compose review (ADR-0091): what a file would reach outside its project', () => {
   const doc = (yaml: string) => Bun.YAML.parse(yaml) as Parameters<typeof reviewCompose>[0];
   test('an ordinary project: built and pulled services, ports, named volumes and binds inside the folder; nothing refused', () => {
     const r = reviewCompose(doc('services:\n  web:\n    build: .\n    ports: ["8080:80", "9090:9090"]\n    volumes:\n      - ./data:/app/data\n      - uploads:/app/uploads\n  db:\n    image: postgres:16\n    volumes:\n      - pg:/var/lib/postgresql/data\nvolumes:\n  pg: {}\n  uploads: {}\n'));

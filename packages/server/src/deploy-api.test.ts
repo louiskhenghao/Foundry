@@ -27,7 +27,7 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
     expect((await refused.json()).error).toContain('only a finished goal is deployed');
     expect((await post(goal.id, { provider: 'heroku' })).status).toBe(400);
 
-    // a server from Settings is a place of its own on the card (ADR-0090): named, with its key or without, refusing a project it cannot run
+    // a server from Settings is a place of its own on the card (ADR-0091): named, with its key or without, refusing a project it cannot run
     engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: null, dir: '~/apps', publicUrl: null, allowPrivileged: false }] } });
     const withServer = await (await app.request(`/api/goals/${goal.id}/deploy?provider=server&target=srv1`)).json();
     expect(withServer.providers.at(-1)).toEqual({ id: 'server', target: 'srv1', kind: 'server', label: 'box', configured: false, refused: expect.stringContaining('no compose file'), permissive: false });

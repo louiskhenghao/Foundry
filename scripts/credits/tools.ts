@@ -140,7 +140,7 @@ export const TOOLS: Tool[] = [
     license: 'Various',
     copyright: null,
     installs: ['apt:git', 'apt:ripgrep', 'apt:ca-certificates', 'apt:curl', 'apt:gnupg', 'apt:python3-minimal', 'apt:openssh-client'],
-    note: "git, ripgrep, curl, ca-certificates, gnupg, python3-minimal (Python, PSF-2.0: the Figure pack's skills build their page with it, ADR-0076), openssh-client (OpenSSH, BSD: how Deploy reaches a server of your own, ADR-0090), the base image's system and the libraries Playwright's Chromium needs come from Debian 12 (bookworm). Each package's copyright and license are in /usr/share/doc/<package>/copyright in the image.",
+    note: "git, ripgrep, curl, ca-certificates, gnupg, python3-minimal (Python, PSF-2.0: the Figure pack's skills build their page with it, ADR-0076), openssh-client (OpenSSH, BSD: how Deploy reaches a server of your own, ADR-0091), the base image's system and the libraries Playwright's Chromium needs come from Debian 12 (bookworm). Each package's copyright and license are in /usr/share/doc/<package>/copyright in the image.",
   },
 ];
 
