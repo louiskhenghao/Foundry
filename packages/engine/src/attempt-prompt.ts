@@ -11,7 +11,7 @@ const STYLE_FREE_SCENARIOS: ReadonlySet<string> = new Set(['backend', 'infra', '
 export const styleApplies = (scenario: string): boolean => !STYLE_FREE_SCENARIOS.has(scenario);
 
 /** The chosen Style Proposal rendered for workers and reviewers; '' when none. */
-export function renderStyle(style: BriefStyleOption | null | undefined, opts: { forReviewer?: boolean } = {}): string {
+export function renderStyle(style: BriefStyleOption | null | undefined, opts: { forReviewer?: boolean; /** the direction was read from the attached design (ADR-0092): the design, not this summary of it, is the authority */ fromDesign?: boolean } = {}): string {
   if (!style) return '';
   const lines = [
     `# Style direction (chosen by the human): ${style.name}`,
@@ -20,9 +20,22 @@ export function renderStyle(style: BriefStyleOption | null | undefined, opts: { 
     style.keywords.length ? `- Keywords: ${style.keywords.join(', ')}` : '',
     style.description ? `- Feel: ${style.description}` : '',
     style.chosenSample ? `- Reference image: \`${style.chosenSample}\` — open it with the Read tool; the deliverables must match its feel.` : '',
+    opts.fromDesign ? 'This direction was read from the design reference: where they disagree, the design wins.' : '',
     opts.forReviewer ? 'Deliverables that do not follow this direction are a BLOCKER.' : 'Follow this direction in everything you produce, and record the style parameters actually used in the manifest.',
   ];
   return lines.filter(Boolean).join('\n');
+}
+
+/** the heading renderAttachments gives the design the result follows (ADR-0092) */
+const DESIGN_HEADING = '# Design reference';
+/** the heading renderAttachments gives the other attachments */
+const ATTACHMENTS_HEADING = '# Attachments from the user';
+
+/** the rendered attachments split in two: the design reference (placed right after the task) and the rest (where attachments always went) */
+export function splitDesign(attachments: string): { design: string; rest: string } {
+  if (!attachments.startsWith(DESIGN_HEADING)) return { design: '', rest: attachments };
+  const at = attachments.indexOf(`\n\n${ATTACHMENTS_HEADING}`);
+  return at < 0 ? { design: attachments, rest: '' } : { design: attachments.slice(0, at), rest: attachments.slice(at + 2) };
 }
 
 export interface AttemptPromptInput {
@@ -84,14 +97,17 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   lines.push(`# Goal\n${i.goal.title}\n\n${i.goal.prompt.trim()}`);
   const area = i.task.area ? `Area: ${i.task.area}${i.areaDescription ? ` — ${i.areaDescription}` : ''}\n` : '';
   lines.push(`# Your task (${i.task.title})\n${area}Attempt ${i.attemptIndex} of ${i.maxAttempts}.\n\n${i.task.spec.trim()}`);
+  // the design the result follows comes right after the task, before any direction derived from it (ADR-0092)
+  const { design, rest: attachments } = splitDesign(i.attachments ?? '');
+  if (design) lines.push(design);
   if (i.decisions) lines.push(i.decisions);
   if (i.upstream) lines.push(i.upstream);
-  const styleSection = renderStyle(i.style);
+  const styleSection = renderStyle(i.style, { fromDesign: !!design });
   if (styleSection) lines.push(styleSection);
   if (i.subjects) lines.push(i.subjects);
   if (i.task.relevantFiles.length) lines.push(`# Start here\n${i.task.relevantFiles.map((f) => `- ${f}`).join('\n')}`);
   if (i.task.delivers?.length) lines.push(`# Deliverables\nThe tasks after this one read these files; each must exist when you stop (the engine checks):\n${i.task.delivers.map((f) => `- ${f}`).join('\n')}`);
-  if (i.attachments) lines.push(i.attachments);
+  if (attachments) lines.push(attachments);
   if (i.provides) lines.push(i.provides);
   // the shipped software the goal learns from: the report is among the attachments, the rules travel with it
   if (i.goal.references?.length) lines.push(renderReferences(i.goal));

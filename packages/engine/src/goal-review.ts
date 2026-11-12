@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Check, CheckResult, Goal } from '@foundry/core';
-import { jsonSchemaFor, IdPrefix, chosenStyle, getBrief, getGoal, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
+import { jsonSchemaFor, IdPrefix, chosenStyle, designReferences, getBrief, getGoal, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
 import { z } from 'zod';
 import { renderStyle, styleApplies } from './attempt-prompt.ts';
 import { FIGURE_REVIEW_GOAL } from './figure.ts';
@@ -171,7 +171,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     renderAdjustments(goal, engine.config.dataDir),
     brief ? `# Approved understanding\n${brief.understanding}` : '',
     brief ? renderDecisions(brief) : '',
-    brief && styleApplies(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '',
+    brief && styleApplies(scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true, fromDesign: designReferences(goal.attachments).length > 0 }) : '',
     renderSubjects(engine.config.dataDir, goal.id, brief, 'goal-reviewer', scenario, likenessLines(latestLikeness(engine, goal.id), brief?.subjects ?? [])),
     reviewerHint ?? '',
     `# Fixed point and spec\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal. The spec is above: the approved understanding, the Decisions and the acceptance checks. There is no issue tracker and no \`docs/agents/issue-tracker.md\`; do not look for one or ask for it.`,
