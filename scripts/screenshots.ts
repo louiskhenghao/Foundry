@@ -309,14 +309,17 @@ try {
     r.fulfill({
       json: {
         app: { ok: true, app: { dir: '', framework: 'Vite', kind: 'built' }, notes: [] },
+        // a server of the person's own beside the hosts (ADR-0090): the site has no compose file, so it is offered and refuses
+        server: { ok: false, reason: 'no compose file (compose.yaml, docker-compose.yml) and no Dockerfile: a server runs the project with docker compose, so add one that builds and starts it' },
         finished: true,
         running: false,
         smoking: false,
         smoke: { scripts: ['e2e/milestones/gallery.spec.ts', 'e2e/milestones/booking.spec.ts'] },
         providers: [
-          { id: 'vercel', label: 'Vercel', configured: true, refused: null },
-          { id: 'netlify', label: 'Netlify', configured: true, refused: null },
-          { id: 'cloudflare', label: 'Cloudflare Pages', configured: false, refused: null },
+          { id: 'vercel', target: null, kind: 'host', label: 'Vercel', configured: true, refused: null },
+          { id: 'netlify', target: null, kind: 'host', label: 'Netlify', configured: true, refused: null },
+          { id: 'cloudflare', target: null, kind: 'host', label: 'Cloudflare Pages', configured: false, refused: null },
+          { id: 'server', target: 'srv_demo', kind: 'server', label: 'studio box', configured: true, refused: 'no compose file (compose.yaml, docker-compose.yml) and no Dockerfile: a server runs the project with docker compose, so add one that builds and starts it' },
         ],
         plan: [{ label: 'deploy to Vercel', command: 'npx --yes vercel@64 deploy --yes' }],
         deployments: [],
