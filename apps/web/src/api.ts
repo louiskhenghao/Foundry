@@ -1138,15 +1138,17 @@ export interface MapResult {
 export const api = apiForProvider();
 
 /** where a goal is deployed: a web host, or `server` (one of the servers in Settings, named by `target`) */
-export type DeployHost = 'vercel' | 'netlify' | 'cloudflare' | 'server';
+export type DeployHost = 'vercel' | 'netlify' | 'cloudflare' | 'server' | 'fly' | 'railway' | 'render';
+/** the platforms (ADR-0093): the whole project, a preview beside production */
+export type PaasId = 'fly' | 'railway' | 'render';
 /** one place the Deploy card offers: a host, or a server from Settings (ADR-0091) */
 export interface DeployPlace {
   id: DeployHost;
   /** the server's id when `id` is `server` */
   target: string | null;
-  kind: 'host' | 'server';
+  kind: 'host' | 'server' | 'paas';
   label: string;
-  /** the host's token, or the server's key, is in Settings */
+  /** the host's or platform's token, or the server's key, is in Settings */
   configured: boolean;
   /** why this place cannot take the goal's code, or null */
   refused: string | null;
@@ -1195,11 +1197,15 @@ export interface RevertInfo {
   open: DeliveryRevert | null;
 }
 
+/** what a platform would run (ADR-0093): the Dockerfile, or the stack it builds itself, or why nothing */
+export type PaasDeployability = { ok: true; app: { dir: string; runtime: 'docker' | 'node' | 'python' | 'go' | 'ruby' | 'rust' | 'elixir'; port: number | null; build: string | null; start: string | null; from: string }; notes: string[] } | { ok: false; reason: string };
 export interface DeployInfo {
   /** what a web host would deploy: the web app found, or why none */
   app: { ok: true; app: { dir: string; framework: string; kind: 'static' | 'built' | 'ssr' }; notes: string[] } | { ok: false; reason: string };
   /** what a server would run: the compose file or Dockerfile found, or why none (ADR-0091) */
   server: ServerDeployability;
+  /** what each platform would run (ADR-0093) */
+  paas: Record<PaasId, PaasDeployability>;
   finished: boolean;
   running: boolean;
   /** a Smoke again runs (ADR-0058) */

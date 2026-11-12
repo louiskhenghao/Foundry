@@ -36,6 +36,9 @@ const LOGIN: Record<DeployProvider, string> = {
   netlify: 'the address asks for a Netlify login: the site lets only its team in (Site configuration → Access & security → Visitor access; a new site takes the team’s default)',
   cloudflare: 'the address asks for a login: Cloudflare Access protects it (Zero Trust → Access → Applications)',
   server: 'the address asks for a login: something in front of the server (a reverse proxy, an access gate) asks for one',
+  fly: 'the address asks for a login: the app itself, or something in front of it, asks for one',
+  railway: 'the address asks for a login: the service itself, or something in front of it, asks for one',
+  render: 'the address asks for a login: the service itself, or something in front of it, asks for one',
 };
 
 /**

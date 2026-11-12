@@ -85,6 +85,10 @@ describe('deploying a finished goal', () => {
       ['vercel', true, null],
       ['netlify', true, null],
       ['cloudflare', true, null],
+      // the platforms (ADR-0093) take the whole project, not a folder of pages: refused in words, no token yet
+      ['fly', false, expect.stringContaining('from a Dockerfile')],
+      ['railway', false, expect.stringContaining('no Dockerfile and no known stack')],
+      ['render', false, expect.stringContaining('no Dockerfile and no known stack')],
     ]);
     expect(info.plan.map((s) => s.command)).toEqual([`${bin} vercel deploy --yes`]);
 
@@ -446,6 +450,159 @@ describe('the runtime variables go with a server deploy (ADR-0093)', () => {
     expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'http://h.example:4100' });
     expect(sshLog().at(-1)).toContain('export NODE_ENV=production && set -a && . ./.foundry.env && set +a && ');
     expect(await sh(`tar -tzf ${JSON.stringify(join(fakes, 'upload.tgz'))}`, fakes)).toContain('./.foundry.env');
+    rmSync(fakes, { recursive: true, force: true });
+  }, 60_000);
+});
+
+/** a stand-in for flyctl and the Railway CLI (ADR-0093): logs each call with its tokens' presence and its stdin, prints what the real one prints */
+function fakePaas(dir: string): string {
+  const path = join(dir, 'fake-paas');
+  writeFileSync(
+    path,
+    `#!/bin/sh
+cli="$1"; shift
+in=""; if [ ! -t 0 ]; then in="$(cat)"; fi
+printf '%s|%s|fly=%s railway=%s ci=%s|stdin=%s|%s\\n' "$cli" "$*" "\${FLY_API_TOKEN:+set}" "\${RAILWAY_API_TOKEN:+set}" "$CI" "$(printf '%s' "$in" | tr '\\n' ';')" "$(pwd)" >> "${join(dir, 'paas.log')}"
+if [ -f "${join(dir, 'FAIL_DEPLOY')}" ]; then case "$*" in *deploy*|*"up --ci"*) echo "Error: failed to fetch an image or build from source: error building: executor failed running [/bin/sh -c npm ci]: exit code: 1" >&2; exit 1 ;; esac; fi
+case "$cli" in
+  fly)
+    case "$*" in
+      *"apps create"*) if [ -f "${join(dir, 'FLY_APP')}" ]; then echo "Error: failed creating app: Validation failed: Name has already been taken" >&2; exit 1; fi; touch "${join(dir, 'FLY_APP')}"; echo '{"Name":"x"}' ;;
+      *"secrets import"*) echo "Secrets are staged for the first deployment" ;;
+      *"deploy"*) echo "==> Building image"; echo "Visit your newly deployed app at https://ignored.fly.dev/" ;;
+      *"status"*) echo '{"Name":"x","Hostname":"x.fly.dev","Status":"running"}' ;;
+      *"version"*) echo "flyctl v0.3.100 linux/amd64" ;;
+    esac ;;
+  railway)
+    case "$*" in
+      *"link"*) if [ -f "${join(dir, 'RW_PROJECT')}" ]; then echo '{"project":"x"}'; else echo "Project not found" >&2; exit 1; fi ;;
+      *"init"*) touch "${join(dir, 'RW_PROJECT')}"; echo '{"id":"p1"}' ;;
+      *"add"*) echo '{"service":"x"}' ;;
+      *"environment new"*) if [ -f "${join(dir, 'RW_PREVIEW')}" ]; then echo "Environment already exists" >&2; exit 1; fi; touch "${join(dir, 'RW_PREVIEW')}"; echo '{"environment":"preview"}' ;;
+      *"environment "*) echo "Activated environment" ;;
+      *"variable set"*) echo '{"ok":true}' ;;
+      *"up --ci"*) echo '{"deploymentId":"d1","status":"SUCCESS"}' ;;
+      *"domain"*) echo '{"domain":"x-preview.up.railway.app"}' ;;
+    esac ;;
+esac
+`,
+  );
+  chmodSync(path, 0o755);
+  return path;
+}
+
+describe('deploying to a platform (ADR-0093)', () => {
+  async function paasGoal(files: Record<string, string>) {
+    const { engine, goal } = await finishedGoal(files);
+    const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-paas-'));
+    const cli = fakePaas(fakes);
+    engine.deployCli = (p) => (p === 'fly' || p === 'railway' ? [cli, p] : [bin, p]);
+    engine.updateSettings({ delivery: { flyToken: 'fly_SECRET_TOKEN_1', flyOrg: 'acme', railwayToken: 'rw_SECRET_TOKEN_1', renderApiKey: 'rnd_SECRET_KEY_1' } });
+    const paasLog = () => (existsSync(join(fakes, 'paas.log')) ? readFileSync(join(fakes, 'paas.log'), 'utf8').trim().split('\n') : []);
+    return { engine, goal, fakes, paasLog };
+  }
+
+  test('Fly.io: the app made once, the variables staged on stdin, the deploy from the checkout with Foundry’s fly.toml, the address from the status; nothing secret in the record', async () => {
+    const { engine, goal, fakes, paasLog } = await paasGoal({ Dockerfile: 'FROM nginx\nEXPOSE 80\n' });
+    engine.setDeployEnv(goal.id, 'fly', { DATABASE_URL: 'postgres://db-host-0123/app' }, 0);
+    const info = engine.deployInfo(goal.id, 'fly', false);
+    expect(info.paas.fly).toMatchObject({ ok: true, app: { runtime: 'docker', port: 80 } });
+    expect(info.providers.find((p) => p.id === 'fly')).toMatchObject({ kind: 'paas', label: 'Fly.io', configured: true, refused: null });
+    expect(info.plan.map((s) => s.command)).toEqual([expect.stringContaining(`apps create ${deployName(goal)}-preview --org acme --json`), expect.stringContaining('secrets import'), expect.stringContaining('--config fly.foundry.toml'), expect.stringContaining('status')]);
+    const ready = await engine.deployReadiness(goal.id, 'fly', null);
+    expect(ready.items.map((i) => [i.id, i.ok])).toEqual([['token', true], ['cli', true], ['env', true]]);
+    engine.deploy(goal.id, { provider: 'fly', production: false });
+    await waitFor(() => last(engine, goal.id)?.status !== 'running' && (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 1);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://x.fly.dev', production: false, provider: 'fly' });
+    // the readiness check asked flyctl for its version; the deploy's own calls follow
+    const log = paasLog().filter((l) => l.split('|')[1] !== 'version');
+    expect(log.map((l) => l.split('|')[1]!.split(' ').slice(0, 2).join(' '))).toEqual(['apps create', 'secrets import', 'deploy --config', 'status -a']);
+    expect(log[1]).toContain('stdin=DATABASE_URL=postgres://db-host-0123/app|');
+    expect(log.every((l) => l.includes('fly=set') && l.includes('ci=1'))).toBe(true);
+    expect(readFileSync(join(deployDir(engine, goal), 'fly.foundry.toml'), 'utf8')).toContain(`app = "${deployName(goal)}-preview"`);
+    const recorded = JSON.stringify(engine.store.listByGoal(goal.id, 5000));
+    expect(recorded).not.toContain('SECRET');
+    expect(recorded).not.toContain('db-host-0123');
+    expect(recorded).toContain('1 runtime variable goes to Fly.io first (DATABASE_URL)');
+    // the second deploy finds the app there; production goes to the app under the project's name
+    engine.deploy(goal.id, { provider: 'fly', production: true, smoke: false });
+    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 2 && last(engine, goal.id)?.status !== 'running');
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', production: true });
+    expect(paasLog().at(-4)).toContain(`apps create ${deployName(goal)} --org acme`);
+    rmSync(fakes, { recursive: true, force: true });
+  }, 60_000);
+
+  test('Railway: the project linked or made, the preview environment once, the deploy, the domain; a failed build is told in the platform’s words', async () => {
+    const { engine, goal, fakes, paasLog } = await paasGoal({ 'package.json': JSON.stringify({ scripts: { start: 'node server.js' } }), 'server.js': '' });
+    expect(engine.deployInfo(goal.id, 'fly', false).providers.find((p) => p.id === 'fly')).toMatchObject({ refused: expect.stringContaining('from a Dockerfile') });
+    engine.deploy(goal.id, { provider: 'railway', production: false });
+    await waitFor(() => last(engine, goal.id)?.status !== 'running' && (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 1);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://x-preview.up.railway.app' });
+    const heads = paasLog().map((l) => l.split('|')[1]!.split(' ').slice(0, 2).join(' '));
+    expect(heads).toEqual(['link -p', 'init --name', 'add --service', 'environment new', 'environment preview', 'up --ci', 'domain -s']);
+    expect(paasLog().every((l) => l.includes('railway=set'))).toBe(true);
+    writeFileSync(join(fakes, 'FAIL_DEPLOY'), '');
+    engine.deploy(goal.id, { provider: 'railway', production: false });
+    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 2 && last(engine, goal.id)?.status !== 'running');
+    expect(last(engine, goal.id)).toMatchObject({ status: 'failed', reason: expect.stringContaining('deploy to Railway') });
+    expect(last(engine, goal.id)!.reason).toContain('npm ci');
+    rmSync(fakes, { recursive: true, force: true });
+  }, 60_000);
+
+  test('Render: through its API — the service made once from the repository’s pushed branch, the variables, the deploy watched to live, the address; a Local only goal and an unpushed commit are refused in words', async () => {
+    const { engine, goal, fakes } = await paasGoal({ Dockerfile: 'FROM nginx\nEXPOSE 80\n' });
+    const calls: string[] = [];
+    let status = 'build_in_progress';
+    engine.paasPollMs = 5;
+    engine.paasFetch = async (url, init) => {
+      const path = url.replace('https://api.render.com/v1', '');
+      calls.push(`${init.method} ${path}${init.body ? ` ${init.body}` : ''}`);
+      expect((init.headers as Record<string, string>).authorization).toBe('Bearer rnd_SECRET_KEY_1');
+      const json = (data: unknown, s = 200) => new Response(JSON.stringify(data), { status: s, headers: { 'content-type': 'application/json' } });
+      if (path.startsWith('/owners')) return json([{ owner: { id: 'tea-1', name: 'Acme' } }]);
+      if (path.startsWith('/services?')) return json(calls.some((c) => c.startsWith('POST /services ')) ? [{ service: { id: 'srv-1', name: `${deployName(goal)}-preview` } }] : []);
+      if (path === '/services' && init.method === 'POST') return json({ service: { id: 'srv-1', name: `${deployName(goal)}-preview` } }, 201);
+      if (path === '/services/srv-1/env-vars') return json([]);
+      if (path === '/services/srv-1/deploys' && init.method === 'POST') return json({ id: 'dep-1', status: 'created' }, 201);
+      if (path === '/services/srv-1/deploys/dep-1') {
+        const s = status;
+        status = 'live';
+        return json({ id: 'dep-1', status: s });
+      }
+      if (path === '/services/srv-1') return json({ id: 'srv-1', serviceDetails: { url: 'https://x-preview.onrender.com' } });
+      return json({ message: `unexpected ${path}` }, 404);
+    };
+    // no GitHub remote: refused before any call
+    engine.deploy(goal.id, { provider: 'render', production: false });
+    await waitFor(() => last(engine, goal.id)?.status !== 'running' && (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 1);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'failed', reason: expect.stringContaining('no GitHub remote') });
+    expect(calls).toEqual([]);
+    // a remote, but the goal's branch is not pushed there yet
+    await sh('git remote add origin git@github.com:o/r.git', repo);
+    engine.deploy(goal.id, { provider: 'render', production: false });
+    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 2 && last(engine, goal.id)?.status !== 'running');
+    expect(last(engine, goal.id)!.reason).toContain('does not have this commit yet');
+    // pushed (the remote-tracking ref stands in for the push): the service is made from that branch, the commit deployed and watched
+    const g = getGoal(engine.store.db, goal.id)!;
+    const sha = (await sh(`git rev-parse ${g.branch}`, repo)).trim();
+    await sh(`git update-ref refs/remotes/origin/${g.branch} ${sha}`, repo);
+    engine.setDeployEnv(goal.id, 'render', { API_KEY: 'api-key-value-0123' }, 0);
+    const ready = await engine.deployReadiness(goal.id, 'render', null);
+    expect(ready.items.map((i) => [i.id, i.ok])).toEqual([['token', true], ['remote', true], ['key', true], ['env', true]]);
+    expect(ready.items.find((i) => i.id === 'key')!.detail).toBe('workspace Acme');
+    engine.deploy(goal.id, { provider: 'render', production: false });
+    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 3 && last(engine, goal.id)?.status !== 'running');
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://x-preview.onrender.com' });
+    const made = calls.find((c) => c.startsWith('POST /services '))!;
+    expect(JSON.parse(made.slice('POST /services '.length))).toMatchObject({ type: 'web_service', name: `${deployName(goal)}-preview`, ownerId: 'tea-1', repo: 'https://github.com/o/r', branch: g.branch, autoDeploy: 'no', envVars: [{ key: 'API_KEY', value: 'api-key-value-0123' }], serviceDetails: { env: 'docker', region: 'oregon', plan: 'free' } });
+    expect(calls.filter((c) => !c.startsWith('GET /owners') && !c.startsWith('GET /services?'))).toEqual([made, `POST /services/srv-1/deploys {"commitId":"${sha}"}`, 'GET /services/srv-1/deploys/dep-1', 'GET /services/srv-1/deploys/dep-1', 'GET /services/srv-1']);
+    const recorded = JSON.stringify(engine.store.listByGoal(goal.id, 5000));
+    expect(recorded).not.toContain('SECRET');
+    expect(recorded).not.toContain('api-key-value');
+    // production deploys from the base branch on GitHub, which must hold the commit
+    engine.deploy(goal.id, { provider: 'render', production: true, smoke: false });
+    await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 4 && last(engine, goal.id)?.status !== 'running');
+    expect(last(engine, goal.id)!.reason).toContain(`production from ${g.baseBranch} on GitHub`);
     rmSync(fakes, { recursive: true, force: true });
   }, 60_000);
 });

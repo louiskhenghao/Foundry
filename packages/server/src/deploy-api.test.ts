@@ -17,11 +17,17 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
     const goal = await engine.createGoal({ prompt: 'a goal', repoPath: repo, nature: 'code' });
     const info = await (await app.request(`/api/goals/${goal.id}/deploy?provider=vercel`)).json();
     expect(info).toMatchObject({ finished: false, running: false, app: { ok: false }, plan: [], deployments: [] });
-    expect(info.providers.map((p: { id: string; configured: boolean }) => [p.id, p.configured])).toEqual([
-      ['vercel', false],
-      ['netlify', false],
-      ['cloudflare', false],
+    expect(info.providers.map((p: { id: string; kind: string; configured: boolean }) => [p.id, p.kind, p.configured])).toEqual([
+      ['vercel', 'host', false],
+      ['netlify', 'host', false],
+      ['cloudflare', 'host', false],
+      ['fly', 'paas', false],
+      ['railway', 'paas', false],
+      ['render', 'paas', false],
     ]);
+    // the platforms (ADR-0093): what each would run of the project, and a token missing refuses the deploy in words
+    expect(info.paas).toEqual({ fly: { ok: false, reason: expect.stringContaining('from a Dockerfile') }, railway: { ok: false, reason: expect.stringContaining('no Dockerfile and no known stack') }, render: { ok: false, reason: expect.stringContaining('no Dockerfile and no known stack') } });
+    expect((await (await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=railway`)).json()).items[0]).toMatchObject({ id: 'token', ok: false, label: 'Railway token in Settings' });
     const refused = await post(goal.id, { provider: 'vercel', production: false });
     expect(refused.status).toBe(409);
     expect((await refused.json()).error).toContain('only a finished goal is deployed');

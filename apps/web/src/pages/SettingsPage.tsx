@@ -696,6 +696,53 @@ export function SettingsPage() {
               )}
             </div>
             <div className="pt-1 space-y-2">
+              <div className="text-sm font-bold text-ink">Platforms — the whole project on Fly.io, Railway or Render</div>
+              <p className="text-[11px] text-ink-faint">A goal with a Dockerfile, or a stack the platform builds itself (Node.js, Python, Go, Ruby, Rust, Elixir), goes up whole — backend, workers and all — as a preview beside production: a second app on Fly.io, a preview environment of the project on Railway, a second service on Render. Fly.io and Railway take the code from here; Render takes the repository's branch from GitHub, so its GitHub app must be allowed on the repository. The runtime variables kept on the goal's card go to the platform's own store first. The tokens stay with the engine.</p>
+              {grid(
+                <>
+                  <Field label="Fly.io token" aside={aside('delivery.flyToken')} help="fly tokens create deploy -x 9999h (one app) or an organization token under the org's Tokens page. flyctl must be installed on this computer; the card's check says when it is not.">
+                    {secret('delivery.flyToken', 'FlyV1 …')}
+                  </Field>
+                  <Field label="Fly.io organization" aside={aside('delivery.flyOrg')} help="The slug of the organization a new app is made in. Empty = your personal organization.">
+                    {text('delivery.flyOrg', 'personal', true)}
+                  </Field>
+                  <Field label="Fly.io region" aside={aside('delivery.flyRegion')} help="Where a new app's machine runs: iad (Virginia), lhr (London), sin (Singapore), nrt (Tokyo), syd (Sydney)… `fly platform regions` lists them.">
+                    {text('delivery.flyRegion', 'iad')}
+                  </Field>
+                  <Field label="Railway token" aside={aside('delivery.railwayToken')} help="railway.com → Account settings → Tokens: an account token or a workspace token (a project token cannot make a project).">
+                    {secret('delivery.railwayToken', 'token')}
+                  </Field>
+                  <Field label="Railway workspace" aside={aside('delivery.railwayWorkspace')} help="The workspace a new project is made in, when the token reaches several. Empty = the token's own.">
+                    {text('delivery.railwayWorkspace', 'my-workspace', true)}
+                  </Field>
+                  <Field label="Render API key" aside={aside('delivery.renderApiKey')} help="dashboard.render.com → Account Settings → API Keys.">
+                    {secret('delivery.renderApiKey', 'rnd_…')}
+                  </Field>
+                  <Field label="Render owner" aside={aside('delivery.renderOwner')} help="The workspace id (usr-… or tea-…) a new service is made in. Empty = the key's first workspace.">
+                    {text('delivery.renderOwner', 'tea-…', true)}
+                  </Field>
+                  <Field label="Render region" aside={aside('delivery.renderRegion')} help="Where a new service runs.">
+                    <Select value={draft.delivery.renderRegion} onChange={(e) => set('delivery.renderRegion', e.target.value)}>
+                      {['oregon', 'ohio', 'virginia', 'frankfurt', 'singapore'].map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Render plan" aside={aside('delivery.renderPlan')} help="What a new service is made as: free sleeps when idle and takes a while to wake; the paid plans are Render's.">
+                    <Select value={draft.delivery.renderPlan} onChange={(e) => set('delivery.renderPlan', e.target.value)}>
+                      {['free', 'starter', 'standard', 'pro', 'pro plus', 'pro max', 'pro ultra'].map((r) => (
+                        <option key={r} value={r}>
+                          {r}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </>,
+              )}
+            </div>
+            <div className="pt-1 space-y-2">
               <div className="flex items-center gap-2">
                 <div className="text-sm font-bold text-ink">Servers — the whole project on a machine of your own</div>
                 <span className="ml-auto flex items-center gap-1.5">{aside('delivery.servers')}</span>

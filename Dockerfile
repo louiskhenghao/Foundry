@@ -4,6 +4,7 @@
 ARG BUN_VERSION=1.4.3
 ARG CLAUDE_CODE_VERSION=2.1.259
 ARG CODEX_VERSION=0.160.0
+ARG FLYCTL_VERSION=0.5.1
 
 # ---------- base: node (for the Claude Code CLI and npx) + bun (the engine's runtime) ----------
 FROM node:22-bookworm-slim AS base
@@ -61,6 +62,11 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings
  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
  && apt-get update && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin openssh-client \
  && rm -rf /var/lib/apt/lists/*
+# flyctl: how Deploy reaches Fly.io (ADR-0093); a Go binary from its release, pinned, for the image's architecture
+ARG FLYCTL_VERSION
+RUN arch="$(dpkg --print-architecture)" && case "$arch" in amd64) a=x86_64 ;; arm64) a=arm64 ;; *) echo "no flyctl for $arch" && exit 1 ;; esac \
+ && curl -fsSL "https://github.com/superfly/flyctl/releases/download/v${FLYCTL_VERSION}/flyctl_${FLYCTL_VERSION}_Linux_${a}.tar.gz" | tar -xz -C /usr/local/bin flyctl \
+ && ln -s /usr/local/bin/flyctl /usr/local/bin/fly && fly version
 # pnpm and yarn for repositories that use them (previews, installs, delivery): corepack's shims, each fetched on first use
 RUN corepack enable
 
