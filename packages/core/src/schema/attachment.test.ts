@@ -12,7 +12,7 @@ describe('what an attachment may weigh (ADR-0077)', () => {
   });
 });
 
-describe('design references (ADR-0092)', () => {
+describe('design references (ADR-0093)', () => {
   test('a picture, an HTML page or a zip may be the design; documents, text and links may not', () => {
     expect(isDesignCandidate({ kind: 'file', name: 'home.png', mime: 'image/png' })).toBe(true);
     expect(isDesignCandidate({ kind: 'file', name: 'Landing page.html', mime: 'text/html' })).toBe(true);

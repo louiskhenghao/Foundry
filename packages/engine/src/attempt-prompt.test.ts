@@ -95,7 +95,7 @@ test('a cad task gets the CAD conventions (source in the repository, exports and
   expect(styleApplies('image')).toBe(true);
 });
 
-test('a design reference sits right after the task, before the style direction; the other attachments stay where they were (ADR-0092)', () => {
+test('a design reference sits right after the task, before the style direction; the other attachments stay where they were (ADR-0093)', () => {
   const design = '# Design reference\nThe person supplied the design the result follows.\n- [image] home.png → /data/a/home.png. Open it with the Read tool before writing any markup or styles.';
   const att = `${design}\n\n# Attachments from the user\n- [pdf] spec.pdf → /data/a/spec.pdf. Read it.`;
   const style = { key: 'S1', name: 'From your design', palette: ['#111111'], fonts: [], keywords: [], description: '', samples: [], chosenSample: null } as any;

@@ -11,7 +11,7 @@ const STYLE_FREE_SCENARIOS: ReadonlySet<string> = new Set(['backend', 'infra', '
 export const styleApplies = (scenario: string): boolean => !STYLE_FREE_SCENARIOS.has(scenario);
 
 /** The chosen Style Proposal rendered for workers and reviewers; '' when none. */
-export function renderStyle(style: BriefStyleOption | null | undefined, opts: { forReviewer?: boolean; /** the direction was read from the attached design (ADR-0092): the design, not this summary of it, is the authority */ fromDesign?: boolean } = {}): string {
+export function renderStyle(style: BriefStyleOption | null | undefined, opts: { forReviewer?: boolean; /** the direction was read from the attached design (ADR-0093): the design, not this summary of it, is the authority */ fromDesign?: boolean } = {}): string {
   if (!style) return '';
   const lines = [
     `# Style direction (chosen by the human): ${style.name}`,
@@ -26,7 +26,7 @@ export function renderStyle(style: BriefStyleOption | null | undefined, opts: { 
   return lines.filter(Boolean).join('\n');
 }
 
-/** the heading renderAttachments gives the design the result follows (ADR-0092) */
+/** the heading renderAttachments gives the design the result follows (ADR-0093) */
 const DESIGN_HEADING = '# Design reference';
 /** the heading renderAttachments gives the other attachments */
 const ATTACHMENTS_HEADING = '# Attachments from the user';
@@ -97,7 +97,7 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
   lines.push(`# Goal\n${i.goal.title}\n\n${i.goal.prompt.trim()}`);
   const area = i.task.area ? `Area: ${i.task.area}${i.areaDescription ? ` — ${i.areaDescription}` : ''}\n` : '';
   lines.push(`# Your task (${i.task.title})\n${area}Attempt ${i.attemptIndex} of ${i.maxAttempts}.\n\n${i.task.spec.trim()}`);
-  // the design the result follows comes right after the task, before any direction derived from it (ADR-0092)
+  // the design the result follows comes right after the task, before any direction derived from it (ADR-0093)
   const { design, rest: attachments } = splitDesign(i.attachments ?? '');
   if (design) lines.push(design);
   if (i.decisions) lines.push(i.decisions);

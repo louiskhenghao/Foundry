@@ -8,7 +8,7 @@ import { AnsweredTick, answerChip, blockingTag } from './marks.tsx';
 export const WITHOUT_DESIGN = 'Go without the design';
 
 /**
- * The Brief's question about a design the sessions cannot open (ADR-0092), with the remedy in the same place: drop
+ * The Brief's question about a design the sessions cannot open (ADR-0093), with the remedy in the same place: drop
  * the export here (it is marked as the design reference as it lands), then write the Brief again from it — the
  * Decisions already answered are kept. Or go without, and the Brief's own style direction stands.
  */

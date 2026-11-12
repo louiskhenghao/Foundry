@@ -137,7 +137,7 @@ export function BriefPage() {
 
   /** the fields can be changed: the Brief awaits approval, or it is the skeleton the planner is still filling */
   const editable = g.state === 'awaiting_brief_approval' || skeleton;
-  // the design question's remedy (ADR-0092): the Brief written again from the export dropped on it; the Decisions stay
+  // the design question's remedy (ADR-0093): the Brief written again from the export dropped on it; the Decisions stay
   const rerunWithDesign = async () => {
     await api.reclarify(g.id, 'the design was attached');
     nav(`/goals/${g.id}`);

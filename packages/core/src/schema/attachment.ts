@@ -34,9 +34,9 @@ export const Attachment = z.object({
   materialKey: z.string().nullable().optional(),
   /** the Adjustment this attachment came with (ADR-0078), when it did */
   adjustId: z.string().nullable().optional(),
-  /** the design the result follows (ADR-0092): a picture, an HTML export or a zip of it; what it shows is made as it shows it. Absent on attachments from before, read as not the design */
+  /** the design the result follows (ADR-0093): a picture, an HTML export or a zip of it; what it shows is made as it shows it. Absent on attachments from before, read as not the design */
   design: z.boolean().optional(),
-  /** a zip's extracted files (ADR-0092): the folder (relative to dataDir), how many files, and the page to open first; absent or null on other files */
+  /** a zip's extracted files (ADR-0093): the folder (relative to dataDir), how many files, and the page to open first; absent or null on other files */
   extracted: z.object({ dir: z.string(), files: z.number().int().nonnegative(), entry: z.string().nullable().default(null) }).nullable().optional(),
   addedAt: z.string(),
   /** markdown rendition; null = not applicable / never attempted. Default keeps older events replayable. */
@@ -68,7 +68,7 @@ const ARCHIVE_EXT = /\.zip$/i;
 export const isArchiveAttachment = (a: Pick<Attachment, 'kind' | 'mime' | 'name'>): boolean => a.kind === 'file' && (ARCHIVE_EXT.test(a.name) || a.mime === 'application/zip' || a.mime === 'application/x-zip-compressed');
 
 /**
- * Could this attachment be the design the result follows (ADR-0092): a picture of it, an HTML page (what Claude Design
+ * Could this attachment be the design the result follows (ADR-0093): a picture of it, an HTML page (what Claude Design
  * or Figma export), or a zip of one. The New goal form marks such a file as the design reference when it is attached;
  * the person may untick it. Documents, text and links are never the design.
  */
@@ -85,7 +85,7 @@ const UNREADABLE_DESIGN_HOSTS: [RegExp, string][] = [
   [/(^|\.)framer\.com$/i, 'Framer'],
 ];
 
-/** the design tool a link points into when Foundry's sessions cannot open it (ADR-0092): 'Claude', 'Figma', 'Canva', 'Framer'; null for any other link */
+/** the design tool a link points into when Foundry's sessions cannot open it (ADR-0093): 'Claude', 'Figma', 'Canva', 'Framer'; null for any other link */
 export function unreadableDesignLink(url: string): string | null {
   let host: string;
   try {

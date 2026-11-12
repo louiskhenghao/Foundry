@@ -106,7 +106,7 @@ function MarkdownTag({ a, goalId, onReconvert }: { a: Attachment; goalId?: strin
 }
 
 /** Thumbnail grid / list of attachments. `goalId` makes files openable; without it only staged previews are shown. */
-export function AttachmentList({ items, goalId, onRemove, onReconvert, onMark, compact }: { items: Attachment[]; goalId?: string; onRemove?: (a: Attachment) => void; onReconvert?: (a: Attachment) => void; /** mark a file as the design the result follows, or unmark it (ADR-0092); without it the mark is only shown */ onMark?: (a: Attachment, design: boolean) => void; compact?: boolean }) {
+export function AttachmentList({ items, goalId, onRemove, onReconvert, onMark, compact }: { items: Attachment[]; goalId?: string; onRemove?: (a: Attachment) => void; onReconvert?: (a: Attachment) => void; /** mark a file as the design the result follows, or unmark it (ADR-0093); without it the mark is only shown */ onMark?: (a: Attachment, design: boolean) => void; compact?: boolean }) {
   const [view, setView] = useState<Attachment | null>(null);
   if (!items.length) return null;
   const current = view ? (items.find((x) => x.id === view.id) ?? view) : null;
@@ -140,7 +140,7 @@ export function AttachmentList({ items, goalId, onRemove, onReconvert, onMark, c
             <button type="button" onClick={() => setView(a)} className="mr-1 flex min-w-0 flex-1 items-center gap-2 text-left" title={a.markdown?.status === 'ready' ? 'view the extracted markdown or the original' : 'view'}>
               {inner}
             </button>
-            {/* the design the result follows (ADR-0092): a picture, an HTML export or a zip may be it; ticked when attached, untick to keep it an ordinary reference */}
+            {/* the design the result follows (ADR-0093): a picture, an HTML export or a zip may be it; ticked when attached, untick to keep it an ordinary reference */}
             {isDesignCandidate(a) && (onMark || a.design) && (
               <button
                 type="button"
@@ -174,13 +174,13 @@ export function AttachmentList({ items, goalId, onRemove, onReconvert, onMark, c
  * Drop zone + paste handler + file button + "add link". Uploads immediately (staged when no goalId)
  * and reports the resulting Attachment records via onChange.
  */
-export function AttachmentInput({ items, onChange, goalId, className, markDesigns = false }: { items: Attachment[]; onChange: (next: Attachment[]) => void; goalId?: string; className?: string; /** a picture, an HTML page or a zip is marked as the design reference when attached (ADR-0092): on for code goals, whose pictures are mockups; off where pictures are references or Subjects */ markDesigns?: boolean }) {
+export function AttachmentInput({ items, onChange, goalId, className, markDesigns = false }: { items: Attachment[]; onChange: (next: Attachment[]) => void; goalId?: string; className?: string; /** a picture, an HTML page or a zip is marked as the design reference when attached (ADR-0093): on for code goals, whose pictures are mockups; off where pictures are references or Subjects */ markDesigns?: boolean }) {
   const [drag, setDrag] = useState(false);
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [err, setErr] = useState<string | null>(null);
   const [link, setLink] = useState('');
   const [linkOpen, setLinkOpen] = useState(false);
-  /** a link into a design tool behind a sign-in was added (ADR-0092): kept, but no session can open it */
+  /** a link into a design tool behind a sign-in was added (ADR-0093): kept, but no session can open it */
   const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const itemsRef = useRef(items);
@@ -194,7 +194,7 @@ export function AttachmentInput({ items, onChange, goalId, className, markDesign
       try {
         const uploaded = await api.upload(f, { goalId, onProgress: (pct) => setProgress((p) => ({ ...p, [key]: pct })) });
         if (f.type.startsWith('image/')) previews.set(uploaded.id, URL.createObjectURL(f));
-        // a picture, an HTML export or a zip is the design the result follows until the person says otherwise (ADR-0092)
+        // a picture, an HTML export or a zip is the design the result follows until the person says otherwise (ADR-0093)
         const a = markDesigns && isDesignCandidate(uploaded) ? (goalId ? await api.markAttachment(goalId, uploaded.id, true).catch(() => uploaded) : { ...uploaded, design: true }) : uploaded;
         onChange([...itemsRef.current, a]);
       } catch (e: any) {
@@ -222,7 +222,7 @@ export function AttachmentInput({ items, onChange, goalId, className, markDesign
       setErr(e.message);
     }
   };
-  /** the person marks a file as the design the result follows, or unmarks it (ADR-0092) */
+  /** the person marks a file as the design the result follows, or unmarks it (ADR-0093) */
   const mark = async (a: Attachment, design: boolean) => {
     setErr(null);
     if (!goalId) return onChange(itemsRef.current.map((x) => (x.id === a.id ? { ...x, design } : x)));

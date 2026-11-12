@@ -241,7 +241,7 @@ describe('CLI access (ADR-0061)', () => {
   });
 });
 
-test('--design-pack names the Design pack the goal follows; without it the server decides (ADR-0092)', async () => {
+test('--design-pack names the Design pack the goal follows; without it the server decides (ADR-0093)', async () => {
   expect((await submittedGoal(['--design-pack', 'bencium'])).designPack).toBe('bencium');
   expect((await submittedGoal()).designPack).toBeUndefined();
 });

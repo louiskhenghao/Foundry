@@ -768,7 +768,7 @@ export function apiForProvider(provider?: AgentProvider) {
   installCodeServer: () => req<{ started: true; channel: string }>('/api/tools/code-server/install', { method: 'POST' }),
   installMarkitdown: () => req<{ started: true; channel: string }>('/api/tools/markitdown/install', { method: 'POST' }),
   removeAttachment: (goalId: string, attId: string) => req<{ ok: true }>(`/api/goals/${goalId}/attachments/${attId}`, { method: 'DELETE' }),
-  /** mark an attachment as the design the result follows, or unmark it (ADR-0092) */
+  /** mark an attachment as the design the result follows, or unmark it (ADR-0093) */
   markAttachment: (goalId: string, attId: string, design: boolean) => req<{ attachment: Attachment }>(`/api/goals/${goalId}/attachments/${attId}/mark`, { method: 'POST', body: JSON.stringify({ design }) }).then((r) => r.attachment),
   attachmentUrl: (goalId: string, attId: string, download = false) => `/api/goals/${goalId}/attachments/${attId}${download ? '?download=1' : ''}`,
   /** the markdown rendition (markitdown / link snapshot) as text; staged uploads have no goal yet */

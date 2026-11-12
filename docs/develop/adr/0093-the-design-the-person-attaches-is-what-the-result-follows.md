@@ -1,4 +1,4 @@
-# ADR-0092: The design the person attaches is what the result follows
+# ADR-0093: The design the person attaches is what the result follows
 
 **Status:** accepted · 2026-11-12 · builds on [ADR-0005](0005-scenario-skills-and-settings.md) and [ADR-0076](0076-figure-goals-from-a-bundled-figure-pack.md)
 

@@ -116,7 +116,7 @@ describe('markdown renditions', () => {
   });
 });
 
-describe('design references (ADR-0092)', () => {
+describe('design references (ADR-0093)', () => {
   const zip = () => zipSync({ 'index.html': strToU8('<html></html>'), 'assets/app.css': strToU8('body{}'), '__MACOSX/._index.html': strToU8('junk'), '../escape.txt': strToU8('no'), '.DS_Store': strToU8('x'), 'assets/': new Uint8Array() });
   test('a zip is unpacked when staged (junk and escaping entries skipped), its folder moves with the claim and a copy, and index.html is the entry', () => {
     const d = data();

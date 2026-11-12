@@ -37,7 +37,7 @@ const EXTRACT_LIMITS = { maxFiles: 2000, maxBytes: 300 * 1024 * 1024 } as const;
 const JUNK_ENTRY = /(^|\/)(__MACOSX|\.DS_Store|Thumbs\.db|\.git)(\/|$)/;
 
 /**
- * Unpack a zip into `destDir` (ADR-0092). Entries that would land outside the folder, junk and anything past the limits
+ * Unpack a zip into `destDir` (ADR-0093). Entries that would land outside the folder, junk and anything past the limits
  * are skipped; folders are made as needed. Returns how many files were written and the page to open first (index.html
  * nearest the top, else the shallowest HTML page), or null when the bytes are not a zip.
  */
@@ -78,7 +78,7 @@ export function stageFile(dataDir: string, file: { name: string; mime: string | 
   const dir = join(stagingDir(dataDir), id);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, name), file.bytes);
-  // a zip (a design tool's export, a folder of pictures) is unpacked beside itself, so sessions read its files by path (ADR-0092)
+  // a zip (a design tool's export, a folder of pictures) is unpacked beside itself, so sessions read its files by path (ADR-0093)
   let extracted: Attachment['extracted'] = null;
   if (isArchiveAttachment({ kind: 'file', name, mime: file.mime })) {
     const folder = join(dir, ARCHIVE_EXT.test(name) ? name.replace(ARCHIVE_EXT, '') : `${name}.files`);
@@ -104,7 +104,7 @@ export function copyAttachment(dataDir: string, goalId: string, a: Attachment): 
   };
   const path = a.kind === 'link' || !a.path ? null : bring(a.path);
   const markdown = a.markdown?.path ? (existsSync(resolve(dataDir, a.markdown.path)) ? { ...a.markdown, path: bring(a.markdown.path) } : { ...a.markdown, path: null }) : (a.markdown ?? null);
-  // an unpacked zip's folder comes along (ADR-0092)
+  // an unpacked zip's folder comes along (ADR-0093)
   const extracted = a.extracted?.dir && existsSync(resolve(dataDir, a.extracted.dir)) ? (() => {
     const dest = join(dir, basename(a.extracted!.dir));
     cpSync(resolve(dataDir, a.extracted!.dir), dest, { recursive: true });
@@ -162,7 +162,7 @@ export function claimStaged(dataDir: string, goalId: string, atts: Attachment[],
     }
     mkdirSync(attachmentsDir(dataDir, goalId), { recursive: true });
     renameSync(staged, destDir);
-    // an unpacked zip's folder moved with the directory (ADR-0092)
+    // an unpacked zip's folder moved with the directory (ADR-0093)
     const extracted = a.extracted?.dir && resolve(dataDir, a.extracted.dir).startsWith(staged + '/') ? { ...a.extracted, dir: relative(dataDir, join(destDir, relative(staged, resolve(dataDir, a.extracted.dir)))) } : (a.extracted ?? null);
     out.push({ ...a, path: relative(dataDir, join(destDir, basename(abs))), markdown: rehomeMarkdown(a), extracted });
   }
@@ -237,7 +237,7 @@ const fmtSize = (n: number | null) => (n == null ? '' : n < 1024 ? `${n} B` : n 
 const extractedLabel = (a: Pick<Attachment, 'extracted'>, dataDir: string): string => `${resolve(dataDir, a.extracted!.dir)} (${a.extracted!.files} file${a.extracted!.files === 1 ? '' : 's'}${a.extracted!.entry ? `; open ${a.extracted!.entry} first` : ''})`;
 
 /**
- * Prompt section for the attachments marked as the design the result follows (ADR-0092): the law for every role that
+ * Prompt section for the attachments marked as the design the result follows (ADR-0093): the law for every role that
  * builds or judges a look. '' when the goal has none. Listed before the other attachments by renderAttachments, and
  * placed by the worker prompt right after the task, before any style direction.
  */
@@ -270,7 +270,7 @@ export function renderAttachments(goal: Pick<Goal, 'id' | 'attachments'>, dataDi
     const md = a.markdown?.status === 'ready' ? markdownAbsPath(dataDir, goal.id, a) : null;
     const mdMeta = md && a.markdown ? `${fmtSize(a.markdown.bytes)}${a.markdown.bytes != null && a.markdown.bytes < 200 ? ', nearly empty' : ''}` : '';
     if (kind === 'link') {
-      // a page in a design tool behind a sign-in (ADR-0092): no session can read it, and nobody should pretend to
+      // a page in a design tool behind a sign-in (ADR-0093): no session can read it, and nobody should pretend to
       const tool = a.url ? unreadableDesignLink(a.url) : null;
       if (tool) return `- [link] ${a.url}${note} — a ${tool} page: it needs a sign-in, so no session can open it. Treat it as a design that was not supplied; the person was asked to attach an export (HTML, a zip or screenshots) instead.`;
       if (md) return `- [link] ${a.url}${note} — markdown snapshot (${mdMeta}, fetched ${a.markdown!.at?.slice(0, 10) ?? '?'}): ${md}. Read the snapshot with the Read tool; use WebFetch only if it looks stale or nearly empty.`;

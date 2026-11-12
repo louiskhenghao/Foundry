@@ -189,7 +189,7 @@ export interface CreateGoalInput {
   /** effort level for every session of this goal; default = Settings → workflow.effort */
   /** a level the coding agent takes (engine.effortLevels, ADR-0085); null = the Settings default */
   effort?: string | null;
-  /** the Design pack this goal's UI tasks follow when it should differ from Settings' (ADR-0092); null or absent = Settings' default */
+  /** the Design pack this goal's UI tasks follow when it should differ from Settings' (ADR-0093); null or absent = Settings' default */
   designPack?: DesignPack | null;
   /** model preset for this goal; default = the preset Settings picks for its nature */
   modelPreset?: string | null;
@@ -886,7 +886,7 @@ export class Engine {
     return { pack, installed: statuses.some((s) => s.entry.pack === 'diagram' && s.entry.packOption === pack && SATISFIED.includes(s.status)) };
   }
 
-  /** the goal's own pack choices laid over Settings' (its Figure pack, ADR-0076; its video engine, ADR-0077; its Design pack, ADR-0092): what its sessions' skill sections are filtered by */
+  /** the goal's own pack choices laid over Settings' (its Figure pack, ADR-0076; its video engine, ADR-0077; its Design pack, ADR-0093): what its sessions' skill sections are filtered by */
   packsFor(goal: Pick<Goal, 'figurePack' | 'videoPack' | 'designPack'>): Record<string, string | undefined> {
     return { ...(goal.figurePack ? { figure: goal.figurePack } : {}), ...(goal.videoPack ? { video: goal.videoPack } : {}), ...(goal.designPack ? { design: goal.designPack } : {}) };
   }
@@ -2980,7 +2980,7 @@ export class Engine {
     this.store.append({ type: 'goal.attachment_removed', goalId, payload: { attachmentId } });
   }
 
-  /** The person marks an attachment as the design the result follows, or unmarks it (ADR-0092): every later session reads it as such. */
+  /** The person marks an attachment as the design the result follows, or unmarks it (ADR-0093): every later session reads it as such. */
   markAttachment(goalId: string, attachmentId: string, design: boolean): Attachment {
     const goal = this.mustGoal(goalId);
     const att = goal.attachments.find((a) => a.id === attachmentId);

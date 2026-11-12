@@ -677,10 +677,10 @@ const TECH_STACK_SECTION = `This repository has no code yet, so there is nothing
 const SUBJECTS_ASK = `# Subjects: real things the result must look like
 When the result depicts something that exists (a specific vehicle, building, landmark, product or artwork; never a person), name it in \`subjects\` (at most 3), precisely enough to search for pictures of exactly that one (make, model, generation or year), with \`lookFor\`: what must match (the proportions, the distinctive features, colours and materials). Foundry finds pictures of each before the plan runs, and every worker and reviewer compares against them. When the user attached pictures of it, list their file names in \`pictures\`. Leave \`subjects\` empty for invented designs, generic styles and anything that is not a physical thing.`;
 
-/** is the design the result follows attached to the goal (ADR-0092) */
+/** is the design the result follows attached to the goal (ADR-0093) */
 const designSupplied = (goal: Pick<Goal, 'attachments'>): boolean => designReferences(goal.attachments ?? []).length > 0;
 
-/** the Clarifier's rules when the person attached the design (ADR-0092): it is read, not re-imagined; the Brief binds every page to it */
+/** the Clarifier's rules when the person attached the design (ADR-0093): it is read, not re-imagined; the Brief binds every page to it */
 const DESIGN_SUPPLIED_CLARIFY = `# The design is supplied
 The person attached the design the result follows (see *Design reference* below). Open every design reference before you write anything: a picture with the Read tool, an HTML export by reading its markup and styles, a zip by its files.
 - Output exactly ONE \`styleOptions\` entry, read from the design: key \`S1\`, name "From your design", its real hex colours (dominant first), its typefaces, 3–6 keywords, one line on its look, with \`chosen: true\`. Never invent other directions: the direction is settled by the design.
@@ -691,7 +691,7 @@ The person attached the design the result follows (see *Design reference* below)
 - A marked file that is plainly not a design of the result (a screenshot of a bug, a photo of a thing, a logo) is a reference, not the design: say so in \`understanding\`, derive no style card from it, add no "Matches the design" check for it, and plan the goal as one without a design.`;
 
 /**
- * The goal points to a design-tool page behind a sign-in and no design is attached (ADR-0092): the Clarifier is told so
+ * The goal points to a design-tool page behind a sign-in and no design is attached (ADR-0093): the Clarifier is told so
  * outright, so it neither spends an interview round on it (the Brief itself asks the person for an export) nor invents a
  * way the workers would read it — a live run offered "Foundry hands the artifact to every task, proceed as is".
  */
@@ -704,7 +704,7 @@ ${links.map(({ url, tool }) => `- ${url} is a ${tool} page.`).join('\n')}
 Such a page needs a sign-in: neither you nor any worker can open it, and no tool, fetch or browser will. The design behind it has NOT been supplied. Do not ask the person about it in an interview round, and do not offer to proceed as though it will be read: the Brief itself asks the person for an export (an HTML file, a zip or screenshots attached as the Design reference) or to go without. Write the Brief as for a goal without a design: say in \`understanding\` that the design was not supplied, propose \`styleOptions\` as usual, and plan the pages from the goal's words.`;
 }
 
-/** the planner's rules when the design is supplied (ADR-0092): a task per page it shows, each naming its file and checked against it */
+/** the planner's rules when the design is supplied (ADR-0093): a task per page it shows, each naming its file and checked against it */
 const DESIGN_SUPPLIED_PLANNER = `# The design is supplied
 The design reference below is the law for every page it shows. Give every page or screen in the Clarifier's **Design inventory** a task of its own (or a clearly named part of one): the task's spec names the design file it follows and what that page shows, and the task gets a task-level reviewer check named "Matches the design: <page>" whose rubric names the file and what must match (layout and sections, copy, colours, type, spacing, components, states). A state the design does not show follows the Brief's assumptions. A milestone's text names the design page to compare with.`;
 
@@ -833,7 +833,7 @@ function natureSection(goal: Goal, emptyRepo: boolean, imageGen = true, cadAvail
     case 'cad':
       return [cad, subjectsSection(goal)].join('\n\n');
     case 'code':
-      // the person attached the design (ADR-0092): it is read, not re-imagined — no invented directions to pick from
+      // the person attached the design (ADR-0093): it is read, not re-imagined — no invented directions to pick from
       return [emptyRepo ? `# Empty repository\n${TECH_STACK_SECTION}` : '', designSupplied(goal) ? DESIGN_SUPPLIED_CLARIFY : `# Style directions for UI goals\nWhen this goal's main deliverable is a user interface (a landing page, a product UI), also output 2–4 \`styleOptions\` (real hex palette, typefaces, keywords, a one-line feel; recommendation first) so the human can SEE the direction before work starts; one the interview already settled goes first with \`chosen: true\`. Skip them for backend/tooling goals.`, diagrams, subjectsSection(goal)]
         .filter(Boolean)
         .join('\n\n');
@@ -949,7 +949,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
   const areaKeys = new Set(o.areas.map((a) => a.key));
   const area = (k: string | null | undefined) => (k && areaKeys.has(k) ? k : null);
   let styleOptions = (o.styleOptions ?? []).map((s) => ({ key: s.key, name: s.name, palette: s.palette ?? [], fonts: s.fonts ?? [], keywords: s.keywords ?? [], description: s.description ?? '', samples: [] as string[], chosenSample: null as string | null }));
-  // the design is supplied (ADR-0092): the one card read from it is the direction, settled — never a choice among invented ones
+  // the design is supplied (ADR-0093): the one card read from it is the direction, settled — never a choice among invented ones
   const supplied = designSupplied(goal);
   if (supplied && styleOptions.length > 1) {
     const read = (o.styleOptions ?? []).find((s) => s.chosen)?.key ?? styleOptions[0]!.key;
@@ -961,7 +961,7 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
   // a direction the human already picked in the interview is not asked again: the question starts answered, still changeable
   const picked = kept ? null : supplied ? (styleOptions[0]?.name ?? null) : ((o.styleOptions ?? []).find((s) => s.chosen)?.name ?? null);
   const keptAnswer = kept && styleOptions.some((s) => s.name === kept.name) ? kept.name : picked;
-  // a link into a design tool no session can open, and no design attached (ADR-0092): the person is asked for an export
+  // a link into a design tool no session can open, and no design attached (ADR-0093): the person is asked for an export
   // before the Brief is approved — once; a Decision kept over a Re-run Clarify is not asked again
   const unreadable = supplied ? [] : unreadableDesignLinks(goal).filter(({ url }) => !extraQuestions.some((q) => q.text.includes(url)));
   const linkQuestions: Brief['questions'] = unreadable.map(({ url, tool }) => ({

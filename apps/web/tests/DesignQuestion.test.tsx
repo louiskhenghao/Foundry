@@ -9,7 +9,7 @@ const brief = { questions: [question], styleOptions: [] } as unknown as Brief;
 const picture: Attachment = { id: 'att_1', kind: 'file', name: 'home.png', mime: 'image/png', size: 10, path: 'attachments/g/att_1/home.png', url: null, note: null, addedAt: 't', markdown: null, design: true };
 const render = (attachments: Attachment[], q: BriefQuestion = question) => renderToStaticMarkup(<DesignQuestion goalId="g" brief={brief} question={q} attachments={attachments} editable update={() => {}} onRerun={async () => {}} />);
 
-test('the design question carries a drop zone and waits for a file before the Brief can be written again (ADR-0092)', () => {
+test('the design question carries a drop zone and waits for a file before the Brief can be written again (ADR-0093)', () => {
   const html = render([]);
   expect(html).toContain('blocking');
   expect(html).toContain('Attach screenshots, PDFs, files or links');

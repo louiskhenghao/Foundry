@@ -833,7 +833,7 @@ describe('the Clarifier names the goal', () => {
   }, 20_000);
 });
 
-describe('a design reference (ADR-0092)', () => {
+describe('a design reference (ADR-0093)', () => {
   const styles = [
     { key: 'S1', name: 'From your design', palette: ['#111111', '#F4B400'], fonts: ['Inter'], keywords: ['dense'], description: 'As the export shows.', chosen: true },
     { key: 'S2', name: 'Minimal café', palette: ['#FFFFFF'], fonts: ['Inter'], keywords: ['clean'], description: 'Airy.' },
@@ -893,7 +893,7 @@ describe('a design reference (ADR-0092)', () => {
   }, 20_000);
 });
 
-describe('the goal\'s own Design pack and the design mark (ADR-0092)', () => {
+describe('the goal\'s own Design pack and the design mark (ADR-0093)', () => {
   test('a goal made with a Design pack keeps it and lays it over Settings\' packs; without one Settings\' stands', async () => {
     const runner = new StructuredRunner(() => briefWith([task('T1', 'A1', 'build page')], [check('C1', 'T1')]));
     const engine = track(new Engine(cfg(), runner));
@@ -925,7 +925,7 @@ describe('the goal\'s own Design pack and the design mark (ADR-0092)', () => {
   }, 20_000);
 });
 
-describe('a design link no session can open (ADR-0092)', () => {
+describe('a design link no session can open (ADR-0093)', () => {
   test('the Clarifier is told the link is unreadable and not to ask or pretend; not when a design is attached', async () => {
     const { stageFile } = await import('./attachments.ts');
     const skeleton: BriefSkeleton = { title: 'feat(site): landing page', understanding: 'One page.', nature: 'code', areas: [areas[0]!], assumptions: [], openQuestions: [], styleOptions: [], run: null, apps: null, goalChecks: [{ key: 'G1', name: 'G1', tier: 'must', areaKey: null, type: 'command', cmd: 'true', rubric: null }], planningNotes: 'notes' };

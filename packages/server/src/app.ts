@@ -71,7 +71,7 @@ const CreateGoalBody = z.object({
   videoPack: VideoPack.nullable().optional(),
   /** the Figure pack this goal follows when it should differ from Settings' (ADR-0076) */
   figurePack: FigurePack.nullable().optional(),
-  /** the Design pack this goal's UI tasks follow when it should differ from Settings' (ADR-0092) */
+  /** the Design pack this goal's UI tasks follow when it should differ from Settings' (ADR-0093) */
   designPack: DesignPack.nullable().optional(),
   outputDir: z.string().nullable().optional(),
   selfCheck: z.boolean().optional(),
@@ -439,7 +439,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ ok: true, brief: getBrief(db, goal.id)?.brief ?? null });
   });
   app.post('/api/goals/:id/attachments/:attId/convert', async (c) => c.json({ markdown: await engine.reconvertAttachment(c.req.param('id'), c.req.param('attId')) }));
-  // the person marks an attachment as the design the result follows, or unmarks it (ADR-0092)
+  // the person marks an attachment as the design the result follows, or unmarks it (ADR-0093)
   app.post('/api/goals/:id/attachments/:attId/mark', async (c) => {
     const { design } = z.object({ design: z.boolean() }).parse(await c.req.json());
     return c.json({ attachment: engine.markAttachment(c.req.param('id'), c.req.param('attId'), design) });

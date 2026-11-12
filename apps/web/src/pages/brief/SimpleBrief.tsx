@@ -26,7 +26,7 @@ export function SimpleBrief(p: {
   /** the planner is still splitting the goal into pieces of work: the Brief skeleton shows, approval waits */
   planning?: boolean;
   update: (patch: Partial<Brief>) => void;
-  /** the design question's remedy (ADR-0092): write the Brief again from the export dropped on it */
+  /** the design question's remedy (ADR-0093): write the Brief again from the export dropped on it */
   onRerunWithDesign: () => Promise<void>;
   budgetDraft: { maxCostUsd: number | null; maxDurationMin: number | null };
   setBudgetEdit: (b: { maxCostUsd: number | null; maxDurationMin: number | null }) => void;

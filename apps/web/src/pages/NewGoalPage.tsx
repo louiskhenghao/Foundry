@@ -203,7 +203,7 @@ export function NewGoalPage() {
   const [videoPacks, setVideoPacks] = useState<PackGroupView | null>(null);
   const [betaMotionStudio, setBetaMotionStudio] = useState(false);
   useEffect(() => { if (nature === 'video' && betaMotionStudio && !videoPacks) void api.packs().then((p) => setVideoPacks(p.video)).catch(() => {}); }, [nature, betaMotionStudio]);
-  // the Design pack a code goal's UI tasks follow (ADR-0092): '' = the Design skills pack Settings names
+  // the Design pack a code goal's UI tasks follow (ADR-0093): '' = the Design skills pack Settings names
   const [designPack, setDesignPack] = useState('');
   const [designPacks, setDesignPacks] = useState<PackGroupView | null>(null);
   useEffect(() => { if ((nature === 'code' || nature === 'auto') && !designPacks) void api.packs().then((p) => setDesignPacks(p.design)).catch(() => {}); }, [nature]);
@@ -676,7 +676,7 @@ export function NewGoalPage() {
         workflow: pace === 'fast' ? { pace, ponytail, profile } : { pace, tdd: mode === 'simple' ? 'preferred' : tdd, ponytail, profile },
         nature,
         figurePack: nature === 'figure' && figurePack ? figurePack : undefined,
-        // the Design pack this goal's UI tasks follow instead of Settings' (ADR-0092)
+        // the Design pack this goal's UI tasks follow instead of Settings' (ADR-0093)
         designPack: (nature === 'code' || nature === 'auto') && designPack ? designPack : undefined,
         outputDir: ARTIFACT_NATURES.includes(nature) && outputDir.trim() ? outputDir.trim() : undefined,
         // the Engine picker shows with the motion-studio Beta; a template sets the engine without it (ADR-0087)
@@ -858,7 +858,7 @@ export function NewGoalPage() {
               </div>
             )}
             {(nature === 'code' || nature === 'auto') && designPacks && (
-              // the Design pack this goal's UI tasks follow (ADR-0092); with a design reference attached, the pack only fills what the design leaves open
+              // the Design pack this goal's UI tasks follow (ADR-0093); with a design reference attached, the pack only fills what the design leaves open
               <div className="mt-3">
                 <label className="text-xs text-ink-soft">Design skills — the design skill set this goal's UI tasks follow (Settings → Skills sets the default; a design you attach is followed first)</label>
                 <Select aria-label="Design skills" className="mt-1 max-w-md" value={designPack} onChange={(e) => setDesignPack(e.target.value)}>
@@ -1112,7 +1112,7 @@ export function NewGoalPage() {
               </div>
             )}
             <AttachmentInput className="mt-2" items={attachments} onChange={setAttachments} markDesigns={nature === 'code' || nature === 'auto'} />
-            {/* a link into a design tool behind a sign-in, and no design attached (ADR-0092): the sessions would never see the design */}
+            {/* a link into a design tool behind a sign-in, and no design attached (ADR-0093): the sessions would never see the design */}
             {designReferences(attachments).length === 0 && unreadableDesignLinks({ prompt, attachments }).map(({ url, tool }) => (
               <p key={url} className="mt-2 text-xs text-bad-ink" role="status">
                 Foundry cannot open {tool} pages ({url}): they need a sign-in, so the sessions would never see the design. Export it from {tool} (an HTML file or a zip, or screenshots of every screen) and attach the files above; they are marked as the design reference.
