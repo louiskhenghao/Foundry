@@ -78,6 +78,8 @@ export const WorkflowSettings = z.object({
   audit: z.boolean().default(false),
   /** new goals with a web app test it in a browser once every task is done, before the goal review (chosen per goal at Brief approval, ADR-0057) */
   qa: z.boolean().default(false),
+  /** a frontend task of a goal that follows an attached design is photographed before its review and the reviewers compare the screens with the design (ADR-0094) */
+  designCheck: z.boolean().default(true),
   /** once a Brief fills in, a reviewer that did not write it proposes what to change — a second opinion (ADR-0051) */
   briefSecondOpinion: z.boolean().default(false),
   /** which view new goals open in */

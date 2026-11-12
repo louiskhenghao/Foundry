@@ -12,7 +12,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { rm, writeFile } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import type { Adjustment, AdjustmentMode, Attachment, Check, Goal, Task, TaskScenario } from '@foundry/core';
-import { ADJUST_ATTACHMENTS_MAX, ARTIFACTS_HISTORY_DIR, IdPrefix, getBrief, getGoal, getTask, isHistory, listAttempts, listChecks, listTasks, newId, repoHere } from '@foundry/core';
+import { ADJUST_ATTACHMENTS_MAX, ARTIFACTS_HISTORY_DIR, IdPrefix, designReferences, getBrief, getGoal, getTask, isHistory, listAttempts, listChecks, listTasks, newId, repoHere } from '@foundry/core';
 import { attachmentAbsPath } from './attachments.ts';
 import { budgetStatus } from './budget.ts';
 import { FIGURE_CHECK_NAME, figurePages } from './checks/figure.ts';
@@ -172,9 +172,11 @@ const given = (c: AdjustmentContext): string => {
  */
 export function renderAdjustment(goal: Pick<Goal, 'id' | 'attachments'>, adjustment: Adjustment, dataDir: string, opts: { forReviewer?: boolean } = {}): string {
   const c = adjustmentContext(goal, adjustment, dataDir);
+  // the goal follows an attached design (ADR-0093): an adjustment keeps to it, and the reviewer compares with it
+  const designed = designReferences(goal.attachments ?? []).length > 0;
   const tail = opts.forReviewer
-    ? 'This task ran and landed before; the diff is the adjustment alone. Judge whether it does what the person asked, and nothing the person did not ask for.'
-    : 'This task ran and landed before; the person looked at the result and asks for this change. Build on what is in the workspace — the goal branch holds the task\'s work — change only what the adjustment needs, keep what the person did not name, and run the acceptance checks again before you stop. `artifacts/.history/` keeps the earlier result: leave it alone.';
+    ? `This task ran and landed before; the diff is the adjustment alone. Judge whether it does what the person asked, and nothing the person did not ask for.${designed ? ' The goal follows the attached design (see Design reference): the adjustment is judged against it too — what it changes is in the design\'s language, and nothing the design shows was dropped or re-designed on the way.' : ''}`
+    : `This task ran and landed before; the person looked at the result and asks for this change. Build on what is in the workspace — the goal branch holds the task\'s work — change only what the adjustment needs, keep what the person did not name, and run the acceptance checks again before you stop. \`artifacts/.history/\` keeps the earlier result: leave it alone.${designed ? ' The goal follows the attached design (see Design reference): make the change in its language, and keep everything the design shows.' : ''}`;
   return `# Adjustment asked by the person (adjustment ${c.n})\n${c.text}${given(c)}\n\n${tail}`;
 }
 

@@ -1,8 +1,9 @@
 import type { NeedsBlock } from '@foundry/core';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { reportsDollars, parseNeedsBlock, withoutNeedsBlock } from '@foundry/core';
+import { designReferences, reportsDollars, parseNeedsBlock, withoutNeedsBlock } from '@foundry/core';
 import type { Attempt, Check, CheckResult, Goal, ObservationReport, Task } from '@foundry/core';
+import { captureDesignShots } from './checks/design-shots.ts';
 import type { EngineConfig } from './config.ts';
 import { IdPrefix, bumpStat, chosenStyle, getAttempt, getBrief, getGoal, getObservation, listAttempts, listChecks, newId, renderDecisions } from '@foundry/core';
 import { LIMIT_TEXT, resumeRefused, type RunResult } from '@foundry/runner';
@@ -68,7 +69,7 @@ export interface Continuation {
 /** the wall-clock cap of one session before any per-task floor: the goal's own (Budgets, ADR-0077), else Settings → sessions.attemptTimeoutMin */
 export const goalSessionTimeoutMs = (goal: Pick<Goal, 'budgets'>, config: Pick<EngineConfig, 'attemptTimeoutMs'>): number => (goal.budgets.attemptTimeoutMin ? goal.budgets.attemptTimeoutMin * 60_000 : config.attemptTimeoutMs);
 
-export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string; answer?: RequestAnswer; adjustment?: AdjustmentContext } = {}): string {
+export function continuationMessage(reason: ContinueReason, ctx: { timeoutMin?: number; report?: string; goalBranch?: string; answer?: RequestAnswer; adjustment?: AdjustmentContext; /** the rendered design reference section (ADR-0093) when the goal follows one: an adjusted result keeps to it */ design?: string } = {}): string {
   switch (reason) {
     case 'usage_limit':
       return 'Your session was stopped by a usage limit before you finished. The workspace is exactly as you left it (uncommitted edits were snapshotted). Continue from where you stopped; do not redo finished steps. When done, reply with the usual short summary.';
@@ -102,7 +103,9 @@ Fix them; everything else you did is kept. Do not start over. When done, reply w
       const a = ctx.adjustment;
       const files = a?.files.length ? `\n\nFiles they gave, read them from these paths:\n${a.files.map((f) => `- ${f.path} (${f.name})`).join('\n')}` : '';
       const links = a?.links.length ? `\n\nLinks they gave:\n${a.links.map((l) => `- ${l}`).join('\n')}` : '';
-      return `Your task landed and the goal finished. The person looked at the result and asks for an adjustment${a ? ` (adjustment ${a.n})` : ''}:\n\n${a?.text ?? '(see the hint)'}${files}${links}\n\nThe workspace is the goal branch as it stands, your work landed on it; what you do now lands as a commit of its own. Carry out the adjustment and nothing else: do not redo finished work, keep what the person did not name, and run the acceptance checks again before you stop. \`artifacts/.history/\` keeps the earlier result — leave it alone. When done, reply with the usual short summary.`;
+      // the goal follows an attached design (ADR-0093): the adjusted result keeps to it, and the reviewer compares it with the design
+      const design = ctx.design ? `\n\n${ctx.design}\nThe adjusted result keeps to this design: what the adjustment changes is built in its language, and nothing it shows is dropped or re-designed on the way.` : '';
+      return `Your task landed and the goal finished. The person looked at the result and asks for an adjustment${a ? ` (adjustment ${a.n})` : ''}:\n\n${a?.text ?? '(see the hint)'}${files}${links}${design}\n\nThe workspace is the goal branch as it stands, your work landed on it; what you do now lands as a commit of its own. Carry out the adjustment and nothing else: do not redo finished work, keep what the person did not name, and run the acceptance checks again before you stop. \`artifacts/.history/\` keeps the earlier result — leave it alone. When done, reply with the usual short summary.`;
     }
   }
 }
@@ -404,7 +407,14 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
     // satisfied by the tree as-is. The reviewer has nothing to judge; checks are the truth.
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `task ${task.id}: no changes needed — objective checks pass on the current tree` } });
   } else if (!limited && objectivePassed && (reviewerChecks.length || (engine.config.alwaysReviewTasks && goal.workflow.pace !== 'fast'))) {
-    reviewerVerdict = await reviewTaskDiff(engine, goal, task, attempt, cwd, taskBaseRef, reviewerChecks, workflow).catch((err) => {
+    // a task with a look on a goal that follows an attached design (ADR-0093): Foundry starts the result from this worktree
+    // and photographs it at the design's widths, so the reviewer compares screens with the design, not the diff alone (ADR-0094)
+    const designShots =
+      config.designCheck && (task.scenario === 'frontend' || task.scenario === 'fullstack') && designReferences(goal.attachments).length
+        ? await captureDesignShots(engine, goal, cwd, { prefix: `design-${task.id}-a${index}`, log: (message) => store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `task ${task.id}: ${message}` } }) })
+        : null;
+    if (designShots?.note) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `task ${task.id}: design shots — ${designShots.note}` } });
+    reviewerVerdict = await reviewTaskDiff(engine, goal, task, attempt, cwd, taskBaseRef, reviewerChecks, workflow, { designShots }).catch((err) => {
       store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `task reviewer failed: ${String(err)}` } });
       return null;
     });

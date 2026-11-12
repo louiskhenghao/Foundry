@@ -2,8 +2,10 @@ import { metaFor, modelFor } from '../models/roles.ts';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Attempt, Check, Goal, ReviewerVerdict, Task } from '@foundry/core';
-import { jsonSchemaFor, ReviewerVerdict as ReviewerVerdictSchema, VERDICT_AXES, type VerdictAxis, type VerdictScores, chosenStyle, getBrief } from '@foundry/core';
+import { jsonSchemaFor, ReviewerVerdict as ReviewerVerdictSchema, VERDICT_AXES, type VerdictAxis, type VerdictScores, chosenStyle, designReferences, getBrief } from '@foundry/core';
 import { renderStyle } from '../attempt-prompt.ts';
+import { attachmentsDir, renderDesignReferences } from '../attachments.ts';
+import { type DesignShots, designComparisonSection } from './design-shots.ts';
 import { FIGURE_REVIEW_TASK } from '../figure.ts';
 import { DIAGRAM_REVIEW_TASK } from '../diagram.ts';
 import { diagramCheckLines, diagramReviewSection } from './diagram.ts';
@@ -155,7 +157,7 @@ function saveTaskDiff(engine: Engine, goal: Goal, attempt: Attempt, d: string): 
   }
 }
 
-export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, attempt: Attempt, cwd: string, baseRef: string, checks: Check[], workflow?: WorkflowObservation | null): Promise<ReviewerVerdict | null> {
+export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, attempt: Attempt, cwd: string, baseRef: string, checks: Check[], workflow?: WorkflowObservation | null, extras: { /** Foundry's screenshots of this task's result for the design comparison (ADR-0094), or null when none were attempted */ designShots?: DesignShots | null } = {}): Promise<ReviewerVerdict | null> {
   const d = await diff(cwd, baseRef, 'HEAD', Number.POSITIVE_INFINITY);
   if (!d.trim()) return { pass: false, blockers: ['No changes were made in this attempt.'] };
   const fit = fitDiff(d, TASK_REVIEW_INLINE_CHARS);
@@ -180,17 +182,26 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
               ? deckReviewSection(DECK_REVIEW_TASK, deckCheckLines(engine.store.db, goal.id, task.id))
               : '';
   const brief = getBrief(engine.store.db, goal.id)?.brief;
-  const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true }) : '';
+  // the design the result follows (ADR-0093): the law for a task with a look, read beside Foundry's shots of the result (ADR-0094)
+  const design = ['frontend', 'fullstack', 'mobile', 'general'].includes(task.scenario) ? renderDesignReferences(goal, engine.config.dataDir) : '';
+  const comparison = design ? designComparisonSection(extras.designShots) : '';
+  const style = brief && ['image', 'video', 'frontend', 'fullstack'].includes(task.scenario) ? renderStyle(chosenStyle(brief), { forReviewer: true, fromDesign: designReferences(goal.attachments).length > 0 }) : '';
   const subjects = renderSubjects(engine.config.dataDir, goal.id, brief, 'task-reviewer', task.scenario);
-  // the Subjects' pictures live outside the worktree, and so do Foundry's screenshots of a figure or diagram task's pages (ADR-0076, ADR-0083)
-  const reviewDirs = [...(subjects ? subjectsAddDirs(engine.config.dataDir, goal.id, brief) : []), ...(task.scenario === 'figure' || task.scenario === 'diagram' || task.scenario === 'deck' ? [screenshotsDir(engine.config.dataDir, goal)] : [])];
+  // the Subjects' pictures live outside the worktree, and so do Foundry's screenshots of a figure or diagram task's pages (ADR-0076, ADR-0083), the design reference files and the design shots (ADR-0094)
+  const reviewDirs = [
+    ...(subjects ? subjectsAddDirs(engine.config.dataDir, goal.id, brief) : []),
+    ...(task.scenario === 'figure' || task.scenario === 'diagram' || task.scenario === 'deck' || extras.designShots?.shots.length ? [screenshotsDir(engine.config.dataDir, goal)] : []),
+    ...(design ? [attachmentsDir(engine.config.dataDir, goal.id)] : []),
+  ];
   // what earlier reviews in this repository refused for such a change (ADR-0072); nothing while Memory is off
   const recalled = await engine.memory.reflect('review_task', memoryQuestion('review_task', { goalTitle: goal.title, taskTitle: task.title, files: task.relevantFiles }), { repoPath: goal.repoPath, goalId: goal.id, taskId: task.id, attemptId: attempt.id });
   const prompt = [
     `# Task (${task.kind}${task.scenario !== 'general' ? `, ${task.scenario}` : ''})\n${task.title}\n\n${task.spec}`,
+    design,
     task.adjustment ? renderAdjustment(goal, task.adjustment, engine.config.dataDir, { forReviewer: true }) : '',
     rubric ? `# Rubric (verify each)\n${rubric}${/\bscores\b/i.test(rubric) ? '\nPut the numbers in the JSON `scores` field, one integer per axis, not only in the notes.' : ''}` : '',
     style,
+    comparison,
     subjects,
     media,
     reviewerHint ?? '',

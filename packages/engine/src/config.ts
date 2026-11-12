@@ -140,6 +140,8 @@ export interface EngineConfig {
   workflowAudit: boolean;
   /** new goals with a web app run the browser QA before the goal review (ADR-0057) */
   workflowQa: boolean;
+  /** a frontend task of a goal with a design reference is photographed before its review; the reviewers compare the screens with the design (ADR-0094) */
+  designCheck: boolean;
   /** tools of allowed catalog MCP servers that run or change things are usable in sessions */
   mcpDynamicTools: boolean;
   /** caps of the session that investigates a goal's reference */
@@ -266,6 +268,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     workflowPonytail: process.env.FOUNDRY_PONYTAIL === 'off' ? 'off' : 'on',
     workflowAudit: process.env.FOUNDRY_AUDIT === '1' || process.env.FOUNDRY_AUDIT === 'true',
     workflowQa: process.env.FOUNDRY_QA === '1' || process.env.FOUNDRY_QA === 'true',
+    designCheck: !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_DESIGN_CHECK ?? ''),
     mcpDynamicTools: process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === '1' || process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === 'true',
     desktopApps: process.env.FOUNDRY_DESKTOP_APPS === '1' || process.env.FOUNDRY_DESKTOP_APPS === 'true',
     investigationMaxCostUsd: Number(process.env.FOUNDRY_INVESTIGATION_MAX_COST ?? 3) || 3,

@@ -295,3 +295,30 @@ export function markitdownHint(available: boolean, bin: string | null = null): s
   if (!available) return '';
   return `To read PDF, Office, EPUB or other document files inside the repository, run \`${bin ?? 'markitdown'} <file> -o /tmp/<name>.md\` (installed on this machine) and Read the markdown, instead of reading the binary.`;
 }
+
+/**
+ * Files on `ref` of the repository whose content is a design reference file (ADR-0093): the person's design export
+ * must stay out of the repository (ported, never copied), and a name pattern would also match the goal's own pages
+ * and scripts named after the design, so the match is by content — git's blob hash of each reference file (and of
+ * every file an unpacked zip holds) against the tree. Repo-relative paths, sorted; [] without design references.
+ */
+export async function committedDesignReferences(goal: Pick<Goal, 'id' | 'attachments'>, dataDir: string, repoDir: string, ref: string): Promise<string[]> {
+  const files: string[] = [];
+  for (const a of designReferences(goal.attachments ?? [])) {
+    const abs = attachmentAbsPath(dataDir, goal.id, a);
+    if (abs) files.push(abs);
+    if (a.extracted?.dir) {
+      const dir = resolve(dataDir, a.extracted.dir);
+      if (existsSync(dir)) for (const e of readdirSync(dir, { recursive: true, withFileTypes: true })) if (e.isFile()) files.push(join(e.parentPath, e.name));
+    }
+  }
+  if (!files.length) return [];
+  const hashes = new Set((await Bun.$`git -C ${repoDir} hash-object ${files}`.quiet().text()).split('\n').filter(Boolean));
+  const tree = (await Bun.$`git -C ${repoDir} ls-tree -r ${ref}`.quiet().text()).split('\n').filter(Boolean);
+  const out: string[] = [];
+  for (const line of tree) {
+    const m = /^\d+ blob ([0-9a-f]+)\t(.+)$/.exec(line);
+    if (m && hashes.has(m[1]!)) out.push(m[2]!);
+  }
+  return out.sort();
+}

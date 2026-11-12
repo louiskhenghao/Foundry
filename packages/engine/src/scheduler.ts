@@ -4,6 +4,7 @@ import { ARTIFACT_SCENARIOS, listTasks, getTask, getGoal, listAttempts, getObser
 import { type Continuation, type ContinueReason, goalSessionTimeoutMs, continuationMessage, cutByLimit, decideNext, maxAttemptsFor, runAttempt } from './attempt-loop.ts';
 import { budgetStatus } from './budget.ts';
 import { adjustmentContext } from './adjust.ts';
+import { renderDesignReferences } from './attachments.ts';
 import type { Engine } from './engine.ts';
 import { runAudit } from './audit.ts';
 import { runQa } from './qa.ts';
@@ -274,7 +275,11 @@ async function startTask(engine: Engine, goal: Goal, task: Task, ownWorktree: bo
     let resume: Continuation | null = last && last.state === 'interrupted' && last.sessionId && (cutBy === 'usage_limit' || cutBy === 'needs_input' || cutBy === 'paused' || last.continuations < config.maxContinuations) ? { attempt: last, reason: cutBy, message: continuationMessage(cutBy, { answer }) } : null;
     // an Adjustment of a finished task (ADR-0078): the session that passed resumes with the person's words — it knows
     // the work it did — past the continuation cap; with no session to resume, a fresh attempt is given them instead
-    if (!resume && task.adjustment && last?.state === 'passed' && last.sessionId) resume = { attempt: last, reason: 'adjust', message: continuationMessage('adjust', { adjustment: adjustmentContext(getGoal(store.db, goal.id)!, task.adjustment, config.dataDir) }) };
+    if (!resume && task.adjustment && last?.state === 'passed' && last.sessionId) {
+      const fresh = getGoal(store.db, goal.id)!;
+      // the resumed session is told the design it keeps to (ADR-0093): a fresh attempt gets it with its attachments, a resume only through this message
+      resume = { attempt: last, reason: 'adjust', message: continuationMessage('adjust', { adjustment: adjustmentContext(fresh, task.adjustment, config.dataDir), design: renderDesignReferences(fresh, config.dataDir) }) };
+    }
     const attemptsSoFar = engine.attemptCount(task.id);
     if (!resume && attemptsSoFar >= maxAttemptsFor(task)) {
       raiseEscalation(engine, { goal, task, trigger: 'retries_exhausted', message: `Task "${task.title}" used ${attemptsSoFar} attempts without passing its Must checks.`, payload: { attempts: attemptsSoFar } });

@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { existsSync, mkdtempSync, utimesSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { strToU8, zipSync } from 'fflate';
-import { AttachmentError, attachmentAbsPath, claimStaged, copyAttachment, linkAttachment, renderAttachments, renderDesignReferences, safeName, stageFile, sweepStaging, trashAttachment } from './attachments.ts';
+import { AttachmentError, attachmentAbsPath, claimStaged, copyAttachment, linkAttachment, committedDesignReferences, renderAttachments, renderDesignReferences, safeName, stageFile, sweepStaging, trashAttachment } from './attachments.ts';
 
 const data = () => mkdtempSync(join(tmpdir(), 'att-'));
 
@@ -170,5 +170,29 @@ describe('design references (ADR-0093)', () => {
     const s = renderAttachments({ id: 'g', attachments: [linkAttachment('https://claude.ai/public/artifacts/abc')] }, d);
     expect(s).toContain('- [link] https://claude.ai/public/artifacts/abc — a Claude page: it needs a sign-in, so no session can open it. Treat it as a design that was not supplied; the person was asked to attach an export (HTML, a zip or screenshots) instead.');
     expect(s).not.toContain('WebFetch');
+  });
+});
+
+describe('committedDesignReferences (ADR-0093)', () => {
+  test('finds a committed copy of a design file by content, not by name; a port and a same-named script are not matches', async () => {
+    const d = data();
+    const repo = mkdtempSync(join(tmpdir(), 'design-ref-repo-'));
+    const git = (...args: string[]) => Bun.spawnSync(['git', '-C', repo, ...args], { env: { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@x', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@x' } });
+    git('init', '-q', '-b', 'main');
+    const png = new Uint8Array([137, 80, 78, 71, 1, 2, 3, 4, 5, 6]);
+    const html = strToU8('<html><body>design</body></html>');
+    writeFileSync(join(repo, 'docs-mockup.png'), png); // the picture, copied in under another name
+    writeFileSync(join(repo, 'relay-landing.spec.ts'), strToU8('test("page", () => {})')); // named after the design, not a copy
+    writeFileSync(join(repo, 'index.html'), strToU8('<html><body>ported</body></html>')); // a port
+    mkdirSync(join(repo, 'assets'), { recursive: true });
+    writeFileSync(join(repo, 'assets/app.css'), strToU8('body{}')); // byte-identical to a file inside the zip
+    git('add', '-A');
+    git('commit', '-q', '-m', 'files');
+    const pic = { ...claimStaged(d, 'g_1', [stageFile(d, { name: 'home.png', mime: 'image/png', bytes: png })])[0]!, design: true };
+    const page = { ...claimStaged(d, 'g_1', [stageFile(d, { name: 'home.html', mime: 'text/html', bytes: html })])[0]!, design: true };
+    const archive = { ...claimStaged(d, 'g_1', [stageFile(d, { name: 'export.zip', mime: 'application/zip', bytes: zipSync({ 'index.html': html, 'assets/app.css': strToU8('body{}') }) })])[0]!, design: true };
+    expect(await committedDesignReferences({ id: 'g_1', attachments: [pic, page, archive] }, d, repo, 'main')).toEqual(['assets/app.css', 'docs-mockup.png']);
+    expect(await committedDesignReferences({ id: 'g_1', attachments: [{ ...pic, design: false }] }, d, repo, 'main')).toEqual([]);
+    rmSync(repo, { recursive: true, force: true });
   });
 });

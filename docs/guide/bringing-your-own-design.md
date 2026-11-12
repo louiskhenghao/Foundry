@@ -24,10 +24,12 @@ The Clarifier opens every design file, writes an inventory of it (each page, its
 
 Every worker on a page sees the design reference right after its task, before any style direction, with the rule that the design wins wherever a style direction or a design skill would say otherwise. The design skill of the goal (see [Settings explained](./settings.md#skills)) is still there, for what the design leaves open: states it does not show, how the page behaves on a phone, accessibility, motion. It fills those gaps in your design's language; it never re-chooses the direction.
 
+The reviewers compare, too. Before a page task is reviewed, Foundry starts the task's app from its own worktree, photographs it at 1440 and 390 pixels and hands the pictures to the task reviewer beside your design files; the goal reviewer gets the same pictures of the merged result. The rule is the same for both: a section, element or state your design shows that is missing or re-designed is a blocker, a drift of a few pixels or a shade is a note. Foundry also checks by content that none of your design files was committed into the project (a port is fine, a copy is not). **Compare the screens with the attached design** under Settings → New goal defaults turns the pictures off; the reviewers then judge from the code alone and say so.
+
 ## Design skills per goal
 
 The design skill set a goal's UI tasks follow comes from Settings → Skills → **Design skills**. A code goal may pick another on the New goal form, under the kind of goal: **Design skills** lists the packs, with Settings' pack first and the ones not installed for your coding agent marked. From the command line, `foundry goal new … --design-pack bencium` does the same. With a design attached, the pack only fills what the design leaves open, whichever you pick.
 
 ## If the result still differs
 
-Look at the result against your design page by page. Where it differs, use **Adjust the result** (beta, Settings → Beta) and name the page and the design file it should match, or **Revise** the Brief with a Decision. Both carry your words to the sessions, and the design reference stays attached to the goal for them to read.
+Look at the result against your design page by page. Where it differs, use **Adjust the result** (beta, Settings → Beta) and name the page and the design file it should match, or **Revise** the Brief with a Decision. Both carry your words to the sessions, and the design reference stays attached to the goal for them to read: an adjustment is made in the design's language and compared with it, the way the first build was.
