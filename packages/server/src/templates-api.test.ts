@@ -53,9 +53,9 @@ test('templates: the built-in ones in both languages, then the person\'s own fil
     expect(reel.zh.name).toMatch(/[一-鿿]/);
     expect(reel.en.inputs.map((i: { key: string }) => i.key)).toEqual(['duration', 'product', 'url', 'formats', 'message', 'brand', 'music']);
     expect(reel.en.file).toBe(join(ROOT, 'templates', 'video-product-reel.md'));
-    // the HyperFrames templates (ADR-0087): on that engine, in both languages
+    // the HyperFrames templates (ADR-0087; the launch video with /brag, ADR-0089): on that engine, in both languages
     const hf = first.templates.filter((t: { id: string }) => t.id.startsWith('hyperframes-')).map((t: { id: string; settings: { videoPack?: string }; zh: { name: string } | null }) => [t.id, t.settings.videoPack, !!t.zh]);
-    expect(hf).toEqual([['hyperframes-captioned-clip', 'hyperframes', true], ['hyperframes-narrated-explainer', 'hyperframes', true], ['hyperframes-product-reel', 'hyperframes', true], ['hyperframes-slideshow', 'hyperframes', true]]);
+    expect(hf).toEqual([['hyperframes-captioned-clip', 'hyperframes', true], ['hyperframes-launch-video', 'hyperframes', true], ['hyperframes-narrated-explainer', 'hyperframes', true], ['hyperframes-product-reel', 'hyperframes', true], ['hyperframes-slideshow', 'hyperframes', true]]);
 
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, 'weekly-digest.md'), OWN);

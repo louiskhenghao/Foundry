@@ -27,6 +27,10 @@ export const CATALOG: Record<string, CatalogCredit> = {
   // the Herk Edit Kit's own playbooks (make-a-video, motion-showreel, short-form-edit, video-beats): MIT for the original kit
   // material and the kit's use permission (licenses/PIPELINE-USE-PERMISSION.txt) for its pipeline skills
   'nateherkai/herk-edit-kit': { name: 'Herk Edit Kit', license: 'MIT and the kit\'s use permission' },
+  // /brag (ADR-0089), Latent Spaces' launch-video skill of the hyperframes bundle, pinned to its 0.5.0 release: MIT for the skill;
+  // its five music tracks are Sascha Ende's (ende.app, CC BY 4.0, credited under each film's share copy) and its sound
+  // effects Kenney's (CC0) — none of it in the Docker image, all cloned by the install
+  'latent-spaces/brag': { name: '/brag', license: 'MIT' },
   'morluto/rea': { license: 'MIT' },
   'earthtojake/text-to-cad': { license: 'MIT' },
   'https://ffmpeg.org': { name: 'FFmpeg', license: 'LGPL-2.1-or-later', url: 'https://ffmpeg.org' },
