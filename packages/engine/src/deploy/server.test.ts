@@ -72,7 +72,7 @@ describe('what a server runs (ADR-0091)', () => {
     expect(folderScript('~/apps/site-abc123')).toContain('already holds files that are not a Foundry deploy');
     expect(folderScript('~/apps/site-abc123')).toContain('mkdir -p "$p" && touch "$p/.foundry-deploy"');
     expect(steps[1]!.argv.slice(0, 2)).toEqual(['sh', '-c']);
-    expect(steps[1]!.argv[2]).toBe(`tar -czf - --exclude=.git --exclude=node_modules --exclude=.vercel --exclude=.netlify --exclude=.wrangler -C '/data/deploy/site abc' . | ${ssh.map(shellQuote).join(' ')} 'tar -xzf - -C ~/apps/site-abc123'`);
+    expect(steps[1]!.argv[2]).toBe(`tar -czf - --no-xattrs --exclude=.git --exclude=node_modules --exclude=.vercel --exclude=.netlify --exclude=.wrangler -C '/data/deploy/site abc' . | ${ssh.map(shellQuote).join(' ')} 'tar -xzf - -C ~/apps/site-abc123'`);
     expect(steps[2]!.argv).toEqual([...ssh, "cd ~/apps/site-abc123 && docker compose -p 'site-abc123' -f 'compose.yaml' up -d --build --remove-orphans"]);
     // a folder that is not under ~ is quoted for the remote shell
     expect(remoteDir({ dir: '/srv/my apps/' }, 'x')).toBe("'/srv/my apps/x'");

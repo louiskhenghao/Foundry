@@ -239,7 +239,7 @@ describe('deploying to a server of the person’s own (ADR-0091)', () => {
     expect(info.server).toMatchObject({ ok: true, app: { kind: 'compose', file: 'compose.yaml', services: ['web'], port: 8080 } });
     expect(info.providers.at(-1)).toEqual({ id: 'server', target: 'srv1', kind: 'server', label: 'box', configured: true, refused: null, permissive: false });
     expect(info.plan.map((s) => s.command).join('\n')).toContain('-i <key file>');
-    expect(info.plan.map((s) => s.command).join('\n')).toContain("tar -czf - --exclude=.git --exclude=node_modules --exclude=.vercel --exclude=.netlify --exclude=.wrangler -C '<deploy folder>' .");
+    expect(info.plan.map((s) => s.command).join('\n')).toContain("tar -czf - --no-xattrs --exclude=.git --exclude=node_modules --exclude=.vercel --exclude=.netlify --exclude=.wrangler -C '<deploy folder>' .");
     expect(info.plan.map((s) => s.command).join('\n')).not.toContain('FAKEKEY');
 
     // the readiness check reaches the server with the key on disk, and leaves nothing behind

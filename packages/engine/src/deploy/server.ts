@@ -205,14 +205,15 @@ export function folderScript(remote: string): string {
 export function serverSteps(i: ServerPlanInput): DeployStep[] {
   const ssh = sshArgv(i.server, i.keyFile, i.knownHosts, i.ssh);
   const remote = remoteDir(i.server, i.name);
-  const at = (label: string, argv: string[]): DeployStep => ({ label, argv, env: {}, cwd: i.checkout });
+  const at = (label: string, argv: string[], env: Record<string, string> = {}): DeployStep => ({ label, argv, env, cwd: i.checkout });
   // the checkout as a tar stream over the same connection: no rsync needed on either side; installed packages and the
   // hosts' folders stay out, and what is already on the server is written over, never deleted (a bind-mounted data
-  // folder beside the code survives a deploy)
-  const copy = `tar -czf - --exclude=.git --exclude=node_modules --exclude=.vercel --exclude=.netlify --exclude=.wrangler -C ${shellQuote(i.checkout)} . | ${ssh.map(shellQuote).join(' ')} ${shellQuote(`tar -xzf - -C ${remote}`)}`;
+  // folder beside the code survives a deploy). No extended attributes: a Mac's tar would otherwise send Apple's
+  // provenance headers, which the server's tar warns about on every file
+  const copy = `tar -czf - --no-xattrs --exclude=.git --exclude=node_modules --exclude=.vercel --exclude=.netlify --exclude=.wrangler -C ${shellQuote(i.checkout)} . | ${ssh.map(shellQuote).join(' ')} ${shellQuote(`tar -xzf - -C ${remote}`)}`;
   return [
     at('make the folder on the server', [...ssh, folderScript(remote)]),
-    at('copy the project over', ['sh', '-c', copy]),
+    at('copy the project over', ['sh', '-c', copy], { COPYFILE_DISABLE: '1' }),
     at('start it with docker compose', [...ssh, `cd ${remote} && docker compose -p ${shellQuote(i.name)} -f ${shellQuote(i.file)} up -d --build --remove-orphans`]),
   ];
 }
