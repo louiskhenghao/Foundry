@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { generateKeyPairSync } from 'node:crypto';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -624,4 +625,180 @@ describe('deploying to a platform (ADR-0095)', () => {
     expect(last(engine, goal.id)!.reason).toContain(`production from ${g.baseBranch} on GitHub`);
     rmSync(fakes, { recursive: true, force: true });
   }, 60_000);
+});
+
+/**
+ * A stand-in for the EAS CLI (ADR-0096): logs each call with the token's presence, prints what the real one prints —
+ * a build started, then in progress, then finished; a submission's page — and says whether the key file the submit
+ * profile names existed while it ran.
+ */
+function fakeEas(dir: string): string {
+  const path = join(dir, 'fake-eas');
+  writeFileSync(
+    path,
+    `#!/bin/sh
+cli="$1"; shift
+printf '%s|%s|token=%s novcs=%s|%s\\n' "$cli" "$*" "\${EXPO_TOKEN:+set}" "$EAS_NO_VCS" "$(pwd)" >> "${join(dir, 'eas.log')}"
+plat=android; case "$*" in *"--platform ios"*) plat=ios ;; esac
+build='"id":"b-1","platform":"'$plat'","appVersion":"1.2.0","appBuildVersion":"7","artifacts":{"buildUrl":"https://expo.dev/artifacts/eas/app.apk","applicationArchiveUrl":"https://expo.dev/artifacts/eas/app.apk"},"initiatingActor":{"displayName":"acme"},"app":{"id":"p-1","name":"Shop","slug":"shop","ownerAccount":{"id":"a-1","name":"acme"}}'
+case "$*" in
+  whoami) echo "acme" ;;
+  "build:list"*) echo '[]' ;;
+  "build --platform"*) echo "Loading..." >&2; echo '[{'"$build"',"status":"IN_QUEUE"}]' ;;
+  "build:view b-1"*) n=$(cat "${join(dir, 'COUNT')}" 2>/dev/null || echo 0); n=$((n+1)); echo $n > "${join(dir, 'COUNT')}"; st=IN_PROGRESS; [ $n -ge 2 ] && st=FINISHED; [ -f "${join(dir, 'FAIL_BUILD')}" ] && st=ERRORED; echo '{'"$build"',"status":"'$st'","error":{"message":"Gradle build failed","errorCode":"GRADLE_BUILD_FAILED"}}' ;;
+  "submit --platform"*)
+    if [ -f "${join(dir, 'FAIL_SUBMIT')}" ]; then echo "Error: Could not find an app on App Store Connect matching the ascAppId" >&2; exit 1; fi
+    k=$(grep -o '"\\(ascApiKeyPath\\|serviceAccountKeyPath\\)": *"[^"]*"' eas.json | head -1 | sed 's/.*: *"//;s/"$//')
+    if [ -n "$k" ] && [ -f "$k" ]; then echo "key=present"; else echo "key=missing"; fi
+    echo "Submission details: https://expo.dev/accounts/acme/projects/shop/submissions/sub-1"; echo "Submitted the build" ;;
+  "submit:view"*) echo '{"id":"sub-1","status":"FINISHED","platform":"'$plat'","submittedBuild":{"id":"b-1"}}' ;;
+esac
+`,
+  );
+  chmodSync(path, 0o755);
+  return path;
+}
+
+describe('building for the stores through EAS (ADR-0096)', () => {
+  const { privateKey: ascPriv } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const ascKey = ascPriv.export({ type: 'pkcs8', format: 'pem' }).toString();
+  const { privateKey: rsa } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const serviceAccount = JSON.stringify({ type: 'service_account', client_email: 'deploy@proj.iam.gserviceaccount.com', private_key: rsa.export({ type: 'pkcs8', format: 'pem' }).toString(), token_uri: 'https://oauth2.googleapis.com/token' });
+  const expoFiles = { 'package.json': JSON.stringify({ dependencies: { expo: '~54.0.0' } }), 'app.json': JSON.stringify({ expo: { name: 'Shop', slug: 'shop', version: '1.2.0', ios: { bundleIdentifier: 'com.acme.shop' }, android: { package: 'com.acme.shop' }, extra: { eas: { projectId: 'p-1' } } } }), 'yarn.lock': '' };
+  /** App Store Connect and Google Play, as a fake: the app behind the bundle id, the build's processing and the version's state by stage */
+  const stage = { build: 'PROCESSING' as string | null, version: null as string | null };
+  const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
+  const storeFetch = async (url: string, init: RequestInit) => {
+    if (url.includes('/v1/apps?')) return json({ data: url.includes('com.acme.shop') ? [{ id: '1234567890', attributes: { name: 'Shop' } }] : [] });
+    if (url.includes('/v1/builds?')) return json({ data: stage.build ? [{ id: 'asc-b-1', attributes: { processingState: stage.build } }] : [] });
+    if (url.includes('/appStoreVersions')) return json({ data: stage.version ? [{ id: 'v-1', attributes: { versionString: '1.2.0', appVersionState: stage.version }, relationships: { build: { data: { id: 'asc-b-1' } } } }] : [] });
+    if (url.endsWith('/token')) return json({ access_token: 'ya29.token' });
+    if (url.endsWith('/edits') && init.method === 'POST') return json({ id: 'edit-1' });
+    if (url.includes('/edits/edit-1')) return new Response('', { status: 204 });
+    return json({}, 404);
+  };
+  async function storeGoal(files: Record<string, string>) {
+    const { engine, goal } = await finishedGoal(files);
+    const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-eas-'));
+    const cli = fakeEas(fakes);
+    engine.deployCli = (p) => (p === 'eas' ? [cli, 'eas'] : [bin, p]);
+    engine.storeFetch = storeFetch;
+    engine.easPollMs = 5;
+    engine.updateSettings({ delivery: { expoToken: 'expo_SECRET_TOKEN_1', ascKeyId: 'KEY1', ascIssuerId: 'ISS1', ascKey, playServiceAccount: serviceAccount } });
+    stage.build = 'PROCESSING';
+    stage.version = null;
+    const easLog = () => (existsSync(join(fakes, 'eas.log')) ? readFileSync(join(fakes, 'eas.log'), 'utf8').trim().split('\n') : []);
+    return { engine, goal, fakes, easLog };
+  }
+  const settled = (engine: Engine, id: string, n: number) => waitFor(() => (getGoal(engine.store.db, id)!.deployments ?? []).length === n && last(engine, id)?.status !== 'running');
+
+  test('iOS: the build on EAS, uploaded to App Store Connect with the key as a file; then the watch follows it from processing to TestFlight, review and the App Store', async () => {
+    const { engine, goal, fakes, easLog } = await storeGoal(expoFiles);
+    const info = engine.deployInfo(goal.id, 'appstore', true);
+    expect(info.stores.appstore).toMatchObject({ ok: true, app: { name: 'Shop', bundleId: 'com.acme.shop', projectId: 'p-1' } });
+    expect(info.providers.filter((p) => p.kind === 'store')).toEqual([
+      { id: 'appstore', target: null, kind: 'store', label: 'App Store (TestFlight)', configured: true, refused: null },
+      { id: 'play', target: null, kind: 'store', label: 'Google Play', configured: true, refused: null },
+    ]);
+    expect(info.plan.map((s) => s.label)).toEqual(['start the iOS build on EAS, then watch it', 'upload the build to App Store Connect (TestFlight)']);
+    expect(info.plan[0]!.command).toContain('build --platform ios --profile foundry-production --non-interactive --no-wait --json');
+    const ready = await engine.deployReadiness(goal.id, 'appstore', null);
+    expect(ready.items.map((i) => [i.id, i.ok, i.severity])).toEqual([['token', true, 'error'], ['linked', true, 'error'], ['account', true, 'error'], ['asc', true, 'error'], ['ascApp', true, 'error'], ['signing', false, 'warn']]);
+    expect(ready.ok).toBe(true);
+    expect(ready.items.find((i) => i.id === 'account')!.detail).toBe('signed in as acme');
+    expect(ready.items.find((i) => i.id === 'ascApp')!.detail).toBe('Shop (id 1234567890)');
+    expect(ready.items.find((i) => i.id === 'signing')!.fix?.command).toContain('credentials --platform ios');
+
+    engine.deploy(goal.id, { provider: 'appstore', production: true });
+    await settled(engine, goal.id, 1);
+    const dep = last(engine, goal.id)!;
+    expect(dep).toMatchObject({ status: 'submitted', production: true, url: null, store: { platform: 'ios', buildId: 'b-1', buildUrl: 'https://expo.dev/accounts/acme/projects/shop/builds/b-1', appVersion: '1.2.0', buildNumber: '7', appId: '1234567890', submissionUrl: 'https://expo.dev/accounts/acme/projects/shop/submissions/sub-1', consoleUrl: 'https://appstoreconnect.apple.com/apps/1234567890/distribution', done: false } });
+    expect(dep.store!.state).toContain('processing');
+    const heads = easLog().map((l) => l.split('|')[1]!.split(' ').slice(0, 2).join(' '));
+    expect(heads.slice(-5)).toEqual(['build --platform', 'build:view b-1', 'build:view b-1', 'submit --platform', 'submit:view --platform']);
+    expect(easLog().every((l) => l.includes('token=set') && l.includes('novcs=1'))).toBe(true);
+    const eas = JSON.parse(readFileSync(join(deployDir(engine, goal), 'eas.json'), 'utf8'));
+    expect(eas.submit.foundry.ios).toMatchObject({ ascAppId: '1234567890', ascApiKeyId: 'KEY1', ascApiKeyIssuerId: 'ISS1', ascApiKeyPath: expect.stringContaining('AuthKey.p8') });
+    expect(existsSync(eas.submit.foundry.ios.ascApiKeyPath)).toBe(false);
+    const events = engine.store.listByGoal(goal.id, 5000);
+    const recorded = JSON.stringify(events);
+    expect(recorded).toContain('key=present');
+    expect(recorded).not.toContain('SECRET');
+    expect(recorded).not.toContain('PRIVATE KEY');
+    expect(events.filter((e) => e.type === 'deploy.command').map((e) => (e.payload as { label: string }).label)).toEqual(['start the iOS build on EAS (foundry-production)', 'the build on EAS (in progress)', 'the build on EAS (finished)', 'submit the build to App Store Connect (TestFlight)']);
+
+    // the watch: processing (no change), in TestFlight, in review, live in the App Store, then left alone
+    expect(await engine.checkStores(goal.id)).toBe(0);
+    stage.build = 'VALID';
+    expect(await engine.checkStores(goal.id)).toBe(1);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'submitted', store: { state: 'in TestFlight — submit this build for review in App Store Connect', code: 'VALID', done: false, checkedAt: expect.any(String) } });
+    stage.version = 'IN_REVIEW';
+    expect(await engine.checkStores(goal.id)).toBe(1);
+    expect(last(engine, goal.id)!.store!.state).toBe('version 1.2.0 is in review');
+    stage.version = 'READY_FOR_DISTRIBUTION';
+    expect(await engine.checkStores(goal.id)).toBe(1);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://apps.apple.com/app/id1234567890', store: { state: 'version 1.2.0 is live in the App Store', done: true } });
+    expect(await engine.checkStores(goal.id)).toBe(0);
+    expect(engine.store.listByGoal(goal.id, 5000).filter((e) => e.type === 'deploy.store_changed').length).toBe(3);
+    rmSync(fakes, { recursive: true, force: true });
+  }, 60_000);
+
+  test('Android: a preview is an APK to install from the build page, with no store; production is submitted to Google Play and the record stops there; a failed build is told with its logs', async () => {
+    const { engine, goal, fakes, easLog } = await storeGoal(expoFiles);
+    const ready = await engine.deployReadiness(goal.id, 'play', null);
+    expect(ready.items.map((i) => [i.id, i.ok, i.severity])).toEqual([['token', true, 'error'], ['linked', true, 'error'], ['account', true, 'error'], ['play', true, 'warn'], ['playApp', true, 'warn']]);
+    engine.deploy(goal.id, { provider: 'play', production: false });
+    await settled(engine, goal.id, 1);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', production: false, url: 'https://expo.dev/accounts/acme/projects/shop/builds/b-1', store: { platform: 'android', artifactUrl: 'https://expo.dev/artifacts/eas/app.apk', appId: 'com.acme.shop', done: true, state: expect.stringContaining('APK') } });
+    expect(easLog().some((l) => l.includes('|submit '))).toBe(false);
+    expect(easLog().find((l) => l.includes('build --platform'))).toContain('--profile foundry-preview');
+    // a store build has no address: the smoke is not asked for and nothing runs
+    expect(engine.store.listByGoal(goal.id, 5000).some((e) => e.type === 'deploy.smoke_finished')).toBe(false);
+    writeFileSync(join(fakes, 'COUNT'), '0');
+    engine.deploy(goal.id, { provider: 'play', production: true });
+    await settled(engine, goal.id, 2);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'submitted', production: true, store: { platform: 'android', consoleUrl: 'https://play.google.com/console/', done: true, state: expect.stringContaining('production track') } });
+    const eas = JSON.parse(readFileSync(join(deployDir(engine, goal), 'eas.json'), 'utf8'));
+    expect(eas.submit.foundry.android).toMatchObject({ track: 'production', releaseStatus: 'completed', serviceAccountKeyPath: expect.stringContaining('play-service-account.json') });
+    expect(JSON.stringify(engine.store.listByGoal(goal.id, 5000))).toContain('key=present');
+    expect(JSON.stringify(engine.store.listByGoal(goal.id, 5000))).not.toContain('deploy@proj.iam');
+    // without the service account a production submit is refused before the build
+    engine.updateSettings({ delivery: { playServiceAccount: null } });
+    engine.deploy(goal.id, { provider: 'play', production: true });
+    await settled(engine, goal.id, 3);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'failed', reason: expect.stringContaining('service account key is not in Settings') });
+    // a build that errors names the error and the logs
+    writeFileSync(join(fakes, 'COUNT'), '0');
+    writeFileSync(join(fakes, 'FAIL_BUILD'), '');
+    engine.deploy(goal.id, { provider: 'play', production: false });
+    await settled(engine, goal.id, 4);
+    expect(last(engine, goal.id)!.reason).toBe('the EAS build errored: Gradle build failed — its logs: https://expo.dev/accounts/acme/projects/shop/builds/b-1');
+    rmSync(fakes, { recursive: true, force: true });
+  }, 60_000);
+
+  test('what is refused in words: a project that is no Expo app (the stores stay off the card), a bundle id the store does not know, a submit EAS refuses', async () => {
+    const { engine, goal, fakes } = await storeGoal({ 'package.json': JSON.stringify({ dependencies: { vite: '5' } }), 'index.html': '<h1>hi</h1>' });
+    expect(engine.deployInfo(goal.id).providers.some((p) => p.kind === 'store')).toBe(false);
+    engine.deploy(goal.id, { provider: 'appstore', production: false });
+    await settled(engine, goal.id, 1);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'failed', reason: expect.stringContaining('not an Expo app') });
+    rmSync(fakes, { recursive: true, force: true });
+    const other = await storeGoal({ ...expoFiles, 'app.json': JSON.stringify({ expo: { name: 'Other', slug: 'other', version: '1.0.0', ios: { bundleIdentifier: 'com.other.app' }, extra: { eas: { projectId: 'p-2' } } } }) });
+    expect(other.engine.deployInfo(other.goal.id).providers.find((p) => p.id === 'play')).toMatchObject({ refused: expect.stringContaining('android.package') });
+    other.engine.deploy(other.goal.id, { provider: 'appstore', production: false });
+    await settled(other.engine, other.goal.id, 1);
+    expect(last(other.engine, other.goal.id)!.reason).toContain('App Store Connect has no app with the bundle id com.other.app');
+    expect(other.easLog()).toEqual([]);
+    // the token missing refuses at the click
+    other.engine.updateSettings({ delivery: { expoToken: null } });
+    expect(() => other.engine.deploy(other.goal.id, { provider: 'appstore', production: false })).toThrow(/Expo token/);
+    other.engine.updateSettings({ delivery: { expoToken: 'expo_SECRET_TOKEN_1' } });
+    rmSync(other.fakes, { recursive: true, force: true });
+    const third = await storeGoal(expoFiles);
+    writeFileSync(join(third.fakes, 'FAIL_SUBMIT'), '');
+    third.engine.deploy(third.goal.id, { provider: 'appstore', production: false });
+    await settled(third.engine, third.goal.id, 1);
+    expect(last(third.engine, third.goal.id)!.reason).toContain('the submit failed (exit 1): App Store Connect has no app for this bundle id');
+    rmSync(third.fakes, { recursive: true, force: true });
+  }, 90_000);
 });

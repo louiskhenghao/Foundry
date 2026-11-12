@@ -39,6 +39,8 @@ const LOGIN: Record<DeployProvider, string> = {
   fly: 'the address asks for a login: the app itself, or something in front of it, asks for one',
   railway: 'the address asks for a login: the service itself, or something in front of it, asks for one',
   render: 'the address asks for a login: the service itself, or something in front of it, asks for one',
+  appstore: 'a store build has no address to try',
+  play: 'a store build has no address to try',
 };
 
 /**

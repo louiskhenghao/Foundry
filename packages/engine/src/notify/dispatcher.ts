@@ -110,7 +110,20 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
     case 'delivery.revert_closed':
       return { family: 'delivery', text: `↩️ Revert PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}closed without merging — ${goalTitle(e.goalId)}\nThe goal's work stays merged.`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.finished':
+      // a store build that ends here is an Android APK to install (ADR-0096)
+      if (e.payload.store) return { family: 'delivery', text: `📦 Android APK built — ${goalTitle(e.goalId)}\n${e.payload.store.artifactUrl ?? e.payload.url ?? ''}`.trimEnd(), path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
       return { family: 'delivery', text: `🚀 Deployed to ${whereLabel(e.payload)}${e.payload.production ? '' : ' (preview)'} — ${goalTitle(e.goalId)}\n${e.payload.url ?? 'running, with no address to open (no port is published and the server has no public address)'}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    // a build handed to a store (ADR-0096), and every move App Store Connect reports after
+    case 'deploy.submitted': {
+      const s = e.payload.store;
+      const head = s.platform === 'ios' ? `📦 Uploaded to TestFlight${e.payload.production ? ' (production build)' : ''}` : '📦 Submitted to Google Play';
+      return { family: 'delivery', text: `${head} — ${goalTitle(e.goalId)}\n${s.state}${s.consoleUrl ? `\n${s.consoleUrl}` : ''}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    }
+    case 'deploy.store_changed': {
+      const s = e.payload.store;
+      const icon = e.payload.status === 'live' ? '🎉' : e.payload.status === 'failed' ? '⚠️' : '🍎';
+      return { family: 'delivery', text: `${icon} App Store: ${s.state} — ${goalTitle(e.goalId)}${e.payload.url ? `\n${e.payload.url}` : s.consoleUrl ? `\n${s.consoleUrl}` : ''}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+    }
     case 'deploy.failed':
       return { family: 'delivery', text: `⚠️ Deploy to ${whereLabel(e.payload)} failed — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.smoke_finished': {

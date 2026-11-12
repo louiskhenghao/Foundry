@@ -192,6 +192,16 @@ export const DeliverySettings = z.object({
   /** the Render region and plan new services start on */
   renderRegion: z.string().min(1).default('oregon'),
   renderPlan: z.string().min(1).default('free'),
+  /** an Expo access token for Deploy to the stores through EAS (ADR-0096); null = the stores not set up */
+  expoToken: z.string().min(1).nullable().default(null),
+  /** an App Store Connect API key for the iOS upload and the review watch: its id, its issuer id, and the .p8 file's contents */
+  ascKeyId: z.string().min(1).nullable().default(null),
+  ascIssuerId: z.string().min(1).nullable().default(null),
+  ascKey: z.string().min(1).nullable().default(null),
+  /** a Google Play service account's JSON key, for the Android production submit */
+  playServiceAccount: z.string().min(1).nullable().default(null),
+  /** how often App Store Connect is asked where a submitted build stands */
+  storePollMin: z.number().int().min(1).max(1440).default(15),
   defaultMode: DeliveryMode.default('local'),
   /** one PR per goal by default; per-task stacked PRs are opt-in (each PR is a full push / wait / merge cycle) */
   defaultUnit: DeliveryUnit.default('goal'),
@@ -385,7 +395,7 @@ export const RESTART_SETTINGS = ['engine.provider', 'engine.codexBin', 'engine.c
  * leaves that hold a credential: the settings view sent to the browser carries them as null, with only whether each is
  * set and a masked hint, so a key never travels back to a page (or a phone over Tailscale) after it was saved
  */
-export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl', 'notifications.discordBotToken', 'delivery.vercelToken', 'delivery.netlifyToken', 'delivery.cloudflareToken', 'delivery.flyToken', 'delivery.railwayToken', 'delivery.renderApiKey', 'memory.token'] as const;
+export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl', 'notifications.discordBotToken', 'delivery.vercelToken', 'delivery.netlifyToken', 'delivery.cloudflareToken', 'delivery.flyToken', 'delivery.railwayToken', 'delivery.renderApiKey', 'delivery.expoToken', 'delivery.ascKey', 'delivery.playServiceAccount', 'memory.token'] as const;
 export interface SecretState {
   set: boolean;
   /** e.g. "sk-c…a3f9"; null = not set */

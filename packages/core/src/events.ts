@@ -9,7 +9,7 @@ import { Schedule } from './schema/schedule.ts';
 import { AnswerStatus } from './schema/conversation.ts';
 import { Proposal } from './schema/proposal.ts';
 import { Adjustment } from './schema/adjust.ts';
-import { DeployProvider, DeployTarget, SmokeScript } from './schema/deploy.ts';
+import { DeployProvider, DeployTarget, SmokeScript, DeployStore } from './schema/deploy.ts';
 import {
   Attempt,
   AuditFinding,
@@ -388,7 +388,11 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** one command of a deploy, its tokens never in it */
   ev('deploy.command', { provider: DeployProvider, target: DeployTarget.nullable().optional(), label: z.string(), command: z.string(), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string() }),
   /** `url` is null when a server deploy publishes no port and the server has no public address: it runs, with nothing to open */
-  ev('deploy.finished', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), url: z.string().nullable() }),
+  ev('deploy.finished', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), url: z.string().nullable(), store: DeployStore.nullable().optional() }),
+  /** a store deploy (ADR-0096) handed to the store: the build uploaded to TestFlight, or submitted to Google Play; `store` says where it stands */
+  ev('deploy.submitted', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), store: DeployStore }),
+  /** the store's state moved (ADR-0096): processing, in TestFlight, waiting for review, in review, live, rejected; `deployedAt` names the deploy */
+  ev('deploy.store_changed', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), deployedAt: z.string(), status: z.enum(['submitted', 'live', 'failed']), url: z.string().nullable(), reason: z.string().nullable(), store: DeployStore }),
   ev('deploy.failed', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), reason: z.string() }),
   /** the smoke of a deploy (ADR-0058): the goal's milestone scripts against the deployed address; `deployedAt` names the deploy (its `at`) */
   ev('deploy.smoke_started', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), url: z.string(), deployedAt: z.string(), scripts: z.array(z.string()) }),

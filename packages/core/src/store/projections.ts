@@ -729,10 +729,32 @@ function project(db: Database, e: EngineEvent): void {
       const target = e.payload.target?.id ?? null;
       const i = list.findLastIndex((d) => d.provider === e.payload.provider && (d.target?.id ?? null) === target && d.status === 'running');
       // a finished deploy says where it went: a host may put it elsewhere than asked (Vercel, a new project's first deploy)
-      const ended = e.type === 'deploy.finished' ? { status: 'live' as const, url: e.payload.url, reason: null, production: e.payload.production } : { status: 'failed' as const, url: null, reason: e.payload.reason };
+      const ended = e.type === 'deploy.finished' ? { status: 'live' as const, url: e.payload.url, reason: null, production: e.payload.production, ...(e.payload.store ? { store: e.payload.store } : {}) } : { status: 'failed' as const, url: null, reason: e.payload.reason };
       // a deploy refused before it started (no web app, a host not set up) is a failed entry of its own
       if (i >= 0) list[i] = { ...list[i]!, ...ended, endedAt: e.ts };
       else list.push({ provider: e.payload.provider, target: e.payload.target ?? null, production: e.payload.production, ref: null, framework: null, at: e.ts, ...ended, endedAt: e.ts });
+      upsertGoal(db, { ...g, deployments: list, updatedAt: e.ts });
+      break;
+    }
+    // a store deploy (ADR-0096): handed to the store, then its state as the watch reads it
+    case 'deploy.submitted': {
+      const g = getGoal(db, e.goalId!);
+      if (!g) break;
+      const list = [...(g.deployments ?? [])];
+      const i = list.findLastIndex((d) => d.provider === e.payload.provider && d.status === 'running');
+      const ended = { status: 'submitted' as const, url: null, reason: null, production: e.payload.production, store: e.payload.store, endedAt: e.ts };
+      if (i >= 0) list[i] = { ...list[i]!, ...ended };
+      else list.push({ provider: e.payload.provider, target: e.payload.target ?? null, ref: null, framework: null, at: e.ts, ...ended });
+      upsertGoal(db, { ...g, deployments: list, updatedAt: e.ts });
+      break;
+    }
+    case 'deploy.store_changed': {
+      const g = getGoal(db, e.goalId!);
+      if (!g) break;
+      const list = [...(g.deployments ?? [])];
+      const i = list.findLastIndex((d) => d.provider === e.payload.provider && d.at === e.payload.deployedAt);
+      if (i < 0) break;
+      list[i] = { ...list[i]!, status: e.payload.status, url: e.payload.url, reason: e.payload.reason, store: e.payload.store };
       upsertGoal(db, { ...g, deployments: list, updatedAt: e.ts });
       break;
     }

@@ -4,6 +4,7 @@ import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
 import { Check, CheckCircle2, CircleDashed, LoaderCircle, RotateCcw, XCircle } from 'lucide-react';
+import { siAppstore, siCloudflarepages, siExpo, siFlydotio, siGoogleplay, siNetlify, siRailway, siRender, siVercel } from 'simple-icons';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
@@ -21,7 +22,8 @@ import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { AccessCard } from './settings/AccessCard.tsx';
 import { DataDirNoticeBanner, DataFolder, RestartNowButton } from './settings/DataFolder.tsx';
 import { DeployServers } from './settings/DeployServers.tsx';
-import { Button, Card, CopyButton, Empty, Field, Input, Loading, PageHeader, Select, cn } from '../ui.tsx';
+import { PlaceCard, type PlaceStatus } from './settings/PlaceCard.tsx';
+import { Button, Card, CopyButton, Empty, Field, Input, Loading, PageHeader, Select, Textarea, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { AppearanceCard } from './settings/AppearanceCard.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
@@ -117,6 +119,8 @@ export function SettingsPage() {
   const [probe, setProbe] = useState<Record<string, string>>({});
   const [notifMsg, setNotifMsg] = useState<string | null>(null);
   const [upd, setUpd] = useState<UpdateStatusView | null>(null);
+  // which deploy place cards are open (Git & delivery)
+  const [placeOpen, setPlaceOpen] = useState<Set<string>>(() => new Set());
   const [updBusy, setUpdBusy] = useState(false);
   const [updOpen, setUpdOpen] = useState(false);
   const { hash, search } = useLocation();
@@ -264,6 +268,28 @@ export function SettingsPage() {
     // a value from the environment is not "saved": say where it comes from, like the badge beside it
     const from = view.meta[path]?.source === 'env' ? `from ${view.meta[path]?.env}` : 'saved';
     return <Input type="password" autoComplete="off" value={(get(draft, path) as string | null) ?? ''} placeholder={saved?.set ? `${from}: ${saved.hint} — type to replace` : placeholder} onChange={(e) => set(path, e.target.value === '' ? null : e.target.value)} />;
+  };
+  // the deploy places as cards (one per host, platform or store): which are open, and whether each has what it needs
+  const togglePlace = (id: string) =>
+    setPlaceOpen((o) => {
+      const n = new Set(o);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const filled = (path: Leaf) => {
+    const v = get(draft, path);
+    return (typeof v === 'string' && v !== '') || !!view.secrets[path]?.set;
+  };
+  const placeStatus = (paths: Leaf[]): PlaceStatus => {
+    const n = paths.filter(filled).length;
+    return n === paths.length ? 'set' : n === 0 ? 'unset' : 'partial';
+  };
+  // a secret that is a file's contents (a .p8 key, a service account's JSON): several lines, never shown back once saved
+  const secretText = (path: Leaf, placeholder: string) => {
+    const saved = view.secrets[path];
+    const from = view.meta[path]?.source === 'env' ? `from ${view.meta[path]?.env}` : 'saved';
+    return <Textarea rows={3} className="mono text-[11px]" autoComplete="off" spellCheck={false} value={(get(draft, path) as string | null) ?? ''} placeholder={saved?.set ? `${from}: ${saved.hint} — paste to replace` : placeholder} onChange={(e) => set(path, e.target.value === '' ? null : e.target.value)} />;
   };
   const aside = (path: Leaf) => (
     <>
@@ -671,37 +697,40 @@ export function SettingsPage() {
             {bool('sync.refreshBetweenTasks', 'Refresh between tasks', 'When nothing is running, fetch again and merge a moved base branch into the goal branch (conflicts go to a Merge Attempt). Useful for long goals on busy repositories; off by default because mid-goal merges can surprise workers.')}
             {bool('delivery.updateLocalBase', 'Update my local base branch after a merge', 'When a pull request merges, Foundry fetches and fast-forwards your local base branch (only when that is safe: no uncommitted changes, no commits of your own on it), then removes the goal\'s progress folder, worktrees and local branches. Screenshots and the goal itself stay.')}
             <div className="pt-1 space-y-2">
-              <div className="text-sm font-bold text-ink">Deploy — a finished web app to a host</div>
-              <p className="text-[11px] text-ink-faint">For a goal's web page or all-in-one web app (never a worker or a separate backend): its Delivery tab deploys it on your click, a preview unless you ask for production. The tokens are kept by the engine only and never handed to a coding session.</p>
-              {grid(
-                <>
-                  <Field label="Vercel token" aside={aside('delivery.vercelToken')} help="vercel.com → Account Settings → Tokens. Scope it to the team you deploy to.">
+              <div className="text-sm font-bold text-ink">Deploy — where a finished goal goes</div>
+              <p className="text-[11px] text-ink-faint">Each place is a card: open it for its fields and where each value comes from. The tokens and keys are kept by the engine only and never handed to a coding session; a place with nothing filled in stays off the goal's Deploy card.</p>
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint pt-1">Web hosts — a web page or an all-in-one web app, a preview address unless you ask for production</div>
+              <div className="space-y-2">
+                <PlaceCard id="vercel" logo={siVercel} name="Vercel" tagline="Builds the source itself; takes a folder of pages, a built site or a full-stack web framework." status={placeStatus(['delivery.vercelToken'])} open={placeOpen.has('vercel')} onToggle={() => togglePlace('vercel')} where={[{ label: 'vercel.com → Account Settings → Tokens', href: 'https://vercel.com/account/tokens', note: 'make a token scoped to the team you deploy to' }]}>
+                  <Field label="Vercel token" aside={aside('delivery.vercelToken')} help="A token from the page above, scoped to the team you deploy to.">
                     {secret('delivery.vercelToken', 'vcp_…')}
                   </Field>
                   <Field label="Vercel team" aside={aside('delivery.vercelScope')} help="The team's slug: the part after vercel.com/. Empty = the token's own account.">
                     {text('delivery.vercelScope', 'my-team', true)}
                   </Field>
-                  <Field label="Netlify token" aside={aside('delivery.netlifyToken')} help="app.netlify.com → User settings → Applications → Personal access tokens.">
+                </PlaceCard>
+                <PlaceCard id="netlify" logo={siNetlify} name="Netlify" tagline="Builds here with Netlify's own build, then uploads; takes the same web apps as Vercel." status={placeStatus(['delivery.netlifyToken'])} open={placeOpen.has('netlify')} onToggle={() => togglePlace('netlify')} where={[{ label: 'app.netlify.com → User settings → Applications', href: 'https://app.netlify.com/user/applications#personal-access-tokens', note: 'Personal access tokens → New access token' }]}>
+                  <Field label="Netlify token" aside={aside('delivery.netlifyToken')} help="A personal access token from the page above.">
                     {secret('delivery.netlifyToken', 'nfp_…')}
                   </Field>
                   <Field label="Netlify team" aside={aside('delivery.netlifyTeam')} help="The slug of the team a new site is made in: the part after app.netlify.com/teams/, not the team's name. Empty = your default team.">
                     {text('delivery.netlifyTeam', 'my-team', true)}
                   </Field>
-                  <Field label="Cloudflare API token" aside={aside('delivery.cloudflareToken')} help="dash.cloudflare.com → My Profile → API Tokens, with the permission Cloudflare Pages: Edit. Static sites only.">
+                </PlaceCard>
+                <PlaceCard id="cloudflare" logo={siCloudflarepages} name="Cloudflare Pages" tagline="Gets the files built here, so static sites only; a server-rendered app goes to Vercel or Netlify." status={placeStatus(['delivery.cloudflareToken', 'delivery.cloudflareAccountId'])} open={placeOpen.has('cloudflare')} onToggle={() => togglePlace('cloudflare')} where={[{ label: 'dash.cloudflare.com → My Profile → API Tokens', href: 'https://dash.cloudflare.com/profile/api-tokens', note: 'Create Token with the permission Cloudflare Pages: Edit' }, { label: 'dash.cloudflare.com → the account', href: 'https://dash.cloudflare.com/', note: 'the account id is on the overview page, under API' }]}>
+                  <Field label="Cloudflare API token" aside={aside('delivery.cloudflareToken')} help="A token with the permission Cloudflare Pages: Edit.">
                     {secret('delivery.cloudflareToken', 'API token')}
                   </Field>
                   <Field label="Cloudflare account id" aside={aside('delivery.cloudflareAccountId')} help="On the account's overview page, under API.">
                     {text('delivery.cloudflareAccountId', '0123abcd…', true)}
                   </Field>
-                </>,
-              )}
-            </div>
-            <div className="pt-1 space-y-2">
-              <div className="text-sm font-bold text-ink">Platforms — the whole project on Fly.io, Railway or Render</div>
-              <p className="text-[11px] text-ink-faint">A goal with a Dockerfile, or a stack the platform builds itself (Node.js, Python, Go, Ruby, Rust, Elixir), goes up whole — backend, workers and all — as a preview beside production: a second app on Fly.io, a preview environment of the project on Railway, a second service on Render. Fly.io and Railway take the code from here; Render takes the repository's branch from GitHub, so its GitHub app must be allowed on the repository. The runtime variables kept on the goal's card go to the platform's own store first. The tokens stay with the engine.</p>
-              {grid(
-                <>
-                  <Field label="Fly.io token" aside={aside('delivery.flyToken')} help="fly tokens create deploy -x 9999h (one app) or an organization token under the org's Tokens page. flyctl must be installed on this computer; the card's check says when it is not.">
+                </PlaceCard>
+              </div>
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint pt-2">Platforms — the whole project, backend and workers included, a preview beside production</div>
+              <p className="text-[11px] text-ink-faint">A goal with a Dockerfile, or a stack the platform builds itself (Node.js, Python, Go, Ruby, Rust, Elixir). The runtime variables kept on the goal's card go to the platform's own store first.</p>
+              <div className="space-y-2">
+                <PlaceCard id="fly" logo={siFlydotio} name="Fly.io" tagline="Dockerfiles only, built remotely; a preview app beside the production app. flyctl must be installed on this computer." status={placeStatus(['delivery.flyToken'])} open={placeOpen.has('fly')} onToggle={() => togglePlace('fly')} where={[{ label: 'fly.io → the organization → Tokens', href: 'https://fly.io/dashboard', note: 'an org token; or run `fly tokens create deploy -x 9999h` for one app' }, { label: 'Install flyctl', href: 'https://fly.io/docs/flyctl/install/', note: 'the deploy runs its CLI from this computer' }]}>
+                  <Field label="Fly.io token" aside={aside('delivery.flyToken')} help="A deploy token (one app) or an organization token.">
                     {secret('delivery.flyToken', 'FlyV1 …')}
                   </Field>
                   <Field label="Fly.io organization" aside={aside('delivery.flyOrg')} help="The slug of the organization a new app is made in. Empty = your personal organization.">
@@ -710,16 +739,20 @@ export function SettingsPage() {
                   <Field label="Fly.io region" aside={aside('delivery.flyRegion')} help="Where a new app's machine runs: iad (Virginia), lhr (London), sin (Singapore), nrt (Tokyo), syd (Sydney)… `fly platform regions` lists them.">
                     {text('delivery.flyRegion', 'iad')}
                   </Field>
-                  <Field label="Railway token" aside={aside('delivery.railwayToken')} help="railway.com → Account settings → Tokens: an account token or a workspace token (a project token cannot make a project).">
+                </PlaceCard>
+                <PlaceCard id="railway" logo={siRailway} name="Railway" tagline="Builds from the stack itself or a Dockerfile; a preview environment of the same project beside production." status={placeStatus(['delivery.railwayToken'])} open={placeOpen.has('railway')} onToggle={() => togglePlace('railway')} where={[{ label: 'railway.com → Account settings → Tokens', href: 'https://railway.com/account/tokens', note: 'an account token or a workspace token, not a project token (it cannot make a project)' }]}>
+                  <Field label="Railway token" aside={aside('delivery.railwayToken')} help="An account or workspace token from the page above.">
                     {secret('delivery.railwayToken', 'token')}
                   </Field>
                   <Field label="Railway workspace" aside={aside('delivery.railwayWorkspace')} help="The workspace a new project is made in, when the token reaches several. Empty = the token's own.">
                     {text('delivery.railwayWorkspace', 'my-workspace', true)}
                   </Field>
-                  <Field label="Render API key" aside={aside('delivery.renderApiKey')} help="dashboard.render.com → Account Settings → API Keys.">
+                </PlaceCard>
+                <PlaceCard id="render" logo={siRender} name="Render" tagline="Deploys the repository's branch from GitHub (its GitHub app must be allowed on the repository); a preview service beside production." status={placeStatus(['delivery.renderApiKey'])} open={placeOpen.has('render')} onToggle={() => togglePlace('render')} where={[{ label: 'dashboard.render.com → Account Settings → API Keys', href: 'https://dashboard.render.com/u/settings#api-keys', note: 'Create API Key' }, { label: 'Render → connect GitHub', href: 'https://github.com/apps/render/installations/new', note: 'allow Render\'s GitHub app on the repositories it may deploy' }]}>
+                  <Field label="Render API key" aside={aside('delivery.renderApiKey')} help="An API key from the page above.">
                     {secret('delivery.renderApiKey', 'rnd_…')}
                   </Field>
-                  <Field label="Render owner" aside={aside('delivery.renderOwner')} help="The workspace id (usr-… or tea-…) a new service is made in. Empty = the key's first workspace.">
+                  <Field label="Render owner" aside={aside('delivery.renderOwner')} help="The workspace id (usr-… or tea-…) a new service is made in; it is in the dashboard's address. Empty = the key's first workspace.">
                     {text('delivery.renderOwner', 'tea-…', true)}
                   </Field>
                   <Field label="Render region" aside={aside('delivery.renderRegion')} help="Where a new service runs.">
@@ -740,8 +773,33 @@ export function SettingsPage() {
                       ))}
                     </Select>
                   </Field>
-                </>,
-              )}
+                </PlaceCard>
+              </div>
+              <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint pt-2">Stores — an Expo app, built in the cloud by EAS, to TestFlight and Google Play</div>
+              <p className="text-[11px] text-ink-faint">EAS holds the signing; Foundry never sees a certificate or a keystore. iOS lands in TestFlight (Foundry never submits for review); Android is an APK to install for a preview, or Google Play's production track for production.</p>
+              <div className="space-y-2">
+                <PlaceCard id="expo" logo={siExpo} name="Expo EAS" tagline="The builds themselves, for both stores: every EAS command runs with this token." status={placeStatus(['delivery.expoToken'])} open={placeOpen.has('expo')} onToggle={() => togglePlace('expo')} where={[{ label: 'expo.dev → Account settings → Access tokens', href: 'https://expo.dev/settings/access-tokens', note: 'Create token' }]}>
+                  <Field label="Expo token" aside={aside('delivery.expoToken')} help="An access token from the page above.">
+                    {secret('delivery.expoToken', 'token')}
+                  </Field>
+                </PlaceCard>
+                <PlaceCard id="appstore" logo={siAppstore} name="App Store Connect" tagline="The upload to TestFlight and the watch on the review; needs the Expo EAS card too." status={placeStatus(['delivery.ascKeyId', 'delivery.ascIssuerId', 'delivery.ascKey'])} open={placeOpen.has('appstore')} onToggle={() => togglePlace('appstore')} where={[{ label: 'App Store Connect → Users and Access → Integrations → App Store Connect API', href: 'https://appstoreconnect.apple.com/access/integrations/api', note: 'generate a key with the App Manager role; the issuer id is above the list, the key id in the row, the .p8 downloads once' }]}>
+                  <Field label="Key id" aside={aside('delivery.ascKeyId')} help="The Key ID in the key's row.">
+                    {text('delivery.ascKeyId', 'ABC123DEFG', true)}
+                  </Field>
+                  <Field label="Issuer id" aside={aside('delivery.ascIssuerId')} help="Above the list of keys on the same page.">
+                    {text('delivery.ascIssuerId', '12345678-aaaa-bbbb-cccc-1234567890ab', true)}
+                  </Field>
+                  <Field label="Key (.p8)" aside={aside('delivery.ascKey')} help="The contents of the downloaded AuthKey_….p8 file, pasted whole; written to a file only while a command runs." className="sm:col-span-2">
+                    {secretText('delivery.ascKey', '-----BEGIN PRIVATE KEY-----\n…')}
+                  </Field>
+                </PlaceCard>
+                <PlaceCard id="play" logo={siGoogleplay} name="Google Play" tagline="The production submit only (a preview APK needs none); needs the Expo EAS card too." status={placeStatus(['delivery.playServiceAccount'])} open={placeOpen.has('play')} onToggle={() => togglePlace('play')} where={[{ label: 'Google Cloud → IAM → Service accounts', href: 'https://console.cloud.google.com/iam-admin/serviceaccounts', note: 'a service account → Keys → Add key → JSON' }, { label: 'Play Console → Users and permissions', href: 'https://play.google.com/console/', note: 'invite the service account\'s email with release rights to the app' }]}>
+                  <Field label="Service account key (JSON)" aside={aside('delivery.playServiceAccount')} help="The downloaded JSON key, pasted whole; written to a file only while a command runs." className="sm:col-span-2">
+                    {secretText('delivery.playServiceAccount', '{ "type": "service_account", … }')}
+                  </Field>
+                </PlaceCard>
+              </div>
             </div>
             <div className="pt-1 space-y-2">
               <div className="flex items-center gap-2">
@@ -767,6 +825,9 @@ export function SettingsPage() {
                     </Field>
                     <Field label="Auto-merge wait under branch protection (min)" aside={aside('delivery.automergeWaitMin')}>
                       {num('delivery.automergeWaitMin', { min: 1, max: 720 })}
+                    </Field>
+                    <Field label="Store watch (min)" aside={aside('delivery.storePollMin')} help="How often App Store Connect is asked where a submitted build stands.">
+                      {num('delivery.storePollMin', { min: 1, max: 1440 })}
                     </Field>
                   </>,
                 )}

@@ -2,7 +2,7 @@ import type { DeployReadiness, Deployment } from '@foundry/core/browser';
 import { AlertTriangle, Check, ExternalLink, Loader2, RefreshCw, Rocket, ShieldAlert, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, type DeployEnvView, type DeployInfo, type DeployPlace, type GoalDetail, type PaasId } from '../../api.ts';
+import { api, type DeployEnvView, type DeployInfo, type DeployPlace, type GoalDetail, type PaasId, type StoreId } from '../../api.ts';
 import { EnvDialog } from './EnvDialog.tsx';
 import { Button, Card, ConfirmDialog, Loading, ago, choiceClass, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
@@ -13,7 +13,9 @@ const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of 
 /** a platform's runtime in words (ADR-0095) */
 const RUNTIME: Record<string, string> = { docker: 'the Dockerfile', node: 'Node.js', python: 'Python', go: 'Go', ruby: 'Ruby', rust: 'Rust', elixir: 'Elixir' };
 /** a deploy's state as a small plate: blue while it runs, green once live, red when it failed */
-const STATUS: Record<Deployment['status'], string> = { running: 'bg-work/10 text-work-ink ring-work/30', live: 'bg-ok/10 text-ok-ink ring-ok/30', failed: 'bg-bad/10 text-bad-ink ring-bad/40' };
+const STATUS: Record<Deployment['status'], string> = { running: 'bg-work/10 text-work-ink ring-work/30', live: 'bg-ok/10 text-ok-ink ring-ok/30', failed: 'bg-bad/10 text-bad-ink ring-bad/40', submitted: 'bg-you/10 text-you-ink ring-you/30' };
+/** the stores' names when the card no longer lists them (a deploy made before the project stopped being an Expo app) */
+const STORE_NAME: Record<string, string> = { appstore: 'App Store (TestFlight)', play: 'Google Play' };
 
 /** the follow-up goal that makes a project deployable to a server (ADR-0091): a Dockerfile and a compose file, by a coding session that knows the stack */
 export const MAKE_DEPLOYABLE_PROMPT =
@@ -22,7 +24,7 @@ export const MAKE_DEPLOYABLE_PROMPT =
 /** one place among the card's, as a key: the host's id, or `server:<its id>` */
 export const placeKey = (p: { id: string; target?: string | null }) => (p.target ? `${p.id}:${p.target}` : p.id);
 /** how a deploy names its place: the server's name then, or the host's */
-export const placeLabel = (x: Pick<Deployment, 'provider' | 'target'>, providers: DeployPlace[] = []) => (x.target ? `${x.target.label} (server)` : (providers.find((p) => p.id === x.provider && !p.target)?.label ?? x.provider));
+export const placeLabel = (x: Pick<Deployment, 'provider' | 'target'>, providers: DeployPlace[] = []) => (x.target ? `${x.target.label} (server)` : (providers.find((p) => p.id === x.provider && !p.target)?.label ?? STORE_NAME[x.provider] ?? x.provider));
 
 /** the place chosen at first: the one this goal last deployed to, while it is set up and takes the code; else the first that is */
 export function defaultHost(providers: DeployPlace[], deployments: Deployment[]): string | null {
@@ -113,9 +115,13 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   // a platform (ADR-0095) takes the whole project like a server, with a preview beside production like a host
   const isPaas = chosen?.kind === 'paas';
   const paasApp = isPaas && chosen && info ? info.paas[chosen.id as PaasId] : null;
+  // a store (ADR-0096): an Expo app built on EAS; iOS goes to TestFlight either way, Android to an APK or to Google Play
+  const isStore = chosen?.kind === 'store';
+  const storeApp = isStore && chosen && info ? info.stores[chosen.id as StoreId] : null;
+  const ios = chosen?.id === 'appstore';
   // a server has no preview: its deploy is production whatever the box says
   const production = isServer || productionAsked;
-  useEffect(() => setSmoke(!production), [production]);
+  useEffect(() => setSmoke(!production && !isStore), [production, isStore]);
   useEffect(() => {
     if (!finished) return;
     let alive = true;
@@ -150,7 +156,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   };
   useEffect(() => {
     setReady(null);
-    if ((chosen?.kind === 'server' || chosen?.kind === 'paas') && chosen.configured && !chosen.refused) void check(chosen);
+    if ((chosen?.kind === 'server' || chosen?.kind === 'paas' || chosen?.kind === 'store') && chosen.configured && !chosen.refused) void check(chosen);
   }, [choice, chosen?.configured, chosen?.refused]);
   // the variables belong to the place: a server's, a platform's (the hosts keep their own environment settings)
   const envPlace = chosen && (chosen.kind === 'server' || chosen.kind === 'paas') ? placeKey(chosen) : null;
@@ -193,16 +199,17 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   const scripts = info?.smoke?.scripts.length ?? 0;
   const running = info?.running || deployments.some((x) => x.status === 'running');
   const commands = d.events.filter((e) => e.type === 'deploy.command').slice(-12);
-  const nothing = info && !info.app.ok && !info.server.ok && !Object.values(info.paas).some((p) => p.ok);
+  const nothing = info && !info.app.ok && !info.server.ok && !Object.values(info.paas).some((p) => p.ok) && !Object.values(info.stores).some((p) => p.ok);
   const hosts = info?.providers.filter((p) => p.kind === 'host') ?? [];
   const servers = info?.providers.filter((p) => p.kind === 'server') ?? [];
   const platforms = info?.providers.filter((p) => p.kind === 'paas') ?? [];
+  const stores = info?.providers.filter((p) => p.kind === 'store') ?? [];
   // the compose review (ADR-0091): what the file would reach outside its project, refused unless the server allows it
   const review = info?.server.ok ? info.server.app.review : null;
   const dangers = review?.dangers ?? [];
   const blocked = isServer && dangers.length > 0 && !chosen?.permissive;
-  const canRun = !!chosen && !chosen.refused && chosen.configured && !busy && !running && !blocked && (!(isServer || isPaas) || !!ready?.ok);
-  const label = running ? 'Deploying…' : isServer ? `Deploy to ${chosen?.label}` : production ? `Deploy to ${chosen?.label ?? 'a host'} production` : `Deploy a preview to ${chosen?.label ?? 'a host'}`;
+  const canRun = !!chosen && !chosen.refused && chosen.configured && !busy && !running && !blocked && (!(isServer || isPaas || isStore) || !!ready?.ok);
+  const label = running ? (isStore ? 'Building…' : 'Deploying…') : isStore ? (ios ? `Build and upload to TestFlight${production ? ' (production)' : ''}` : production ? 'Build and submit to Google Play' : 'Build an APK for testing') : isServer ? `Deploy to ${chosen?.label}` : production ? `Deploy to ${chosen?.label ?? 'a host'} production` : `Deploy a preview to ${chosen?.label ?? 'a host'}`;
   const followUp = `/goals/new?follows=${g.id}&prompt=${encodeURIComponent(MAKE_DEPLOYABLE_PROMPT)}`;
   const facts = review
     ? [
@@ -258,9 +265,18 @@ export function DeployCard({ d }: { d: GoalDetail }) {
               </span>
             </div>
           )}
+          {storeApp?.ok && chosen && (
+            <div className="text-[13px] font-semibold text-ink">
+              Expo app{storeApp.app.name ? ` ${storeApp.app.name}` : ''}
+              {storeApp.app.dir && <span className="mono font-normal text-ink-faint"> · {storeApp.app.dir}</span>}
+              {(ios ? storeApp.app.bundleId : storeApp.app.package) && <span className="mono font-normal text-ink-faint"> · {ios ? storeApp.app.bundleId : storeApp.app.package}</span>}{' '}
+              <span className="font-normal text-ink-faint">— built in the cloud by EAS from a checkout here; {ios ? (production ? 'uploaded to App Store Connect, into TestFlight: the build you then submit for review there' : 'uploaded to App Store Connect, into TestFlight') : production ? "submitted to Google Play's production track" : 'an APK to install, from the build page (no store)'}</span>
+            </div>
+          )}
           {(info.app.ok ? info.app.notes : [])
             .concat(info.server.ok && isServer ? info.server.notes : [])
             .concat(paasApp?.ok ? paasApp.notes : [])
+            .concat(storeApp?.ok ? storeApp.notes : [])
             .map((n) => (
               <div key={n} className="text-[11px] font-semibold text-ink-soft">{n}</div>
             ))}
@@ -271,6 +287,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
             </div>
           )}
           {platforms
+            .concat(stores)
             .filter((p) => p.configured && p.refused)
             .map((p) => (
               <div key={p.id} className="text-[11px] text-ink-faint">
@@ -285,6 +302,10 @@ export function DeployCard({ d }: { d: GoalDetail }) {
             {platforms.map((p) => (
               <PlaceButton key={placeKey(p)} p={p} chosen={choice === placeKey(p)} onPick={() => setChoice(placeKey(p))} />
             ))}
+            {stores.length > 0 && <span className="text-[11px] text-ink-faint">· stores:</span>}
+            {stores.map((p) => (
+              <PlaceButton key={placeKey(p)} p={p} chosen={choice === placeKey(p)} onPick={() => setChoice(placeKey(p))} />
+            ))}
             {servers.length > 0 && <span className="text-[11px] text-ink-faint">· servers:</span>}
             {servers.map((p) => (
               <PlaceButton key={placeKey(p)} p={p} chosen={choice === placeKey(p)} onPick={() => setChoice(placeKey(p))} />
@@ -297,12 +318,12 @@ export function DeployCard({ d }: { d: GoalDetail }) {
           )}
           <label className={cn('flex items-center gap-2', isServer ? 'text-ink-faint' : 'text-ink')}>
             <input type="checkbox" checked={production} disabled={isServer} onChange={(e) => setProduction(e.target.checked)} />
-            Production <span className="text-ink-faint">{isServer ? '(a server deploy is always production: it replaces what runs there)' : '(otherwise a preview address)'}</span>
+            Production <span className="text-ink-faint">{isServer ? '(a server deploy is always production: it replaces what runs there)' : isStore ? (ios ? '(a preview goes to TestFlight too; production is the build you then submit for review)' : '(otherwise an APK to install, no store)') : '(otherwise a preview address)'}</span>
           </label>
-          <label className={cn('flex items-center gap-2', scripts ? 'text-ink' : 'text-ink-faint')} title={scripts ? 'The scripts run against the deployed address once it is live, with no server of their own; what they show is kept here' : undefined}>
-            <input type="checkbox" checked={smoke && scripts > 0} disabled={!scripts} onChange={(e) => setSmoke(e.target.checked)} />
+          <label className={cn('flex items-center gap-2', scripts && !isStore ? 'text-ink' : 'text-ink-faint')} title={scripts ? 'The scripts run against the deployed address once it is live, with no server of their own; what they show is kept here' : undefined}>
+            <input type="checkbox" checked={smoke && scripts > 0 && !isStore} disabled={!scripts || isStore} onChange={(e) => setSmoke(e.target.checked)} />
             Try the milestone scripts against it afterwards{' '}
-            <span className="text-ink-faint">{scripts ? `(${scripts} script${scripts === 1 ? '' : 's'}; off for production by default, since a script writes what it tries)` : '(the goal has no milestone scripts)'}</span>
+            <span className="text-ink-faint">{isStore ? '(a store build has no address to try)' : scripts ? `(${scripts} script${scripts === 1 ? '' : 's'}; off for production by default, since a script writes what it tries)` : '(the goal has no milestone scripts)'}</span>
           </label>
           {isServer && dangers.length > 0 && (
             <div className={cn('rounded-lg border p-3 space-y-1', blocked ? 'border-bad/40 bg-bad/5' : 'border-you/40 bg-you/5')} data-testid="compose-review">
@@ -335,13 +356,15 @@ export function DeployCard({ d }: { d: GoalDetail }) {
               </Button>
             </div>
           )}
-          {(isServer || isPaas) && chosen && !chosen.refused && chosen.configured && <ReadinessList r={ready} checking={checking} subject={isServer ? 'the server' : chosen.label} onAgain={() => void check(chosen)} onRecipe={(id, params) => setRecipe({ id, params })} />}
+          {(isServer || isPaas || isStore) && chosen && !chosen.refused && chosen.configured && <ReadinessList r={ready} checking={checking} subject={isServer ? 'the server' : chosen.label} onAgain={() => void check(chosen)} onRecipe={(id, params) => setRecipe({ id, params })} />}
           {chosen && !chosen.refused && info.plan.length > 0 && (
             <div className="rounded-lg border border-line bg-sunken p-3">
               <div className="text-[11px] text-ink-faint mb-1.5">
                 {isServer
                   ? "The exact commands, from a checkout of this goal's commit over SSH — nothing else runs, nothing outside the project's folder is written, and the key file exists only while they do:"
-                  : isPaas && chosen.id === 'render'
+                  : isStore
+                    ? 'The commands, in a checkout of this goal\'s commit — EAS builds in the cloud and holds the signing; the token reaches the CLI through its environment, the keys as files that exist only while it runs:'
+                    : isPaas && chosen.id === 'render'
                     ? "The calls to Render's API, in order — the service is made once from the repository on GitHub, then this commit is deployed and watched:"
                     : isPaas
                       ? "The exact commands, in a checkout of this goal's commit — the token reaches the CLI through its environment and the variables' values through its input, never a command line:"
@@ -383,7 +406,8 @@ export function DeployCard({ d }: { d: GoalDetail }) {
                 ) : null}
                 <span className="mono ml-auto shrink-0 text-ink-faint">{ago(x.endedAt ?? x.at)}</span>
               </div>
-              <SmokeView goalId={g.id} deployment={x} scripts={scripts} busy={busy || !!info?.smoking || running} onAgain={() => void again(x.at)} />
+              {x.store && <StoreLine goalId={g.id} deployment={x} />}
+              {!x.store && <SmokeView goalId={g.id} deployment={x} scripts={scripts} busy={busy || !!info?.smoking || running} onAgain={() => void again(x.at)} />}
             </li>
           ))}
         </ul>
@@ -406,8 +430,22 @@ export function DeployCard({ d }: { d: GoalDetail }) {
           </ul>
         </details>
       )}
-      <ConfirmDialog open={confirm} title={isServer ? `Deploy to the server ${chosen?.label}?` : `Deploy to ${chosen?.label ?? 'the host'} production?`} confirmLabel={isServer ? 'Deploy to the server' : 'Deploy to production'} busy={busy} onConfirm={() => void run()} onClose={() => setConfirm(false)}>
-        {isServer ? (
+      <ConfirmDialog open={confirm} title={isServer ? `Deploy to the server ${chosen?.label}?` : isStore ? (ios ? 'Build the production app and upload it to TestFlight?' : 'Build and submit to Google Play?') : `Deploy to ${chosen?.label ?? 'the host'} production?`} confirmLabel={isServer ? 'Deploy to the server' : isStore ? (ios ? 'Build and upload' : 'Build and submit') : 'Deploy to production'} busy={busy} onConfirm={() => void run()} onClose={() => setConfirm(false)}>
+        {isStore ? (
+          <div className="space-y-2">
+            {ios ? (
+              <>
+                <p>This builds the app on EAS from this goal's commit and uploads it to App Store Connect, where it appears in TestFlight once Apple has processed it. Nothing changes for the people who have the app.</p>
+                <p>Foundry does not submit it for review: you attach this build to a version in App Store Connect and submit it there. The card follows it from then on — waiting for review, in review, approved, live or rejected — and tells you at each step.</p>
+              </>
+            ) : (
+              <>
+                <p>This builds the app bundle on EAS from this goal's commit and submits it to Google Play's production track, to be released to everyone once Google's review is done.</p>
+                <p>Google tells no review state through an API: the Play Console shows where it stands, and the card points there.</p>
+              </>
+            )}
+          </div>
+        ) : isServer ? (
           <div className="space-y-2">
             {info?.server.ok && info.server.app.kind === 'pm2' ? (
               <>
@@ -475,6 +513,48 @@ export function DeployCard({ d }: { d: GoalDetail }) {
         />
       )}
     </Card>
+  );
+}
+
+/** a store deploy's standing (ADR-0096): the words from the store, the pages to open, when it was last asked, and a way to ask now */
+function StoreLine({ goalId, deployment: x }: { goalId: string; deployment: Deployment }) {
+  const st = x.store!;
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const check = async () => {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await api.deployStoreCheck(goalId);
+      setMsg(r.changed ? 'Changed.' : 'No change.');
+    } catch (e: any) {
+      setMsg(e.body?.error ?? e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const link = (href: string | null, text: string) =>
+    href ? (
+      <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-work-ink hover:underline inline-flex items-center gap-1">
+        {text} <ExternalLink size={10} />
+      </a>
+    ) : null;
+  const watching = x.provider === 'appstore' && x.status === 'submitted' && !st.done;
+  return (
+    <div className="ml-1 mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-ink-soft">
+      <span className="min-w-0">{st.state}</span>
+      {link(st.buildUrl, 'Build')}
+      {st.platform === 'android' && st.artifactUrl && !x.production && link(st.artifactUrl, 'Install the APK')}
+      {link(st.submissionUrl, 'Submission')}
+      {link(st.consoleUrl, st.platform === 'ios' ? 'App Store Connect' : x.production ? 'Play Console' : 'Build page')}
+      {st.checkedAt && <span className="text-ink-faint">checked {ago(st.checkedAt)}</span>}
+      {watching && (
+        <button type="button" className="inline-flex items-center gap-1 font-semibold text-ink-soft hover:text-ink disabled:opacity-50" disabled={busy} onClick={() => void check()}>
+          {busy ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Check now
+        </button>
+      )}
+      {msg && <span className="text-ink-faint">{msg}</span>}
+    </div>
   );
 }
 

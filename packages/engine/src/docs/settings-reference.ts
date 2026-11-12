@@ -104,6 +104,12 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'delivery.renderOwner': { section: 'Git & delivery', help: 'The Render workspace (owner id, usr-… or tea-…) new services are made under; empty = the key’s first.' },
   'delivery.renderRegion': { section: 'Git & delivery', help: 'The Render region new services start in (oregon, frankfurt, singapore, …).' },
   'delivery.renderPlan': { section: 'Git & delivery', help: 'The Render plan new services start on (free, starter, …).' },
+  'delivery.expoToken': { section: 'Git & delivery', help: 'An Expo access token for Deploy to the stores: an Expo app built on EAS and uploaded to TestFlight or Google Play (ADR-0096). Kept by the engine only.' },
+  'delivery.ascKeyId': { section: 'Git & delivery', help: 'The App Store Connect API key’s id (Users and Access → Integrations → App Store Connect API), for the iOS upload and the review watch.' },
+  'delivery.ascIssuerId': { section: 'Git & delivery', help: 'The App Store Connect API key’s issuer id.' },
+  'delivery.ascKey': { section: 'Git & delivery', help: 'The App Store Connect API key itself: the contents of the downloaded .p8 file. Kept by the engine only, written to a file only while a command runs.' },
+  'delivery.playServiceAccount': { section: 'Git & delivery', help: 'A Google Play service account’s JSON key with release access to the app, for the Android production submit. Kept by the engine only, written to a file only while a command runs.' },
+  'delivery.storePollMin': { section: 'Git & delivery', help: 'How often App Store Connect is asked where a submitted build stands (processing, in TestFlight, in review, live).' },
   // Tools & keys
   'tools.useGraphify': { section: 'Tools & keys', help: 'Use the graphify code graph for relevant-file discovery when installed.' },
   'tools.markitdownBin': { section: 'Tools & keys', help: 'Path to markitdown (converts attachments to markdown); empty = auto-detect.' },

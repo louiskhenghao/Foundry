@@ -1981,6 +1981,12 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     if (!/^(vercel|netlify|cloudflare|fly|railway|render|server:[A-Za-z0-9_-]+)$/.test(place)) throw new HttpError(400, { error: 'place: a host, a platform, or server:<id>' });
     return place;
   };
+  // ask App Store Connect now where the goal's submitted builds stand (ADR-0096)
+  app.post('/api/goals/:id/deploy/store-check', async (c) => {
+    const goal = goalOr404(c);
+    const changed = await engine.checkStores(goal.id);
+    return c.json({ changed, deployments: goalOr404(c).deployments ?? [] });
+  });
   app.get('/api/goals/:id/deploy/env', (c) => c.json(engine.deployEnv(goalOr404(c).id, placeOf(c))));
   app.put('/api/goals/:id/deploy/env', async (c) => {
     const { vars, rev } = z.object({ vars: z.record(z.string().nullable()), rev: z.number().int().nonnegative() }).parse(await c.req.json());

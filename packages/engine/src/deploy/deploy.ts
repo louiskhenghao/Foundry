@@ -12,18 +12,21 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import type { DeployProvider, DeployReadiness, DeployServer, DeployTarget, Goal, ReadinessItem } from '@foundry/core';
-import { getGoal } from '@foundry/core';
+import { getGoal, listGoals } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { exec, git } from '../git/git.ts';
 import { goalWorkspacePath } from '../workspace.ts';
 import { type Deployability, deployability } from './detect.ts';
 import { keepDeployFiles } from './keep-files.ts';
-import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, type DeployProvider as HostProvider, configured, deploySteps, deployedUrl, failureHint, isHost, isPaas, lastWords, plain, projectName, redact, wentToProduction, whereLabel } from './providers.ts';
+import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, type DeployProvider as HostProvider, configured, deploySteps, deployedUrl, failureHint, isHost, isPaas, isStore, lastWords, plain, projectName, redact, wentToProduction, whereLabel } from './providers.ts';
+import { EAS_BUILD_DONE, EAS_CLI, FOUNDRY_PROFILE, STORE_LABEL, STORE_PLATFORM, type ExpoDeployability, type StoreProvider, easBuildPage, easEnv, easFailureHint, easSubmissionUrl, expoDeployability, needsInstall, parseEasBuild, parseEasSubmission, writeEasProfiles } from './eas.ts';
+import { type AscCredentials, appStoreUrl, ascApp, ascBuild, ascConsoleUrl, ascVersionFor, storeStanding } from './asc.ts';
+import { parseServiceAccount, playAppReachable, playConsoleUrl } from './play.ts';
 import { FLY_CONFIG, PAAS_LABEL, RENDER_API, RENDER_DONE, type PaasApp, type PaasCredentials, type PaasDeployability, type PaasProvider, type RenderCall, flyConfig, paasConfigured, paasDeployability, paasFailureHint, paasSecrets, paasSteps, paasTarget, paasUrl, renderApi, renderRepoUrl, renderServiceBody } from './paas.ts';
 import { redactor } from '../preview/env.ts';
 import { FOUNDRY_ENV_FILE, deployEnvView, deployVars, writeServerEnv } from './env.ts';
 import { withSecretFile } from './secret-file.ts';
-import { GENERATED_COMPOSE, GENERATED_ECOSYSTEM, type ServerDeployability, generatedCompose, generatedEcosystem, pm2Steps, serverAddress, serverDeployability, serverReadiness, serverSteps } from './server.ts';
+import { GENERATED_COMPOSE, GENERATED_ECOSYSTEM, type ServerDeployability, generatedCompose, generatedEcosystem, pm2Steps, serverAddress, serverDeployability, serverReadiness, serverSteps, shellQuote } from './server.ts';
 import { runSmoke, smokeScripts, type SmokeTarget } from './smoke.ts';
 
 /** a goal is deployed once it is done: a failed or unfinished goal's branch is not a thing to publish */
@@ -52,8 +55,22 @@ export function paasCredentials(engine: Engine): PaasCredentials {
   const d = engine.settings.values().delivery;
   return { flyToken: d.flyToken, flyOrg: d.flyOrg, flyRegion: d.flyRegion, railwayToken: d.railwayToken, railwayWorkspace: d.railwayWorkspace, renderApiKey: d.renderApiKey, renderOwner: d.renderOwner, renderRegion: d.renderRegion, renderPlan: d.renderPlan };
 }
-/** how a CLI is run: the hosts' through npx (pinned), Fly.io's binary from the PATH, Railway's package through npx */
-export const defaultCli = (p: HostProvider | 'fly' | 'railway'): string[] => (p === 'fly' ? ['fly'] : p === 'railway' ? ['npx', '--yes', '@railway/cli@5'] : npxCli(p));
+/** how a CLI is run: the hosts' through npx (pinned), Fly.io's binary from the PATH, Railway's and EAS's packages through npx */
+export const defaultCli = (p: HostProvider | 'fly' | 'railway' | 'eas'): string[] => (p === 'fly' ? ['fly'] : p === 'railway' ? ['npx', '--yes', '@railway/cli@5'] : p === 'eas' ? ['npx', '--yes', EAS_CLI.pkg] : npxCli(p));
+/** the stores' credentials (ADR-0096): Expo's token, App Store Connect's key, Google Play's service account */
+export interface StoreCredentials {
+  expoToken: string | null;
+  asc: AscCredentials | null;
+  playServiceAccount: string | null;
+}
+export function storeCredentials(engine: Engine): StoreCredentials {
+  const d = engine.settings.values().delivery;
+  return { expoToken: d.expoToken, asc: d.ascKeyId && d.ascIssuerId && d.ascKey ? { keyId: d.ascKeyId, issuerId: d.ascIssuerId, key: d.ascKey } : null, playServiceAccount: d.playServiceAccount };
+}
+/** what a store would build of a goal now (ADR-0096): the Expo app, with the id the store wants */
+export function goalStoreDeployability(engine: Engine, goal: Goal, provider: StoreProvider): ExpoDeployability {
+  return expoDeployability(codeDir(engine, goal), provider);
+}
 /** the servers in Settings (ADR-0091) */
 export const deployServers = (engine: Engine): DeployServer[] => engine.settings.values().delivery.servers;
 /** the server a request names, or why there is none */
@@ -165,6 +182,8 @@ export function startDeploy(engine: Engine, goalId: string, req: DeployRequest):
     if (!configured(req.provider, deployCredentials(engine))) throw new Error(`${PROVIDER_LABEL[req.provider]} is not set up: add its token in Settings → Git & delivery`);
   } else if (isPaas(req.provider)) {
     if (!paasConfigured(req.provider, paasCredentials(engine))) throw new Error(`${PAAS_LABEL[req.provider]} is not set up: add its token in Settings → Git & delivery`);
+  } else if (isStore(req.provider)) {
+    if (!storeCredentials(engine).expoToken) throw new Error(`${STORE_LABEL[req.provider]} is not set up: add the Expo token in Settings → Git & delivery → Stores`);
   } else {
     const s = serverFor(engine, req.target);
     if (!s.privateKey) throw new Error(`the server ${s.name} has no SSH key: add it in Settings → Git & delivery`);
@@ -199,6 +218,7 @@ async function run(engine: Engine, goal: Goal, dir: string, req: DeployRequest):
     await checkout(goal, dir, ref);
     if (provider === 'server') return await runServer(engine, goal, dir, ref, serverFor(engine, req.target), target!, req, fail);
     if (isPaas(provider)) return await runPaas(engine, goal, dir, ref, provider, production, req, fail);
+    if (isStore(provider)) return await runStore(engine, goal, dir, ref, provider, production, fail);
     const d = deployability(dir);
     if (!d.ok) return fail(d.reason);
     const refused = unsupported(provider, d);
@@ -468,6 +488,145 @@ async function renderDeploy(engine: Engine, goal: Goal, ref: string, production:
   return url;
 }
 
+
+/** how long a cloud build may take before Foundry stops waiting (the build goes on at EAS; its page is linked) */
+const BUILD_WAIT_MS = 90 * 60_000;
+/**
+ * A store deploy (ADR-0096): the Expo app built by EAS in the cloud from Foundry's checkout, then handed to the store.
+ * iOS, preview or production: uploaded to App Store Connect, where it lands in TestFlight; the watch then follows it
+ * (processing, in review once the person submits it there, live or rejected). Android preview: an APK to install,
+ * from the build's page. Android production: submitted to Google Play's production track; Google tells nothing after.
+ * The keys exist as files only while the commands run; the token reaches the CLI through its environment.
+ */
+async function runStore(engine: Engine, goal: Goal, dir: string, ref: string, provider: StoreProvider, production: boolean, fail: (reason: string) => void): Promise<void> {
+  const { store } = engine;
+  const c = storeCredentials(engine);
+  const platform = STORE_PLATFORM[provider];
+  const d = expoDeployability(dir, provider);
+  if (!d.ok) return fail(d.reason);
+  const app = d.app;
+  const hide = redactor([c.expoToken, c.asc?.key, c.playServiceAccount].filter((v): v is string => !!v && v.length >= 6));
+  const cwd = join(dir, app.dir);
+  const env = easEnv(c.expoToken!);
+  const eas = engine.deployCli('eas');
+  const record = (label: string, argv: string[], exitCode: number | null, durationMs: number, out: string) => store.append({ type: 'deploy.command', goalId: goal.id, payload: { provider, target: null, label, command: hide(argv.join(' ')).split(dir).join('<deploy folder>'), exitCode, durationMs, outputTail: hide(out).slice(-3_000) } });
+  const step = async (label: string, argv: string[], timeoutMs = STEP_TIMEOUT_MS) => {
+    const t0 = Date.now();
+    const r = await exec(argv, cwd, { timeoutMs, env });
+    const out = plain(`${r.stdout}\n${r.stderr}`).trim();
+    record(label, argv, r.code, Date.now() - t0, out);
+    return { code: r.code, out, stdout: plain(r.stdout) };
+  };
+  const failed = (label: string, r: { code: number | null; out: string }) => {
+    const hint = easFailureHint(r.out);
+    return fail(`${label} failed (exit ${r.code}): ${hint ? `${hint} (${hide(lastWords(r.out))})` : hide(lastWords(r.out))}`);
+  };
+  // what the store needs before anything is built: the App Store Connect app behind the bundle id, the Play key for production
+  let ascAppId: string | null = null;
+  if (provider === 'appstore') {
+    if (!c.asc) return fail('the App Store Connect API key is not in Settings (Git & delivery → Stores): the upload to TestFlight needs it');
+    if (!app.dynamic) {
+      let found: { id: string; name: string } | null;
+      try {
+        found = await ascApp(c.asc, app.bundleId!, engine.storeFetch);
+      } catch (err) {
+        return fail(String((err as Error).message ?? err));
+      }
+      if (!found) return fail(`App Store Connect has no app with the bundle id ${app.bundleId}: make it there first (My Apps → +, the same bundle id), then deploy again`);
+      ascAppId = found.id;
+    }
+  }
+  const sa = provider === 'play' && production ? (c.playServiceAccount ? parseServiceAccount(c.playServiceAccount) : null) : null;
+  if (provider === 'play' && production && !sa) return fail('the Google Play service account key is not in Settings (Git & delivery → Stores): the submit to Google Play needs it');
+  if (sa && !sa.ok) return fail(sa.reason);
+  store.append({ type: 'deploy.started', goalId: goal.id, payload: { provider, target: null, production, ref, framework: `Expo (EAS) — ${platform === 'ios' ? 'iOS' : 'Android'}${app.name ? ` · ${app.name}` : ''}`, dir: app.dir } });
+  for (const note of d.notes) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${note}` } });
+  // a dynamic config is read by the CLI with the project's packages, and EAS builds only with a lockfile: installed in the checkout first
+  if (needsInstall(app)) {
+    const r = await step(`install the packages (${app.install.join(' ')})${app.lockfile ? '' : ', which makes the lockfile EAS wants'}`, app.install, 30 * 60_000);
+    if (r.code !== 0) return failed('the install', r);
+  }
+  const profile = production ? FOUNDRY_PROFILE.production : FOUNDRY_PROFILE.preview;
+  const run = async (keyPath: string | null) => {
+    writeEasProfiles(cwd, { asc: provider === 'appstore' && c.asc && ascAppId && keyPath ? { appId: ascAppId, keyPath, keyId: c.asc.keyId, issuerId: c.asc.issuerId } : null, play: provider === 'play' && keyPath ? { keyPath } : null });
+    // the build, started and watched: EAS builds in the cloud; its page is linked whatever happens
+    const started = await step(`start the ${platform === 'ios' ? 'iOS' : 'Android'} build on EAS (${profile})`, [...eas, 'build', '--platform', platform, '--profile', profile, '--non-interactive', '--no-wait', '--json']);
+    if (started.code !== 0) return failed('the EAS build', started);
+    let build = parseEasBuild(started.stdout);
+    if (!build) return fail('EAS started no build: its output is in the activity');
+    const page = easBuildPage(build);
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: EAS build ${build.id} started${page ? ` — ${page}` : ''}` } });
+    const until = Date.now() + BUILD_WAIT_MS;
+    let views = 0;
+    while (!EAS_BUILD_DONE.has(build.status) && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, engine.easPollMs));
+      const t0 = Date.now();
+      const r = await exec([...eas, 'build:view', build.id, '--json'], cwd, { timeoutMs: 120_000, env });
+      const next = parseEasBuild(plain(r.stdout));
+      if (next) build = next;
+      // the first look and the last are recorded; the ones between would only repeat "in progress"
+      if (views++ === 0 || EAS_BUILD_DONE.has(build.status)) record(`the build on EAS (${build.status.toLowerCase().replace(/_/g, ' ')})`, [...eas, 'build:view', build.id, '--json'], r.code, Date.now() - t0, plain(`${r.stdout}\n${r.stderr}`).trim());
+    }
+    if (build.status !== 'FINISHED') return fail(build.status === 'ERRORED' || build.status === 'CANCELED' ? `the EAS build ${build.status.toLowerCase()}${build.error ? `: ${build.error}` : ''}${page ? ` — its logs: ${page}` : ''}` : `the EAS build was still ${build.status.toLowerCase().replace(/_/g, ' ')} after ${BUILD_WAIT_MS / 60_000} minutes; it goes on at EAS${page ? `: ${page}` : ''}`);
+    const base = { platform, buildId: build.id, buildUrl: page, artifactUrl: build.artifacts.applicationArchiveUrl ?? build.artifacts.buildUrl, appVersion: build.appVersion, buildNumber: build.appBuildVersion, appId: provider === 'appstore' ? ascAppId : (app.package ?? null), submissionUrl: null as string | null, checkedAt: null as string | null };
+    // an Android preview ends here: an APK to install, from the build's page
+    if (provider === 'play' && !production) {
+      store.append({ type: 'deploy.finished', goalId: goal.id, payload: { provider, target: null, production, url: page ?? base.artifactUrl, store: { ...base, consoleUrl: page, state: 'built: an APK to install, from the build page', code: null, done: true } } });
+      return;
+    }
+    const submitted = await step(`submit the build to ${provider === 'appstore' ? 'App Store Connect (TestFlight)' : 'Google Play (production track)'}`, [...eas, 'submit', '--platform', platform, '--profile', FOUNDRY_PROFILE.submit, '--id', build.id, '--non-interactive', '--wait'], 45 * 60_000);
+    if (submitted.code !== 0) return failed('the submit', submitted);
+    base.submissionUrl = easSubmissionUrl(submitted.out);
+    const view = await exec([...eas, 'submit:view', '--platform', platform, '--json'], cwd, { timeoutMs: 120_000, env }).catch(() => null);
+    const sub = view ? parseEasSubmission(plain(view.stdout)) : null;
+    if (sub?.status && !/finished/i.test(sub.status)) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `deploy: EAS reports the submission as ${sub.status}` } });
+    if (provider === 'appstore') {
+      const standing = storeStanding(null, null, production);
+      store.append({ type: 'deploy.submitted', goalId: goal.id, payload: { provider, target: null, production, store: { ...base, consoleUrl: ascConsoleUrl(ascAppId!, production), state: standing.state, code: standing.code, done: false } } });
+    } else {
+      store.append({ type: 'deploy.submitted', goalId: goal.id, payload: { provider, target: null, production, store: { ...base, consoleUrl: playConsoleUrl(), state: 'submitted to Google Play’s production track; Google reviews it and releases it when done — the Play Console shows where it stands, no API tells Foundry', code: null, done: true } } });
+    }
+  };
+  if (provider === 'appstore') await withSecretFile(engine.config.dataDir, 'AuthKey.p8', c.asc!.key, run);
+  else if (production) await withSecretFile(engine.config.dataDir, 'play-service-account.json', c.playServiceAccount!, run);
+  else await run(null);
+}
+
+/**
+ * Where the submitted iOS deploys stand (ADR-0096): App Store Connect asked for each build still in its hands —
+ * processing, then in TestFlight, then the version's review once the person submits it there — and every change
+ * recorded and told. Runs on the engine's timer and on a click; a deploy is left alone after 30 days.
+ */
+export async function checkStoreDeploys(engine: Engine, goalId?: string): Promise<number> {
+  const c = storeCredentials(engine);
+  if (!c.asc) return 0;
+  let changes = 0;
+  const goals = goalId ? [getGoal(engine.store.db, goalId)].filter((g): g is Goal => !!g) : listGoals(engine.store.db);
+  for (const goal of goals) {
+    for (const dep of goal.deployments ?? []) {
+      if (dep.provider !== 'appstore' || dep.status !== 'submitted' || !dep.store || dep.store.done || !dep.store.appId) continue;
+      const age = Date.now() - new Date(dep.at).getTime();
+      let next: { status: 'submitted' | 'live' | 'failed'; url: string | null; reason: string | null; store: NonNullable<typeof dep.store> };
+      try {
+        if (age > 30 * 86_400_000) next = { status: 'submitted', url: null, reason: null, store: { ...dep.store, state: `${dep.store.state} — not watched any more after 30 days; see App Store Connect`, done: true, checkedAt: new Date().toISOString() } };
+        else {
+          const build = await ascBuild(c.asc, dep.store.appId, dep.store.buildNumber, dep.store.appVersion, engine.storeFetch);
+          const version = build && build.processingState === 'VALID' ? await ascVersionFor(c.asc, dep.store.appId, build.id, engine.storeFetch) : null;
+          const standing = storeStanding(build, version, dep.production);
+          next = { status: standing.status, url: standing.status === 'live' && dep.production ? appStoreUrl(dep.store.appId) : null, reason: standing.status === 'failed' ? standing.state : null, store: { ...dep.store, state: standing.state, code: standing.code, done: standing.done, checkedAt: new Date().toISOString() } };
+        }
+      } catch (err) {
+        engine.config.log(`[deploy] the store watch failed for ${goal.id}: ${String((err as Error).message ?? err)}`);
+        continue;
+      }
+      if (next.store.state === dep.store.state && next.store.done === dep.store.done && next.status === dep.status) continue;
+      engine.store.append({ type: 'deploy.store_changed', goalId: goal.id, payload: { provider: dep.provider, target: dep.target ?? null, production: dep.production, deployedAt: dep.at, ...next } });
+      changes++;
+    }
+  }
+  return changes;
+}
+
 /**
  * Whether a deploy of this goal to one place can start (ADR-0091): a host needs its token in Settings; a server its
  * key, an answer over SSH, docker compose for that user, the project's folder free or Foundry's, and the ports the
@@ -480,6 +639,42 @@ export async function deployReadiness(engine: Engine, goalId: string, provider: 
     const ok = configured(provider, deployCredentials(engine));
     const items: ReadinessItem[] = [{ id: 'token', label: `${PROVIDER_LABEL[provider]} token in Settings`, ok, severity: 'error', detail: ok ? 'set' : `add it under Settings → Git & delivery → Deploy`, fix: ok ? null : { settings: 'git' } }];
     return { ok, items, at };
+  }
+  if (isStore(provider)) {
+    const c = storeCredentials(engine);
+    const goal = getGoal(engine.store.db, goalId);
+    const tokenOk = !!c.expoToken;
+    const items: ReadinessItem[] = [{ id: 'token', label: 'Expo token in Settings', ok: tokenOk, severity: 'error', detail: tokenOk ? 'set' : 'add it under Settings → Git & delivery → Stores (expo.dev → Account settings → Access tokens)', fix: tokenOk ? null : { settings: 'git' } }];
+    const d = goal ? expoDeployability(codeDir(engine, goal), provider) : null;
+    const app = d?.ok ? d.app : null;
+    const cwd = goal ? join(codeDir(engine, goal), app?.dir ?? '') : process.cwd();
+    const easCmd = `npx --yes ${EAS_CLI.pkg}`;
+    if (app && goal) items.push({ id: 'linked', label: 'The app is linked to an EAS project', ok: !!app.projectId || app.dynamic, severity: 'error', detail: app.projectId ? `project ${app.projectId}` : app.dynamic ? 'the config is dynamic: checked when the build starts' : 'no extra.eas.projectId in app.json', fix: app.projectId || app.dynamic ? null : { command: `cd ${shellQuote(goal.repoPath)} && ${easCmd} init\n# links the app to an EAS project under your account and writes the id into app.json; commit it` } });
+    if (tokenOk) {
+      const who = await exec([...engine.deployCli('eas'), 'whoami'], cwd, { timeoutMs: 120_000, env: easEnv(c.expoToken!) }).catch(() => ({ code: 1, stdout: '', stderr: 'not run' }));
+      const name = plain(who.stdout).trim().split('\n').at(-1) ?? '';
+      items.push({ id: 'account', label: 'EAS answers the token', ok: who.code === 0, severity: 'error', detail: who.code === 0 ? `signed in as ${name || 'the token’s account'}` : `EAS refused it: ${lastWords(plain(`${who.stdout}\n${who.stderr}`))}`, fix: who.code === 0 ? null : { settings: 'git' } });
+    }
+    if (provider === 'appstore') {
+      items.push({ id: 'asc', label: 'App Store Connect API key in Settings', ok: !!c.asc, severity: 'error', detail: c.asc ? `key ${c.asc.keyId}` : 'the key (.p8), its id and the issuer id: App Store Connect → Users and Access → Integrations', fix: c.asc ? null : { settings: 'git' } });
+      if (c.asc && app?.bundleId) {
+        const found = await ascApp(c.asc, app.bundleId, engine.storeFetch).then((a) => ({ a, err: null as string | null })).catch((err: Error) => ({ a: null, err: err.message }));
+        items.push({ id: 'ascApp', label: `The app ${app.bundleId} in App Store Connect`, ok: !!found.a, severity: 'error', detail: found.a ? `${found.a.name} (id ${found.a.id})` : (found.err ?? 'no app with this bundle id yet: make it in App Store Connect (My Apps → +) with the same bundle id'), fix: found.a ? null : found.err ? { settings: 'git' } : { url: 'https://appstoreconnect.apple.com/apps' } });
+      }
+      if (tokenOk && app?.projectId && goal) {
+        const prev = await exec([...engine.deployCli('eas'), 'build:list', '--platform', 'ios', '--status', 'finished', '--limit', '1', '--json', '--non-interactive'], cwd, { timeoutMs: 120_000, env: easEnv(c.expoToken!) }).catch(() => ({ code: 1, stdout: '', stderr: '' }));
+        const had = prev.code === 0 && !!parseEasBuild(plain(prev.stdout));
+        items.push({ id: 'signing', label: 'iOS signing on EAS', ok: had, severity: 'warn', detail: had ? 'an iOS build finished on EAS before, so EAS holds the certificate and the profile' : 'no finished iOS build on EAS yet: the first one needs the signing set up once, with your Apple ID', fix: had ? null : { command: `cd ${shellQuote(goal.repoPath)} && ${easCmd} credentials --platform ios\n# signs in with your Apple ID once and lets EAS make the distribution certificate and the provisioning profile; Foundry never holds them` } });
+      }
+    } else {
+      const sa = c.playServiceAccount ? parseServiceAccount(c.playServiceAccount) : null;
+      items.push({ id: 'play', label: 'Google Play service account key in Settings (production only)', ok: !!sa?.ok, severity: 'warn', detail: sa?.ok ? sa.account.client_email : sa ? sa.reason : 'a preview (an APK to install) needs none; a production submit does: Google Cloud → IAM → Service accounts → Keys, JSON', fix: sa?.ok ? null : { settings: 'git' } });
+      if (sa?.ok && app?.package) {
+        const reach = await playAppReachable(sa.account, app.package, engine.storeFetch).catch((err: Error) => ({ ok: false as const, reason: err.message }));
+        items.push({ id: 'playApp', label: `The app ${app.package} in the Play Console`, ok: reach.ok, severity: 'warn', detail: reach.ok ? 'the account reaches it' : reach.reason, fix: reach.ok ? null : { url: 'https://play.google.com/console/' } });
+      }
+    }
+    return { ok: items.every((i) => i.ok || i.severity === 'warn'), items, at };
   }
   if (isPaas(provider)) {
     const c = paasCredentials(engine);
