@@ -15,7 +15,7 @@ import { screenshotsDir } from '../workspace.ts';
 import { budgetOnApproval, type Target } from './actions.ts';
 import { DiscordNotifier, TelegramNotifier, type Link, type MediaFile, type Notifier } from './channels.ts';
 import { DeliveryDigest } from './digest.ts';
-import { PROVIDER_LABEL } from '../deploy/providers.ts';
+import { whereLabel } from '../deploy/providers.ts';
 
 export interface Composed {
   family: 'goalFinished' | 'delivery' | 'rateLimit' | 'updateAvailable' | 'interview' | 'milestone' | 'briefReady' | 'schedule';
@@ -110,13 +110,13 @@ export function compose(e: EngineEvent, goalTitle: (goalId: string | null) => st
     case 'delivery.revert_closed':
       return { family: 'delivery', text: `↩️ Revert PR ${e.payload.prNumber != null ? `#${e.payload.prNumber} ` : ''}closed without merging — ${goalTitle(e.goalId)}\nThe goal's work stays merged.`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.finished':
-      return { family: 'delivery', text: `🚀 Deployed to ${PROVIDER_LABEL[e.payload.provider]}${e.payload.production ? '' : ' (preview)'} — ${goalTitle(e.goalId)}\n${e.payload.url}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+      return { family: 'delivery', text: `🚀 Deployed to ${whereLabel(e.payload)}${e.payload.production ? '' : ' (preview)'} — ${goalTitle(e.goalId)}\n${e.payload.url ?? 'running, with no address to open (no port is published and the server has no public address)'}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.failed':
-      return { family: 'delivery', text: `⚠️ Deploy to ${PROVIDER_LABEL[e.payload.provider]} failed — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
+      return { family: 'delivery', text: `⚠️ Deploy to ${whereLabel(e.payload)} failed — ${goalTitle(e.goalId)}\n${e.payload.reason.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     case 'deploy.smoke_finished': {
       // a skipped smoke has nothing to say: the deploy's own message named the address
       if (e.payload.status === 'skipped') return null;
-      const where = `the ${e.payload.production ? 'production' : 'preview'} deploy to ${PROVIDER_LABEL[e.payload.provider]}`;
+      const where = `the ${e.payload.production ? 'production' : 'preview'} deploy to ${whereLabel(e.payload)}`;
       return { family: 'delivery', text: `${e.payload.status === 'pass' ? '✅ Smoke passed on' : '⚠️ Smoke failed on'} ${where} — ${goalTitle(e.goalId)}\n${e.payload.detail.slice(0, 300)}`, path: e.goalId ? `/goals/${e.goalId}#delivery` : null };
     }
     case 'rate_limit.paused': {

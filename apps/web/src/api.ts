@@ -1,4 +1,4 @@
-import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeliveryRevert, InterviewQuestion, MergeMethod } from '@foundry/core/browser';
+import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeployReadiness, DeliveryRevert, InterviewQuestion, MergeMethod, RecipeRun, ServerRecipe } from '@foundry/core/browser';
 import type { Adjustment, AdjustmentMode, Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 import type { IssueRead } from './pages/new-goal-issue.ts';
 import type { Calibration, GoalRecipe, Schedule, ScheduleCadence, ThemeEntry, ThemeProblem } from '@foundry/core/browser';
@@ -690,9 +690,15 @@ export function apiForProvider(provider?: AgentProvider) {
   repoLearnings: (repoPath: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/learnings?repo=${encodeURIComponent(repoPath)}`),
   saveLearnings: (repoPath: string, learnings: { id?: string | null; kind: LearningKind; text: string }[]) => req<{ repoPath: string; learnings: Learning[] }>('/api/learnings', { method: 'PUT', body: JSON.stringify({ repoPath, learnings }) }),
   learnFrom: (goalId: string) => req<{ repoPath: string; learnings: Learning[] }>(`/api/goals/${goalId}/learn`, { method: 'POST' }),
-  /** Deploy (ADR-0041): what a finished goal's web app is, the hosts, the exact commands, the deploys so far */
-  deployInfo: (goalId: string, provider?: DeployHost | null, production = false) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}production=${production ? 1 : 0}`),
-  deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, production, smoke }) }),
+  /** Deploy (ADR-0041, ADR-0091): what a finished goal is for the hosts and for a server, the places, the exact commands, the deploys so far */
+  deployInfo: (goalId: string, provider?: DeployHost | null, production = false, target?: string | null) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}${target ? `target=${encodeURIComponent(target)}&` : ''}production=${production ? 1 : 0}`),
+  deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean, target?: string | null) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, target: target ?? null, production, smoke }) }),
+  /** the readiness check (ADR-0091): whether a deploy to this place can start, tried now */
+  deployReadiness: (goalId: string, provider: DeployHost, target?: string | null) => req<DeployReadiness>(`/api/goals/${goalId}/deploy/readiness?provider=${provider}${target ? `&target=${encodeURIComponent(target)}` : ''}`),
+  /** server recipes (ADR-0092): the scripts, whole; a run on a server (on the person's click, after they read it); the runs so far */
+  serverRecipes: () => req<{ recipes: ServerRecipe[] }>('/api/servers/recipes'),
+  runServerRecipe: (serverId: string, recipeId: string, params: Record<string, string>) => req<{ started: boolean }>(`/api/servers/${encodeURIComponent(serverId)}/recipes/${encodeURIComponent(recipeId)}/run`, { method: 'POST', body: JSON.stringify({ params }) }),
+  serverRecipeRuns: (serverId: string) => req<{ runs: RecipeRun[] }>(`/api/servers/${encodeURIComponent(serverId)}/recipes/runs`),
   /** Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more */
   /** Revert (ADR-0059): what a revert of the goal would undo; and start one, with the reason and whether to merge it right away */
   revertInfo: (goalId: string) => req<RevertInfo>(`/api/goals/${goalId}/revert`),
@@ -1126,8 +1132,46 @@ export interface MapResult {
 
 export const api = apiForProvider();
 
-export type DeployHost = 'vercel' | 'netlify' | 'cloudflare';
-/** what Deploy can do for a goal now (GET /api/goals/:id/deploy) */
+/** where a goal is deployed: a web host, or `server` (one of the servers in Settings, named by `target`) */
+export type DeployHost = 'vercel' | 'netlify' | 'cloudflare' | 'server';
+/** one place the Deploy card offers: a host, or a server from Settings (ADR-0091) */
+export interface DeployPlace {
+  id: DeployHost;
+  /** the server's id when `id` is `server` */
+  target: string | null;
+  kind: 'host' | 'server';
+  label: string;
+  /** the host's token, or the server's key, is in Settings */
+  configured: boolean;
+  /** why this place cannot take the goal's code, or null */
+  refused: string | null;
+  /** a server that allows a compose file reaching outside its project (Settings); undefined for a host */
+  permissive?: boolean;
+  /** how a server runs the project (ADR-0092): with docker compose, or as a Node.js process under PM2 */
+  mode?: 'docker' | 'pm2';
+  /** where a server is and who logs in (for the recipe dialog); undefined for a host */
+  host?: string;
+  user?: string;
+}
+/** what a compose file would do on the server (ADR-0091): what is refused unless the server allows it, and the facts the confirmation states */
+export interface ComposeReview {
+  dangers: string[];
+  ports: number[];
+  built: string[];
+  pulled: string[];
+  volumes: string[];
+  binds: string[];
+}
+/** how a PM2-mode server installs, builds and starts a Node.js project (ADR-0092) */
+export interface Pm2Facts {
+  manager: 'yarn' | 'pnpm' | 'npm' | 'bun';
+  install: string;
+  build: string | null;
+  ecosystem: string;
+  generated: boolean;
+}
+/** what a server would run of the goal (ADR-0091; `pm2` for a server in PM2 mode, ADR-0092) */
+export type ServerDeployability = { ok: true; app: { kind: 'compose' | 'dockerfile' | 'pm2'; file: string; services: string[]; port: number | null; review: ComposeReview; pm2?: Pm2Facts }; notes: string[] } | { ok: false; reason: string };
 /** Mirrors the engine's RevertInfo (delivery/revert.ts, ADR-0059): what a Revert would undo, and whether one can start now. */
 export interface RevertInfo {
   ok: boolean;
@@ -1142,15 +1186,18 @@ export interface RevertInfo {
 }
 
 export interface DeployInfo {
+  /** what a web host would deploy: the web app found, or why none */
   app: { ok: true; app: { dir: string; framework: string; kind: 'static' | 'built' | 'ssr' }; notes: string[] } | { ok: false; reason: string };
+  /** what a server would run: the compose file or Dockerfile found, or why none (ADR-0091) */
+  server: ServerDeployability;
   finished: boolean;
   running: boolean;
   /** a Smoke again runs (ADR-0058) */
   smoking: boolean;
   /** the milestone scripts a smoke tries against the address */
   smoke: { scripts: string[] };
-  providers: { id: DeployHost; label: string; configured: boolean; refused: string | null }[];
-  /** the exact commands, tokens left out */
+  providers: DeployPlace[];
+  /** the exact commands of the chosen place, tokens and the key file left out */
   plan: { label: string; command: string }[];
   deployments: Deployment[];
 }

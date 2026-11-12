@@ -5,7 +5,7 @@
 import { setCommitAuthorMode } from './git/git.ts';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DEFAULT_SETTINGS, RESTART_SETTINGS, SECRET_SETTINGS, Settings, SettingsPatch, isLocalSetting, isSecretSetting, maskSecret, type SecretState, type SettingMeta, type SettingsView } from '@foundry/core';
+import { DEFAULT_SETTINGS, RESTART_SETTINGS, SECRET_LIST_SETTINGS, SECRET_SETTINGS, Settings, SettingsPatch, isLocalSetting, isSecretSetting, listSecrets, maskSecret, mergeListSecrets, stripListSecrets, type SecretState, type SettingMeta, type SettingsView } from '@foundry/core';
 import type { EngineConfig } from './config.ts';
 
 export const SETTINGS_FILE = 'settings.json';
@@ -198,23 +198,30 @@ export class SettingsStore {
     const now = this.values();
     return (RESTART_SETTINGS as readonly string[]).filter((p) => JSON.stringify(get(now, p)) !== JSON.stringify(get(this.boot, p)));
   }
-  /** what the Settings page gets: credentials only as set / not set and a masked hint (values() keeps them for the engine) */
+  /**
+   * what the Settings page gets: credentials only as set / not set and a masked hint (values() keeps them for the
+   * engine); a list's items go without their secret fields, each named beside (`delivery.servers.<id>.privateKey`)
+   */
   view(): SettingsView {
     const { values, meta } = this.resolve();
-    const shown = structuredClone(values);
+    const shown = stripListSecrets(values);
     const secrets: Record<string, SecretState> = {};
     for (const p of SECRET_SETTINGS) {
       const v = get(values, p);
       secrets[p] = { set: typeof v === 'string' && v !== '', hint: typeof v === 'string' && v !== '' ? maskSecret(v) : null };
       set(shown, p, null);
     }
+    for (const [p, v] of Object.entries(listSecrets(values))) secrets[p] = { set: true, hint: maskSecret(v) };
     return { values: shown, meta, secrets, restartNeeded: this.restartNeeded(), file: this.path, fileExists: existsSync(this.path) };
   }
-  /** Merge a deep-partial patch into the file; returns the leaves whose effective value changed. */
+  /**
+   * Merge a deep-partial patch into the file; returns the leaves whose effective value changed. A list that comes back
+   * without its items' secrets (the page never had them) keeps the saved ones, item by item.
+   */
   update(patch: SettingsPatch): { changed: string[]; view: SettingsView } {
     const before = this.values();
     const next: any = structuredClone(this.file);
-    for (const path of SETTING_PATHS) if (has(patch, path)) set(next, path, get(patch, path));
+    for (const path of SETTING_PATHS) if (has(patch, path)) set(next, path, path in SECRET_LIST_SETTINGS ? mergeListSecrets(path, get(patch, path), get(before, path)) : get(patch, path));
     const check = Settings.safeParse({ ...DEFAULT_SETTINGS, ...mergeSections(next) });
     if (!check.success) throw new SettingsError(check.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '));
     this.file = SettingsPatch.parse(next);
@@ -232,7 +239,10 @@ export class SettingsStore {
     const next: Record<string, Record<string, unknown>> = structuredClone(this.file) as never;
     for (const section of sections) {
       const kept = Object.entries(next[section] ?? {}).filter(([k]) => isLocalSetting(`${section}.${k}`) || isSecretSetting(`${section}.${k}`));
-      const taken = Object.entries((imported[section] ?? {}) as Record<string, unknown>).filter(([k]) => !isLocalSetting(`${section}.${k}`) && !isSecretSetting(`${section}.${k}`));
+      // an imported list comes without its items' secrets: the ones saved here stay with the items that match by key
+      const taken = Object.entries((imported[section] ?? {}) as Record<string, unknown>)
+        .filter(([k]) => !isLocalSetting(`${section}.${k}`) && !isSecretSetting(`${section}.${k}`))
+        .map(([k, v]) => [k, `${section}.${k}` in SECRET_LIST_SETTINGS ? mergeListSecrets(`${section}.${k}`, v, get(before, `${section}.${k}`)) : v]);
       next[section] = Object.fromEntries([...taken, ...kept]);
       if (!Object.keys(next[section]!).length) delete next[section];
     }

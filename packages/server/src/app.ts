@@ -1947,18 +1947,41 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
     return c.json({ repoPath: goal.repoPath, learnings: engine.learnings(goal.repoPath) });
   });
-  // ---------- Deploy (ADR-0041): a finished goal's web app to Vercel, Netlify or Cloudflare Pages, on the person's click ----------
+  // ---------- Deploy (ADR-0041, ADR-0091): a finished goal to a web host or a server of the person's own, on their click ----------
   app.get('/api/goals/:id/deploy', (c) => {
     const goal = goalOr404(c);
     const provider = DeployProvider.safeParse(c.req.query('provider'));
-    return c.json(engine.deployInfo(goal.id, provider.success ? provider.data : undefined, c.req.query('production') === '1'));
+    return c.json(engine.deployInfo(goal.id, provider.success ? provider.data : undefined, c.req.query('production') === '1', c.req.query('target') || null));
   });
   app.post('/api/goals/:id/deploy', async (c) => {
     const goal = goalOr404(c);
-    // smoke (ADR-0058) left out: a preview gets one, production does not
-    const body = z.object({ provider: DeployProvider, production: z.boolean().default(false), smoke: z.boolean().optional() }).parse(await c.req.json());
+    // smoke (ADR-0058) left out: a preview gets one, production does not; `target` names the server (ADR-0091)
+    const body = z.object({ provider: DeployProvider, target: z.string().nullable().optional(), production: z.boolean().default(false), smoke: z.boolean().optional() }).parse(await c.req.json());
     try {
       engine.deploy(goal.id, body);
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+    return c.json({ started: true }, 202);
+  });
+  // the readiness check (ADR-0091): whether a deploy to this place can start, tried now (a server is reached over SSH)
+  app.get('/api/goals/:id/deploy/readiness', async (c) => {
+    const goal = goalOr404(c);
+    const provider = DeployProvider.safeParse(c.req.query('provider'));
+    if (!provider.success) throw new HttpError(400, { error: 'provider: unknown' });
+    try {
+      return c.json(await engine.deployReadiness(goal.id, provider.data, c.req.query('target') || null));
+    } catch (e) {
+      throw new HttpError(409, { error: String((e as Error).message ?? e) });
+    }
+  });
+  // ---------- Server recipes (ADR-0092): scripts that set a server up, run on the person's click after they read them ----------
+  app.get('/api/servers/recipes', (c) => c.json({ recipes: engine.serverRecipes() }));
+  app.get('/api/servers/:id/recipes/runs', (c) => c.json({ runs: engine.serverRecipeRuns(c.req.param('id')) }));
+  app.post('/api/servers/:id/recipes/:recipe/run', async (c) => {
+    const body = z.object({ params: z.record(z.string(), z.string()).default({}) }).parse(await c.req.json().catch(() => ({})));
+    try {
+      engine.runServerRecipe(c.req.param('id'), c.req.param('recipe'), body.params);
     } catch (e) {
       throw new HttpError(409, { error: String((e as Error).message ?? e) });
     }

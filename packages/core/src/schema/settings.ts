@@ -128,6 +128,37 @@ export const ReviewSettings = z.object({
   /** a goal whose diff is this many lines or fewer is reviewed by the cheap tier without review skills (sub-agents) */
   smallGoalLines: z.number().int().min(0).max(5000).default(400),
 });
+/**
+ * A server of the person's own that Deploy reaches over SSH (ADR-0091): the whole project runs there with docker
+ * compose. Its private key is a credential: null in the settings view, masked, sealed in a Transfer, written to a
+ * file only while a command runs.
+ */
+export const DeployServer = z.object({
+  id: z.string().min(1),
+  /** how the Deploy card names it */
+  name: z.string().min(1),
+  host: z.string().min(1),
+  port: z.number().int().min(1).max(65535).default(22),
+  user: z.string().min(1).default('root'),
+  /** the SSH private key (OpenSSH or PEM) that logs `user` in; null = not set */
+  privateKey: z.string().nullable().default(null),
+  /** the folder on the server the projects are put under, one subfolder per repository (`~` is the user's home there) */
+  dir: z.string().min(1).default('~/foundry'),
+  /** the address visitors open (a domain behind a reverse proxy, with its scheme); null = http://host:<the first published port> */
+  publicUrl: z.string().min(1).nullable().default(null),
+  /**
+   * let a compose file reach outside its project — a privileged container, the host's network or pid space, the Docker
+   * socket, a bind mount outside the project folder; off = such a file is refused with the reasons (ADR-0091)
+   */
+  allowPrivileged: z.boolean().default(false),
+  /**
+   * how the project runs there (ADR-0092): docker = its compose file (or Dockerfile) with docker compose; pm2 = a Node.js
+   * project installed and built on the host and kept running by PM2, as this user, with no isolation
+   */
+  mode: z.enum(['docker', 'pm2']).default('docker'),
+});
+export type DeployServer = z.infer<typeof DeployServer>;
+
 export const DeliverySettings = z.object({
   /** a Vercel token for Deploy (ADR-0041); null = Vercel not set up */
   vercelToken: z.string().min(1).nullable().default(null),
@@ -140,6 +171,8 @@ export const DeliverySettings = z.object({
   /** a Cloudflare API token (Pages: Edit) and its account id for Deploy; null = Cloudflare Pages not set up */
   cloudflareToken: z.string().min(1).nullable().default(null),
   cloudflareAccountId: z.string().min(1).nullable().default(null),
+  /** the person's own servers Deploy can reach over SSH (ADR-0091); the Deploy card offers each by name */
+  servers: z.array(DeployServer).default([]),
   defaultMode: DeliveryMode.default('local'),
   /** one PR per goal by default; per-task stacked PRs are opt-in (each PR is a full push / wait / merge cycle) */
   defaultUnit: DeliveryUnit.default('goal'),
@@ -341,6 +374,67 @@ export interface SecretState {
 }
 /** enough of a credential to recognise it, never enough to use it */
 export const maskSecret = (v: string): string => (v.length >= 12 ? `${v.slice(0, 4)}…${v.slice(-4)}` : '••••');
+
+/**
+ * Lists of records with a credential inside each (the servers' SSH keys, ADR-0091): the list itself is an ordinary
+ * setting, each item's secret fields are treated as SECRET_SETTINGS are, named `<list>.<item id>.<field>` — null in the
+ * view with a masked hint beside, kept when a saved list comes back without them, sealed apart in a Transfer.
+ */
+export const SECRET_LIST_SETTINGS: Record<string, { key: string; fields: string[] }> = { 'delivery.servers': { key: 'id', fields: ['privateKey'] } };
+type Item = Record<string, unknown>;
+const itemsOf = (o: unknown, path: string): Item[] => {
+  const v = path.split('.').reduce<unknown>((x, k) => (x == null ? undefined : (x as Item)[k]), o);
+  return Array.isArray(v) ? (v as Item[]) : [];
+};
+/** the secret fields of every list item that hold a value, by their path: `delivery.servers.srv_1.privateKey` → the key */
+export function listSecrets(values: unknown): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [path, { key, fields }] of Object.entries(SECRET_LIST_SETTINGS)) {
+    for (const item of itemsOf(values, path)) {
+      for (const f of fields) {
+        const v = item[f];
+        if (typeof v === 'string' && v !== '' && typeof item[key] === 'string') out[`${path}.${item[key]}.${f}`] = v;
+      }
+    }
+  }
+  return out;
+}
+/** `path` names a list item's secret field: the list, the item's key and the field */
+export function parseListSecretPath(path: string): { list: string; id: string; field: string } | null {
+  for (const [list, { fields }] of Object.entries(SECRET_LIST_SETTINGS)) {
+    if (!path.startsWith(`${list}.`)) continue;
+    const rest = path.slice(list.length + 1);
+    const at = rest.lastIndexOf('.');
+    if (at <= 0) continue;
+    const field = rest.slice(at + 1);
+    if (fields.includes(field)) return { list, id: rest.slice(0, at), field };
+  }
+  return null;
+}
+/** the same object with every list item's secret fields set to null (what leaves the engine) */
+export function stripListSecrets<T>(values: T): T {
+  const out = structuredClone(values);
+  for (const [path, { fields }] of Object.entries(SECRET_LIST_SETTINGS)) for (const item of itemsOf(out, path)) for (const f of fields) if (item[f] !== undefined) item[f] = null;
+  return out;
+}
+/**
+ * A list that came back without its secrets (the page never had them) takes them from the stored list, item by item
+ * by key; an item that brings a value keeps it, one with an empty string forgets the stored one.
+ */
+export function mergeListSecrets(path: string, next: unknown, stored: unknown): unknown {
+  const spec = SECRET_LIST_SETTINGS[path];
+  if (!spec || !Array.isArray(next)) return next;
+  const was = new Map((Array.isArray(stored) ? (stored as Item[]) : []).map((i) => [i[spec.key], i] as const));
+  return (next as Item[]).map((item) => {
+    const old = was.get(item[spec.key]);
+    const out = { ...item };
+    for (const f of spec.fields) {
+      if (out[f] === '') out[f] = null;
+      else if (out[f] == null && old && typeof old[f] === 'string') out[f] = old[f];
+    }
+    return out;
+  });
+}
 
 export type SettingSource = 'file' | 'env' | 'default';
 export interface SettingMeta {

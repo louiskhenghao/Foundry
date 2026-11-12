@@ -162,7 +162,7 @@ export function deployability(root: string): Deployability {
     const pkg = readPkg(abs);
     if (pkg) {
       const c = classify(root, dir, pkg);
-      if (c.web && c.server) return { ok: false, reason: `${dir || 'the project'} runs a server of its own (${c.server}) beside ${c.web.framework}: the hosts run web frameworks, not a custom server. Foundry deploys web pages and all-in-one web apps only.` };
+      if (c.web && c.server) return { ok: false, reason: `${dir || 'the project'} runs a server of its own (${c.server}) beside ${c.web.framework}: the web hosts run web frameworks, not a custom server. A server of your own runs it whole (with a compose file or a Dockerfile).` };
       if (c.web) webs.push(c.web);
       else if (c.server) backends.push(`${dir || 'the project'} (${c.server})`);
       continue;
@@ -171,9 +171,9 @@ export function deployability(root: string): Deployability {
     if (other && dir) backends.push(`${dir} (${other[1]})`);
   }
   const services = ownServices(root);
-  if (services.length) return { ok: false, reason: `the project runs services of its own in Docker or as workers (${services.join(', ')}): Foundry deploys web pages and all-in-one web apps only, never workers.` };
-  if (backends.length) return { ok: false, reason: `the project has a backend deployed apart from its pages (${backends.join(', ')}): Foundry deploys web pages and all-in-one web apps only, never a separate backend.` };
-  if (webs.length > 1) return { ok: false, reason: `the project has several web apps (${webs.map((w) => w.dir || 'the repository').join(', ')}): Foundry deploys a repository with one.` };
+  if (services.length) return { ok: false, reason: `the project runs services of its own in Docker or as workers (${services.join(', ')}): the web hosts take web pages and all-in-one web apps only. A server of your own runs the whole project from its compose file.` };
+  if (backends.length) return { ok: false, reason: `the project has a backend deployed apart from its pages (${backends.join(', ')}): the web hosts take web pages and all-in-one web apps only. A server of your own runs the whole project (add a compose file that starts both).` };
+  if (webs.length > 1) return { ok: false, reason: `the project has several web apps (${webs.map((w) => w.dir || 'the repository').join(', ')}): a web host takes a repository with one.` };
   const notes: string[] = [];
   const images = composeImages(root);
   if (images.length) notes.push(`The compose file also starts ${images.join(', ')}: the deployed app needs its own on the host (set its connection in the host's environment).`);
@@ -182,5 +182,5 @@ export function deployability(root: string): Deployability {
   // a folder of pages: an index.html and no build of its own
   if (!readPkg(root) && existsSync(join(root, 'index.html'))) return { ok: true, app: { dir: '', framework: 'static pages', kind: 'static', install: null, build: null, outputDir: '.' }, notes };
   if (readPkg(root) && existsSync(join(root, 'index.html')) && !readPkg(root)?.scripts?.build) return { ok: true, app: { dir: '', framework: 'static pages', kind: 'static', install: null, build: null, outputDir: '.' }, notes };
-  return { ok: false, reason: 'no web app found: Foundry deploys a folder of pages, a site or single-page app built with a known tool, or a full-stack web framework (Next.js, Nuxt, SvelteKit, Astro, Remix…).' };
+  return { ok: false, reason: 'no web app found: a web host takes a folder of pages, a site or single-page app built with a known tool, or a full-stack web framework (Next.js, Nuxt, SvelteKit, Astro, Remix…).' };
 }
