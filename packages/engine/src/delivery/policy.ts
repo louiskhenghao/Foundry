@@ -1,5 +1,5 @@
 import type { Brief, CheckResult, DeliveryPlanStep, DeliveryPolicy, Goal, Task } from '@foundry/core';
-import { decisionsOf } from '@foundry/core';
+import { decisionsOf, githubRepoName } from '@foundry/core';
 import { headerOf } from '../git/conventional.ts';
 import { issueRefFor } from '../issue.ts';
 
@@ -104,10 +104,16 @@ export function buildTaskPrBody(goal: Goal, task: Task, i: { index: number; tota
   return lines.join('\n\n');
 }
 
-/** owner/name from an https or ssh GitHub URL; null when not GitHub-shaped. */
+/** owner/name from an https or ssh GitHub URL, a dot in the name kept (`me/my.app`); the URL itself when not GitHub-shaped. */
 export function repoSlug(url: string): string {
-  const m = url.match(/github\.com[:/]([^/]+)\/([^/.]+)(?:\.git)?/);
+  const m = url.match(/github\.com[:/]([^/\s]+)\/([^/\s]+?)(?:\.git)?(?=\/|\s|$)/);
   return m ? `${m[1]}/${m[2]}` : url;
+}
+
+/** Whether a remote's `owner/name` is the repository the policy asked GitHub for: GitHub spells the name its own way
+ * (githubRepoName) and reads both halves without regard to case. */
+export function sameGithubRepo(slug: string, repo: { owner: string; name: string }): boolean {
+  return slug.toLowerCase() === `${repo.owner}/${githubRepoName(repo.name)}`.toLowerCase();
 }
 
 /** the goal's tasks as a tree under their Areas, by their commit headers: the smallest view of what changed and where */
