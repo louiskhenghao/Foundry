@@ -67,6 +67,32 @@ export interface AgyQuota {
   error: string | null;
 }
 
+/** one usage window of a Claude subscription as Claude's own usage report gives it (ADR-0090) */
+export interface ClaudeUsageWindow {
+  /** 0–100 used */
+  usedPercent: number;
+  /** when it resets (ISO); null when the report gives none */
+  resetsAt: string | null;
+}
+/**
+ * The Claude account's usage as its own report says it: what Claude Code's `/usage` and the menu-bar app show. Read
+ * with the account's own sign-in, use outside Foundry included; separate from Foundry's session totals.
+ */
+export type ClaudeUsage =
+  | {
+      state: 'available';
+      checkedAt: string;
+      /** the 5-hour session window; null when no session window is open (nothing ran in the last five hours) */
+      fiveHour: ClaudeUsageWindow | null;
+      /** the weekly window over every model */
+      sevenDay: ClaudeUsageWindow | null;
+      /** a weekly window per model Claude limits on its own, named as Claude names the model */
+      models: (ClaudeUsageWindow & { name: string })[];
+      /** extra usage (overage) past the plan, only while it is turned on: what it spent of its monthly cap */
+      extraUsage: { usedPercent: number | null; used: number | null; limit: number | null; currency: string | null } | null;
+    }
+  | { state: 'unavailable' | 'error'; checkedAt: string; message: string };
+
 /** a window as one account sees it: its own signal and what Foundry did on that account in it */
 export type AccountWindow = Pick<WindowSummary, 'status' | 'resetsAt' | 'lastSignalAt' | 'isUsingOverage' | 'sessions' | 'costUsd' | 'outputTokens'>;
 /** one of a coding agent's accounts on the Usage page (ADR-0065) */
@@ -82,16 +108,20 @@ export interface AccountUsage {
   fiveHour: AccountWindow;
   sevenDay: AccountWindow;
   codexQuota?: CodexQuota;
+  /** Claude: the account's own usage as Claude reports it (ADR-0090) */
+  claudeUsage?: ClaudeUsage;
 }
 
 export interface UsageSummary {
   provider?: AgentProvider;
-  /** the coding agent's accounts when it has several (ADR-0065): the windows above are then the current one's */
+  /** the coding agent's accounts when it has several (ADR-0065), and Claude's always, each with its own usage (ADR-0090): the windows above are the current one's */
   accounts?: AccountUsage[];
   /** the account whose signals and quota the windows show, when there are several */
   currentAccount?: string;
   costAvailable?: boolean;
   codexQuota?: CodexQuota;
+  /** the current Claude account's own usage as Claude reports it (ADR-0090) */
+  claudeUsage?: ClaudeUsage;
   agyQuota?: AgyQuota | null;
   now: string;
   fiveHour: WindowSummary;

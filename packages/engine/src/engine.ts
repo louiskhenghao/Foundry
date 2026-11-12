@@ -1,10 +1,11 @@
 import type { VideoPack } from '@foundry/core';
 import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, type TaskState, assignMaterials } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
-import type { AccountUsage, AccountWindow, CodexQuota, WindowSummary } from './usage/types.ts';
+import type { AccountUsage, AccountWindow, ClaudeUsage, CodexQuota, WindowSummary } from './usage/types.ts';
 import { CAD_VIEWER_KEY, CODEX_MODEL_ACTIONS, FINAL_WALK, CodexEffort, KNOWN_EFFORTS, TITLE_MAX, effectiveCodexPresets, isHistory, natureKey, repoHere, titleFromPrompt, type CodexModelPreset } from '@foundry/core';
 import { CodexPlugins } from './plugins/codex-plugins.ts';
 import { AgyQuotaReader } from './usage/agy-quota.ts';
+import { ClaudeUsageReader } from './usage/claude-usage.ts';
 import { CodexQuotaReader } from './usage/codex-quota.ts';
 import { discoverCodexModels } from './models/codex-discover.ts';
 import { basename, dirname, join } from 'node:path';
@@ -263,6 +264,15 @@ export function codexResumeAt(q: CodexQuota, now: number): number | null {
   return resets.length ? Math.min(Math.max(...resets), now + MAX_PAUSE_MS) : null;
 }
 
+/** when the latest used-up window of a Claude account's own usage resets (capped at the longest window), or null when none is used up (ADR-0090) */
+export function claudeResumeAt(u: ClaudeUsage, now: number): number | null {
+  if (u.state !== 'available') return null;
+  const resets = [u.fiveHour, u.sevenDay, ...u.models]
+    .filter((w): w is NonNullable<typeof w> => !!w && w.usedPercent >= 100 && !!w.resetsAt && Date.parse(w.resetsAt) > now)
+    .map((w) => Date.parse(w.resetsAt!));
+  return resets.length ? Math.min(Math.max(...resets), now + MAX_PAUSE_MS) : null;
+}
+
 /** when a limit the error text names comes back ("… Individual quota reached. Resets in 2h39m52s.", Antigravity), capped like any pause */
 export function resetsInAt(text: string | null | undefined, now: number): number | null {
   const m = /resets in\s+(?:(\d+)\s*h)?\s*(?:(\d+)\s*m(?!s))?\s*(?:(\d+)\s*s)?/i.exec(text ?? '');
@@ -288,6 +298,8 @@ export class Engine {
   readonly codexMcp: CodexMcpManager;
   readonly codexQuota: CodexQuotaReader;
   readonly agyQuota: AgyQuotaReader;
+  /** the native Claude sign-in's own usage as Claude reports it (ADR-0090); an added account's is the pool's */
+  readonly claudeUsage: ClaudeUsageReader;
   readonly codexPlugins: CodexPlugins;
   readonly agents: AgentsMonitor;
   readonly auth: ClaudeAuth;
@@ -575,12 +587,15 @@ export class Engine {
     this.codexPlugins = new CodexPlugins({ codexHome: config.codexHome, codexBin: config.codexBin });
     this.codexQuota = new CodexQuotaReader({ bin: () => config.codexBin ?? Bun.which('codex'), home: config.codexHome });
     this.agyQuota = new AgyQuotaReader({ bin: () => config.agyBin ?? Bun.which('agy') });
+    // read with the native sign-in's own token in its config dir; a token in the environment outranks it, as for Claude Code
+    this.claudeUsage = new ClaudeUsageReader({ bin: () => config.claudeBin ?? Bun.which('claude'), configDir: claudeConfigEnv(config.claudeHome).CLAUDE_CONFIG_DIR ?? null, env: claudeConfigEnv(config.claudeHome), envToken: process.env.CLAUDE_CODE_OAUTH_TOKEN || null, credentials: config.claudeCredentials, log: config.log });
     this.accounts = {
       claude: new ClaudeAuth({ provider: 'claude', claudeHome: config.claudeHome, claudeBin: () => config.claudeBin ?? Bun.which('claude'), log: config.log }),
       codex: new ClaudeAuth({ provider: 'codex', claudeBin: () => config.codexBin ?? Bun.which('codex'), codexHome: config.codexHome, log: config.log }),
       agy: new ClaudeAuth({ provider: 'agy', claudeBin: () => config.agyBin ?? Bun.which('agy'), log: config.log }),
     };
     this.accounts.codex.onLoginUpdate(() => { this.codexQuota.invalidate(); this.codexPlugins.invalidate(); });
+    this.accounts.claude.onLoginUpdate(() => this.claudeUsage.invalidate());
     this.accountPool = new AccountPool({
       store: this.store,
       dataDir: config.dataDir,
@@ -588,6 +603,7 @@ export class Engine {
       bin: (p) => (p === 'codex' ? config.codexBin ?? Bun.which('codex') : config.claudeBin ?? Bun.which('claude')),
       nativeAuth: (p) => this.accounts[p],
       autoSwitch: (p) => this.config.autoSwitch[p],
+      claudeCredentials: config.claudeCredentials,
       log: config.log,
     });
     this.auth = this.accounts[config.provider];
@@ -1603,6 +1619,18 @@ export class Engine {
           if (this.isRateLimited('codex')) this.pauseUntil(this.config.autoSwitch.codex ? (this.accountPool.earliestReset('codex') ?? reset) : reset, 'codex-quota', 'Codex quota window used up', 'codex');
         })
         .catch(() => {});
+    // a Claude limit the session reported without a reset: the account's own usage says when the used-up window comes back (ADR-0090)
+    if (provider === 'claude' && accountLimit && byStatus === null)
+      void this.accountPool
+        .claudeUsage(accountId, this.claudeUsage)
+        .read(true)
+        .then((u) => {
+          const reset = claudeResumeAt(u, Date.now());
+          if (!reset) return;
+          this.accountPool.markLimited('claude', accountId, reset, 'Claude usage window used up');
+          if (this.isRateLimited('claude')) this.pauseUntil(this.config.autoSwitch.claude ? (this.accountPool.earliestReset('claude') ?? reset) : reset, 'claude-usage', 'Claude usage window used up', 'claude');
+        })
+        .catch(() => {});
   }
 
   /**
@@ -1688,8 +1716,10 @@ export class Engine {
     const current = pooled ? this.accountPool.currentId(pooled) : NATIVE_ACCOUNT;
     const several = !!pooled && this.accountPool.list(pooled).length > 1;
     const codexQuota = provider === 'codex' ? this.accountPool.codexQuota(current, this.codexQuota).current() : undefined;
+    const claudeUsage = provider === 'claude' ? this.accountPool.claudeUsage(current, this.claudeUsage).current() : undefined;
     const summary = usageSummary(this.store.db, now, provider, this.config.provider, pooled === 'claude' ? { state: this.accountSignals('claude', current) } : {});
-    return { ...summary, ...(several ? { currentAccount: this.accountPool.label(pooled!, current), accounts: this.accountUsage(pooled!, now) } : {}), provider, costAvailable: reportsDollars(provider), ...(provider === 'codex' ? { codexQuota, note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the current account; activity totals count only Foundry sessions, on every account.' } : provider === 'agy' ? { agyQuota: this.agyQuota.current(), note: 'Antigravity reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The quota is the account\'s own, read from agy; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
+    // Claude's accounts are listed even when there is one: its usage is shown per account (ADR-0090)
+    return { ...summary, ...(several ? { currentAccount: this.accountPool.label(pooled!, current) } : {}), ...(several || pooled === 'claude' ? { accounts: this.accountUsage(pooled!, now) } : {}), provider, costAvailable: reportsDollars(provider), ...(provider === 'claude' ? { claudeUsage } : {}), ...(provider === 'codex' ? { codexQuota, note: 'Codex reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. Account quota follows the current account; activity totals count only Foundry sessions, on every account.' } : provider === 'agy' ? { agyQuota: this.agyQuota.current(), note: 'Antigravity reports tokens, not USD cost. $0 means unreported, not free. USD budgets cannot be enforced; use time, concurrency and attempt limits. The quota is the account\'s own, read from agy; activity totals count only Foundry sessions.' } : {}), pausedUntil: this.rateLimitedUntilIso(provider) };
   }
 
   // ---------- models ----------
@@ -1740,14 +1770,19 @@ export class Engine {
     const win = (w: WindowSummary): AccountWindow => ({ status: w.status, resetsAt: w.resetsAt, lastSignalAt: w.lastSignalAt, isUsingOverage: w.isUsingOverage, sessions: w.sessions, costUsd: w.costUsd, outputTokens: w.outputTokens });
     return this.accountPool.views(provider).map((a) => {
       const s = usageSummary(this.store.db, now, provider, this.config.provider, { accountId: a.id, state: provider === 'claude' ? this.accountSignals(provider, a.id) : [] });
-      return { id: a.id, label: this.accountPool.label(provider, a.id), plan: a.plan, current: a.current, limitedUntil: a.limitedUntil, fiveHour: win(s.fiveHour), sevenDay: win(s.sevenDay), ...(provider === 'codex' ? { codexQuota: this.accountPool.codexQuota(a.id, this.codexQuota).current() } : {}) };
+      return { id: a.id, label: this.accountPool.label(provider, a.id), plan: a.plan, current: a.current, limitedUntil: a.limitedUntil, fiveHour: win(s.fiveHour), sevenDay: win(s.sevenDay), ...(provider === 'codex' ? { codexQuota: this.accountPool.codexQuota(a.id, this.codexQuota).current() } : { claudeUsage: this.accountPool.claudeUsage(a.id, this.claudeUsage).current() }) };
     });
   }
 
-  async readUsage(provider = this.config.provider, force = false): Promise<UsageSummary & { pausedUntil: string | null }> {
-    // every Codex account's own quota: the current one's for the card, the others' for the accounts list
+  /**
+   * The usage with the accounts' own reports read: every Codex account's quota (the current one's for the card, the
+   * others' for the accounts list), the Antigravity account's, and Claude's current account's own usage, every Claude
+   * account's when `accounts` is asked for (the Accounts card; the top bar asks for the current one alone, ADR-0090).
+   */
+  async readUsage(provider = this.config.provider, force = false, opts: { accounts?: boolean } = {}): Promise<UsageSummary & { pausedUntil: string | null }> {
     if (provider === 'codex') await Promise.all(this.accountPool.list('codex').map((a) => this.accountPool.codexQuota(a.id, this.codexQuota).read(force)));
     if (provider === 'agy') await this.agyQuota.read(force);
+    if (provider === 'claude') await Promise.all((opts.accounts ? this.accountPool.list('claude').map((a) => a.id) : [this.accountPool.currentId('claude')]).map((id) => this.accountPool.claudeUsage(id, this.claudeUsage).read(force)));
     return this.usage(provider);
   }
 
@@ -1923,7 +1958,7 @@ export class Engine {
     }
     const r = await handle.result;
     this.recordSessionUsage(r, { goalId: null, kind: 'probe', provider, model: this.config.models.cheap });
-    return this.usage(provider);
+    return this.readUsage(provider, true, { accounts: true });
   }
 
   // ---------- in-flight bookkeeping ----------

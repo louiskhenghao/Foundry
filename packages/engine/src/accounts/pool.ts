@@ -1,5 +1,7 @@
 import { IdPrefix, NATIVE_ACCOUNT, PROVIDER_NAME, currentAccountId, listAccounts, newId, planName, type AgentAccount, type EventStore, type PooledProvider } from '@foundry/core';
 import { ClaudeAuth, type ClaudeAuthStatus, type LoginSession } from '../auth/claude-auth.ts';
+import { claudeConfigEnv } from '../config.ts';
+import { ClaudeUsageReader, type ClaudeUsageReaderDeps } from '../usage/claude-usage.ts';
 import { CodexQuotaReader } from '../usage/codex-quota.ts';
 import { accountHome, linkShared, removeHome } from './homes.ts';
 
@@ -14,6 +16,8 @@ export interface AccountPoolDeps {
   nativeAuth: (provider: PooledProvider) => ClaudeAuth;
   /** whether a usage limit moves new sessions to the next account (Settings → accounts) */
   autoSwitch: (provider: PooledProvider) => boolean;
+  /** how a Claude account's sign-in token is read for its usage (ADR-0090); unset reads where Claude Code keeps it */
+  claudeCredentials?: ClaudeUsageReaderDeps['credentials'];
   log: (message: string) => void;
   now?: () => number;
 }
@@ -39,6 +43,7 @@ export class AccountPool {
   private limited = new Map<string, number>();
   private auths = new Map<string, ClaudeAuth>();
   private codexQuotas = new Map<string, CodexQuotaReader>();
+  private claudeUsages = new Map<string, ClaudeUsageReader>();
   /** a sign-in in progress per coding agent: its home exists, its account does not yet */
   private adding = new Map<PooledProvider, { id: string; home: string; auth: ClaudeAuth; session: LoginSession }>();
 
@@ -185,6 +190,19 @@ export class AccountPool {
     if (!r) this.codexQuotas.set(id, (r = new CodexQuotaReader({ bin: () => this.d.bin('codex'), home })));
     return r;
   }
+  /** a Claude account's own usage reader (ADR-0090); the native one's is the engine's */
+  claudeUsage(id: string, native: ClaudeUsageReader): ClaudeUsageReader {
+    if (id === NATIVE_ACCOUNT) return native;
+    const home = this.get('claude', id)?.home;
+    if (!home) return native;
+    let r = this.claudeUsages.get(id);
+    if (!r) {
+      // the account's home as its sessions name it, and no token of the native sign-in (ADR-0065)
+      const env = { ...claudeConfigEnv(home), CLAUDE_CODE_OAUTH_TOKEN: '' };
+      this.claudeUsages.set(id, (r = new ClaudeUsageReader({ bin: () => this.d.bin('claude'), configDir: env.CLAUDE_CONFIG_DIR ?? null, env, credentials: this.d.claudeCredentials, log: this.d.log })));
+    }
+    return r;
+  }
 
   /**
    * Sign in to one more account: a new home with the shared parts linked, and the coding agent's own sign-in run in it
@@ -262,6 +280,7 @@ export class AccountPool {
     this.d.store.append({ type: 'account.removed', goalId: null, payload: { provider, accountId: id } });
     this.auths.delete(key(provider, id));
     this.codexQuotas.delete(id);
+    this.claudeUsages.delete(id);
     this.limited.delete(key(provider, id));
   }
   /** the order the added accounts are tried in after the native one */
