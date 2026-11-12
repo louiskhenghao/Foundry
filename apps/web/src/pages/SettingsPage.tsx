@@ -701,7 +701,7 @@ export function SettingsPage() {
                 <span className="ml-auto flex items-center gap-1.5">{aside('delivery.servers')}</span>
               </div>
               <p className="text-[11px] text-ink-faint">A goal with a compose file or a Dockerfile is copied to the server over SSH and started there with docker compose: any backend, with the services beside it. Always production, confirmed each time; the card checks the server first (the key, SSH, Docker, the folder).</p>
-              <DeployServers servers={draft.delivery.servers} secrets={view.secrets} onChange={(next) => set('delivery.servers', next)} />
+              <DeployServers servers={draft.delivery.servers} secrets={view.secrets} savedIds={view.values.delivery.servers.map((s) => s.id)} onChange={(next) => set('delivery.servers', next)} />
             </div>
             <details className="pt-1">
               <summary className="text-xs font-semibold text-ink-soft hover:text-ink cursor-pointer">Delivery timings (advanced)</summary>

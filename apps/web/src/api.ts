@@ -1,4 +1,4 @@
-import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeployReadiness, DeliveryRevert, InterviewQuestion, MergeMethod } from '@foundry/core/browser';
+import type { FeedbackPlan, Learning, LearningKind, RepoLearnings, Deployment, DeployReadiness, DeliveryRevert, InterviewQuestion, MergeMethod, RecipeRun, ServerRecipe } from '@foundry/core/browser';
 import type { Adjustment, AdjustmentMode, Attachment, Attempt, Brief, BriefApp, BriefCheck, BriefDiff, BriefRun, BriefStyleOption, BriefSubject, BriefTask, Budgets, Check, CheckResult, CodexEffort, DeliveryPlanStep, DeliveryPolicy, DeliveryState, DocType, EngineEvent, Escalation, EscalationAnswer, EscalationSuggestion, Goal, GoalMode, GoalNature, GoalState, GoalTimeline, SettingsPatch, SettingsView, SubjectPicture, Task, TaskUsage } from '@foundry/core/browser';
 import type { IssueRead } from './pages/new-goal-issue.ts';
 import type { Calibration, GoalRecipe, Schedule, ScheduleCadence, ThemeEntry, ThemeProblem } from '@foundry/core/browser';
@@ -693,6 +693,10 @@ export function apiForProvider(provider?: AgentProvider) {
   deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean, target?: string | null) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, target: target ?? null, production, smoke }) }),
   /** the readiness check (ADR-0090): whether a deploy to this place can start, tried now */
   deployReadiness: (goalId: string, provider: DeployHost, target?: string | null) => req<DeployReadiness>(`/api/goals/${goalId}/deploy/readiness?provider=${provider}${target ? `&target=${encodeURIComponent(target)}` : ''}`),
+  /** server recipes (ADR-0091): the scripts, whole; a run on a server (on the person's click, after they read it); the runs so far */
+  serverRecipes: () => req<{ recipes: ServerRecipe[] }>('/api/servers/recipes'),
+  runServerRecipe: (serverId: string, recipeId: string, params: Record<string, string>) => req<{ started: boolean }>(`/api/servers/${encodeURIComponent(serverId)}/recipes/${encodeURIComponent(recipeId)}/run`, { method: 'POST', body: JSON.stringify({ params }) }),
+  serverRecipeRuns: (serverId: string) => req<{ runs: RecipeRun[] }>(`/api/servers/${encodeURIComponent(serverId)}/recipes/runs`),
   /** Smoke again (ADR-0058): the goal's milestone scripts against a live deploy's address once more */
   /** Revert (ADR-0059): what a revert of the goal would undo; and start one, with the reason and whether to merge it right away */
   revertInfo: (goalId: string) => req<RevertInfo>(`/api/goals/${goalId}/revert`),
@@ -1134,6 +1138,11 @@ export interface DeployPlace {
   refused: string | null;
   /** a server that allows a compose file reaching outside its project (Settings); undefined for a host */
   permissive?: boolean;
+  /** how a server runs the project (ADR-0091): with docker compose, or as a Node.js process under PM2 */
+  mode?: 'docker' | 'pm2';
+  /** where a server is and who logs in (for the recipe dialog); undefined for a host */
+  host?: string;
+  user?: string;
 }
 /** what a compose file would do on the server (ADR-0090): what is refused unless the server allows it, and the facts the confirmation states */
 export interface ComposeReview {
@@ -1144,8 +1153,16 @@ export interface ComposeReview {
   volumes: string[];
   binds: string[];
 }
-/** what a server would run of the goal (ADR-0090) */
-export type ServerDeployability = { ok: true; app: { kind: 'compose' | 'dockerfile'; file: string; services: string[]; port: number | null; review: ComposeReview }; notes: string[] } | { ok: false; reason: string };
+/** how a PM2-mode server installs, builds and starts a Node.js project (ADR-0091) */
+export interface Pm2Facts {
+  manager: 'yarn' | 'pnpm' | 'npm' | 'bun';
+  install: string;
+  build: string | null;
+  ecosystem: string;
+  generated: boolean;
+}
+/** what a server would run of the goal (ADR-0090; `pm2` for a server in PM2 mode, ADR-0091) */
+export type ServerDeployability = { ok: true; app: { kind: 'compose' | 'dockerfile' | 'pm2'; file: string; services: string[]; port: number | null; review: ComposeReview; pm2?: Pm2Facts }; notes: string[] } | { ok: false; reason: string };
 /** Mirrors the engine's RevertInfo (delivery/revert.ts, ADR-0059): what a Revert would undo, and whether one can start now. */
 export interface RevertInfo {
   ok: boolean;
