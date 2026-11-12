@@ -458,6 +458,9 @@ One visual direction for a media or UI Goal — palette, typefaces, keywords, a 
 **Style Sample**
 A single cheap real image generated on demand to taste a Style Proposal before approving the Brief. Samples are a history: regenerating appends a new one and every earlier sample stays — the human can change their mind and pin any of them as the reference image Workers must match. Samples live in the goal workspace's `artifacts/samples/` (git-excluded) and are copied into every Task worktree so the Worker can open the pinned one.
 
+**Design Reference**
+An attachment marked as the design the Goal's result follows: a picture, an HTML export or a zip of it (unpacked when it arrives), never a link. It is the law for every Role that builds or judges a look: what it shows is made as it shows it; where it and a Style Proposal or the Design Pack disagree, the design wins, and the pack only fills what the design leaves open, in the design's own language. With one attached the Clarifier reads one Style Proposal from it instead of inventing directions, writes a design inventory for the Planner, binds every page it shows to a "Matches the design" check, and records what it does not show as assumptions. A link into a design tool behind a sign-in (Claude, Figma, Canva, Framer) is not a design: the person is asked for an export.
+
 **Subject**
 A real thing a Goal's result depicts: a particular vehicle, building, landmark, product or artwork, never a person. Named on the Brief precisely enough to find pictures of exactly that one, with what must match (the proportions, the distinctive features, colours and materials). The Clarifier names them for goals with a look; the human adds, changes and removes them while the Brief waits. At most four per Brief. A Delegated Goal and a Follow-up start with the Subjects of the Goal they come from.
 
