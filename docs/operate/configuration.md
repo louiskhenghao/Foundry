@@ -101,6 +101,12 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `delivery.renderOwner` | — | `FOUNDRY_RENDER_OWNER` | The Render workspace (owner id, usr-… or tea-…) new services are made under; empty = the key’s first. |
 | `delivery.renderRegion` | `oregon` | `FOUNDRY_RENDER_REGION` | The Render region new services start in (oregon, frankfurt, singapore, …). |
 | `delivery.renderPlan` | `free` | `FOUNDRY_RENDER_PLAN` | The Render plan new services start on (free, starter, …). |
+| `delivery.expoToken` | — | `FOUNDRY_EXPO_TOKEN (or EXPO_TOKEN)` | An Expo access token for Deploy to the stores: an Expo app built on EAS and uploaded to TestFlight or Google Play (ADR-0094). Kept by the engine only. |
+| `delivery.ascKeyId` | — | `FOUNDRY_ASC_KEY_ID (or EXPO_ASC_KEY_ID)` | The App Store Connect API key’s id (Users and Access → Integrations → App Store Connect API), for the iOS upload and the review watch. |
+| `delivery.ascIssuerId` | — | `FOUNDRY_ASC_ISSUER_ID (or EXPO_ASC_ISSUER_ID)` | The App Store Connect API key’s issuer id. |
+| `delivery.ascKey` | — | `FOUNDRY_ASC_KEY` | The App Store Connect API key itself: the contents of the downloaded .p8 file. Kept by the engine only, written to a file only while a command runs. |
+| `delivery.playServiceAccount` | — | `FOUNDRY_PLAY_SERVICE_ACCOUNT` | A Google Play service account’s JSON key with release access to the app, for the Android production submit. Kept by the engine only, written to a file only while a command runs. |
+| `delivery.storePollMin` | `15` | `FOUNDRY_STORE_POLL_MIN` | How often App Store Connect is asked where a submitted build stands (processing, in TestFlight, in review, live). |
 | `delivery.pollSec` | `30` | — | How often CI status is polled after the first two minutes (during the first two minutes it polls every 10 s). |
 | `delivery.noChecksGraceSec` | `90` | — | How long to wait for CI checks to appear on a PR in a repository that runs CI. |
 | `delivery.checksTimeoutMin` | `30` | — | Give up waiting for pending checks after this long; the PR stays open. |

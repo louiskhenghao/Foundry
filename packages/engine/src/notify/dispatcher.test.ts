@@ -76,6 +76,17 @@ describe('deploys', () => {
     expect(failed.text).toBe('⚠️ Deploy to Cloudflare Pages failed — Add dark mode\nthe build failed');
   });
 
+  test('a store build (ADR-0094): uploaded to TestFlight or submitted to Google Play, an Android APK built, and each move App Store Connect reports', () => {
+    const store = { platform: 'ios' as const, buildId: 'b-1', buildUrl: 'https://expo.dev/accounts/acme/projects/shop/builds/b-1', artifactUrl: null, appVersion: '1.2.0', buildNumber: '7', appId: '1234567890', submissionUrl: null, consoleUrl: 'https://appstoreconnect.apple.com/apps/1234567890/distribution', state: 'uploaded; App Store Connect is processing the build', code: null, checkedAt: null, done: false };
+    expect(compose(ev('deploy.submitted', { provider: 'appstore', production: true, store }), title)).toEqual({ family: 'delivery', text: '📦 Uploaded to TestFlight (production build) — Add dark mode\nuploaded; App Store Connect is processing the build\nhttps://appstoreconnect.apple.com/apps/1234567890/distribution', path: '/goals/g1#delivery' });
+    expect(compose(ev('deploy.submitted', { provider: 'play', production: true, store: { ...store, platform: 'android', consoleUrl: 'https://play.google.com/console/', state: 'submitted to Google Play’s production track', done: true } }), title)!.text).toStartWith('📦 Submitted to Google Play — Add dark mode\nsubmitted to Google Play’s production track');
+    expect(compose(ev('deploy.finished', { provider: 'play', production: false, url: 'https://expo.dev/accounts/acme/projects/shop/builds/b-1', store: { ...store, platform: 'android', artifactUrl: 'https://expo.dev/artifacts/app.apk', state: 'built', done: true } }), title)!.text).toBe('📦 Android APK built — Add dark mode\nhttps://expo.dev/artifacts/app.apk');
+    const moved = (status: 'submitted' | 'live' | 'failed', state: string, url: string | null = null) => compose(ev('deploy.store_changed', { provider: 'appstore', production: true, deployedAt: '2026-11-12T10:00:00.000Z', status, url, reason: null, store: { ...store, state } }), title)!.text;
+    expect(moved('submitted', 'version 1.2.0 is in review')).toBe('🍎 App Store: version 1.2.0 is in review — Add dark mode\nhttps://appstoreconnect.apple.com/apps/1234567890/distribution');
+    expect(moved('live', 'version 1.2.0 is live in the App Store', 'https://apps.apple.com/app/id1234567890')).toBe('🎉 App Store: version 1.2.0 is live in the App Store — Add dark mode\nhttps://apps.apple.com/app/id1234567890');
+    expect(moved('failed', 'version 1.2.0 was rejected in review — see the message in App Store Connect')).toStartWith('⚠️ App Store: version 1.2.0 was rejected');
+  });
+
   test('a smoke says whether the scripts passed against the address, under the Delivery switch; a skipped one says nothing (ADR-0058)', () => {
     const base = { provider: 'vercel' as const, production: false, url: 'https://site-abc.vercel.app', deployedAt: '2026-10-21T10:00:00.000Z', scripts: [] };
     const passed = compose(ev('deploy.smoke_finished', { ...base, status: 'pass', detail: '2 scripts passed against https://site-abc.vercel.app' }), title)!;

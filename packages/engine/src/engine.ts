@@ -115,7 +115,8 @@ import { DiscordBot } from './notify/discord-bot.ts';
 import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
 import { Memory, memorySessionEnv, type MemoryDeps } from './memory/memory.ts';
 import { Conversations } from './conversation/conversations.ts';
-import { DEPLOYABLE_STATES, type DeployRequest, defaultCli, deployCredentials, deployName, deployReadiness, deployServers, deployWork, deploying, goalDeployability, goalPaasDeployability, goalServerDeployability, paasCredentials, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
+import { DEPLOYABLE_STATES, type DeployRequest, checkStoreDeploys, defaultCli, deployCredentials, deployName, deployReadiness, deployServers, deployWork, deploying, goalDeployability, goalPaasDeployability, goalServerDeployability, goalStoreDeployability, paasCredentials, smokeAgain, smoking, startDeploy, storeCredentials, unsupported } from './deploy/deploy.ts';
+import { FOUNDRY_PROFILE, STORE_LABEL, STORE_PLATFORM, STORE_PROVIDERS } from './deploy/eas.ts';
 import { PAAS_LABEL, PAAS_PROVIDERS, RENDER_API, paasConfigured, paasSteps, paasTarget } from './deploy/paas.ts';
 import { pm2Steps, serverSteps } from './deploy/server.ts';
 import { listRecipes, recipeRuns, recipeWork, startRecipe } from './deploy/recipes.ts';
@@ -448,12 +449,16 @@ export class Engine {
   autoskillsDeps: AutoskillsDeps = {};
   /** test seam: deps handed to runGraphRefresh (fake which/exec) */
   graphRefreshDeps: GraphRefreshDeps = {};
-  /** how a host's or a platform's CLI is run for Deploy (ADR-0041, ADR-0093); tests point it at stand-ins */
-  deployCli: (p: DeployHostProvider | 'fly' | 'railway') => string[] = defaultCli;
+  /** how a host's, a platform's or EAS's CLI is run for Deploy (ADR-0041, ADR-0093, ADR-0094); tests point it at stand-ins */
+  deployCli: (p: DeployHostProvider | 'fly' | 'railway' | 'eas') => string[] = defaultCli;
   /** how Render's API is reached (ADR-0093); tests stand in for the network */
   paasFetch: (url: string, init: RequestInit) => Promise<Response> = (url, init) => fetch(url, init);
   /** how often a Render deploy is looked at while it runs */
   paasPollMs = 10_000;
+  /** how App Store Connect and Google Play are reached (ADR-0094); tests stand in for the network */
+  storeFetch: (url: string, init: RequestInit) => Promise<Response> = (url, init) => fetch(url, init);
+  /** how often an EAS build is looked at while it runs */
+  easPollMs = 30_000;
   /** how a server is reached for Deploy (ADR-0091): `ssh` from the PATH; tests point it at a stand-in */
   deploySsh: string[] = ['ssh'];
 
@@ -1269,6 +1274,12 @@ export class Engine {
     }, 60_000);
     this.scheduleTimer.unref?.();
     void checkSchedules(this).catch((err) => this.config.log(`[schedules] the check failed: ${String((err as Error).message ?? err)}`));
+    // builds handed to App Store Connect (ADR-0094): where each stands, every storePollMin minutes, and once now
+    this.storeWatchTimer = setInterval(() => {
+      if (!this.stopped) void checkStoreDeploys(this).catch((err) => this.config.log(`[deploy] the store watch failed: ${String((err as Error).message ?? err)}`));
+    }, this.settings.values().delivery.storePollMin * 60_000);
+    this.storeWatchTimer.unref?.();
+    void checkStoreDeploys(this).catch((err) => this.config.log(`[deploy] the store watch failed: ${String((err as Error).message ?? err)}`));
     this.telegram.start();
     this.discord.start();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
@@ -1276,6 +1287,7 @@ export class Engine {
 
   private prWatchTimer: ReturnType<typeof setInterval> | null = null;
   private scheduleTimer: ReturnType<typeof setInterval> | null = null;
+  private storeWatchTimer: ReturnType<typeof setInterval> | null = null;
   /** start() is putting right what the last run left (orphaned attempts, overlays): no goal runs meanwhile */
   private reconciling = false;
   private deliveryRefreshAt = new Map<string, number>();
@@ -1402,6 +1414,7 @@ export class Engine {
     this.updater.stopSchedule();
     if (this.prWatchTimer) clearInterval(this.prWatchTimer);
     if (this.scheduleTimer) clearInterval(this.scheduleTimer);
+    if (this.storeWatchTimer) clearInterval(this.storeWatchTimer);
     for (const timer of this.resumeTimers.values()) clearTimeout(timer);
     this.resumeTimers.clear();
     for (const account of Object.values(this.accounts)) account.cancelLogin();
@@ -3360,8 +3373,25 @@ export class Engine {
       if (p === 'render') return [{ label: 'the Render workspace', command: `GET ${RENDER_API}/owners` }, { label: `find or make the service ${t.service}`, command: `GET ${RENDER_API}/services?name=${t.service} · POST ${RENDER_API}/services` }, { label: 'set the runtime variables', command: `PUT ${RENDER_API}/services/<id>/env-vars` }, { label: 'deploy the commit and watch it', command: `POST ${RENDER_API}/services/<id>/deploys · GET …/deploys/<id>` }, { label: 'read the address', command: `GET ${RENDER_API}/services/<id>` }];
       return paasSteps({ provider: p, cwd: `<deploy folder>/${d.app.dir}`.replace(/\/$/, ''), app: d.app, name, production, credentials: pc, vars: Object.fromEntries(Object.keys(deployEnvView(this, goal, p).keys).map(() => ['', ''])), cli: this.deployCli }).map((s) => ({ label: s.label, command: s.argv.join(' ').replace(/(\b[A-Z_][A-Z0-9_]*=)[^\s']*/g, '$1***') }));
     };
+    // the stores (ADR-0094): offered when the project is an Expo app; the commands are EAS's
+    const sc = storeCredentials(this);
+    const stores = { appstore: goalStoreDeployability(this, goal, 'appstore'), play: goalStoreDeployability(this, goal, 'play') };
+    const storePlan = (p: 'appstore' | 'play') => {
+      const d = stores[p];
+      if (!d.ok) return [];
+      const eas = this.deployCli('eas').join(' ');
+      const platform = STORE_PLATFORM[p];
+      const profile = production ? FOUNDRY_PROFILE.production : FOUNDRY_PROFILE.preview;
+      return [
+        ...(d.app.dynamic ? [{ label: 'install the packages (the app config is dynamic)', command: d.app.install.join(' ') }] : []),
+        { label: `start the ${platform === 'ios' ? 'iOS' : 'Android'} build on EAS, then watch it`, command: `${eas} build --platform ${platform} --profile ${profile} --non-interactive --no-wait --json · ${eas} build:view <id> --json` },
+        ...(p === 'play' && !production ? [] : [{ label: p === 'appstore' ? 'upload the build to App Store Connect (TestFlight)' : 'submit the build to Google Play (production track, released when Google is done)', command: `${eas} submit --platform ${platform} --profile ${FOUNDRY_PROFILE.submit} --id <build id> --non-interactive --wait` }]),
+      ];
+    };
     const plan =
-      provider && (provider === 'fly' || provider === 'railway' || provider === 'render')
+      provider && (provider === 'appstore' || provider === 'play')
+        ? storePlan(provider)
+        : provider && (provider === 'fly' || provider === 'railway' || provider === 'render')
         ? paasPlan(provider)
         : provider && provider !== 'server' && app.ok
         ? deploySteps({ provider, cwd: `<deploy folder>/${app.app.dir}`.replace(/\/$/, ''), kind: app.app.kind, name, production, branch: goal.branch.replace(/[^A-Za-z0-9-]+/g, '-').slice(0, 28), productionBranch: goal.baseBranch, install: app.app.install, build: app.app.build, outputDir: app.app.outputDir, message: `${goal.title} (Foundry)`, credentials: c, cli: this.deployCli }).map((s) => ({ label: s.label, command: redact(s.argv.join(' '), c) }))
@@ -3377,9 +3407,12 @@ export class Engine {
       // the smoke a deploy can have (ADR-0058): the goal's milestone scripts
       smoke: { scripts: smokeScripts(this, goalId).map((s) => s.script) },
       paas,
+      stores,
       providers: [
         ...DEPLOY_PROVIDERS.map((id) => ({ id: id as DeployProvider, target: null as string | null, kind: 'host' as const, label: PROVIDER_LABEL[id], configured: configured(id, c), refused: unsupported(id, app) })),
         ...PAAS_PROVIDERS.map((id) => ({ id: id as DeployProvider, target: null as string | null, kind: 'paas' as const, label: PAAS_LABEL[id], configured: paasConfigured(id, pc), refused: paas[id].ok ? null : paas[id].reason })),
+        // the stores show only for an Expo app: most projects are none, and two greyed buttons on every card would say nothing
+        ...(stores.appstore.ok || stores.play.ok ? STORE_PROVIDERS.map((id) => ({ id: id as DeployProvider, target: null as string | null, kind: 'store' as const, label: STORE_LABEL[id], configured: !!sc.expoToken, refused: stores[id].ok ? null : stores[id].reason })) : []),
         ...servers.map((s) => {
           const d = byMode[s.mode];
           return { id: 'server' as DeployProvider, target: s.id, kind: 'server' as const, label: s.name, configured: !!s.privateKey, refused: d.ok ? null : d.reason, permissive: s.allowPrivileged, mode: s.mode, host: s.host, user: s.user };
@@ -3393,6 +3426,11 @@ export class Engine {
   /** whether a deploy of the goal to one place can start (ADR-0091): the host's token, or the server tried over SSH now */
   deployReadiness(goalId: string, provider: DeployProvider, target?: string | null): Promise<DeployReadiness> {
     return deployReadiness(this, goalId, provider, target);
+  }
+  /** ask App Store Connect now where the goal's submitted builds stand (ADR-0094); returns how many changed */
+  checkStores(goalId: string): Promise<number> {
+    this.mustGoal(goalId);
+    return checkStoreDeploys(this, goalId);
   }
   /** the runtime variables of a deploy (ADR-0093): a place's set for the goal's repository, what each name is, what the example files list */
   deployEnv(goalId: string, place: string): DeployEnvView {

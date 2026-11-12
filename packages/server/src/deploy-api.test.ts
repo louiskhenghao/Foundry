@@ -27,6 +27,10 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
     ]);
     // the platforms (ADR-0093): what each would run of the project, and a token missing refuses the deploy in words
     expect(info.paas).toEqual({ fly: { ok: false, reason: expect.stringContaining('from a Dockerfile') }, railway: { ok: false, reason: expect.stringContaining('no Dockerfile and no known stack') }, render: { ok: false, reason: expect.stringContaining('no Dockerfile and no known stack') } });
+    // the stores (ADR-0094) stay off the card for a project that is no Expo app; the watch has nothing to check
+    expect(info.stores).toEqual({ appstore: { ok: false, reason: expect.stringContaining('no package.json') }, play: { ok: false, reason: expect.stringContaining('no package.json') } });
+    expect(await (await app.request(`/api/goals/${goal.id}/deploy/store-check`, { method: 'POST' })).json()).toEqual({ changed: 0, deployments: [] });
+    expect((await (await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=appstore`)).json()).items[0]).toMatchObject({ id: 'token', ok: false, label: 'Expo token in Settings' });
     expect((await (await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=railway`)).json()).items[0]).toMatchObject({ id: 'token', ok: false, label: 'Railway token in Settings' });
     const refused = await post(goal.id, { provider: 'vercel', production: false });
     expect(refused.status).toBe(409);

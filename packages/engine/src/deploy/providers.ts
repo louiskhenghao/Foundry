@@ -10,10 +10,12 @@ import type { DeployProvider as AnyProvider, DeployTarget } from '@foundry/core'
 /** the web hosts: this module's providers (a server of the person's own is deploy/server.ts, ADR-0091) */
 export type DeployProvider = 'vercel' | 'netlify' | 'cloudflare';
 export const DEPLOY_PROVIDERS: DeployProvider[] = ['vercel', 'netlify', 'cloudflare'];
-export const PROVIDER_LABEL: Record<AnyProvider, string> = { vercel: 'Vercel', netlify: 'Netlify', cloudflare: 'Cloudflare Pages', server: 'a server', fly: 'Fly.io', railway: 'Railway', render: 'Render' };
+export const PROVIDER_LABEL: Record<AnyProvider, string> = { vercel: 'Vercel', netlify: 'Netlify', cloudflare: 'Cloudflare Pages', server: 'a server', fly: 'Fly.io', railway: 'Railway', render: 'Render', appstore: 'App Store (TestFlight)', play: 'Google Play' };
 export const isHost = (p: AnyProvider): p is DeployProvider => p === 'vercel' || p === 'netlify' || p === 'cloudflare';
 /** the platforms (ADR-0093): the whole project, a preview beside production */
 export const isPaas = (p: AnyProvider): p is 'fly' | 'railway' | 'render' => p === 'fly' || p === 'railway' || p === 'render';
+/** the stores (ADR-0094): an Expo app built on EAS, to TestFlight or Google Play */
+export const isStore = (p: AnyProvider): p is 'appstore' | 'play' => p === 'appstore' || p === 'play';
 /** where a deploy went, in words: the host's name, or the server's own */
 export const whereLabel = (p: { provider: AnyProvider; target?: DeployTarget | null }) => (p.provider === 'server' ? `the server ${p.target?.label ?? ''}`.trim() : PROVIDER_LABEL[p.provider]);
 
