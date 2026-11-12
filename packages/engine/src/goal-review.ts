@@ -13,6 +13,7 @@ import { deckCheckLines, deckReviewSection } from './checks/deck.ts';
 import { renderAdjustments } from './adjust.ts';
 import { attachmentsDir, committedDesignReferences, renderAttachments } from './attachments.ts';
 import { captureDesignShots, committedReferencesSection, designComparisonSection } from './checks/design-shots.ts';
+import { matchVerdict } from './checks/verdict-match.ts';
 import { budgetStatus } from './budget.ts';
 import { runCommandCheck } from './checks/command.ts';
 import { runSelfCheck } from './checks/selfcheck.ts';
@@ -78,7 +79,8 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
     });
   }
   for (const c of reviewerChecks) {
-    const v = review ? [...review.mustVerdicts, ...review.stretchVerdicts].find((x) => x.checkName === c.name) : null;
+    // a check whose name holds a colon comes back with its rubric copied after it; the match tolerates that (ADR-0094)
+    const v = review ? matchVerdict([...review.mustVerdicts, ...review.stretchVerdicts], c.name) : null;
     const r: CheckResult = {
       id: newId(IdPrefix.checkResult),
       checkId: c.id,
@@ -144,7 +146,8 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
 
 async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, checks: Check[], objective: CheckResult[]) {
   const brief = getBrief(engine.store.db, goal.id)?.brief;
-  const fmt = (c: Check) => `- [${c.tier}] ${c.name}${c.spec.type === 'reviewer' ? `: ${c.spec.rubric}` : c.spec.type === 'command' ? ` (command \`${c.spec.cmd}\` → ${objective.find((r) => r.checkId === c.id)?.status ?? 'n/a'})` : ''}`;
+  // a reviewer check's rubric sits on its own line under the name: a name with a colon in it ("Matches the design: …") was copied back with the rubric as part of it
+  const fmt = (c: Check) => `- [${c.tier}] ${c.name}${c.spec.type === 'reviewer' ? `\n  rubric: ${c.spec.rubric}` : c.spec.type === 'command' ? ` (command \`${c.spec.cmd}\` → ${objective.find((r) => r.checkId === c.id)?.status ?? 'n/a'})` : ''}`;
   const scenario = goalScenario(listTasks(engine.store.db, goal.id));
   // a small goal does not need the strong model reading its diff through two review sub-agents: the cheap tier, no skills
   const lines = d.split('\n').length;
@@ -183,7 +186,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
     renderSubjects(engine.config.dataDir, goal.id, brief, 'goal-reviewer', scenario, likenessLines(latestLikeness(engine, goal.id), brief?.subjects ?? [])),
     reviewerHint ?? '',
     `# Fixed point and spec\nThe base of this review is \`${goal.baseBranch}\`; everything in the diff below was added by this goal. The spec is above: the approved understanding, the Decisions and the acceptance checks. There is no issue tracker and no \`docs/agents/issue-tracker.md\`; do not look for one or ask for it.`,
-    `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result.\n${checks.map(fmt).join('\n')}`,
+    `# Acceptance checks\nObjective command checks were already executed by the engine; their status is shown. You judge the reviewer-type checks and the overall result. Name each verdict's \`checkName\` exactly as the check is written on its line, without the rubric.\n${checks.map(fmt).join('\n')}`,
     previousVerdicts(engine, goal, checks),
     recalled ? memorySection(recalled.text, { tools: false, kind: recalled.kind }) : '',
     lines <= INLINE_DIFF_LINES ? `# Full diff against ${goal.baseBranch}\n\`\`\`diff\n${d}\n\`\`\`` : `# Full diff against ${goal.baseBranch}\nThe diff is ${lines} lines — too long to paste. It is saved at \`${diffFile(engine, goal, d)}\`; read it in parts (Grep for file names, Read with offsets)${(goal.provider ?? engine.config.provider) === 'codex' ? '' : ' and hand sub-agents the path, never the text'}.`,
