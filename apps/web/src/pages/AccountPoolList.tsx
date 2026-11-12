@@ -1,7 +1,9 @@
 import { PROVIDER_LABEL } from '@foundry/core/browser';
+import { claudeMeters, codexMeters } from '@foundry/engine/account-meters';
 import { ArrowDown, ArrowUp, Check, Clock, Laptop, Plus, Repeat, Users } from 'lucide-react';
 import { useState } from 'react';
 import { api, type AccountPoolInfo, type AgentProvider, type PoolAccount } from '../api.ts';
+import { AccountMeterBars, asOf } from '../components/AccountMeters.tsx';
 import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
 import { Button, ConfirmDialog, choiceClass, cn } from '../ui.tsx';
@@ -83,6 +85,8 @@ export function AccountPoolList({ provider, pool, installed, onChange }: { provi
           const native = a.id === 'native';
           const signedOut = !!a.status && !a.status.loggedIn && !native;
           const meta = [a.plan, native ? (a.email ? 'this computer’s sign-in' : null) : 'added in Foundry'].filter(Boolean).join(' · ');
+          // the account's own usage windows as its coding agent reports them (ADR-0090)
+          const usage = provider === 'codex' ? codexMeters(a.codexQuota) : claudeMeters(a.claudeUsage);
           return (
             // the current account marked green, its signal: a "current" plate and a thin edge, on a plain row (an inset-ring:
             // with ring-inset the theme's colour named inset would win over the ring's own)
@@ -109,6 +113,11 @@ export function AccountPoolList({ provider, pool, installed, onChange }: { provi
                   {!native && <Button size="sm" variant="ghost" className="hover:text-bad-ink" disabled={busy} onClick={() => setRemoving(a)}>Remove</Button>}
                 </span>
               )}
+              {/* bars on every row; the account sessions run on gets the cards, with when its reading was taken */}
+              <div className="basis-full pl-11">
+                <AccountMeterBars meters={usage} expanded={a.current} />
+                {a.current && usage.state !== 'unread' && <p className="mt-1.5 text-[11px] text-ink-faint">Usage as of {asOf(usage.checkedAt)} · Refresh status reads it again</p>}
+              </div>
             </li>
           );
         })}

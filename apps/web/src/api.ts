@@ -288,7 +288,7 @@ export interface FsRecent {
 }
 import type { AgentLogChunk, AgentsList, AgentsSummary } from '@foundry/engine/agents-types';
 import type { DoctorReport, InstallResult, ReleaseForecast, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from '@foundry/engine/skills-types';
-import type { MinimaxQuota, Report, UsageSummary } from '@foundry/engine/usage-types';
+import type { AgyQuota, ClaudeUsage, CodexQuota, MinimaxQuota, Report, UsageSummary } from '@foundry/engine/usage-types';
 
 export type Usage = UsageSummary & { pausedUntil: string | null };
 
@@ -347,10 +347,10 @@ export interface LoginSession {
 }
 import type { AgentProvider } from '@foundry/core/browser';
 export type { AgentProvider } from '@foundry/core/browser';
-/** one sign-in of a coding agent (ADR-0065): this computer's own (`native`) or one added in Foundry */
-export interface PoolAccount { id: string; email: string | null; orgName: string | null; plan: string | null; addedAt: string; current: boolean; limitedUntil: string | null; status: ClaudeAuthStatus | null }
+/** one sign-in of a coding agent (ADR-0065): this computer's own (`native`) or one added in Foundry, with its own usage as the agent reports it (ADR-0090) */
+export interface PoolAccount { id: string; email: string | null; orgName: string | null; plan: string | null; addedAt: string; current: boolean; limitedUntil: string | null; status: ClaudeAuthStatus | null; claudeUsage?: ClaudeUsage; codexQuota?: CodexQuota }
 export interface AccountPoolInfo { autoSwitch: boolean; accounts: PoolAccount[] }
-export interface AccountInfo { provider: AgentProvider; installed: boolean; status: ClaudeAuthStatus; capabilities: { dollarCosts: boolean; skillTelemetry: boolean; nativeSubagents: boolean; managedMcp: boolean; externalSessions: boolean }; pool?: AccountPoolInfo }
+export interface AccountInfo { provider: AgentProvider; installed: boolean; status: ClaudeAuthStatus; capabilities: { dollarCosts: boolean; skillTelemetry: boolean; nativeSubagents: boolean; managedMcp: boolean; externalSessions: boolean }; pool?: AccountPoolInfo; /** the one Antigravity account's quota (ADR-0090) */ agyQuota?: AgyQuota | null }
 export interface AccountsInfo { defaultProvider: AgentProvider; accounts: AccountInfo[] }
 export interface AuthInfo {
   provider: AgentProvider;
@@ -987,7 +987,11 @@ export function apiForProvider(provider?: AgentProvider) {
   removeAccount: (provider: AgentProvider, id: string) => req<{ ok: true }>(`/api/accounts/${provider}/${id}`, { method: 'DELETE' }),
   orderAccounts: (provider: AgentProvider, order: string[]) => req<{ ok: true }>(`/api/accounts/${provider}/order`, { method: 'POST', body: JSON.stringify({ order }) }),
   setAutoSwitch: (provider: AgentProvider, on: boolean) => req<{ ok: true }>(`/api/accounts/${provider}/auto-switch`, { method: 'POST', body: JSON.stringify({ on }) }),
-  usage: (provider?: AgentProvider) => req<Usage>(`/api/usage${provider ? '?provider=' + provider : ''}`),
+  /** `accounts`: every Claude account's own usage read, for the Accounts card; the top bar reads the current one's alone (ADR-0090) */
+  usage: (provider?: AgentProvider, accounts = false) => {
+    const q = [provider && `provider=${provider}`, accounts && 'accounts=1'].filter(Boolean).join('&');
+    return req<Usage>(`/api/usage${q ? `?${q}` : ''}`);
+  },
   /** Reports (ADR-0060): the last `days`, or all time with null */
   report: (days: number | null) => req<Report>(`/api/reports?days=${days ?? 'all'}`),
   /** Access (ADR-0061) */
