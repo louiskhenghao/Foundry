@@ -1,10 +1,10 @@
-# ADR-0091: Server recipes — scripts that set a server up, run whole after the person reads them — and a PM2 mode for Node.js projects
+# ADR-0092: Server recipes — scripts that set a server up, run whole after the person reads them — and a PM2 mode for Node.js projects
 
-**Status:** accepted · 2026-11-12 · amends ADR-0090
+**Status:** accepted · 2026-11-12 · amends ADR-0091
 
 ## Context
 
-ADR-0090 put a server of the person's own beside the web hosts, and drew the line at the server itself: Foundry
+ADR-0091 put a server of the person's own beside the web hosts, and drew the line at the server itself: Foundry
 installs and configures nothing there, it detects what is missing (Docker, something in front on 80/443, a
 certificate) and says so, with the command or the page. On a fresh machine that leaves the person doing by hand what
 they do on every new machine: install Docker, put nginx in front with a certificate, install Node and PM2, PostgreSQL,
@@ -44,7 +44,7 @@ and kept alive by PM2. Docker mode asks them to add a Dockerfile to every projec
   blanked out; the Settings page lists a server's runs. One recipe at a time per server; never on a timer. This is the
   one way Foundry changes a server outside a project's folder, and it changes exactly what the script the person read
   says.
-- **PM2 mode.** A server has a `mode`: `docker` (ADR-0090's compose deploy) or `pm2`. In PM2 mode a goal's project must
+- **PM2 mode.** A server has a `mode`: `docker` (ADR-0091's compose deploy) or `pm2`. In PM2 mode a goal's project must
   be a Node.js project with a start script or an `ecosystem.config.js`; anything else is refused in words. The deploy
   copies the checkout as before, then on the server installs with the package manager its lockfile names (yarn,
   pnpm, npm, bun; yarn berry immutably), builds when there is a build script, and runs `pm2 startOrReload
@@ -79,5 +79,5 @@ and kept alive by PM2. Docker mode asks them to add a Dockerfile to every projec
 - The bundled recipes are Ubuntu/Debian scripts; `install-docker` says so and stops on anything else. A recipe's
   failure leaves the server as the script left it — the scripts are idempotent, so running one again after the cause
   is mended is the way on.
-- ADR-0090's "Foundry installs and configures nothing on the server" becomes "nothing but what a recipe the person
+- ADR-0091's "Foundry installs and configures nothing on the server" becomes "nothing but what a recipe the person
   read and confirmed says"; its detection and remedies stay.

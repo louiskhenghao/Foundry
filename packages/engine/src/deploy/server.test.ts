@@ -214,7 +214,7 @@ describe('what the readiness check sees of the server beyond Docker', () => {
   });
 });
 
-describe('a server in PM2 mode (ADR-0091): a Node.js project kept running by PM2', () => {
+describe('a server in PM2 mode (ADR-0092): a Node.js project kept running by PM2', () => {
   const pm2Server = { ...server, mode: 'pm2' as const };
   test('a Node.js project with a start script: the package manager from its lockfile, the build when it has one, the port from its env file; Foundry writes the ecosystem file', () => {
     const dir = repo({ 'package.json': JSON.stringify({ scripts: { start: 'node server.js', build: 'tsc' } }), 'yarn.lock': '', '.env.example': 'PORT=4000\nDATABASE_URL=\n' });

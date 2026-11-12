@@ -78,7 +78,7 @@ export function DeployServers({ servers, secrets, savedIds, onChange }: { server
 }
 
 /**
- * The scripts a server can be set up with (ADR-0091) and the runs it had: Foundry's recipes and the person's own,
+ * The scripts a server can be set up with (ADR-0092) and the runs it had: Foundry's recipes and the person's own,
  * each run from a dialog that shows the whole script first. A server not yet saved has nothing to run on.
  */
 export function ServerScripts({ server, saved }: { server: DeployServer; saved: boolean }) {

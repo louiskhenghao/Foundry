@@ -391,7 +391,7 @@ export const EngineEvent = z.discriminatedUnion('type', [
   /** the smoke of a deploy (ADR-0058): the goal's milestone scripts against the deployed address; `deployedAt` names the deploy (its `at`) */
   ev('deploy.smoke_started', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), url: z.string(), deployedAt: z.string(), scripts: z.array(z.string()) }),
   ev('deploy.smoke_finished', { provider: DeployProvider, target: DeployTarget.nullable().optional(), production: z.boolean(), url: z.string(), deployedAt: z.string(), status: z.enum(['pass', 'fail', 'skipped']), detail: z.string(), scripts: z.array(SmokeScript) }),
-  /** a server recipe (ADR-0091) run on the person's click, no goal: which script on which server, the inputs given (names only) */
+  /** a server recipe (ADR-0092) run on the person's click, no goal: which script on which server, the inputs given (names only) */
   ev('server.recipe_started', { serverId: z.string(), serverName: z.string(), recipe: z.string(), title: z.string(), params: z.array(z.string()) }),
   ev('server.recipe_finished', { serverId: z.string(), serverName: z.string(), recipe: z.string(), title: z.string(), status: z.enum(['ok', 'failed']), exitCode: z.number().nullable(), durationMs: z.number(), outputTail: z.string(), reason: z.string().nullable() }),
   ev('delivery.repo_created', { owner: z.string(), name: z.string(), url: z.string(), visibility: z.string() }),

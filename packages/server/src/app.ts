@@ -1968,7 +1968,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       throw new HttpError(409, { error: String((e as Error).message ?? e) });
     }
   });
-  // ---------- Server recipes (ADR-0091): scripts that set a server up, run on the person's click after they read them ----------
+  // ---------- Server recipes (ADR-0092): scripts that set a server up, run on the person's click after they read them ----------
   app.get('/api/servers/recipes', (c) => c.json({ recipes: engine.serverRecipes() }));
   app.get('/api/servers/:id/recipes/runs', (c) => c.json({ runs: engine.serverRecipeRuns(c.req.param('id')) }));
   app.post('/api/servers/:id/recipes/:recipe/run', async (c) => {

@@ -1,5 +1,5 @@
 /**
- * Server recipes (ADR-0091): shell scripts that set a server up — Docker, nginx with HTTPS in front of the project,
+ * Server recipes (ADR-0092): shell scripts that set a server up — Docker, nginx with HTTPS in front of the project,
  * Node.js and PM2, PostgreSQL, Redis — bundled with Foundry under packages/engine/recipes/server and modelled on the
  * scripts people already run on a fresh machine by hand, plus the person's own under the data folder
  * (`server-recipes/*.sh`). No model is involved: a recipe is the same text every time.

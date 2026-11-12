@@ -80,7 +80,7 @@ export const ReadinessItem = z.object({
       /** a command the person runs themselves, on their own computer or on the server */
       command: z.string().optional(),
       url: z.string().optional(),
-      /** a server recipe (ADR-0091) that puts it right, run from the card after the person reads and confirms it */
+      /** a server recipe (ADR-0092) that puts it right, run from the card after the person reads and confirms it */
       recipe: z.string().optional(),
       /** the recipe's inputs as this project would fill them (the domain, the port, the project's name) */
       recipeParams: z.record(z.string(), z.string()).optional(),
@@ -90,11 +90,11 @@ export const ReadinessItem = z.object({
 });
 export type ReadinessItem = z.infer<typeof ReadinessItem>;
 
-/** one input of a server recipe (ADR-0091): an environment variable the script reads; a secret one is never recorded */
+/** one input of a server recipe (ADR-0092): an environment variable the script reads; a secret one is never recorded */
 export const RecipeParam = z.object({ name: z.string(), label: z.string(), default: z.string().nullable(), secret: z.boolean() });
 export type RecipeParam = z.infer<typeof RecipeParam>;
 /**
- * A server recipe (ADR-0091): a shell script that sets a server up — Docker, nginx with HTTPS in front of the project,
+ * A server recipe (ADR-0092): a shell script that sets a server up — Docker, nginx with HTTPS in front of the project,
  * Node and PM2, PostgreSQL, Redis — bundled with Foundry, or the person's own under the data folder. Its header says
  * what it changes; the person reads the whole script before it runs, as root, over ssh.
  */

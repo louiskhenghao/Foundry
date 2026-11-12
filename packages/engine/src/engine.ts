@@ -3340,7 +3340,7 @@ export class Engine {
     const c = deployCredentials(this);
     const servers = deployServers(this);
     const chosen = provider === 'server' ? servers.find((s) => s.id === target) : undefined;
-    // what a server would run depends on its mode (ADR-0091): the chosen server's, else Docker's
+    // what a server would run depends on its mode (ADR-0092): the chosen server's, else Docker's
     const byMode = { docker: goalServerDeployability(this, goal, 'docker'), pm2: goalServerDeployability(this, goal, 'pm2') };
     const server = byMode[chosen?.mode ?? 'docker'];
     const name = deployName(goal);
@@ -3374,7 +3374,7 @@ export class Engine {
   deployReadiness(goalId: string, provider: DeployProvider, target?: string | null): Promise<DeployReadiness> {
     return deployReadiness(this, goalId, provider, target);
   }
-  /** the server recipes (ADR-0091): Foundry's and the person's own, whole */
+  /** the server recipes (ADR-0092): Foundry's and the person's own, whole */
   serverRecipes(): ServerRecipe[] {
     return listRecipes(this);
   }

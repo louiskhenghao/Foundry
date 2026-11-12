@@ -1,8 +1,8 @@
 # ADR-0091: Deploy — the whole project to a server of the person's own over SSH, after a readiness check, with credentials kept as files
 
-**Status:** accepted · 2026-11-12 · amends ADR-0041 (the web hosts) and ADR-0003 (what the engine keeps) · amended by ADR-0091
+**Status:** accepted · 2026-11-12 · amends ADR-0041 (the web hosts) and ADR-0003 (what the engine keeps) · amended by ADR-0092
 
-> Amended 2026-11-12 by [ADR-0091](0091-server-recipes-and-the-pm2-mode.md): what a server lacks (Docker, nginx with HTTPS in front, Node and PM2, PostgreSQL, Redis) is set up by a recipe — a script the person reads whole and confirms, run once over ssh as root — rather than only told; and a server has a mode, `docker` (this record) or `pm2` (a Node.js project kept running by PM2 on the host).
+> Amended 2026-11-12 by [ADR-0092](0092-server-recipes-and-the-pm2-mode.md): what a server lacks (Docker, nginx with HTTPS in front, Node and PM2, PostgreSQL, Redis) is set up by a recipe — a script the person reads whole and confirms, run once over ssh as root — rather than only told; and a server has a mode, `docker` (this record) or `pm2` (a Node.js project kept running by PM2 on the host).
 
 ## Context
 

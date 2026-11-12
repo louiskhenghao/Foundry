@@ -12,7 +12,7 @@ const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of 
 /** a deploy's state as a small plate: blue while it runs, green once live, red when it failed */
 const STATUS: Record<Deployment['status'], string> = { running: 'bg-work/10 text-work-ink ring-work/30', live: 'bg-ok/10 text-ok-ink ring-ok/30', failed: 'bg-bad/10 text-bad-ink ring-bad/40' };
 
-/** the follow-up goal that makes a project deployable to a server (ADR-0090): a Dockerfile and a compose file, by a coding session that knows the stack */
+/** the follow-up goal that makes a project deployable to a server (ADR-0091): a Dockerfile and a compose file, by a coding session that knows the stack */
 export const MAKE_DEPLOYABLE_PROMPT =
   'Make this project deployable to a server with Docker, without changing how the application itself works: add a Dockerfile that builds and runs it (a small base image, EXPOSE on the port it listens on, a HEALTHCHECK) and a compose.yaml that starts it with the services it needs (a database, a queue, a cache) and publishes its port, keeping data in named volumes. `docker compose config` and `docker compose build` must pass. Never mount the Docker socket, run privileged, use the host network or bind-mount paths outside the project folder.';
 
@@ -30,7 +30,7 @@ export function defaultHost(providers: DeployPlace[], deployments: Deployment[])
   return pick ? placeKey(pick) : null;
 }
 
-/** the readiness check's items (ADR-0090): what the place needs, each found or not, and where to put it right; a warn item is told, never blocks; a recipe (ADR-0091) puts one right from here */
+/** the readiness check's items (ADR-0091): what the place needs, each found or not, and where to put it right; a warn item is told, never blocks; a recipe (ADR-0092) puts one right from here */
 function ReadinessList({ r, checking, onAgain, onRecipe }: { r: DeployReadiness | null; checking: boolean; onAgain: () => void; onRecipe?: (recipe: string, params: Record<string, string>) => void }) {
   const warns = r?.items.filter((i) => !i.ok && i.severity === 'warn').length ?? 0;
   return (
@@ -80,7 +80,7 @@ function ReadinessList({ r, checking, onAgain, onRecipe }: { r: DeployReadiness 
 }
 
 /**
- * Deploy (ADR-0041, ADR-0090): a finished goal to Vercel, Netlify, Cloudflare Pages or a server of the person's own,
+ * Deploy (ADR-0041, ADR-0091): a finished goal to Vercel, Netlify, Cloudflare Pages or a server of the person's own,
  * on their click — what is deployed (or why nothing is), the places set up, the readiness check and the compose review
  * of a server, the exact commands before anything runs, and the deploys so far, each with its smoke (ADR-0058): the
  * goal's milestone scripts tried against the address afterwards.
@@ -98,7 +98,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   const [err, setErr] = useState<string | null>(null);
   const [ready, setReady] = useState<DeployReadiness | null>(null);
   const [checking, setChecking] = useState(false);
-  // a recipe (ADR-0091) opened from a readiness item: which script, with the project's values
+  // a recipe (ADR-0092) opened from a readiness item: which script, with the project's values
   const [recipe, setRecipe] = useState<{ id: string; params: Record<string, string> } | null>(null);
   const deployments = g.deployments ?? [];
   const chosen = info?.providers.find((p) => placeKey(p) === choice) ?? null;
@@ -174,7 +174,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   const nothing = info && !info.app.ok && !info.server.ok;
   const hosts = info?.providers.filter((p) => p.kind === 'host') ?? [];
   const servers = info?.providers.filter((p) => p.kind === 'server') ?? [];
-  // the compose review (ADR-0090): what the file would reach outside its project, refused unless the server allows it
+  // the compose review (ADR-0091): what the file would reach outside its project, refused unless the server allows it
   const review = info?.server.ok ? info.server.app.review : null;
   const dangers = review?.dangers ?? [];
   const blocked = isServer && dangers.length > 0 && !chosen?.permissive;

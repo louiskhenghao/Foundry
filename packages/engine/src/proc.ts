@@ -24,7 +24,7 @@ export interface GroupOptions {
   killLeftovers?: boolean;
   onStdout?: (chunk: string) => void;
   onStderr?: (chunk: string) => void;
-  /** text written to the command's stdin, then closed (a script for `bash -s`, ADR-0091); default: no stdin */
+  /** text written to the command's stdin, then closed (a script for `bash -s`, ADR-0092); default: no stdin */
   stdin?: string;
 }
 

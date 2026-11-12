@@ -371,7 +371,7 @@ describe('what a server deploy refuses before it touches anything (ADR-0091)', (
   }, 60_000);
 });
 
-describe('a server in PM2 mode (ADR-0091)', () => {
+describe('a server in PM2 mode (ADR-0092)', () => {
   test('a Node.js project is installed, built and started under PM2 as the ssh user; Foundry’s ecosystem file goes with the checkout; the readiness check asks for node and pm2', async () => {
     const { engine, goal } = await finishedGoal({ 'package.json': JSON.stringify({ name: 'shop', scripts: { start: 'node server.js', build: 'echo built' } }), 'yarn.lock': '', '.env.example': 'PORT=4000\n', 'server.js': 'require("http").createServer().listen(4000)' });
     const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));

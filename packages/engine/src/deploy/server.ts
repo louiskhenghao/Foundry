@@ -42,7 +42,7 @@ export interface ComposeReview {
   binds: string[];
 }
 
-/** how a PM2-mode server (ADR-0091) installs, builds and starts a Node.js project */
+/** how a PM2-mode server (ADR-0092) installs, builds and starts a Node.js project */
 export type Pm2Manager = 'yarn' | 'pnpm' | 'npm' | 'bun';
 export interface Pm2Facts {
   manager: Pm2Manager;
@@ -158,7 +158,7 @@ function nodePort(root: string): number | null {
   return d ? Number(d[1]) : null;
 }
 
-/** What a repository is for a server in PM2 mode (ADR-0091): a Node.js project with a start script or an ecosystem file; else why nothing goes. */
+/** What a repository is for a server in PM2 mode (ADR-0092): a Node.js project with a start script or an ecosystem file; else why nothing goes. */
 export function pm2Deployability(root: string, name: string): ServerDeployability {
   let pkg: { scripts?: Record<string, string>; packageManager?: string } | null = null;
   try {
@@ -279,7 +279,7 @@ export function serverSteps(i: ServerPlanInput): DeployStep[] {
   ];
 }
 
-/** The commands a PM2-mode deploy runs (ADR-0091): the folder made, the files copied, installed and built there, started or reloaded under PM2, saved for the next boot. */
+/** The commands a PM2-mode deploy runs (ADR-0092): the folder made, the files copied, installed and built there, started or reloaded under PM2, saved for the next boot. */
 export function pm2Steps(i: ServerPlanInput & { pm2: Pm2Facts }): DeployStep[] {
   const [folder, copy] = serverSteps(i);
   const ssh = sshArgv(i.server, i.keyFile, i.knownHosts, i.ssh);
@@ -381,7 +381,7 @@ export async function serverReadiness(server: DeployServer, deps: ReadinessDeps)
   }
   items.push({ id: 'reach', label: 'Reachable over SSH', ok: true, severity: 'error', detail: `${server.user}@${server.host}:${server.port} answered`, fix: null });
   if (server.mode === 'pm2') {
-    // PM2 mode (ADR-0091): Node.js and PM2 for this user, instead of Docker
+    // PM2 mode (ADR-0092): Node.js and PM2 for this user, instead of Docker
     const rt = await run('node -v && pm2 -v && (yarn -v 2>/dev/null || true)');
     const lines = rt.stdout.split('\n').map((l) => l.trim()).filter(Boolean);
     const ok = rt.code === 0 && lines.length >= 2;
@@ -405,7 +405,7 @@ export async function serverReadiness(server: DeployServer, deps: ReadinessDeps)
         ok: false,
         severity: 'error',
         detail: socket ? `${server.user} may not use Docker there: ${lastLine(docker)}` : /not found/i.test(out) ? `Docker is not installed on ${server.host}: ${lastLine(docker)}` : `docker compose failed there: ${lastLine(docker)}`,
-        // Foundry installs nothing by itself: the recipe runs after the person reads it (ADR-0091), or they run the command, which changes who may use Docker / what is installed
+        // Foundry installs nothing by itself: the recipe runs after the person reads it (ADR-0092), or they run the command, which changes who may use Docker / what is installed
         fix: socket ? { command: `# on the server: lets ${server.user} use Docker (a member of the docker group can act as root through it); log out and in afterwards\nsudo usermod -aG docker ${server.user}`, recipe: 'install-docker', recipeParams: { TARGET_USER: server.user } } : { url: 'https://docs.docker.com/engine/install/', recipe: 'install-docker', recipeParams: { TARGET_USER: server.user } },
       });
     } else {

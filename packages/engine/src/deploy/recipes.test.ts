@@ -25,7 +25,7 @@ function engine() {
 const KEY = '-----BEGIN OPENSSH PRIVATE KEY-----\nFAKEKEYLINE0123456789abcdefghijklmnop\n-----END OPENSSH PRIVATE KEY-----';
 
 /**
- * A stand-in for ssh (ADR-0091): the remote command is logged, the script on stdin is kept whole, `sudo -n true` answers
+ * A stand-in for ssh (ADR-0092): the remote command is logged, the script on stdin is kept whole, `sudo -n true` answers
  * as a user with (or, with NOSUDO in its folder, without) passwordless sudo, and the script "runs" by echoing a line
  * and, with FAIL in its folder, failing.
  */
@@ -47,7 +47,7 @@ esac
   return path;
 }
 
-describe('server recipes (ADR-0091): the scripts and their headers', () => {
+describe('server recipes (ADR-0092): the scripts and their headers', () => {
   test('every bundled recipe parses: an id, a title, what it changes, its inputs; secrets marked; the item it fixes', () => {
     const dir = bundledRecipesDir({ config: { rootDir: ROOT } } as never);
     const recipes = readdirSync(dir)

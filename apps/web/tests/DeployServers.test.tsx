@@ -21,14 +21,14 @@ test('the servers are edited in place: each field shown, the saved key never, on
   const empty = renderToStaticMarkup(<DeployServers servers={[]} secrets={{}} onChange={() => {}} />);
   expect(empty).toContain('No server yet');
   expect(newServerId()).toMatch(/^srv_[a-z0-9]+$/);
-  // the mode (ADR-0091) and the Scripts fold: a server not yet saved has nothing to run on
+  // the mode (ADR-0092) and the Scripts fold: a server not yet saved has nothing to run on
   expect(html).toContain('PM2 (a Node.js project, no containers)');
   expect(html).toContain('Scripts — set this server up');
   const unsaved = renderToStaticMarkup(<DeployServers servers={[box]} secrets={{}} savedIds={[]} onChange={() => {}} />);
   expect(unsaved).toContain('Save the settings first');
 });
 
-test('a recipe starts from its defaults and what the project prefilled; the runs list says how each went (ADR-0091)', () => {
+test('a recipe starts from its defaults and what the project prefilled; the runs list says how each went (ADR-0092)', () => {
   const recipe = { id: 'nginx-site', title: 'nginx', root: true, fixes: 'front', source: 'bundled' as const, file: 'nginx-site.sh', text: '#!/bin/bash', changes: ['installs nginx'], params: [{ name: 'DOMAIN', label: 'd', default: null, secret: false }, { name: 'APP_PORT', label: 'p', default: '3000', secret: false }, { name: 'CERT_PEM', label: 'c', default: null, secret: true }] };
   expect(initialParams(recipe, { DOMAIN: 'shop.example.com', APP_PORT: '8080' })).toEqual({ DOMAIN: 'shop.example.com', APP_PORT: '8080', CERT_PEM: '' });
   expect(initialParams(recipe)).toEqual({ DOMAIN: '', APP_PORT: '3000', CERT_PEM: '' });

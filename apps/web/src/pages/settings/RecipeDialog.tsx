@@ -23,7 +23,7 @@ export function initialParams(recipe: ServerRecipe | null, prefill: Record<strin
 }
 
 /**
- * A server recipe (ADR-0091) before it runs: which script, what its header says it changes, its inputs, and the whole
+ * A server recipe (ADR-0092) before it runs: which script, what its header says it changes, its inputs, and the whole
  * text to read — then one confirmation, and it runs over ssh as root on the server, its output shown here and kept in
  * the activity. Foundry never runs one by itself.
  */
