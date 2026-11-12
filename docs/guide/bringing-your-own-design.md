@@ -4,13 +4,13 @@ You already designed the screens, in Claude Design, Figma or by hand, and you wa
 
 ## Attach the files, never a link
 
-A link to a Claude, Figma, Canva or Framer page does not work as a design. Those pages need a sign-in, so the sessions that build your goal cannot open them, and a goal that only has such a link gets the agents' own design instead. The New goal form says so as soon as the description or a link attachment points to one of those tools, and a Brief written from such a goal asks you, as a blocking question, to attach an export or to go without.
+A link to a Claude, Figma, Canva or Framer page does not work as a design. Those pages need a sign-in, so the sessions that build your goal cannot open them, and a goal that only has such a link gets the agents' own design instead. The New goal form says so as soon as the description or a link attachment points to one of those tools, and a Brief written from such a goal asks you, as a blocking question, to attach an export or to go without; the question itself takes the files.
 
 Export the design from the tool instead: an HTML file or a zip (what Claude Design and Figma give you), or screenshots of every screen. Attach the files under the description, with **Files** or by dropping or pasting them. A zip is unpacked when it arrives, so the sessions read every file in it.
 
 ## The design reference
 
-A picture, an HTML page or a zip is marked **Design reference** when you attach it to a code goal (a goal of another kind keeps its pictures as references or Subjects; click the chip to mark one anyway). The chip on the attachment says so; click it to make the file an ordinary reference again, and click it again to make it the design. Documents and links cannot be the design. You can attach a design later from the goal page, then press **Re-run Clarify** on the Brief page so the Brief is written from it.
+A picture, an HTML page or a zip is marked **Design reference** when you attach it to a code goal (a goal of another kind keeps its pictures as references or Subjects; click the chip to mark one anyway). The chip on the attachment says so; click it to make the file an ordinary reference again, and click it again to make it the design. Documents and links cannot be the design. You can attach a design later: drop the export on the Brief's own question about the link (it has a **Re-run Clarify with the design** button), or on the goal page, then press **Re-run Clarify** on the Brief page, so the Brief is written from it; the Decisions you already answered are kept.
 
 A design reference is the law for the goal: what it shows is built as it shows it, pages, sections, layout, copy, colours, type, components and the states it draws. An HTML export is read as source material, so the sessions port its markup, styles and tokens into your project instead of guessing them from a picture.
 

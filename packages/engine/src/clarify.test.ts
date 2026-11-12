@@ -855,7 +855,7 @@ describe('a design reference (ADR-0092)', () => {
     const out = briefWith([task('T1', 'A1', 'build page')], []);
     const linked = { id: 'g_link', follows: null, prompt: 'Build this: https://claude.ai/public/artifacts/abc-123 please', attachments: [] as Attachment[] };
     const q = toBrief(linked as never, out, []).questions.find((x) => x.text.includes('claude.ai/public/artifacts/abc-123'))!;
-    expect(q).toMatchObject({ blocking: true, answer: null, options: ['I attached the export — run Re-run Clarify', 'Go without the design'] });
+    expect(q).toMatchObject({ kind: 'design', blocking: true, answer: null, options: ['I attached the export — run Re-run Clarify', 'Go without the design'] });
     expect(q.text).toContain('a Claude design');
     expect(q.text).toContain('needs a sign-in');
     expect(q.text).toContain('Design reference');

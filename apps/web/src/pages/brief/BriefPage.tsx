@@ -18,6 +18,7 @@ import { ReferenceCard } from './ReferenceCard.tsx';
 import { AreasCard } from './AreasCard.tsx';
 import { CompletionCard, type CompletionChoice } from './CompletionCard.tsx';
 import { StyleCards } from './StyleCards.tsx';
+import { DesignQuestion } from './DesignQuestion.tsx';
 import { useUnsaved } from '../../unsaved.ts';
 import { SubjectsCard } from './SubjectsCard.tsx';
 import { DecisionsBar } from './DecisionsBar.tsx';
@@ -136,6 +137,11 @@ export function BriefPage() {
 
   /** the fields can be changed: the Brief awaits approval, or it is the skeleton the planner is still filling */
   const editable = g.state === 'awaiting_brief_approval' || skeleton;
+  // the design question's remedy (ADR-0092): the Brief written again from the export dropped on it; the Decisions stay
+  const rerunWithDesign = async () => {
+    await api.reclarify(g.id, 'the design was attached');
+    nav(`/goals/${g.id}`);
+  };
   /** the plan is in: approval, Revise, Draft and the Subjects' tools apply */
   const settled = g.state === 'awaiting_brief_approval';
   const update = (patch: Partial<Brief>) => edit((b) => ({ ...b, ...patch }));
@@ -212,6 +218,7 @@ export function BriefPage() {
   if (simple) {
     return (
       <SimpleBrief
+        onRerunWithDesign={rerunWithDesign}
         head={<Header detail={detail} simple onView={() => setView(true)} />}
         brief={brief}
         goal={g}
@@ -298,6 +305,7 @@ export function BriefPage() {
                     if (q.kind === 'note') return null;
                     const area = areaOf(brief, q.areaKey);
                     if (q.kind === 'style' && brief.styleOptions.length) return <StyleCards key={q.id} goalId={id} brief={brief} question={q} editable={editable} update={update} />;
+                    if (q.kind === 'design') return <DesignQuestion key={q.id} goalId={id} brief={brief} question={q} attachments={g.attachments} editable={editable} update={update} onRerun={rerunWithDesign} />;
                     return (
                       <div key={q.id}>
                         {/* a blocking question waits for you, in yellow, until it has an answer; an answered one is ticked green */}

@@ -122,10 +122,12 @@ export const BriefQuestion = z.object({
   options: z.array(z.string()).default([]),
   /**
    * style = the engine-generated style-direction question; its options are Style Proposal names rendered as visual cards.
+   * design = the engine-generated question about a design the sessions cannot open (ADR-0092): the Brief page shows it with a
+   * drop zone for the export and a button that writes the Brief again from it.
    * note = a Decision the human wrote unasked (in an interview round, or on the Brief page): `text` holds the words and
    * `answer` repeats them, so a note counts as answered wherever Decisions are derived from answered questions.
    */
-  kind: z.enum(['text', 'style', 'note']).default('text'),
+  kind: z.enum(['text', 'style', 'note', 'design']).default('text'),
   /** an answered question is a Decision; true once a Revise honoured it (or the human said no change was needed) */
   applied: z.boolean().default(false),
 });

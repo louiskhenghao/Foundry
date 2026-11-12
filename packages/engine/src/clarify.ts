@@ -966,12 +966,12 @@ export function toBrief(goal: Goal, o: BriefOutput, extraQuestions: Brief['quest
   const unreadable = supplied ? [] : unreadableDesignLinks(goal).filter(({ url }) => !extraQuestions.some((q) => q.text.includes(url)));
   const linkQuestions: Brief['questions'] = unreadable.map(({ url, tool }) => ({
     id: newId('q'),
-    text: `Your goal points to a ${tool} design (${url}) that Foundry cannot open: the page needs a sign-in, so no session has seen it. Export the design from ${tool} (an HTML file or a zip, or screenshots of every screen), attach the files on the goal page with "Design reference" ticked, then press "Re-run Clarify" so the Brief is written from it. Or go without it: this Brief's style direction stands.`,
+    text: `Your goal points to a ${tool} design (${url}) that Foundry cannot open: the page needs a sign-in, so no session has seen it. Export the design from ${tool} (an HTML file or a zip, or screenshots of every screen), drop the files right here (or attach them on the goal page with "Design reference" ticked) and press "Re-run Clarify with the design" so the Brief is written from it. Or go without it: this Brief's style direction stands.`,
     answer: null,
     blocking: true,
     areaKey: null,
     options: ['I attached the export — run Re-run Clarify', 'Go without the design'],
-    kind: 'text' as const,
+    kind: 'design' as const,
     applied: false,
   }));
   return {

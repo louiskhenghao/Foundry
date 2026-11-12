@@ -47,7 +47,9 @@ letting a skill re-choose the direction, wastes it.
 5. **A link into a design tool behind a sign-in is refused as a design.** claude.ai, figma.com, canva.com and framer.com
    links are named by their tool: the New goal form warns as the link or description is typed, the prompt tells the
    sessions to treat such a link as a design that was not supplied, and the Brief gets an engine-generated blocking
-   question asking for an export (or to go without) whenever such a link is present and no design is attached.
+   question asking for an export (or to go without) whenever such a link is present and no design is attached. The
+   question is of its own kind on the Brief page: it carries the drop zone for the export and a button that writes the
+   Brief again from it, the Decisions kept, so the remedy sits where the problem is named.
 6. **A goal may pick its Design pack.** `designPack` on the goal (the New goal form's **Design skills**, the CLI's
    `--design-pack`) lays over Settings' pack the way the Figure and video packs do (ADR-0076, ADR-0077). It is not the
    fix for the feedback above; it is the cheap thing people asked for, and with a design attached the pack only fills
