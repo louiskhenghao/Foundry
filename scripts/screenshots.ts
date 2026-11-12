@@ -337,6 +337,8 @@ try {
         app: { ok: true, app: { dir: '', framework: 'Vite', kind: 'built' }, notes: [] },
         // a server of the person's own beside the hosts (ADR-0091): the site has no compose file, so it is offered and refuses
         server: { ok: false, reason: 'no compose file (compose.yaml, docker-compose.yml) and no Dockerfile: a server runs the project with docker compose, so add one that builds and starts it' },
+        // the platforms (ADR-0095): a site has no Dockerfile, so Fly.io refuses; Railway and Render would build the stack themselves
+        paas: { fly: { ok: false, reason: 'Fly.io deploys here from a Dockerfile, and the project has none: add one (the follow-up goal on the card writes it), or deploy to Railway, which builds from the stack itself' }, railway: { ok: true, app: { dir: '', runtime: 'node', port: null, build: 'npm ci && npm run build', start: 'npm start', from: 'package.json' }, notes: [] }, render: { ok: true, app: { dir: '', runtime: 'node', port: null, build: 'npm ci && npm run build', start: 'npm start', from: 'package.json' }, notes: [] } },
         finished: true,
         running: false,
         smoking: false,
@@ -345,6 +347,9 @@ try {
           { id: 'vercel', target: null, kind: 'host', label: 'Vercel', configured: true, refused: null },
           { id: 'netlify', target: null, kind: 'host', label: 'Netlify', configured: true, refused: null },
           { id: 'cloudflare', target: null, kind: 'host', label: 'Cloudflare Pages', configured: false, refused: null },
+          { id: 'fly', target: null, kind: 'paas', label: 'Fly.io', configured: false, refused: 'Fly.io deploys here from a Dockerfile, and the project has none: add one (the follow-up goal on the card writes it), or deploy to Railway, which builds from the stack itself' },
+          { id: 'railway', target: null, kind: 'paas', label: 'Railway', configured: true, refused: null },
+          { id: 'render', target: null, kind: 'paas', label: 'Render', configured: false, refused: null },
           { id: 'server', target: 'srv_demo', kind: 'server', label: 'studio box', configured: true, refused: 'no compose file (compose.yaml, docker-compose.yml) and no Dockerfile: a server runs the project with docker compose, so add one that builds and starts it' },
         ],
         plan: [{ label: 'deploy to Vercel', command: 'npx --yes vercel@64 deploy --yes' }],

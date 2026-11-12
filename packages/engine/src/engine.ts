@@ -116,9 +116,11 @@ import { DiscordBot } from './notify/discord-bot.ts';
 import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
 import { Memory, memorySessionEnv, type MemoryDeps } from './memory/memory.ts';
 import { Conversations } from './conversation/conversations.ts';
-import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployReadiness, deployServers, deployWork, deploying, goalDeployability, goalServerDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
+import { DEPLOYABLE_STATES, type DeployRequest, defaultCli, deployCredentials, deployName, deployReadiness, deployServers, deployWork, deploying, goalDeployability, goalPaasDeployability, goalServerDeployability, paasCredentials, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
+import { PAAS_LABEL, PAAS_PROVIDERS, RENDER_API, paasConfigured, paasSteps, paasTarget } from './deploy/paas.ts';
 import { pm2Steps, serverSteps } from './deploy/server.ts';
 import { listRecipes, recipeRuns, recipeWork, startRecipe } from './deploy/recipes.ts';
+import { type DeployEnvView, copyPreviewEnv, deployEnvView, importCheckoutDeployEnv, setDeployEnv } from './deploy/env.ts';
 import { type RevertInfo, type RevertRequest, revertInfo, revertWork, startRevert } from './delivery/revert.ts';
 import { buildReport } from './reports.ts';
 import { deliverCompanions } from './companions.ts';
@@ -449,8 +451,12 @@ export class Engine {
   autoskillsDeps: AutoskillsDeps = {};
   /** test seam: deps handed to runGraphRefresh (fake which/exec) */
   graphRefreshDeps: GraphRefreshDeps = {};
-  /** how a host's CLI is run for Deploy (ADR-0041); tests point it at stand-ins */
-  deployCli: (p: DeployHostProvider) => string[] = npxCli;
+  /** how a host's or a platform's CLI is run for Deploy (ADR-0041, ADR-0095); tests point it at stand-ins */
+  deployCli: (p: DeployHostProvider | 'fly' | 'railway') => string[] = defaultCli;
+  /** how Render's API is reached (ADR-0095); tests stand in for the network */
+  paasFetch: (url: string, init: RequestInit) => Promise<Response> = (url, init) => fetch(url, init);
+  /** how often a Render deploy is looked at while it runs */
+  paasPollMs = 10_000;
   /** how a server is reached for Deploy (ADR-0091): `ssh` from the PATH; tests point it at a stand-in */
   deploySsh: string[] = ['ssh'];
 
@@ -3364,8 +3370,20 @@ export class Engine {
     const byMode = { docker: goalServerDeployability(this, goal, 'docker'), pm2: goalServerDeployability(this, goal, 'pm2') };
     const server = byMode[chosen?.mode ?? 'docker'];
     const name = deployName(goal);
+    // the platforms (ADR-0095): what each would run, and the chosen one's commands
+    const pc = paasCredentials(this);
+    const paas = Object.fromEntries(PAAS_PROVIDERS.map((p) => [p, goalPaasDeployability(this, goal, p)])) as Record<(typeof PAAS_PROVIDERS)[number], ReturnType<typeof goalPaasDeployability>>;
+    const paasPlan = (p: 'fly' | 'railway' | 'render') => {
+      const d = paas[p];
+      if (!d.ok) return [];
+      const t = paasTarget(p, name, production);
+      if (p === 'render') return [{ label: 'the Render workspace', command: `GET ${RENDER_API}/owners` }, { label: `find or make the service ${t.service}`, command: `GET ${RENDER_API}/services?name=${t.service} · POST ${RENDER_API}/services` }, { label: 'set the runtime variables', command: `PUT ${RENDER_API}/services/<id>/env-vars` }, { label: 'deploy the commit and watch it', command: `POST ${RENDER_API}/services/<id>/deploys · GET …/deploys/<id>` }, { label: 'read the address', command: `GET ${RENDER_API}/services/<id>` }];
+      return paasSteps({ provider: p, cwd: `<deploy folder>/${d.app.dir}`.replace(/\/$/, ''), app: d.app, name, production, credentials: pc, vars: Object.fromEntries(Object.keys(deployEnvView(this, goal, p).keys).map(() => ['', ''])), cli: this.deployCli }).map((s) => ({ label: s.label, command: s.argv.join(' ').replace(/(\b[A-Z_][A-Z0-9_]*=)[^\s']*/g, '$1***') }));
+    };
     const plan =
-      provider && provider !== 'server' && app.ok
+      provider && (provider === 'fly' || provider === 'railway' || provider === 'render')
+        ? paasPlan(provider)
+        : provider && provider !== 'server' && app.ok
         ? deploySteps({ provider, cwd: `<deploy folder>/${app.app.dir}`.replace(/\/$/, ''), kind: app.app.kind, name, production, branch: goal.branch.replace(/[^A-Za-z0-9-]+/g, '-').slice(0, 28), productionBranch: goal.baseBranch, install: app.app.install, build: app.app.build, outputDir: app.app.outputDir, message: `${goal.title} (Foundry)`, credentials: c, cli: this.deployCli }).map((s) => ({ label: s.label, command: redact(s.argv.join(' '), c) }))
         : chosen && server.ok
           ? (server.app.kind === 'pm2' ? pm2Steps({ server: chosen, name, checkout: '<deploy folder>', keyFile: '<key file>', knownHosts: '<known hosts>', file: server.app.file, ssh: this.deploySsh, pm2: server.app.pm2! }) : serverSteps({ server: chosen, name, checkout: '<deploy folder>', keyFile: '<key file>', knownHosts: '<known hosts>', file: server.app.file, ssh: this.deploySsh })).map((s) => ({ label: s.label, command: s.argv.join(' ') }))
@@ -3378,8 +3396,10 @@ export class Engine {
       smoking: smoking(goalId),
       // the smoke a deploy can have (ADR-0058): the goal's milestone scripts
       smoke: { scripts: smokeScripts(this, goalId).map((s) => s.script) },
+      paas,
       providers: [
         ...DEPLOY_PROVIDERS.map((id) => ({ id: id as DeployProvider, target: null as string | null, kind: 'host' as const, label: PROVIDER_LABEL[id], configured: configured(id, c), refused: unsupported(id, app) })),
+        ...PAAS_PROVIDERS.map((id) => ({ id: id as DeployProvider, target: null as string | null, kind: 'paas' as const, label: PAAS_LABEL[id], configured: paasConfigured(id, pc), refused: paas[id].ok ? null : paas[id].reason })),
         ...servers.map((s) => {
           const d = byMode[s.mode];
           return { id: 'server' as DeployProvider, target: s.id, kind: 'server' as const, label: s.name, configured: !!s.privateKey, refused: d.ok ? null : d.reason, permissive: s.allowPrivileged, mode: s.mode, host: s.host, user: s.user };
@@ -3393,6 +3413,19 @@ export class Engine {
   /** whether a deploy of the goal to one place can start (ADR-0091): the host's token, or the server tried over SSH now */
   deployReadiness(goalId: string, provider: DeployProvider, target?: string | null): Promise<DeployReadiness> {
     return deployReadiness(this, goalId, provider, target);
+  }
+  /** the runtime variables of a deploy (ADR-0095): a place's set for the goal's repository, what each name is, what the example files list */
+  deployEnv(goalId: string, place: string): DeployEnvView {
+    return deployEnvView(this, this.mustGoal(goalId), place);
+  }
+  setDeployEnv(goalId: string, place: string, vars: Record<string, string | null>, rev: number): DeployEnvView {
+    return setDeployEnv(this, this.mustGoal(goalId), place, vars, rev);
+  }
+  copyPreviewEnvToDeploy(goalId: string, place: string): { added: string[]; view: DeployEnvView } {
+    return copyPreviewEnv(this, this.mustGoal(goalId), place);
+  }
+  importCheckoutDeployEnv(goalId: string, place: string): { added: string[]; view: DeployEnvView } {
+    return importCheckoutDeployEnv(this, this.mustGoal(goalId), place);
   }
   /** the server recipes (ADR-0092): Foundry's and the person's own, whole */
   serverRecipes(): ServerRecipe[] {

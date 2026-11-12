@@ -9,11 +9,11 @@ export interface ExecResult {
   stderr: string;
 }
 
-export async function exec(cmd: string[], cwd: string, opts: { timeoutMs?: number; env?: Record<string, string> } = {}): Promise<ExecResult> {
+export async function exec(cmd: string[], cwd: string, opts: { timeoutMs?: number; env?: Record<string, string>; stdin?: string } = {}): Promise<ExecResult> {
   const env = { ...process.env, ...(opts.env ?? {}) };
-  if (opts.timeoutMs) {
+  if (opts.timeoutMs || opts.stdin != null) {
     // a fetch's ssh / https helper holds the pipes too: a timeout takes the whole group down, or it never returns
-    const r = await runInGroup(cmd, { cwd, env, timeoutMs: opts.timeoutMs });
+    const r = await runInGroup(cmd, { cwd, env, timeoutMs: opts.timeoutMs ?? 20 * 60_000, ...(opts.stdin != null ? { stdin: opts.stdin } : {}) });
     return { code: r.code, stdout: r.stdout, stderr: r.stderr };
   }
   const proc = Bun.spawn(cmd, { cwd, stdout: 'pipe', stderr: 'pipe', env });

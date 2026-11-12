@@ -179,8 +179,9 @@ type Doc = { version: 1; repos: Record<string, { rev: number; vars: Record<strin
  */
 export class PreviewEnvStore {
   private readonly file: string;
-  constructor(dataDir: string) {
-    this.file = join(dataDir, 'preview-env.json');
+  /** `file`: another store of the same shape under the data folder (the runtime variables of deploys, ADR-0095) */
+  constructor(dataDir: string, file = 'preview-env.json') {
+    this.file = join(dataDir, file);
   }
 
   get(repoPath: string): { rev: number; vars: Record<string, string> } {

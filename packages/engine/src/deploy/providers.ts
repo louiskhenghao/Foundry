@@ -10,8 +10,10 @@ import type { DeployProvider as AnyProvider, DeployTarget } from '@foundry/core'
 /** the web hosts: this module's providers (a server of the person's own is deploy/server.ts, ADR-0091) */
 export type DeployProvider = 'vercel' | 'netlify' | 'cloudflare';
 export const DEPLOY_PROVIDERS: DeployProvider[] = ['vercel', 'netlify', 'cloudflare'];
-export const PROVIDER_LABEL: Record<AnyProvider, string> = { vercel: 'Vercel', netlify: 'Netlify', cloudflare: 'Cloudflare Pages', server: 'a server' };
-export const isHost = (p: AnyProvider): p is DeployProvider => p !== 'server';
+export const PROVIDER_LABEL: Record<AnyProvider, string> = { vercel: 'Vercel', netlify: 'Netlify', cloudflare: 'Cloudflare Pages', server: 'a server', fly: 'Fly.io', railway: 'Railway', render: 'Render' };
+export const isHost = (p: AnyProvider): p is DeployProvider => p === 'vercel' || p === 'netlify' || p === 'cloudflare';
+/** the platforms (ADR-0095): the whole project, a preview beside production */
+export const isPaas = (p: AnyProvider): p is 'fly' | 'railway' | 'render' => p === 'fly' || p === 'railway' || p === 'render';
 /** where a deploy went, in words: the host's name, or the server's own */
 export const whereLabel = (p: { provider: AnyProvider; target?: DeployTarget | null }) => (p.provider === 'server' ? `the server ${p.target?.label ?? ''}`.trim() : PROVIDER_LABEL[p.provider]);
 
@@ -51,6 +53,8 @@ export interface DeployStep {
   cwd: string;
   /** a failure that only says the thing already exists (a Cloudflare Pages project) is no failure */
   okIf?: RegExp;
+  /** text handed to the command on stdin (secrets to a platform, ADR-0095): never on a command line */
+  stdin?: string;
 }
 
 export interface DeployPlanInput {

@@ -175,6 +175,23 @@ export const DeliverySettings = z.object({
   cloudflareAccountId: z.string().min(1).nullable().default(null),
   /** the person's own servers Deploy can reach over SSH (ADR-0091); the Deploy card offers each by name */
   servers: z.array(DeployServer).default([]),
+  /** a Fly.io token (deploy or org token) for Deploy (ADR-0095); null = Fly.io not set up */
+  flyToken: z.string().min(1).nullable().default(null),
+  /** the Fly.io organization new apps are made in; null = the token's personal org */
+  flyOrg: z.string().min(1).nullable().default(null),
+  /** the Fly.io region new apps start in */
+  flyRegion: z.string().min(1).default('iad'),
+  /** a Railway account or workspace token for Deploy; null = Railway not set up */
+  railwayToken: z.string().min(1).nullable().default(null),
+  /** the Railway workspace new projects are made in (its name or id); null = the token's only one */
+  railwayWorkspace: z.string().min(1).nullable().default(null),
+  /** a Render API key for Deploy; null = Render not set up */
+  renderApiKey: z.string().min(1).nullable().default(null),
+  /** the Render owner (workspace) id new services are made under; null = the key's first */
+  renderOwner: z.string().min(1).nullable().default(null),
+  /** the Render region and plan new services start on */
+  renderRegion: z.string().min(1).default('oregon'),
+  renderPlan: z.string().min(1).default('free'),
   defaultMode: DeliveryMode.default('local'),
   /** one PR per goal by default; per-task stacked PRs are opt-in (each PR is a full push / wait / merge cycle) */
   defaultUnit: DeliveryUnit.default('goal'),
@@ -368,7 +385,7 @@ export const RESTART_SETTINGS = ['engine.provider', 'engine.codexBin', 'engine.c
  * leaves that hold a credential: the settings view sent to the browser carries them as null, with only whether each is
  * set and a masked hint, so a key never travels back to a page (or a phone over Tailscale) after it was saved
  */
-export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl', 'notifications.discordBotToken', 'delivery.vercelToken', 'delivery.netlifyToken', 'delivery.cloudflareToken', 'memory.token'] as const;
+export const SECRET_SETTINGS = ['tools.openaiApiKey', 'tools.kimiApiKey', 'tools.geminiApiKey', 'tools.minimaxApiKey', 'tools.elevenlabsApiKey', 'tools.groqApiKey', 'notifications.telegramBotToken', 'notifications.discordWebhookUrl', 'notifications.discordBotToken', 'delivery.vercelToken', 'delivery.netlifyToken', 'delivery.cloudflareToken', 'delivery.flyToken', 'delivery.railwayToken', 'delivery.renderApiKey', 'memory.token'] as const;
 export interface SecretState {
   set: boolean;
   /** e.g. "sk-c…a3f9"; null = not set */

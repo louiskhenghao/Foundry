@@ -64,7 +64,7 @@ test('a Transfer file carries the ticked categories, each goal\'s events and its
   expect(JSON.parse(readFileSync(join(x, 'settings.json'), 'utf8'))).toEqual({ models: { cheap: 'sonnet' } });
   expect(readFileSync(join(x, 'secrets.json'), 'utf8')).not.toContain('sk-live');
   const secrets = openSecrets(SealedSecrets.parse(JSON.parse(readFileSync(join(x, 'secrets.json'), 'utf8'))), 'pw', manifest.transferId);
-  expect(secrets).toEqual({ settings: { 'tools.openaiApiKey': 'sk-live-0123456789' }, previewEnv: { [repo]: { DATABASE_URL: 'postgres://local' } } });
+  expect(secrets).toEqual({ settings: { 'tools.openaiApiKey': 'sk-live-0123456789' }, previewEnv: { [repo]: { DATABASE_URL: 'postgres://local' } }, deployEnv: {} });
   // the attempt's session files came along (the fake runner writes only the prompt half)
   const attempt = listAttemptsByGoal(engine.store.db, done.id)[0]!;
   expect(readdirSync(join(x, 'transcripts'))).toContain(`${attempt.id}.prompt.md`);

@@ -17,11 +17,17 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
     const goal = await engine.createGoal({ prompt: 'a goal', repoPath: repo, nature: 'code' });
     const info = await (await app.request(`/api/goals/${goal.id}/deploy?provider=vercel`)).json();
     expect(info).toMatchObject({ finished: false, running: false, app: { ok: false }, plan: [], deployments: [] });
-    expect(info.providers.map((p: { id: string; configured: boolean }) => [p.id, p.configured])).toEqual([
-      ['vercel', false],
-      ['netlify', false],
-      ['cloudflare', false],
+    expect(info.providers.map((p: { id: string; kind: string; configured: boolean }) => [p.id, p.kind, p.configured])).toEqual([
+      ['vercel', 'host', false],
+      ['netlify', 'host', false],
+      ['cloudflare', 'host', false],
+      ['fly', 'paas', false],
+      ['railway', 'paas', false],
+      ['render', 'paas', false],
     ]);
+    // the platforms (ADR-0095): what each would run of the project, and a token missing refuses the deploy in words
+    expect(info.paas).toEqual({ fly: { ok: false, reason: expect.stringContaining('from a Dockerfile') }, railway: { ok: false, reason: expect.stringContaining('no Dockerfile and no known stack') }, render: { ok: false, reason: expect.stringContaining('no Dockerfile and no known stack') } });
+    expect((await (await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=railway`)).json()).items[0]).toMatchObject({ id: 'token', ok: false, label: 'Railway token in Settings' });
     const refused = await post(goal.id, { provider: 'vercel', production: false });
     expect(refused.status).toBe(409);
     expect((await refused.json()).error).toContain('only a finished goal is deployed');
@@ -38,7 +44,19 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
     expect(host).toMatchObject({ ok: false, items: [{ id: 'token', ok: false, fix: { settings: 'git' } }] });
     const server = await (await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=server&target=srv1`)).json();
     expect(server.ok).toBe(false);
-    expect(server.items.map((i: { id: string; ok: boolean; severity: string }) => [i.id, i.ok, i.severity])).toEqual([['key', false, 'error'], ['reach', false, 'error'], ['docker', false, 'error'], ['folder', false, 'error'], ['front', false, 'warn']]);
+    expect(server.items.map((i: { id: string; ok: boolean; severity: string }) => [i.id, i.ok, i.severity])).toEqual([['key', false, 'error'], ['reach', false, 'error'], ['docker', false, 'error'], ['folder', false, 'error'], ['front', false, 'warn'], ['env', true, 'warn']]);
+    // the runtime variables of a place (ADR-0095): names only come back, a save needs the revision, other sources add names
+    const envUrl = `/api/goals/${goal.id}/deploy/env?place=server:srv1`;
+    expect(await (await app.request(envUrl)).json()).toMatchObject({ place: 'server:srv1', rev: 0, keys: [], missing: [], fromPreview: [] });
+    const put = (body: unknown) => app.request(envUrl, { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+    expect(await (await put({ vars: { DATABASE_URL: 'postgres://db/app' }, rev: 0 })).json()).toMatchObject({ rev: 1, keys: ['DATABASE_URL'] });
+    expect((await put({ vars: { DATABASE_URL: null }, rev: 0 })).status).toBe(409);
+    expect((await put({ vars: { 'bad name': 'x' }, rev: 1 })).status).toBe(400);
+    expect((await app.request(`/api/goals/${goal.id}/deploy/env?place=heroku`)).status).toBe(400);
+    engine.preview.env.set(repo, { SESSION_SECRET: 'abcdefghij' }, 0);
+    const copied = await (await app.request(`/api/goals/${goal.id}/deploy/env/from-preview?place=server:srv1`, { method: 'POST' })).json();
+    expect(copied).toMatchObject({ added: ['SESSION_SECRET'], view: { keys: ['DATABASE_URL', 'SESSION_SECRET'] } });
+    expect(JSON.stringify(copied)).not.toContain('abcdefghij');
     expect((await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=server&target=nope`)).status).toBe(409);
     expect((await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=nope`)).status).toBe(400);
     const noTarget = await post(goal.id, { provider: 'server', production: true });

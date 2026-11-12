@@ -2,13 +2,16 @@ import type { DeployReadiness, Deployment } from '@foundry/core/browser';
 import { AlertTriangle, Check, ExternalLink, Loader2, RefreshCw, Rocket, ShieldAlert, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, type DeployInfo, type DeployPlace, type GoalDetail } from '../../api.ts';
+import { api, type DeployEnvView, type DeployInfo, type DeployPlace, type GoalDetail, type PaasId } from '../../api.ts';
+import { EnvDialog } from './EnvDialog.tsx';
 import { Button, Card, ConfirmDialog, Loading, ago, choiceClass, cn } from '../../ui.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { RecipeDialog } from '../settings/RecipeDialog.tsx';
 import { SmokeView } from './DeploySmoke.tsx';
 
 const KIND: Record<'static' | 'built' | 'ssr', string> = { static: 'a folder of pages, uploaded as it is', built: 'built into files', ssr: 'rendered on the host’s servers' };
+/** a platform's runtime in words (ADR-0095) */
+const RUNTIME: Record<string, string> = { docker: 'the Dockerfile', node: 'Node.js', python: 'Python', go: 'Go', ruby: 'Ruby', rust: 'Rust', elixir: 'Elixir' };
 /** a deploy's state as a small plate: blue while it runs, green once live, red when it failed */
 const STATUS: Record<Deployment['status'], string> = { running: 'bg-work/10 text-work-ink ring-work/30', live: 'bg-ok/10 text-ok-ink ring-ok/30', failed: 'bg-bad/10 text-bad-ink ring-bad/40' };
 
@@ -31,12 +34,12 @@ export function defaultHost(providers: DeployPlace[], deployments: Deployment[])
 }
 
 /** the readiness check's items (ADR-0091): what the place needs, each found or not, and where to put it right; a warn item is told, never blocks; a recipe (ADR-0092) puts one right from here */
-function ReadinessList({ r, checking, onAgain, onRecipe }: { r: DeployReadiness | null; checking: boolean; onAgain: () => void; onRecipe?: (recipe: string, params: Record<string, string>) => void }) {
+function ReadinessList({ r, checking, subject, onAgain, onRecipe }: { r: DeployReadiness | null; checking: boolean; /** what is checked: the server, or the platform */ subject: string; onAgain: () => void; onRecipe?: (recipe: string, params: Record<string, string>) => void }) {
   const warns = r?.items.filter((i) => !i.ok && i.severity === 'warn').length ?? 0;
   return (
     <div className="rounded-lg border border-line bg-sunken p-3 space-y-1.5">
       <div className="flex items-center gap-2 text-[11px] text-ink-faint">
-        <span>{checking ? 'Checking the server…' : r ? (r.ok ? (warns ? `Ready; ${warns} thing${warns === 1 ? '' : 's'} to know about the front door.` : 'Ready: every check passed.') : 'Not ready yet: put the items below right, then check again.') : 'Not checked yet.'}</span>
+        <span>{checking ? `Checking ${subject}…` : r ? (r.ok ? (warns ? `Ready; ${warns} thing${warns === 1 ? '' : 's'} to know.` : 'Ready: every check passed.') : 'Not ready yet: put the items below right, then check again.') : 'Not checked yet.'}</span>
         <button type="button" className="ml-auto inline-flex items-center gap-1 font-semibold text-ink-soft hover:text-ink disabled:opacity-50" disabled={checking} onClick={onAgain}>
           {checking ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />} Check again
         </button>
@@ -100,9 +103,16 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   const [checking, setChecking] = useState(false);
   // a recipe (ADR-0092) opened from a readiness item: which script, with the project's values
   const [recipe, setRecipe] = useState<{ id: string; params: Record<string, string> } | null>(null);
+  // the runtime variables of the chosen place (ADR-0095): names only, edited in the dialog
+  const [env, setEnv] = useState<DeployEnvView | null>(null);
+  const [envOpen, setEnvOpen] = useState(false);
+  const [envSaved, setEnvSaved] = useState<string | null>(null);
   const deployments = g.deployments ?? [];
   const chosen = info?.providers.find((p) => placeKey(p) === choice) ?? null;
   const isServer = chosen?.kind === 'server';
+  // a platform (ADR-0095) takes the whole project like a server, with a preview beside production like a host
+  const isPaas = chosen?.kind === 'paas';
+  const paasApp = isPaas && chosen && info ? info.paas[chosen.id as PaasId] : null;
   // a server has no preview: its deploy is production whatever the box says
   const production = isServer || productionAsked;
   useEffect(() => setSmoke(!production), [production]);
@@ -140,8 +150,20 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   };
   useEffect(() => {
     setReady(null);
-    if (chosen?.kind === 'server' && chosen.configured && !chosen.refused) void check(chosen);
+    if ((chosen?.kind === 'server' || chosen?.kind === 'paas') && chosen.configured && !chosen.refused) void check(chosen);
   }, [choice, chosen?.configured, chosen?.refused]);
+  // the variables belong to the place: a server's, a platform's (the hosts keep their own environment settings)
+  const envPlace = chosen && (chosen.kind === 'server' || chosen.kind === 'paas') ? placeKey(chosen) : null;
+  useEffect(() => {
+    setEnv(null);
+    setEnvSaved(null);
+    if (!envPlace || !finished) return;
+    let alive = true;
+    api.deployEnv(g.id, envPlace).then((e) => alive && setEnv(e)).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [envPlace, g.id, finished]);
   if (!finished) return null;
 
   const run = async () => {
@@ -171,14 +193,15 @@ export function DeployCard({ d }: { d: GoalDetail }) {
   const scripts = info?.smoke?.scripts.length ?? 0;
   const running = info?.running || deployments.some((x) => x.status === 'running');
   const commands = d.events.filter((e) => e.type === 'deploy.command').slice(-12);
-  const nothing = info && !info.app.ok && !info.server.ok;
+  const nothing = info && !info.app.ok && !info.server.ok && !Object.values(info.paas).some((p) => p.ok);
   const hosts = info?.providers.filter((p) => p.kind === 'host') ?? [];
   const servers = info?.providers.filter((p) => p.kind === 'server') ?? [];
+  const platforms = info?.providers.filter((p) => p.kind === 'paas') ?? [];
   // the compose review (ADR-0091): what the file would reach outside its project, refused unless the server allows it
   const review = info?.server.ok ? info.server.app.review : null;
   const dangers = review?.dangers ?? [];
   const blocked = isServer && dangers.length > 0 && !chosen?.permissive;
-  const canRun = !!chosen && !chosen.refused && chosen.configured && !busy && !running && !blocked && (!isServer || !!ready?.ok);
+  const canRun = !!chosen && !chosen.refused && chosen.configured && !busy && !running && !blocked && (!(isServer || isPaas) || !!ready?.ok);
   const label = running ? 'Deploying…' : isServer ? `Deploy to ${chosen?.label}` : production ? `Deploy to ${chosen?.label ?? 'a host'} production` : `Deploy a preview to ${chosen?.label ?? 'a host'}`;
   const followUp = `/goals/new?follows=${g.id}&prompt=${encodeURIComponent(MAKE_DEPLOYABLE_PROMPT)}`;
   const facts = review
@@ -199,6 +222,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
         <div className="space-y-1 text-xs text-ink-soft">
           <div>Not deployed to a web host: {info.app.ok ? '' : info.app.reason}</div>
           <div>Not deployed to a server: {info.server.ok ? '' : info.server.reason}</div>
+          <div>Not deployed to a platform: {info.paas.railway.ok ? '' : info.paas.railway.reason}</div>
           <div className="pt-1">
             <Link to={followUp} className="font-semibold text-work-ink hover:underline">Add a Dockerfile and a compose file with a follow-up goal</Link>
             <span className="text-ink-faint"> — a coding session writes them for this stack; then a server can run it.</span>
@@ -223,17 +247,42 @@ export function DeployCard({ d }: { d: GoalDetail }) {
               </span>
             </div>
           )}
-          {(info.app.ok ? info.app.notes : []).concat(info.server.ok && isServer ? info.server.notes : []).map((n) => (
-            <div key={n} className="text-[11px] font-semibold text-ink-soft">{n}</div>
-          ))}
+          {paasApp?.ok && chosen && (
+            <div className="text-[13px] font-semibold text-ink">
+              {chosen.label}
+              {paasApp.app.dir && <span className="mono font-normal text-ink-faint"> · {paasApp.app.dir}</span>}{' '}
+              <span className="font-normal text-ink-faint">
+                — the whole project, {paasApp.app.runtime === 'docker' ? 'built from the Dockerfile' : `${RUNTIME[paasApp.app.runtime]} from ${paasApp.app.from}, built by ${chosen.label}`}
+                {paasApp.app.port != null ? `, port ${paasApp.app.port}` : ''}
+                {chosen.id === 'render' ? ", from the repository's branch on GitHub" : ', from a checkout here'}; {production ? 'production' : chosen.id === 'fly' ? 'a preview app beside production' : chosen.id === 'railway' ? 'the preview environment of the project' : 'a preview service beside production'}
+              </span>
+            </div>
+          )}
+          {(info.app.ok ? info.app.notes : [])
+            .concat(info.server.ok && isServer ? info.server.notes : [])
+            .concat(paasApp?.ok ? paasApp.notes : [])
+            .map((n) => (
+              <div key={n} className="text-[11px] font-semibold text-ink-soft">{n}</div>
+            ))}
           {!info.server.ok && servers.length > 0 && (
             <div className="text-[11px] text-ink-faint">
               Not for a server: {info.server.reason}{' '}
               <Link to={followUp} className="font-semibold text-ink-soft hover:text-ink hover:underline">Add a Dockerfile and a compose file with a follow-up goal</Link>
             </div>
           )}
+          {platforms
+            .filter((p) => p.configured && p.refused)
+            .map((p) => (
+              <div key={p.id} className="text-[11px] text-ink-faint">
+                Not for {p.label}: {p.refused}
+              </div>
+            ))}
           <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Where">
             {hosts.map((p) => (
+              <PlaceButton key={placeKey(p)} p={p} chosen={choice === placeKey(p)} onPick={() => setChoice(placeKey(p))} />
+            ))}
+            <span className="text-[11px] text-ink-faint">· platforms:</span>
+            {platforms.map((p) => (
               <PlaceButton key={placeKey(p)} p={p} chosen={choice === placeKey(p)} onPick={() => setChoice(placeKey(p))} />
             ))}
             {servers.length > 0 && <span className="text-[11px] text-ink-faint">· servers:</span>}
@@ -243,7 +292,7 @@ export function DeployCard({ d }: { d: GoalDetail }) {
           </div>
           {!info.providers.some((p) => p.configured) && (
             <div className="text-[11px] text-ink-faint">
-              Nothing is set up yet: add a host's token or a server in <Link to="/settings#git" className="font-semibold text-ink-soft hover:text-ink hover:underline">Settings → Git &amp; delivery</Link>.
+              Nothing is set up yet: add a host's or a platform's token, or a server, in <Link to="/settings#git" className="font-semibold text-ink-soft hover:text-ink hover:underline">Settings → Git &amp; delivery</Link>.
             </div>
           )}
           <label className={cn('flex items-center gap-2', isServer ? 'text-ink-faint' : 'text-ink')}>
@@ -272,10 +321,32 @@ export function DeployCard({ d }: { d: GoalDetail }) {
               )}
             </div>
           )}
-          {isServer && chosen && !chosen.refused && chosen.configured && <ReadinessList r={ready} checking={checking} onAgain={() => void check(chosen)} onRecipe={(id, params) => setRecipe({ id, params })} />}
+          {envPlace && env && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-line bg-sunken px-3 py-2">
+              <span className="text-[11px] font-semibold text-ink">Runtime variables for {chosen?.label}</span>
+              <span className="text-[11px] text-ink-faint">
+                <span className="mono">{env.keys.length}</span> set
+                {env.missing.length > 0 && <span className="font-semibold text-ink-soft"> · <span className="mono">{env.missing.length}</span> in example files not set</span>}
+                {env.fromPreview.length > 0 && <> · <span className="mono">{env.fromPreview.length}</span> the previews have</>}
+              </span>
+              {envSaved && <span className="text-[11px] text-ok-ink">{envSaved}</span>}
+              <Button size="sm" className="ml-auto" onClick={() => setEnvOpen(true)}>
+                Edit…
+              </Button>
+            </div>
+          )}
+          {(isServer || isPaas) && chosen && !chosen.refused && chosen.configured && <ReadinessList r={ready} checking={checking} subject={isServer ? 'the server' : chosen.label} onAgain={() => void check(chosen)} onRecipe={(id, params) => setRecipe({ id, params })} />}
           {chosen && !chosen.refused && info.plan.length > 0 && (
             <div className="rounded-lg border border-line bg-sunken p-3">
-              <div className="text-[11px] text-ink-faint mb-1.5">{isServer ? "The exact commands, from a checkout of this goal's commit over SSH — nothing else runs, nothing outside the project's folder is written, and the key file exists only while they do:" : "The exact commands, in a checkout of this goal's commit — nothing else runs:"}</div>
+              <div className="text-[11px] text-ink-faint mb-1.5">
+                {isServer
+                  ? "The exact commands, from a checkout of this goal's commit over SSH — nothing else runs, nothing outside the project's folder is written, and the key file exists only while they do:"
+                  : isPaas && chosen.id === 'render'
+                    ? "The calls to Render's API, in order — the service is made once from the repository on GitHub, then this commit is deployed and watched:"
+                    : isPaas
+                      ? "The exact commands, in a checkout of this goal's commit — the token reaches the CLI through its environment and the variables' values through its input, never a command line:"
+                      : "The exact commands, in a checkout of this goal's commit — nothing else runs:"}
+              </div>
               <ol className="space-y-0.5">
                 {info.plan.map((s, i) => (
                   <li key={i} className="mono text-[11px] text-ink break-all">
@@ -352,6 +423,12 @@ export function DeployCard({ d }: { d: GoalDetail }) {
             {dangers.length > 0 && <p className="text-you-ink">The compose file reaches outside its project, as allowed for this server: {dangers.join('; ')}.</p>}
             {smoke && scripts > 0 && <p>Afterwards the goal's milestone scripts run against the address, and what they try is written there.</p>}
           </div>
+        ) : isPaas ? (
+          <div className="space-y-2">
+            <p>This replaces what the production {chosen?.id === 'railway' ? 'environment' : chosen?.id === 'render' ? 'service' : 'app'} of this project on {chosen?.label} runs now with this goal's commit{chosen?.id === 'render' ? ", built by Render from the base branch on GitHub (which must hold this commit: merge the goal first)" : ''}.</p>
+            <p>The preview beside it stays as it is. The runtime variables kept for this place go to {chosen?.label}'s own store first.</p>
+            {smoke && scripts > 0 && <p>Afterwards the goal's milestone scripts run against the production address, and what they try is written there.</p>}
+          </div>
         ) : (
           <>
             This replaces what the production address of this project serves now with this goal's web app.
@@ -359,6 +436,34 @@ export function DeployCard({ d }: { d: GoalDetail }) {
           </>
         )}
       </ConfirmDialog>
+      {envPlace && env && (
+        <EnvDialog
+          open={envOpen}
+          env={env}
+          title={`Runtime variables · ${chosen?.label}`}
+          intro={
+            <>
+              What the project needs online at this place — a database address, an API key — kept on this computer only and sent with each deploy: a server gets them as an env file its services read (or the environment PM2 starts the process with), a platform through its own secrets. They never enter the goal's folder where the coding agents work, and are hidden in the deploy's record.
+            </>
+          }
+          savedNote=" The next deploy carries them."
+          sectionTitle="Set for this place"
+          actions={{
+            reload: () => api.deployEnv(g.id, envPlace),
+            save: (vars, rev) => api.deploySetEnv(g.id, envPlace, vars, rev),
+            importCheckout: () => api.deployEnvImport(g.id, envPlace),
+            extra: env.fromPreview.length ? [{ label: 'Copy from the previews', title: `The previews of this repository have ${env.fromPreview.length} variable${env.fromPreview.length === 1 ? '' : 's'} this place does not: ${env.fromPreview.join(', ')}.`, run: () => api.deployEnvFromPreview(g.id, envPlace) }] : [],
+          }}
+          onClose={() => setEnvOpen(false)}
+          onSaved={(e, msg) => {
+            setEnv(e);
+            setEnvSaved(msg);
+            setEnvOpen(false);
+            if (chosen?.kind === 'server') void check(chosen);
+          }}
+          onReload={setEnv}
+        />
+      )}
       {recipe && chosen?.kind === 'server' && (
         <RecipeDialog
           open

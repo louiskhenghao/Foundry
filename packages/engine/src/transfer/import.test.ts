@@ -61,7 +61,7 @@ describe('import (ADR-0030)', () => {
     expect(report.settings).toEqual([{ section: 'models', keys: ['models.cheap', 'models.presetDocs'] }, { section: 'delivery', keys: ['delivery.defaultMode'] }]);
     expect(report.secrets).toBe(true);
     expect(() => unlockIncomingSecrets(b, report.uploadId, 'nope')).toThrow('wrong password');
-    expect(unlockIncomingSecrets(b, report.uploadId, 'pw')).toEqual({ settings: [{ key: 'tools.openaiApiKey', imported: 'sk-o…3456', mine: null, same: false }], previewEnv: [{ repo, keys: ['DATABASE_URL'] }] });
+    expect(unlockIncomingSecrets(b, report.uploadId, 'pw')).toEqual({ settings: [{ key: 'tools.openaiApiKey', imported: 'sk-o…3456', mine: null, same: false }], previewEnv: [{ repo, keys: ['DATABASE_URL'] }], deployEnv: [] });
 
     const applied = await applyIncoming(b, report.uploadId, { settings: { delivery: 'mine' }, secrets: { password: 'pw', keepMine: [] } });
     expect(applied.imported.map((g) => g.id)).toEqual([doneId, 'g_cut']);

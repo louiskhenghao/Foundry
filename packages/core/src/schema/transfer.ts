@@ -77,8 +77,12 @@ export type SealedSecrets = z.infer<typeof SealedSecrets>;
 export const TransferSecrets = z.object({
   settings: z.record(z.string(), z.string()).default({}),
   previewEnv: z.record(z.string(), z.record(z.string(), z.string())).default({}),
+  /** the runtime variables of deploys (ADR-0095), by repository path, then by place (`server:<id>`, `fly`, …) */
+  deployEnv: z.record(z.string(), z.record(z.string(), z.record(z.string(), z.string()))).default({}),
 });
 export type TransferSecrets = z.infer<typeof TransferSecrets>;
+/** what a Transfer seals: the fields a writer may leave out (an older one has no deploy variables) */
+export type TransferSecretsInput = z.input<typeof TransferSecrets>;
 
 /**
  * Settings that only make sense on one computer and are never transferred: where the engine listens, where its programs
