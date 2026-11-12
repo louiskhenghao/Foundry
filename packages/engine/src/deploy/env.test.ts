@@ -30,7 +30,7 @@ async function finishedGoal(files: Record<string, string>) {
   return { engine, goal: getGoal(engine.store.db, goal.id)! };
 }
 
-describe('the runtime variables of a deploy (ADR-0093)', () => {
+describe('the runtime variables of a deploy (ADR-0095)', () => {
   test('a dotenv text quotes every value for a shell and for compose alike; the env file is owner-only; the override hands it to every service', () => {
     expect(dotenvText({ DATABASE_URL: 'postgres://u:p@db/app', TOKEN: "it's", EMPTY: '', 'bad-name': 'x' })).toBe("DATABASE_URL='postgres://u:p@db/app'\nTOKEN='it'\\''s'\nEMPTY=''\n");
     const dir = mkdtempSync(join(tmpdir(), 'foundry-env-write-'));

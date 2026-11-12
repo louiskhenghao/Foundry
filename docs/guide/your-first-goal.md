@@ -188,6 +188,8 @@ Below the text box: **Attach screenshots, PDFs, files or links — or drop / pas
 
 Every session of the goal can read the attachments. A file may weigh up to 25 MB, an audio or video file (a reference film, a music track) up to 200 MB, and a goal holds up to 20 attachments. They are never added to your project. Documents are converted to text in the background; a small tag shows when that is done. You can add more attachments later from the goal page.
 
+**Design reference.** A picture, an HTML export or a zip of your design is marked **Design reference** when you attach it to a code goal: the goal builds what it shows, as it shows it. Click the chip to make it an ordinary reference. A link to a Claude, Figma, Canva or Framer page cannot be the design: those pages need a sign-in, so the sessions never see them; the form says so and asks for an export. See [Bringing your own design](./bringing-your-own-design.md).
+
 ### Reference
 
 **+ add a reference** names shipped software the goal should learn from: a website, an app on this computer (`/Applications/Notes.app`), a package or an extracted app, and which feature to look at. Before Clarify, REA, a reverse-engineering server you install once from **Extensions → MCP servers**, studies each reference and writes a report with its evidence: how the feature works, what could not be verified, what to build. Every session of the goal reads the report, it is committed as `docs/reference/<name>.md` on the goal branch, and the Brief page shows it with **Investigate again**. Up to five references; the investigation has a cost and time cap in Settings.

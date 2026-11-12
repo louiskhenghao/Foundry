@@ -189,3 +189,17 @@ describe('Adjust the result', () => {
     expect(merged.reason).toContain('merged');
   }, 60_000);
 });
+
+describe('an Adjustment on a goal that follows a design (ADR-0093)', () => {
+  test('the worker and the reviewer are told the adjustment keeps to the design; a goal without one hears nothing of it', async () => {
+    const { renderAdjustment } = await import('./adjust.ts');
+    const adjustment = { id: 'adj_1', n: 1, text: 'make the hero button green', attachmentIds: [], at: 't', by: null, mode: 'task' } as never;
+    const design = { id: 'att_d', kind: 'file', name: 'home.png', mime: 'image/png', size: 1, path: 'attachments/g/att_d/home.png', url: null, note: null, addedAt: 't', markdown: null, design: true } as never;
+    const designed = { id: 'g', attachments: [design] } as never;
+    const plain = { id: 'g', attachments: [] } as never;
+    expect(renderAdjustment(designed, adjustment, '/data')).toContain('make the change in its language, and keep everything the design shows');
+    expect(renderAdjustment(designed, adjustment, '/data', { forReviewer: true })).toContain('the adjustment is judged against it too');
+    expect(renderAdjustment(plain, adjustment, '/data')).not.toContain('attached design');
+    expect(renderAdjustment(plain, adjustment, '/data', { forReviewer: true })).not.toContain('attached design');
+  });
+});

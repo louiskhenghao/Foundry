@@ -59,6 +59,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.diagramPack': { name: 'FOUNDRY_DIAGRAM_PACK', parse: str },
   'workflow.deckPack': { name: 'FOUNDRY_DECK_PACK', parse: str },
   'workflow.autoskills': { name: 'FOUNDRY_AUTOSKILLS', parse: bool },
+  'workflow.designCheck': { name: 'FOUNDRY_DESIGN_CHECK', parse: bool },
   'delivery.defaultMode': { name: 'FOUNDRY_DELIVERY_MODE', parse: str },
   'sync.fetchBeforeGoal': { name: 'FOUNDRY_SYNC_FETCH', parse: bool },
   'delivery.updateLocalBase': { name: 'FOUNDRY_UPDATE_LOCAL_BASE', parse: bool },
@@ -341,6 +342,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('workflow.ponytail')) config.workflowPonytail = s.workflow.ponytail;
   if (on('workflow.audit')) config.workflowAudit = s.workflow.audit;
   if (on('workflow.qa')) config.workflowQa = s.workflow.qa;
+  if (on('workflow.designCheck')) config.designCheck = s.workflow.designCheck;
   if (on('workflow.mcpDynamicTools')) config.mcpDynamicTools = s.workflow.mcpDynamicTools;
   if (on('workflow.investigationMaxCostUsd')) config.investigationMaxCostUsd = s.workflow.investigationMaxCostUsd;
   if (on('workflow.investigationMaxMinutes')) config.investigationMaxMinutes = s.workflow.investigationMaxMinutes;

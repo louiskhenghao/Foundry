@@ -2,14 +2,14 @@ import { z } from 'zod';
 
 /**
  * where a finished goal is deployed: the web hosts (ADR-0041), a server of the person's own over SSH (ADR-0091), or a
- * platform that runs the whole project — Fly.io, Railway, Render (ADR-0093)
+ * platform that runs the whole project — Fly.io, Railway, Render (ADR-0095)
  */
 export const DeployProvider = z.enum(['vercel', 'netlify', 'cloudflare', 'server', 'fly', 'railway', 'render']);
 export type DeployProvider = z.infer<typeof DeployProvider>;
 /** the web hosts: a CLI run here with a token, one project per repository, a web page or an all-in-one web app only */
 export const DeployHostProvider = z.enum(['vercel', 'netlify', 'cloudflare']);
 export type DeployHostProvider = z.infer<typeof DeployHostProvider>;
-/** the platforms (ADR-0093): the whole project from its Dockerfile or its stack, a preview app or environment beside production */
+/** the platforms (ADR-0095): the whole project from its Dockerfile or its stack, a preview app or environment beside production */
 export const DeployPaasProvider = z.enum(['fly', 'railway', 'render']);
 export type DeployPaasProvider = z.infer<typeof DeployPaasProvider>;
 

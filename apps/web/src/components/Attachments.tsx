@@ -1,5 +1,5 @@
 import type { Attachment } from '@foundry/core/browser';
-import { attachmentKindLabel } from '@foundry/core/browser';
+import { attachmentKindLabel, isDesignCandidate, unreadableDesignLink } from '@foundry/core/browser';
 import { ExternalLink, File as FileIcon, FileText, Image as ImageIcon, Link2, Paperclip, Trash2, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api.ts';
@@ -70,6 +70,13 @@ const fmtSize = (n: number | null) => (n == null ? '' : n < 1024 ? `${n} B` : n 
 export const previews = new Map<string, string>();
 
 /**
+ * A staged upload as the server knows it again (its markdown conversion done), keeping what only this page knows: the
+ * design mark (ADR-0093) is set here before the goal exists and travels with the record to POST /api/goals, so a refresh
+ * from the server must not drop it.
+ */
+export const refreshedStaged = (fresh: Attachment, local: Attachment): Attachment => ({ ...fresh, ...(local.design !== undefined ? { design: local.design } : {}) });
+
+/**
  * Each kind of attachment in a category colour of its own (ADR-0067), the hues the kinds had before themes: images blue,
  * links green, office documents violet, PDFs rose; plain text and any other file in ink.
  */
@@ -106,7 +113,7 @@ function MarkdownTag({ a, goalId, onReconvert }: { a: Attachment; goalId?: strin
 }
 
 /** Thumbnail grid / list of attachments. `goalId` makes files openable; without it only staged previews are shown. */
-export function AttachmentList({ items, goalId, onRemove, onReconvert, compact }: { items: Attachment[]; goalId?: string; onRemove?: (a: Attachment) => void; onReconvert?: (a: Attachment) => void; compact?: boolean }) {
+export function AttachmentList({ items, goalId, onRemove, onReconvert, onMark, compact }: { items: Attachment[]; goalId?: string; onRemove?: (a: Attachment) => void; onReconvert?: (a: Attachment) => void; /** mark a file as the design the result follows, or unmark it (ADR-0093); without it the mark is only shown */ onMark?: (a: Attachment, design: boolean) => void; compact?: boolean }) {
   const [view, setView] = useState<Attachment | null>(null);
   if (!items.length) return null;
   const current = view ? (items.find((x) => x.id === view.id) ?? view) : null;
@@ -140,6 +147,19 @@ export function AttachmentList({ items, goalId, onRemove, onReconvert, compact }
             <button type="button" onClick={() => setView(a)} className="mr-1 flex min-w-0 flex-1 items-center gap-2 text-left" title={a.markdown?.status === 'ready' ? 'view the extracted markdown or the original' : 'view'}>
               {inner}
             </button>
+            {/* the design the result follows (ADR-0093): a picture, an HTML export or a zip may be it; ticked when attached, untick to keep it an ordinary reference */}
+            {isDesignCandidate(a) && (onMark || a.design) && (
+              <button
+                type="button"
+                disabled={!onMark}
+                aria-pressed={!!a.design}
+                onClick={() => onMark?.(a, !a.design)}
+                className={cn(chipClass(!!a.design), 'shrink-0')}
+                title={a.design ? 'The design reference: the goal builds what it shows, as it shows it. Click to make it an ordinary attachment.' : 'Make this the design reference: the goal builds what it shows, as it shows it.'}
+              >
+                Design reference
+              </button>
+            )}
             {href && (
               <a href={href} target="_blank" rel="noreferrer" className="grid h-8 w-8 sm:h-6 sm:w-6 shrink-0 place-items-center rounded-md text-ink-faint hover:bg-panel hover:text-ink" title={a.kind === 'link' ? 'open link' : 'open original in a new tab'}>
                 <ExternalLink size={12} />
@@ -161,12 +181,14 @@ export function AttachmentList({ items, goalId, onRemove, onReconvert, compact }
  * Drop zone + paste handler + file button + "add link". Uploads immediately (staged when no goalId)
  * and reports the resulting Attachment records via onChange.
  */
-export function AttachmentInput({ items, onChange, goalId, className }: { items: Attachment[]; onChange: (next: Attachment[]) => void; goalId?: string; className?: string }) {
+export function AttachmentInput({ items, onChange, goalId, className, markDesigns = false }: { items: Attachment[]; onChange: (next: Attachment[]) => void; goalId?: string; className?: string; /** a picture, an HTML page or a zip is marked as the design reference when attached (ADR-0093): on for code goals, whose pictures are mockups; off where pictures are references or Subjects */ markDesigns?: boolean }) {
   const [drag, setDrag] = useState(false);
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [err, setErr] = useState<string | null>(null);
   const [link, setLink] = useState('');
   const [linkOpen, setLinkOpen] = useState(false);
+  /** a link into a design tool behind a sign-in was added (ADR-0093): kept, but no session can open it */
+  const [notice, setNotice] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const itemsRef = useRef(items);
   itemsRef.current = items;
@@ -177,8 +199,10 @@ export function AttachmentInput({ items, onChange, goalId, className }: { items:
       const key = `${f.name}-${f.size}-${Date.now()}`;
       setProgress((p) => ({ ...p, [key]: 0 }));
       try {
-        const a = await api.upload(f, { goalId, onProgress: (pct) => setProgress((p) => ({ ...p, [key]: pct })) });
-        if (f.type.startsWith('image/')) previews.set(a.id, URL.createObjectURL(f));
+        const uploaded = await api.upload(f, { goalId, onProgress: (pct) => setProgress((p) => ({ ...p, [key]: pct })) });
+        if (f.type.startsWith('image/')) previews.set(uploaded.id, URL.createObjectURL(f));
+        // a picture, an HTML export or a zip is the design the result follows until the person says otherwise (ADR-0093)
+        const a = markDesigns && isDesignCandidate(uploaded) ? (goalId ? await api.markAttachment(goalId, uploaded.id, true).catch(() => uploaded) : { ...uploaded, design: true }) : uploaded;
         onChange([...itemsRef.current, a]);
       } catch (e: any) {
         setErr(`${f.name}: ${e.message}`);
@@ -199,6 +223,19 @@ export function AttachmentInput({ items, onChange, goalId, className }: { items:
       onChange([...itemsRef.current, a]);
       setLink('');
       setLinkOpen(false);
+      const tool = a.url ? unreadableDesignLink(a.url) : null;
+      setNotice(tool ? `${tool} pages need a sign-in, so Foundry's sessions cannot open this link and would never see the design. Export it from ${tool} (an HTML file or a zip, or screenshots of every screen) and attach the files here instead; they are marked as the design reference.` : null);
+    } catch (e: any) {
+      setErr(e.message);
+    }
+  };
+  /** the person marks a file as the design the result follows, or unmarks it (ADR-0093) */
+  const mark = async (a: Attachment, design: boolean) => {
+    setErr(null);
+    if (!goalId) return onChange(itemsRef.current.map((x) => (x.id === a.id ? { ...x, design } : x)));
+    try {
+      const marked = await api.markAttachment(goalId, a.id, design);
+      onChange(itemsRef.current.map((x) => (x.id === a.id ? marked : x)));
     } catch (e: any) {
       setErr(e.message);
     }
@@ -232,7 +269,7 @@ export function AttachmentInput({ items, onChange, goalId, className }: { items:
     const t = setInterval(async () => {
       for (const a of pending) {
         const fresh = await api.stagedAttachment(a.id).catch(() => null);
-        if (fresh && fresh.markdown?.status !== 'pending') onChange(itemsRef.current.map((x) => (x.id === a.id ? fresh : x)));
+        if (fresh && fresh.markdown?.status !== 'pending') onChange(itemsRef.current.map((x) => (x.id === a.id ? refreshedStaged(fresh, x) : x)));
       }
     }, 2000);
     return () => clearInterval(t);
@@ -268,7 +305,7 @@ export function AttachmentInput({ items, onChange, goalId, className }: { items:
         className={cn('rounded-md border border-dashed px-3 py-2 flex flex-wrap items-center gap-2 text-xs transition', drag ? 'border-accent bg-accent/[0.06]' : 'border-line-strong')}
       >
         <Paperclip size={13} className="text-ink-faint" />
-        <span className="text-ink-soft">Attach screenshots, PDFs, files or links — or drop / paste them here.</span>
+        <span className="text-ink-soft">Attach screenshots, PDFs, files or links — or drop / paste them here.{markDesigns ? ' A picture, an HTML export or a zip of your design is marked as the design reference.' : ''}</span>
         <div className="ml-auto flex items-center gap-1.5">
           <Button size="sm" variant="ghost" type="button" onClick={() => fileRef.current?.click()}>
             <Upload size={12} /> Files
@@ -300,9 +337,17 @@ export function AttachmentInput({ items, onChange, goalId, className }: { items:
         ))}
       </div>
       {err && <div className="text-xs text-bad-ink mt-1">{err}</div>}
+      {notice && (
+        <div className="text-xs text-bad-ink mt-1" role="status">
+          {notice}{' '}
+          <button type="button" className="underline" onClick={() => setNotice(null)}>
+            ok
+          </button>
+        </div>
+      )}
       {items.length > 0 && (
         <div className="mt-2">
-          <AttachmentList items={items} goalId={goalId} onRemove={remove} onReconvert={goalId ? reconvert : undefined} />
+          <AttachmentList items={items} goalId={goalId} onRemove={remove} onReconvert={goalId ? reconvert : undefined} onMark={mark} />
         </div>
       )}
     </div>

@@ -85,7 +85,7 @@ describe('deploying a finished goal', () => {
       ['vercel', true, null],
       ['netlify', true, null],
       ['cloudflare', true, null],
-      // the platforms (ADR-0093) take the whole project, not a folder of pages: refused in words, no token yet
+      // the platforms (ADR-0095) take the whole project, not a folder of pages: refused in words, no token yet
       ['fly', false, expect.stringContaining('from a Dockerfile')],
       ['railway', false, expect.stringContaining('no Dockerfile and no known stack')],
       ['render', false, expect.stringContaining('no Dockerfile and no known stack')],
@@ -396,7 +396,7 @@ describe('a server in PM2 mode (ADR-0092)', () => {
       ['front', false],
       ['env', false],
     ]);
-    // the example file lists PORT without a value here: told, never blocking (ADR-0093)
+    // the example file lists PORT without a value here: told, never blocking (ADR-0095)
     expect(ready.items.find((i) => i.id === 'env')).toMatchObject({ severity: 'warn', detail: expect.stringContaining('PORT') });
     engine.deploy(goal.id, { provider: 'server', target: 'pm', production: true });
     await waitFor(() => last(engine, goal.id)?.status !== 'running' && (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 1);
@@ -411,7 +411,7 @@ describe('a server in PM2 mode (ADR-0092)', () => {
   }, 60_000);
 });
 
-describe('the runtime variables go with a server deploy (ADR-0093)', () => {
+describe('the runtime variables go with a server deploy (ADR-0095)', () => {
   async function serverGoal(files: Record<string, string>) {
     const { engine, goal } = await finishedGoal(files);
     const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));
@@ -454,7 +454,7 @@ describe('the runtime variables go with a server deploy (ADR-0093)', () => {
   }, 60_000);
 });
 
-/** a stand-in for flyctl and the Railway CLI (ADR-0093): logs each call with its tokens' presence and its stdin, prints what the real one prints */
+/** a stand-in for flyctl and the Railway CLI (ADR-0095): logs each call with its tokens' presence and its stdin, prints what the real one prints */
 function fakePaas(dir: string): string {
   const path = join(dir, 'fake-paas');
   writeFileSync(
@@ -491,7 +491,7 @@ esac
   return path;
 }
 
-describe('deploying to a platform (ADR-0093)', () => {
+describe('deploying to a platform (ADR-0095)', () => {
   async function paasGoal(files: Record<string, string>) {
     const { engine, goal } = await finishedGoal(files);
     const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-paas-'));

@@ -68,7 +68,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
           {d.memory?.enabled && <Remembered view={d.memory} tasks={d.tasks} />}
           {/* right under the goal, as on the New goal form: the description and what came with it */}
           <Card title={`Attachments${g.attachments.length ? ` (${g.attachments.length})` : ''}`}>
-            <AttachmentInput items={g.attachments} goalId={g.id} onChange={() => {}} />
+            <AttachmentInput items={g.attachments} goalId={g.id} onChange={() => {}} markDesigns={g.nature === 'code' || g.nature === 'auto'} />
             <p className="text-[11px] text-ink-faint mt-2">Attachments are handed to every new session of this goal (Clarify, workers, goal review) as read-only references.</p>
           </Card>
           {/* what the person said they would provide (ADR-0074): each material's state, and a slot to give it */}

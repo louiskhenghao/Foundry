@@ -14,7 +14,7 @@ export interface EnvView {
   notes: Record<string, { comment: string | null; example: string | null; file: string | null; usedIn: string[]; hint: string | null; generate: 'secret' | null }>;
 }
 
-/** how the dialog reads and writes a set: the previews' of a repository, or a deploy place's (ADR-0093) */
+/** how the dialog reads and writes a set: the previews' of a repository, or a deploy place's (ADR-0095) */
 export interface EnvActions<V extends EnvView> {
   reload: () => Promise<V>;
   save: (vars: Record<string, string | null>, rev: number) => Promise<V>;

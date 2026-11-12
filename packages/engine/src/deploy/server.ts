@@ -253,9 +253,9 @@ export interface ServerPlanInput {
   knownHosts: string;
   /** the compose file to run, relative to the checkout */
   file: string;
-  /** more compose files applied over it (the env override that hands the runtime variables to every service, ADR-0093) */
+  /** more compose files applied over it (the env override that hands the runtime variables to every service, ADR-0095) */
   overrides?: string[];
-  /** a file in the project folder whose variables the PM2 process starts with (ADR-0093) */
+  /** a file in the project folder whose variables the PM2 process starts with (ADR-0095) */
   envFile?: string | null;
   /** how ssh is run; tests point it at a stand-in */
   ssh?: string[];
@@ -289,7 +289,7 @@ export function pm2Steps(i: ServerPlanInput & { pm2: Pm2Facts }): DeployStep[] {
   const ssh = sshArgv(i.server, i.keyFile, i.knownHosts, i.ssh);
   const remote = remoteDir(i.server, i.name);
   const corepack = i.pm2.manager === 'yarn' || i.pm2.manager === 'pnpm' ? `command -v ${i.pm2.manager} >/dev/null 2>&1 || corepack enable >/dev/null 2>&1 || true; ` : '';
-  // the runtime variables (ADR-0093) are in the process's environment when PM2 starts or reloads it (--update-env)
+  // the runtime variables (ADR-0095) are in the process's environment when PM2 starts or reloads it (--update-env)
   const env = i.envFile ? `set -a && . ./${i.envFile} && set +a && ` : '';
   const start = `cd ${remote} && export NODE_ENV=production && ${env}${corepack}${i.pm2.install}${i.pm2.build ? ` && ${i.pm2.build}` : ''} && pm2 startOrReload ${shellQuote(i.pm2.ecosystem)} --update-env && pm2 save`;
   return [folder!, copy!, { label: 'install, build and start it under PM2', argv: [...ssh, start], env: {}, cwd: i.checkout }];

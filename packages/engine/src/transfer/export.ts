@@ -46,7 +46,7 @@ export interface TransferHost {
   release: string;
   settingsFile(): SettingsPatch;
   previewEnv(): Record<string, Record<string, string>>;
-  /** the runtime variables of deploys (ADR-0093): repository → place → variables; a host without them carries none */
+  /** the runtime variables of deploys (ADR-0095): repository → place → variables; a host without them carries none */
   deployEnv?: () => Record<string, Record<string, Record<string, string>>>;
 }
 

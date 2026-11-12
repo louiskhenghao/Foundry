@@ -62,7 +62,7 @@ RUN curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings
  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list \
  && apt-get update && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin openssh-client \
  && rm -rf /var/lib/apt/lists/*
-# flyctl: how Deploy reaches Fly.io (ADR-0093); a Go binary from its release, pinned, for the image's architecture
+# flyctl: how Deploy reaches Fly.io (ADR-0095); a Go binary from its release, pinned, for the image's architecture
 ARG FLYCTL_VERSION
 RUN arch="$(dpkg --print-architecture)" && case "$arch" in amd64) a=x86_64 ;; arm64) a=arm64 ;; *) echo "no flyctl for $arch" && exit 1 ;; esac \
  && curl -fsSL "https://github.com/superfly/flyctl/releases/download/v${FLYCTL_VERSION}/flyctl_${FLYCTL_VERSION}_Linux_${a}.tar.gz" | tar -xz -C /usr/local/bin flyctl \

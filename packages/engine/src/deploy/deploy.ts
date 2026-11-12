@@ -47,7 +47,7 @@ export function deployCredentials(engine: Engine): DeployCredentials {
   const d = engine.settings.values().delivery;
   return { vercelToken: d.vercelToken, vercelScope: d.vercelScope, netlifyToken: d.netlifyToken, netlifyTeam: d.netlifyTeam, cloudflareToken: d.cloudflareToken, cloudflareAccountId: d.cloudflareAccountId };
 }
-/** the platforms' credentials (ADR-0093) */
+/** the platforms' credentials (ADR-0095) */
 export function paasCredentials(engine: Engine): PaasCredentials {
   const d = engine.settings.values().delivery;
   return { flyToken: d.flyToken, flyOrg: d.flyOrg, flyRegion: d.flyRegion, railwayToken: d.railwayToken, railwayWorkspace: d.railwayWorkspace, renderApiKey: d.renderApiKey, renderOwner: d.renderOwner, renderRegion: d.renderRegion, renderPlan: d.renderPlan };
@@ -126,7 +126,7 @@ const codeDir = (engine: Engine, goal: Goal) => {
 export function goalDeployability(engine: Engine, goal: Goal): Deployability {
   return deployability(codeDir(engine, goal));
 }
-/** what a platform would run of a goal now (ADR-0093): its Dockerfile, or its stack (the web app's folder in a monorepo) */
+/** what a platform would run of a goal now (ADR-0095): its Dockerfile, or its stack (the web app's folder in a monorepo) */
 export function goalPaasDeployability(engine: Engine, goal: Goal, provider: PaasProvider): PaasDeployability {
   const root = codeDir(engine, goal);
   const web = deployability(root);
@@ -285,7 +285,7 @@ async function runServer(engine: Engine, goal: Goal, dir: string, ref: string, s
   // writes: in the checkout only, the repository never sees them
   if (d.app.kind === 'dockerfile') writeFileSync(join(dir, GENERATED_COMPOSE), generatedCompose(d.app.port!));
   if (d.app.kind === 'pm2' && d.app.pm2!.generated) writeFileSync(join(dir, GENERATED_ECOSYSTEM), generatedEcosystem(name, d.app.pm2!.manager, d.app.port));
-  // the runtime variables kept for this place (ADR-0093) go with the checkout as an env file the services read, or the
+  // the runtime variables kept for this place (ADR-0095) go with the checkout as an env file the services read, or the
   // PM2 process starts with; their values are blanked out of every record, as the hosts' tokens are
   const vars = deployVars(engine, goal, `server:${server.id}`);
   const hasVars = Object.keys(vars).length > 0;
@@ -323,7 +323,7 @@ async function runServer(engine: Engine, goal: Goal, dir: string, ref: string, s
 }
 
 /**
- * A platform deploy (ADR-0093): the project from its Dockerfile or its stack, to a preview app, environment or service,
+ * A platform deploy (ADR-0095): the project from its Dockerfile or its stack, to a preview app, environment or service,
  * or to production. Fly.io and Railway take the checkout through their CLIs; Render deploys the repository's pushed
  * branch through its API. The place's runtime variables go to the platform's own store first; their values and the
  * tokens are blanked out of every record.
@@ -513,7 +513,7 @@ export async function deployReadiness(engine: Engine, goalId: string, provider: 
   const deps = { knownHosts: knownHostsFile(engine), ssh: engine.deploySsh, project, run: (argv: string[], cwd: string, opts: { timeoutMs: number }) => exec(argv, cwd, opts) };
   mkdirSync(dirname(deps.knownHosts), { recursive: true });
   const items = server.privateKey ? await withSecretFile(engine.config.dataDir, 'id_deploy', server.privateKey, (keyFile) => serverReadiness(server, { ...deps, keyFile })) : await serverReadiness(server, { ...deps, keyFile: null });
-  // the runtime variables (ADR-0093): told, never blocking — example files list optional settings too
+  // the runtime variables (ADR-0095): told, never blocking — example files list optional settings too
   if (goal) {
     const env = deployEnvView(engine, goal, `server:${server.id}`);
     items.push({ id: 'env', label: 'Runtime variables', ok: env.missing.length === 0, severity: 'warn', detail: env.missing.length ? `${env.missing.length} key${env.missing.length === 1 ? '' : 's'} from the example files without a value here: ${env.missing.join(', ')} — set what the project needs online under Runtime variables on the card` : env.keys.length ? `${env.keys.length} set (${env.keys.join(', ')})` : 'none set, none listed in example files', fix: null });
