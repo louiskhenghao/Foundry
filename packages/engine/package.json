@@ -18,6 +18,7 @@
     "@foundry/core": "workspace:*",
     "@foundry/runner": "workspace:*",
     "@vectorize-io/hindsight-client": "1.1.0",
+    "fflate": "0.8.2",
     "playwright": "^1.63.0",
     "zod": "^3.23.8",
     "zod-to-json-schema": "^3.23.5"

@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, utimesSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AttachmentError, attachmentAbsPath, claimStaged, linkAttachment, renderAttachments, safeName, stageFile, sweepStaging, trashAttachment } from './attachments.ts';
+import { strToU8, zipSync } from 'fflate';
+import { AttachmentError, attachmentAbsPath, claimStaged, copyAttachment, linkAttachment, renderAttachments, renderDesignReferences, safeName, stageFile, sweepStaging, trashAttachment } from './attachments.ts';
 
 const data = () => mkdtempSync(join(tmpdir(), 'att-'));
 
@@ -112,5 +113,62 @@ describe('markdown renditions', () => {
     expect(renderAttachments({ id: 'g_1', attachments: [link] }, d)).toContain('markdown snapshot (900 B, fetched 2026-08-21)');
     expect(markitdownHint(false)).toBe('');
     expect(markitdownHint(true, '/x/markitdown')).toContain('/x/markitdown <file>');
+  });
+});
+
+describe('design references (ADR-0092)', () => {
+  const zip = () => zipSync({ 'index.html': strToU8('<html></html>'), 'assets/app.css': strToU8('body{}'), '__MACOSX/._index.html': strToU8('junk'), '../escape.txt': strToU8('no'), '.DS_Store': strToU8('x'), 'assets/': new Uint8Array() });
+  test('a zip is unpacked when staged (junk and escaping entries skipped), its folder moves with the claim and a copy, and index.html is the entry', () => {
+    const d = data();
+    const a = stageFile(d, { name: 'Landing export.zip', mime: 'application/zip', bytes: zip() });
+    expect(a.extracted).toEqual({ dir: `attachments/_staging/${a.id}/Landing export`, files: 2, entry: 'index.html' });
+    expect(existsSync(join(d, a.extracted!.dir, 'assets/app.css'))).toBe(true);
+    expect(existsSync(join(d, a.extracted!.dir, '__MACOSX'))).toBe(false);
+    expect(existsSync(join(d, 'attachments/_staging/escape.txt'))).toBe(false);
+    expect(existsSync(join(d, 'attachments/escape.txt'))).toBe(false);
+    const [c] = claimStaged(d, 'g_1', [a]);
+    expect(c!.extracted!.dir).toBe(`attachments/g_1/${a.id}/Landing export`);
+    expect(existsSync(join(d, c!.extracted!.dir, 'index.html'))).toBe(true);
+    expect(claimStaged(d, 'g_1', [c!])[0]!.extracted).toEqual(c!.extracted);
+    const copy = copyAttachment(d, 'g_2', c!);
+    expect(copy.extracted!.dir).toBe(`attachments/g_2/${copy.id}/Landing export`);
+    expect(existsSync(join(d, copy.extracted!.dir, 'assets/app.css'))).toBe(true);
+  });
+  test('bytes that are not a zip stay a plain file; a zip with no page has no entry', () => {
+    const d = data();
+    expect(stageFile(d, { name: 'x.zip', mime: 'application/zip', bytes: new Uint8Array([1, 2, 3, 4]) }).extracted).toBeNull();
+    const pics = stageFile(d, { name: 'shots.zip', mime: null, bytes: zipSync({ 'home.png': new Uint8Array(4), 'about.png': new Uint8Array(4) }) });
+    expect(pics.extracted).toEqual({ dir: `attachments/_staging/${pics.id}/shots`, files: 2, entry: null });
+    expect(stageFile(d, { name: 'notes.txt', mime: 'text/plain', bytes: new Uint8Array(4) }).extracted).toBeNull();
+  });
+  test('renderAttachments puts the design references first, as the law, and the other files under Attachments from the user', () => {
+    const d = data();
+    const img = { ...claimStaged(d, 'g_1', [stageFile(d, { name: 'home.png', mime: 'image/png', bytes: new Uint8Array(10) })])[0]!, design: true };
+    const html = { ...claimStaged(d, 'g_1', [stageFile(d, { name: 'home.html', mime: 'text/html', bytes: strToU8('<html></html>') })])[0]!, design: true };
+    const archive = { ...claimStaged(d, 'g_1', [stageFile(d, { name: 'export.zip', mime: 'application/zip', bytes: zip() })])[0]!, design: true };
+    const pdf = claimStaged(d, 'g_1', [stageFile(d, { name: 'spec.pdf', mime: 'application/pdf', bytes: new Uint8Array(10) })])[0]!;
+    const s = renderAttachments({ id: 'g_1', attachments: [pdf, img, html, archive] }, d);
+    expect(s.indexOf('# Design reference')).toBe(0);
+    expect(s.indexOf('# Design reference')).toBeLessThan(s.indexOf('# Attachments from the user'));
+    expect(s).toContain('What the design shows is made as it shows it');
+    expect(s).toContain('the design wins');
+    expect(s).toContain(`- [image] home.png → ${join(d, img.path!)}. Open it with the Read tool before writing any markup or styles.`);
+    expect(s).toContain(`- [html] home.html → ${join(d, html.path!)}. It is source material: read its markup, styles and tokens and port them into this codebase.`);
+    expect(s).toContain(`- [zip] export.zip → ${join(d, archive.extracted!.dir)} (2 files; open index.html first). Its HTML, CSS and pictures are source material: read the markup, styles and tokens and port them into this codebase.`);
+    expect(s.indexOf('[pdf] spec.pdf')).toBeGreaterThan(s.indexOf('# Attachments from the user'));
+    // the design section alone, for the worker prompt; nothing without a design
+    expect(renderDesignReferences({ id: 'g_1', attachments: [pdf, img] }, d)).toContain('# Design reference');
+    expect(renderDesignReferences({ id: 'g_1', attachments: [pdf] }, d)).toBe('');
+    expect(renderAttachments({ id: 'g_1', attachments: [pdf] }, d)).not.toContain('# Design reference');
+    // an unpacked zip that is not the design is still listed with its folder
+    const plain = renderAttachments({ id: 'g_1', attachments: [{ ...archive, design: false }] }, d);
+    expect(plain).not.toContain('# Design reference');
+    expect(plain).toContain(`- [zip] export.zip → ${join(d, archive.extracted!.dir)} (2 files; open index.html first). Read the files with the Read tool.`);
+  });
+  test('a link into a design tool behind a sign-in is listed as one no session can open', () => {
+    const d = data();
+    const s = renderAttachments({ id: 'g', attachments: [linkAttachment('https://claude.ai/public/artifacts/abc')] }, d);
+    expect(s).toContain('- [link] https://claude.ai/public/artifacts/abc — a Claude page: it needs a sign-in, so no session can open it. Treat it as a design that was not supplied; the person was asked to attach an export (HTML, a zip or screenshots) instead.');
+    expect(s).not.toContain('WebFetch');
   });
 });
