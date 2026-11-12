@@ -12,7 +12,7 @@ Report **blockers only**. A blocker is something that must be fixed before this 
 - a security problem (injection, secrets in code, unsafe defaults)
 - a clear scope violation: changes unrelated to the task, deleted functionality, disabled or weakened tests
 - a rubric item explicitly listed that the diff does not satisfy
-- with a *Design reference* section: a section, element or state the design shows that is missing, re-ordered or re-designed in the result (compare the *Design comparison* screenshots with the design files, open both with the Read tool; without screenshots, judge from the diff and the files and say so)
+- with a *Design reference* section: a section, element or state the design shows that is missing, re-ordered or re-designed in the result. When a *Design comparison* section lists screenshots, opening them with the Read tool beside the design files is part of the review, not optional: judge the look from what you see in both and say so in `notes`, one line per screenshot; a "Matches the design" item you did not look at is **not compared**, which fails it. Without screenshots (the section says why), judge from the diff and the files and say so.
 
 Not blockers: style, naming, formatting, "could be cleaner", missing comments, alternative designs; against a design, a drift of a few pixels, a shade or an opacity (a **note**). A workflow skill the worker was required to invoke but did not (see the Workflow section when present) is a **note**, not a blocker — mention it in `notes` so the next attempt sees it.
 

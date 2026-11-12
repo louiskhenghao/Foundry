@@ -78,6 +78,7 @@ describe('the reviewer sections', () => {
     expect(s).toContain('- 390px wide: /shots/design-t1-a1-20261112-120000-390.png');
     expect(s).toContain('missing, re-ordered or re-designed is a BLOCKER');
     expect(s).toContain('A drift of a few pixels, a shade or an opacity is a NOTE');
+    expect(s).toContain('fail that item with "not compared" rather than pass it on the diff');
     expect(designComparisonSection({ shots: [], url: null, note: 'nothing startable' }, { forGoal: true })).toContain('the merged result');
     expect(designComparisonSection({ shots: [], url: null, note: 'nothing startable' })).toContain('(no screenshot: nothing startable)');
     expect(designComparisonSection(null)).toBe('');
