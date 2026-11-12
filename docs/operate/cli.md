@@ -17,7 +17,7 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
                                           values (every required input needs a --set), its settings apply where no flag says otherwise
        [--auto-approve --check "<cmd>"]... [--stretch "<cmd>"]...   skip Clarify: one task + command checks
        [--models max|production|balanced|economy|<your preset>]   Selected agent model preset (default: Settings' preset for the goal type)
-       [--nature auto|code|docs|research|image|video|figure|diagram|deck|cad] [--figure-pack colorfigures|iso-glow] [--pace thorough|fast] [--suite mattpocock|pstack|plain] [--interview auto|always|never]
+       [--nature auto|code|docs|research|image|video|figure|diagram|deck|cad] [--figure-pack colorfigures|iso-glow] [--design-pack ui-ux-pro-max|frontend-design|impeccable|bencium|garden|taste|none] [--pace thorough|fast]|iso-glow] [--pace thorough|fast] [--suite mattpocock|pstack|plain] [--interview auto|always|never]
        [--effort default|<level>] [--self-check]
        [--delegate [--delegate-auto-approve]]   let the planner hand a step that is a project of its own to a Delegated goal
                                           (its own Clarify and plan, side by side within the goal's parallel limit); --delegate-auto-approve approves their Briefs for you

@@ -8,7 +8,7 @@ import { BriefSubject } from './subject.ts';
 import { DeliveryState, IDLE_DELIVERY } from './delivery.ts';
 import { Deployment } from './deploy.ts';
 import { Interview, ReviseState } from './interview.ts';
-import { VideoPack } from './packs.ts';
+import { DesignPack, VideoPack } from './packs.ts';
 
 /** Claude Code effort level handed to every session of a goal; null = the CLI default */
 /**
@@ -409,6 +409,8 @@ export const Goal = z.object({
   nature: GoalNature.default('auto'),
   /** the Figure pack this goal's figure tasks follow when one was chosen for the goal (on the New goal form, or by the Clarifier from the goal's words); null = Settings' default at run time; absent on goals from before, read as null */
   figurePack: FigurePack.nullable().optional(),
+  /** the Design pack this goal's UI tasks follow when one was chosen for the goal (the New goal form, the CLI; ADR-0092); null = Settings' default at run time; absent on goals from before, read as null */
+  designPack: DesignPack.nullable().optional(),
   /** the Adjustments asked for on this goal's result (ADR-0078), oldest first; absent on goals from before, read as [] */
   adjustments: z.array(Adjustment).optional(),
   /** where media artifacts are copied when the goal finishes; null = they stay in the goal workspace */

@@ -19,6 +19,7 @@ import {
   renderDecisions,
   IDLE_COMPLETION,
   MEDIA_NATURES,
+  DesignPack,
   FigurePack,
   depthOfMode,
   EventStore,
@@ -188,6 +189,8 @@ export interface CreateGoalInput {
   /** effort level for every session of this goal; default = Settings → workflow.effort */
   /** a level the coding agent takes (engine.effortLevels, ADR-0085); null = the Settings default */
   effort?: string | null;
+  /** the Design pack this goal's UI tasks follow when it should differ from Settings' (ADR-0092); null or absent = Settings' default */
+  designPack?: DesignPack | null;
   /** model preset for this goal; default = the preset Settings picks for its nature */
   modelPreset?: string | null;
   /** Skip Clarify: one task = the prompt, with these command checks. */
@@ -883,9 +886,9 @@ export class Engine {
     return { pack, installed: statuses.some((s) => s.entry.pack === 'diagram' && s.entry.packOption === pack && SATISFIED.includes(s.status)) };
   }
 
-  /** the goal's own pack choices laid over Settings' (its Figure pack, ADR-0076; its video engine, ADR-0077): what its sessions' skill sections are filtered by */
-  packsFor(goal: Pick<Goal, 'figurePack' | 'videoPack'>): Record<string, string | undefined> {
-    return { ...(goal.figurePack ? { figure: goal.figurePack } : {}), ...(goal.videoPack ? { video: goal.videoPack } : {}) };
+  /** the goal's own pack choices laid over Settings' (its Figure pack, ADR-0076; its video engine, ADR-0077; its Design pack, ADR-0092): what its sessions' skill sections are filtered by */
+  packsFor(goal: Pick<Goal, 'figurePack' | 'videoPack' | 'designPack'>): Record<string, string | undefined> {
+    return { ...(goal.figurePack ? { figure: goal.figurePack } : {}), ...(goal.videoPack ? { video: goal.videoPack } : {}), ...(goal.designPack ? { design: goal.designPack } : {}) };
   }
 
   /**
@@ -2554,6 +2557,7 @@ export class Engine {
       mode,
       nature,
       figurePack: input.figurePack ?? null,
+      designPack: input.designPack ?? null,
       outputDir: input.outputDir ?? null,
       workflow: (() => {
         // media goals default to fast: their deliverables are judged by the human's eye, not by $5 review sessions
@@ -2974,6 +2978,16 @@ export class Engine {
     if (!att) throw new Error(`attachment ${attachmentId} not found`);
     trashAttachment(this.config.dataDir, goalId, att);
     this.store.append({ type: 'goal.attachment_removed', goalId, payload: { attachmentId } });
+  }
+
+  /** The person marks an attachment as the design the result follows, or unmarks it (ADR-0092): every later session reads it as such. */
+  markAttachment(goalId: string, attachmentId: string, design: boolean): Attachment {
+    const goal = this.mustGoal(goalId);
+    const att = goal.attachments.find((a) => a.id === attachmentId);
+    if (!att) throw new Error(`attachment ${attachmentId} not found`);
+    if (att.kind !== 'file') throw new Error('a link cannot be the design reference: attach an export of the design (HTML, a zip or screenshots)');
+    if ((att.design === true) !== design) this.store.append({ type: 'goal.attachment_marked', goalId, payload: { attachmentId, design } });
+    return this.mustGoal(goalId).attachments.find((a) => a.id === attachmentId)!;
   }
 
   /** The AI analyses a blocked task and proposes an action + hint (recorded on the escalation; nothing is applied here). */

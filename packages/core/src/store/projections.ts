@@ -813,6 +813,7 @@ function normalizeGoal(g: Goal): Goal {
   g.videoPack ??= null;
   if (g.budgets) g.budgets.attemptTimeoutMin ??= null;
   g.figurePack ??= null;
+  g.designPack ??= null;
   g.adjustments ??= [];
   g.template ??= null;
   g.pausedFrom ??= null;
