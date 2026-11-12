@@ -97,7 +97,7 @@ export function AdjustCard({ d, onChanged }: { d: GoalDetail; onChanged?: () => 
           <p className="mb-2 text-sm text-ink-soft">
             Say what should change in the result, with pictures or files if they help. The goal carries it out itself{view.mode === 'resume' ? ': the session that did the work picks up where it left off' : view.mode === 'task' ? ': a task is added after the finished ones' : view.mode === 'restart' ? ': the failed tasks run again with your words' : ''}, and the checks and reviews run again.
             {/* the goal follows an attached design (ADR-0093): the adjustment keeps to it and is compared with it (ADR-0094) */}
-            {designReferences(g.attachments).length > 0 && <> This goal follows the attached design ({designReferences(g.attachments).map((a) => a.name).join(', ')}): the adjustment is made in its language and compared with it.</>}
+            {designReferences(g.attachments ?? []).length > 0 && <> This goal follows the attached design ({designReferences(g.attachments ?? []).map((a) => a.name).join(', ')}): the adjustment is made in its language and compared with it.</>}
           </p>
           <div
             className={cn('rounded-xl border bg-panel transition-colors', drag ? 'border-accent ring-2 ring-accent/30' : 'border-line-strong focus-within:border-accent')}
