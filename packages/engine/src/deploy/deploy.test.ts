@@ -214,6 +214,8 @@ case "$cmd" in
   *"ss -ltnpH"*) echo '::ours::' ;;
   *"docker compose version"*) if [ -f "${join(dir, 'FAIL_DOCKER')}" ]; then echo "sh: 1: docker: not found" >&2; exit 127; fi; echo "Docker Compose version v2.29.1"; echo "27.1.0" ;;
   *"docker compose -p"*) if [ -f "${join(dir, 'FAIL_UP')}" ]; then echo "failed to solve: process \\"/bin/sh -c npm ci\\" did not complete successfully: exit code: 1" >&2; exit 1; fi; echo " Container web-1  Started" ;;
+  "node -v"*) echo v24.1.0; echo 5.4.2; echo 1.22.22 ;;
+  *"pm2 startOrReload"*) echo "[PM2] Applying action reloadProcessId on app"; echo "[PM2] Saving current process list" ;;
   *"test -w"*) echo writable ;;
 esac
 `,
@@ -228,7 +230,7 @@ describe('deploying to a server of the person’s own (ADR-0090)', () => {
     const { engine, goal } = await finishedGoal(files);
     const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));
     engine.deploySsh = [fakeSsh(fakes)];
-    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false }] } });
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'docker' as const }] } });
     const sshLog = () => (existsSync(join(fakes, 'ssh.log')) ? readFileSync(join(fakes, 'ssh.log'), 'utf8').trim().split('\n') : []);
     return { engine, goal, fakes, sshLog };
   }
@@ -237,7 +239,7 @@ describe('deploying to a server of the person’s own (ADR-0090)', () => {
     const { engine, goal, fakes, sshLog } = await serverGoal({ 'compose.yaml': 'services:\n  web:\n    build: .\n    ports:\n      - "8080:80"\n', Dockerfile: 'FROM nginx\n' });
     const info = engine.deployInfo(goal.id, 'server', false, 'srv1');
     expect(info.server).toMatchObject({ ok: true, app: { kind: 'compose', file: 'compose.yaml', services: ['web'], port: 8080 } });
-    expect(info.providers.at(-1)).toEqual({ id: 'server', target: 'srv1', kind: 'server', label: 'box', configured: true, refused: null, permissive: false });
+    expect(info.providers.at(-1)).toEqual({ id: 'server', target: 'srv1', kind: 'server', label: 'box', configured: true, refused: null, permissive: false, mode: 'docker', host: 'h.example', user: 'deploy' });
     expect(info.plan.map((s) => s.command).join('\n')).toContain('-i <key file>');
     expect(info.plan.map((s) => s.command).join('\n')).toContain("tar -czf - --exclude=.git --exclude=node_modules --exclude=.vercel --exclude=.netlify --exclude=.wrangler -C '<deploy folder>' .");
     expect(info.plan.map((s) => s.command).join('\n')).not.toContain('FAKEKEY');
@@ -277,7 +279,7 @@ describe('deploying to a server of the person’s own (ADR-0090)', () => {
     expect(existsSync(join(dataDir, 'tmp')) ? readdirSync(join(dataDir, 'tmp')) : []).toEqual([]);
 
     // a public address names the deploy instead of host and port
-    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: null, dir: '~/apps', publicUrl: 'https://app.example.com', allowPrivileged: false }] } });
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: null, dir: '~/apps', publicUrl: 'https://app.example.com', allowPrivileged: false, mode: 'docker' as const }] } });
     engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true });
     await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 2 && last(engine, goal.id)?.status !== 'running');
     expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://app.example.com' });
@@ -317,7 +319,7 @@ describe('deploying to a server of the person’s own (ADR-0090)', () => {
     expect(ready.ok).toBe(false);
     expect(ready.items.find((i) => i.id === 'docker')).toMatchObject({ ok: false, detail: expect.stringContaining('Docker is not installed on h.example'), fix: { url: expect.stringContaining('docs.docker.com') } });
 
-    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: '', dir: '~/apps', publicUrl: null, allowPrivileged: false }] } });
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: '', dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'docker' as const }] } });
     expect(engine.deployInfo(goal.id).providers.at(-1)).toMatchObject({ configured: false });
     expect(() => engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true })).toThrow(/has no SSH key/);
     const hostReady = await engine.deployReadiness(goal.id, 'netlify', null);
@@ -331,7 +333,7 @@ describe('what a server deploy refuses before it touches anything (ADR-0090)', (
     const { engine, goal } = await finishedGoal({ 'compose.yaml': 'services:\n  agent:\n    build: .\n    ports: ["8080:80"]\n    volumes:\n      - /var/run/docker.sock:/var/run/docker.sock\n      - /etc:/host-etc:ro\n', Dockerfile: 'FROM nginx\n' });
     const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));
     engine.deploySsh = [fakeSsh(fakes)];
-    const box = { id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false };
+    const box = { id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'docker' as const };
     engine.updateSettings({ delivery: { servers: [box] } });
     const info = engine.deployInfo(goal.id, 'server', true, 'srv1');
     expect(info.server).toMatchObject({ ok: true, app: { review: { dangers: ['agent mounts the Docker socket (/var/run/docker.sock): the container would control every container on the server', 'agent bind-mounts /etc, outside the project folder'] } } });
@@ -343,7 +345,7 @@ describe('what a server deploy refuses before it touches anything (ADR-0090)', (
     expect(reason).toContain('allow it for this server under Settings → Git & delivery → Servers');
     expect(existsSync(join(fakes, 'ssh.log'))).toBe(false);
 
-    engine.updateSettings({ delivery: { servers: [{ ...box, privateKey: null, allowPrivileged: true }] } });
+    engine.updateSettings({ delivery: { servers: [{ ...box, privateKey: null, allowPrivileged: true, mode: 'docker' as const }] } });
     expect(engine.deployInfo(goal.id, 'server', true, 'srv1').providers.at(-1)).toMatchObject({ permissive: true });
     engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true });
     await waitFor(() => (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 2 && last(engine, goal.id)?.status !== 'running');
@@ -357,7 +359,7 @@ describe('what a server deploy refuses before it touches anything (ADR-0090)', (
     const { engine, goal } = await finishedGoal({ 'compose.yaml': 'services:\n  web:\n    build: .\n    ports: ["8080:80"]\n', Dockerfile: 'FROM nginx\n' });
     const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));
     engine.deploySsh = [fakeSsh(fakes)];
-    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false }] } });
+    engine.updateSettings({ delivery: { servers: [{ id: 'srv1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'docker' as const }] } });
     writeFileSync(join(fakes, 'FOREIGN'), '');
     engine.deploy(goal.id, { provider: 'server', target: 'srv1', production: true });
     await waitFor(() => last(engine, goal.id)?.status === 'failed');
@@ -365,6 +367,38 @@ describe('what a server deploy refuses before it touches anything (ADR-0090)', (
     // nothing was copied, nothing started
     expect(existsSync(join(fakes, 'upload.tgz'))).toBe(false);
     expect(readFileSync(join(fakes, 'ssh.log'), 'utf8')).not.toContain('docker compose -p');
+    rmSync(fakes, { recursive: true, force: true });
+  }, 60_000);
+});
+
+describe('a server in PM2 mode (ADR-0091)', () => {
+  test('a Node.js project is installed, built and started under PM2 as the ssh user; Foundry’s ecosystem file goes with the checkout; the readiness check asks for node and pm2', async () => {
+    const { engine, goal } = await finishedGoal({ 'package.json': JSON.stringify({ name: 'shop', scripts: { start: 'node server.js', build: 'echo built' } }), 'yarn.lock': '', '.env.example': 'PORT=4000\n', 'server.js': 'require("http").createServer().listen(4000)' });
+    const fakes = mkdtempSync(join(tmpdir(), 'foundry-deploy-ssh-'));
+    engine.deploySsh = [fakeSsh(fakes)];
+    engine.updateSettings({ delivery: { servers: [{ id: 'pm', name: 'node box', host: 'n.example', port: 22, user: 'deploy', privateKey: KEY, dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'pm2' }] } });
+    const info = engine.deployInfo(goal.id, 'server', true, 'pm');
+    expect(info.server).toMatchObject({ ok: true, app: { kind: 'pm2', port: 4000, pm2: { manager: 'yarn', build: 'yarn run build', generated: true } } });
+    expect(info.providers.at(-1)).toMatchObject({ id: 'server', target: 'pm', mode: 'pm2', host: 'n.example', user: 'deploy', refused: null });
+    expect(info.plan.map((s) => s.label)).toEqual(['make the folder on the server', 'copy the project over', 'install, build and start it under PM2']);
+    const ready = await engine.deployReadiness(goal.id, 'server', 'pm');
+    expect(ready.items.map((i) => [i.id, i.ok])).toEqual([
+      ['key', true],
+      ['reach', true],
+      ['runtime', true],
+      ['folder', true],
+      ['ports', true],
+      ['front', false],
+    ]);
+    engine.deploy(goal.id, { provider: 'server', target: 'pm', production: true });
+    await waitFor(() => last(engine, goal.id)?.status !== 'running' && (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 1);
+    expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'http://n.example:4000', framework: 'PM2 (yarn)', target: { id: 'pm', label: 'node box' } });
+    const name = deployName(goal);
+    const log = readFileSync(join(fakes, 'ssh.log'), 'utf8');
+    expect(log).toContain(`cd ~/apps/${name} && export NODE_ENV=production && command -v yarn >/dev/null 2>&1 || corepack enable >/dev/null 2>&1 || true; yarn install --frozen-lockfile && yarn run build && pm2 startOrReload 'ecosystem.foundry.config.cjs' --update-env && pm2 save|key=present`);
+    expect(await sh(`tar -tzf ${JSON.stringify(join(fakes, 'upload.tgz'))}`, fakes)).toContain('./ecosystem.foundry.config.cjs');
+    expect(readFileSync(join(deployDir(engine, goal), 'ecosystem.foundry.config.cjs'), 'utf8')).toContain(`name: ${JSON.stringify(name)}, script: "yarn", args: 'start'`);
+    expect(existsSync(join(repo, 'ecosystem.foundry.config.cjs'))).toBe(false);
     rmSync(fakes, { recursive: true, force: true });
   }, 60_000);
 });

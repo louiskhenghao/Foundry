@@ -80,11 +80,52 @@ export const ReadinessItem = z.object({
       /** a command the person runs themselves, on their own computer or on the server */
       command: z.string().optional(),
       url: z.string().optional(),
+      /** a server recipe (ADR-0091) that puts it right, run from the card after the person reads and confirms it */
+      recipe: z.string().optional(),
+      /** the recipe's inputs as this project would fill them (the domain, the port, the project's name) */
+      recipeParams: z.record(z.string(), z.string()).optional(),
     })
     .nullable()
     .default(null),
 });
 export type ReadinessItem = z.infer<typeof ReadinessItem>;
+
+/** one input of a server recipe (ADR-0091): an environment variable the script reads; a secret one is never recorded */
+export const RecipeParam = z.object({ name: z.string(), label: z.string(), default: z.string().nullable(), secret: z.boolean() });
+export type RecipeParam = z.infer<typeof RecipeParam>;
+/**
+ * A server recipe (ADR-0091): a shell script that sets a server up — Docker, nginx with HTTPS in front of the project,
+ * Node and PM2, PostgreSQL, Redis — bundled with Foundry, or the person's own under the data folder. Its header says
+ * what it changes; the person reads the whole script before it runs, as root, over ssh.
+ */
+export const ServerRecipe = z.object({
+  id: z.string(),
+  title: z.string(),
+  /** runs as root (sudo); every bundled one does */
+  root: z.boolean(),
+  /** the readiness item it puts right (`docker`, `front`, `runtime`), if one */
+  fixes: z.string().nullable(),
+  params: z.array(RecipeParam),
+  /** what it changes on the server, one line each, from the header */
+  changes: z.array(z.string()),
+  source: z.enum(['bundled', 'own']),
+  file: z.string(),
+  text: z.string(),
+});
+export type ServerRecipe = z.infer<typeof ServerRecipe>;
+/** one run of a recipe on a server, from the activity */
+export const RecipeRun = z.object({
+  serverId: z.string(),
+  recipe: z.string(),
+  title: z.string(),
+  status: z.enum(['running', 'ok', 'failed']),
+  exitCode: z.number().nullable(),
+  reason: z.string().nullable(),
+  outputTail: z.string(),
+  at: z.string(),
+  endedAt: z.string().nullable(),
+});
+export type RecipeRun = z.infer<typeof RecipeRun>;
 
 /** Whether a deploy to one place can start: every item it needs, checked now; `ok` when every error-severity item is */
 export const DeployReadiness = z.object({ ok: z.boolean(), items: z.array(ReadinessItem), at: z.string() });

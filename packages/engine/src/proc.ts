@@ -24,6 +24,8 @@ export interface GroupOptions {
   killLeftovers?: boolean;
   onStdout?: (chunk: string) => void;
   onStderr?: (chunk: string) => void;
+  /** text written to the command's stdin, then closed (a script for `bash -s`, ADR-0091); default: no stdin */
+  stdin?: string;
 }
 
 const GROUPS = process.platform !== 'win32';
@@ -79,7 +81,16 @@ function reader(stream: ReadableStream<Uint8Array> | null | undefined, onChunk?:
 }
 
 export async function runInGroup(argv: string[], opts: GroupOptions): Promise<GroupResult> {
-  const proc = Bun.spawn(argv, { cwd: opts.cwd, env: opts.env as Record<string, string> | undefined, stdin: 'ignore', stdout: 'pipe', stderr: 'pipe', detached: GROUPS });
+  const proc = Bun.spawn(argv, { cwd: opts.cwd, env: opts.env as Record<string, string> | undefined, stdin: opts.stdin != null ? 'pipe' : 'ignore', stdout: 'pipe', stderr: 'pipe', detached: GROUPS });
+  if (opts.stdin != null && proc.stdin && typeof proc.stdin !== 'number') {
+    const w = proc.stdin as { write: (s: string) => unknown; end: () => unknown };
+    try {
+      w.write(opts.stdin);
+      w.end();
+    } catch {
+      // the command exited before reading: its exit code says what happened
+    }
+  }
   const untrack = track(proc);
   let timedOut = false;
   const timer = setTimeout(() => {

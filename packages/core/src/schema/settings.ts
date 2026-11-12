@@ -151,6 +151,11 @@ export const DeployServer = z.object({
    * socket, a bind mount outside the project folder; off = such a file is refused with the reasons (ADR-0090)
    */
   allowPrivileged: z.boolean().default(false),
+  /**
+   * how the project runs there (ADR-0091): docker = its compose file (or Dockerfile) with docker compose; pm2 = a Node.js
+   * project installed and built on the host and kept running by PM2, as this user, with no isolation
+   */
+  mode: z.enum(['docker', 'pm2']).default('docker'),
 });
 export type DeployServer = z.infer<typeof DeployServer>;
 
