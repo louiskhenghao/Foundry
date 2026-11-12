@@ -27,9 +27,17 @@ test('a coding agent\'s accounts: listed without their homes, made current, swit
     expect(claude.accounts.map((a: any) => [a.id, a.current])).toEqual([['native', true], ['acc_b', false]]);
     // a plan stored as the token's key by an older Foundry is shown as the coding agent names it
     expect(claude.accounts[1].plan).toBe('Max');
-    // each account's own usage as Claude reports it (ADR-0090): a test run reads no sign-in, so it is unavailable, never zero
-    expect(claude.accounts.map((a: any) => a.claudeUsage)).toEqual([{ state: 'unavailable', checkedAt: expect.any(String), message: 'Sign in to Claude Code to read its usage.' }, { state: 'unavailable', checkedAt: expect.any(String), message: 'Sign in to Claude Code to read its usage.' }]);
+    // each account's own usage as Claude reports it (ADR-0090): read on Refresh (force), the last reading otherwise (none yet);
+    // a test run reads no sign-in, so it is unavailable, never zero
+    expect(claude.accounts.map((a: any) => a.claudeUsage)).toEqual([undefined, undefined]);
     expect('agyQuota' in list.find((a: any) => a.provider === 'agy')).toBe(true);
+    const forced = (await json('/api/accounts?force=1')).body.accounts.find((a: any) => a.provider === 'claude').pool;
+    expect(forced.accounts.map((a: any) => a.claudeUsage)).toEqual([{ state: 'unavailable', checkedAt: expect.any(String), message: 'Sign in to Claude Code to read its usage.' }, { state: 'unavailable', checkedAt: expect.any(String), message: 'Sign in to Claude Code to read its usage.' }]);
+    // the page's minute poll: the usage alone, without the sign-ins
+    const polled = (await json('/api/accounts/usage')).body;
+    expect(Object.keys(polled.claude)).toEqual(['native', 'acc_b']);
+    expect(polled.claude.acc_b).toMatchObject({ state: 'unavailable' });
+    expect('agy' in polled).toBe(true);
     const usage = (await json('/api/usage?provider=claude&accounts=1')).body;
     expect(usage.claudeUsage).toMatchObject({ state: 'unavailable' });
     expect(usage.accounts.map((a: any) => [a.id, a.claudeUsage?.state])).toEqual([['native', 'unavailable'], ['acc_b', 'unavailable']]);

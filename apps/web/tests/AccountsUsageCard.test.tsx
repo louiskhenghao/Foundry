@@ -29,7 +29,7 @@ describe('usage per account (ADR-0065, ADR-0090)', () => {
     expect(html.match(/role="meter"/g)).toHaveLength(6);
     // three cards for the current account, inside the Card's own section
     expect(html.match(/<section/g)).toHaveLength(4);
-    expect(html).toContain('usage as of just now');
+    expect(html).toMatch(/usage as of \d+s ago/);
     expect(html).toContain('$4.20 · 3 sessions');
   });
 

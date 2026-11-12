@@ -44,7 +44,7 @@ describe('each account\'s own usage on its row (ADR-0090)', () => {
     expect(html).toContain('bg-work');
     expect(html).toContain('bg-you');
     expect(html).toContain('bg-bad');
-    expect(html).toContain('Usage as of just now');
+    expect(html).toMatch(/Usage as of \d+s ago/);
     // the current account's windows are cards (one section each); the other's are bars on one line
     expect(html.match(/<section/g)).toHaveLength(4);
     expect(html).toContain('No active session');

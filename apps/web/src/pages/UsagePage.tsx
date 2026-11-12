@@ -585,7 +585,7 @@ export function UsagePillView({ usages, minimaxLow = false }: { usages: Partial<
     const u = usages[provider];
     const name = PROVIDER_LABEL[provider];
     if (!u) return `${name} · usage unavailable`;
-    return `${name} · ${u.pausedUntil && Date.parse(u.pausedUntil) > Date.now() ? 'sessions paused · ' : ''}${provider === 'codex' ? codexQuotaSummary(u.codexQuota) : provider === 'agy' ? agyQuotaSummary(u.agyQuota) : u.claudeUsage ? metersSummary(claudeMeters(u.claudeUsage)) : `Foundry activity (5h) ${fmtUsd(u.fiveHour.costUsd)}`}`;
+    return `${name} · ${u.pausedUntil && Date.parse(u.pausedUntil) > Date.now() ? 'sessions paused · ' : ''}${provider === 'codex' ? codexQuotaSummary(u.codexQuota) : provider === 'agy' ? agyQuotaSummary(u.agyQuota) : u.claudeUsage?.state === 'available' ? metersSummary(claudeMeters(u.claudeUsage)) : `Foundry activity (5h) ${fmtUsd(u.fiveHour.costUsd)}`}`;
   });
   const title = [...summaries, ...(minimaxLow ? ['MiniMax quota low'] : []), 'Open Usage to view each coding agent separately.'].join('\n');
   // in the top bar's own colours, as the Inbox beside it; what needs a look is the yellow dot (the guide calls it amber)

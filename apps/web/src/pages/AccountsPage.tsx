@@ -4,10 +4,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Ban, Check, ChevronRight, CircleHelp, LoaderCircle, LogIn, RefreshCw, type LucideIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { api, type AccountInfo, type AccountsInfo, type AgentProvider } from '../api.ts';
-import { AccountMeterBars, asOf } from '../components/AccountMeters.tsx';
+import { AccountMeterBars } from '../components/AccountMeters.tsx';
 import { ProviderMark } from '../components/ProviderMark.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
-import { Button, ConfirmDialog, PageHeader, cn } from '../ui.tsx';
+import { Button, ConfirmDialog, PageHeader, ago, cn } from '../ui.tsx';
 import { AccountPoolList } from './AccountPoolList.tsx';
 
 type State = 'checking' | 'connected' | 'signin' | 'missing' | 'unknown';
@@ -37,20 +37,23 @@ export function AccountsPage() {
   const [error, setError] = useState('');
   const [refreshing, setRefreshing] = useState(true);
   const request = useRef(0);
-  /** `force` reads every sign-in and usage again; without it the engine answers from its minute-old readings, quietly */
-  const load = useCallback(async (force = true) => {
+  /** every sign-in and every account's usage read again: the first load, Refresh status, after an action */
+  const load = useCallback(async () => {
     const id = ++request.current;
-    if (force) setRefreshing(true);
+    setRefreshing(true);
     try {
-      const value = await api.accounts(force);
+      const value = await api.accounts(true);
       if (id === request.current) { setInfo(value); setError(''); }
     } catch (e: any) { if (id === request.current) setError(e.message); }
-    finally { if (force && id === request.current) setRefreshing(false); }
+    finally { if (id === request.current) setRefreshing(false); }
   }, []);
-  // the usage windows move while the page is open: read again every minute, the engine's caches keep it to that (ADR-0090)
+  // the usage windows move while the page is open: every minute each account's usage alone is read again (the engine's
+  // readings, at most a minute old) and laid over what is shown; the sign-ins are not asked again (ADR-0090)
   useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(false), 60_000);
+    const timer = setInterval(() => {
+      void api.accountsUsage().then((usage) => setInfo((prev) => prev && { ...prev, accounts: prev.accounts.map((a) => ({ ...a, ...(a.provider === 'agy' ? { agyQuota: usage.agy } : {}), pool: a.pool && { ...a.pool, accounts: a.pool.accounts.map((p) => ({ ...p, ...(a.provider === 'claude' ? { claudeUsage: usage.claude[p.id] ?? p.claudeUsage } : { codexQuota: usage.codex[p.id] ?? p.codexQuota }) })) } })) })).catch(() => {});
+    }, 60_000);
     return () => { request.current++; clearInterval(timer); };
   }, [load]);
   const signOut = async () => {
@@ -97,7 +100,7 @@ export function AccountsPage() {
               {/* the one account's usage windows as agy reports them (ADR-0090): the models of a group share a weekly limit */}
               <div className="pt-1.5">
                 <AccountMeterBars meters={agyMeters(account?.agyQuota)} expanded />
-                {account?.agyQuota && <p className="mt-1.5 text-[11px] text-ink-faint">Usage as of {asOf(account.agyQuota.checkedAt)} · the models of a group share one weekly limit · Refresh status reads it again</p>}
+                {account?.agyQuota && <p className="mt-1.5 text-[11px] text-ink-faint">Usage as of {ago(account.agyQuota.checkedAt)} · the models of a group share one weekly limit · Refresh status reads it again</p>}
               </div>
             </div>
           : account?.pool && <div className="border-t border-line px-4 sm:px-5 py-4"><AccountPoolList provider={provider} pool={account.pool} installed={account.installed} onChange={load} /></div>}

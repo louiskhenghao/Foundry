@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { exec } from '../git/git.ts';
 import type { ClaudeUsage, ClaudeUsageWindow } from './types.ts';
@@ -11,6 +11,8 @@ import type { ClaudeUsage, ClaudeUsageWindow } from './types.ts';
  */
 export const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const OAUTH_BETA = 'oauth-2025-04-20';
+/** after Claude Code could not renew a token (the sign-in needs the person), no new attempt for this long */
+const REFRESH_BACKOFF_MS = 15 * 60_000;
 
 /** the sign-in Claude Code keeps for a config dir: the bearer its usage is read with, and when it lapses */
 export interface ClaudeCredentials {
@@ -89,7 +91,8 @@ export async function fetchClaudeUsage(token: string, opts: { fetch?: typeof fet
   }
 }
 
-const percent = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : null);
+/** 0–100, said to a tenth: the report's own figure can carry a long tail */
+const percent = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? Math.round(Math.max(0, Math.min(100, v)) * 10) / 10 : null);
 const iso = (v: unknown): string | null => {
   if (typeof v !== 'string') return null;
   const t = Date.parse(v);
@@ -158,6 +161,8 @@ export class ClaudeUsageReader {
   private cached: { at: number; value: ClaudeUsage } | null = null;
   private pending: Promise<ClaudeUsage> | null = null;
   private generation = 0;
+  /** when Claude Code last failed to renew the token: the sign-in needs the person, so no new attempt for a while */
+  private refreshFailedAt: number | null = null;
   constructor(private d: ClaudeUsageReaderDeps) {}
   current(): ClaudeUsage | undefined {
     return this.cached?.value;
@@ -167,11 +172,14 @@ export class ClaudeUsageReader {
     this.generation++;
     this.pending = null;
     this.cached = null;
+    this.refreshFailedAt = null;
   }
   read(force = false): Promise<ClaudeUsage> {
     const now = this.d.now?.() ?? Date.now();
     if (this.pending) return this.pending;
-    if (!force && this.cached && now - this.cached.at < (this.cached.value.state === 'available' ? 60_000 : 15_000)) return Promise.resolve(this.cached.value);
+    // a reading is kept a minute; a sign-in that cannot be read five (it changes only when the person acts); a failure a quarter of a minute
+    const ttl = this.cached?.value.state === 'available' ? 60_000 : this.cached?.value.state === 'unavailable' ? 300_000 : 15_000;
+    if (!force && this.cached && now - this.cached.at < ttl) return Promise.resolve(this.cached.value);
     const generation = this.generation;
     this.pending = this.readOnce(now)
       .then((value) => {
@@ -184,22 +192,39 @@ export class ClaudeUsageReader {
       });
     return this.pending;
   }
-  /** Claude Code refreshes the sign-in's token itself: its own /usage, answered locally, with no model turn */
-  private async refresh(): Promise<void> {
+  /**
+   * Claude Code refreshes the sign-in's token itself: its own /usage, answered locally, with no model turn, run in an
+   * empty folder of its own (Claude Code reads the folder it starts in as a project: its CLAUDE.md, its hooks). The
+   * renewed token, or null when the run left it as it was: then the sign-in needs the person, and no new attempt is
+   * made for a quarter of an hour, so a lapsed account costs one Claude Code run in that time, not one per read.
+   */
+  private async refresh(now: number, before: ClaudeCredentials, credentials: (dir: string | null) => Promise<ClaudeCredentials | null>): Promise<ClaudeCredentials | null> {
     const bin = this.d.bin();
-    if (!bin) return;
-    await (this.d.run ?? exec)([bin, '-p', '/usage', '--output-format', 'json'], homedir(), { timeoutMs: 45_000, env: this.d.env }).catch(() => null);
+    if (!bin || (this.refreshFailedAt !== null && now - this.refreshFailedAt < REFRESH_BACKOFF_MS)) return null;
+    const cwd = mkdtempSync(join(tmpdir(), 'foundry-usage-'));
+    try {
+      await (this.d.run ?? exec)([bin, '-p', '/usage', '--output-format', 'json'], cwd, { timeoutMs: 45_000, env: this.d.env }).catch(() => null);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+    }
+    const after = await credentials(this.d.configDir);
+    const renewed = !!after && after.accessToken !== before.accessToken && !(after.expiresAt !== null && after.expiresAt <= now);
+    this.refreshFailedAt = renewed ? null : now;
+    return renewed ? after : null;
   }
   private async readOnce(now: number): Promise<ClaudeUsage> {
     const checkedAt = new Date(now).toISOString();
     const credentials = this.d.credentials ?? ((dir: string | null) => readClaudeCredentials(dir, { run: this.d.run, envToken: this.d.envToken }));
     let c = await credentials(this.d.configDir);
     if (!c) return { state: 'unavailable', checkedAt, message: 'Sign in to Claude Code to read its usage.' };
+    const lapsed: ClaudeUsage = { state: 'unavailable', checkedAt, message: 'Claude Code’s sign-in has lapsed: run claude once on this account, or sign in again.' };
     let refreshed = false;
     if (c.expiresAt !== null && c.expiresAt <= now) {
-      await this.refresh();
+      // an expired token is never sent: Claude Code renews it, or the sign-in needs the person
       refreshed = true;
-      c = (await credentials(this.d.configDir)) ?? c;
+      const fresh = await this.refresh(now, c, credentials);
+      if (!fresh) return lapsed;
+      c = fresh;
     }
     for (;;) {
       try {
@@ -208,17 +233,14 @@ export class ClaudeUsageReader {
         const err = e instanceof ClaudeUsageReadError ? e : new ClaudeUsageReadError('Claude’s usage could not be read.', 'network');
         if (err.kind === 'auth' && !refreshed) {
           refreshed = true;
-          await this.refresh();
-          const again = await credentials(this.d.configDir);
-          if (again && again.accessToken !== c.accessToken) {
-            c = again;
+          const fresh = await this.refresh(now, c, credentials);
+          if (fresh) {
+            c = fresh;
             continue;
           }
         }
         this.d.log?.(`[usage] Claude usage not read (${err.kind}): ${err.message}`);
-        return err.kind === 'auth'
-          ? { state: 'unavailable', checkedAt, message: 'Claude Code’s sign-in has lapsed: run claude once on this account, or sign in again.' }
-          : { state: 'error', checkedAt, message: err.message };
+        return err.kind === 'auth' ? lapsed : { state: 'error', checkedAt, message: err.message };
       }
     }
   }

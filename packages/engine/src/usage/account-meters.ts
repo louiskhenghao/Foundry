@@ -75,7 +75,7 @@ export function codexMeters(q?: CodexQuota | null): AccountMeters {
 export function agyMeters(q?: AgyQuota | null): AccountMeters {
   if (!q) return UNREAD;
   if (q.state !== 'available') return { state: 'unavailable', checkedAt: q.checkedAt, message: q.error ?? 'agy reported no quota.' };
-  const meters = q.groups.flatMap((g) => g.buckets.map((b) => ({ id: `${g.name}:${b.id || b.name}`, title: g.name, window: b.window === 'weekly' || !b.window ? 'Weekly' : b.window, usedPercent: b.remainingFraction == null ? null : Math.round((1 - b.remainingFraction) * 1000) / 10, resetsAt: b.resetTime, note: null })));
+  const meters = q.groups.flatMap((g) => g.buckets.map((b) => ({ id: `${g.name}:${b.id || b.name}`, title: g.name, window: b.window === 'weekly' || !b.window ? 'Weekly' : b.window, usedPercent: b.remainingFraction == null ? null : clamp(Math.round((1 - b.remainingFraction) * 1000) / 10), resetsAt: b.resetTime, note: null })));
   return { state: 'available', checkedAt: q.checkedAt, meters, note: null };
 }
 

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
+import { homedir, tmpdir } from 'node:os';
 import { ClaudeUsageReader, claudeKeychainService, fetchClaudeUsage, parseClaudeUsage } from './claude-usage.ts';
 
 // what Claude's usage service answered on a real account (2026-11-11), ids removed; the experiment fields it also carries are left out
@@ -25,7 +26,7 @@ describe('Claude’s usage report (ADR-0090)', () => {
 
   test('a session window, extra usage turned on (its cents said in dollars), and the older per-model fields when the limits rows are missing', () => {
     const u = parseClaudeUsage({ five_hour: { utilization: 37.5, resets_at: '2026-11-11T15:00:00Z' }, seven_day: { utilization: 53 }, seven_day_opus: { utilization: 11, resets_at: '2026-11-14T02:00:00Z' }, extra_usage: { is_enabled: true, monthly_limit: 20000, used_credits: 1234, utilization: 6.17, currency: 'USD', decimal_places: 2 } });
-    expect(u).toMatchObject({ state: 'available', fiveHour: { usedPercent: 37.5, resetsAt: '2026-11-11T15:00:00.000Z' }, sevenDay: { usedPercent: 53, resetsAt: null }, models: [{ name: 'Opus', usedPercent: 11 }], extraUsage: { usedPercent: 6.17, used: 12.34, limit: 200, currency: 'USD' } });
+    expect(u).toMatchObject({ state: 'available', fiveHour: { usedPercent: 37.5, resetsAt: '2026-11-11T15:00:00.000Z' }, sevenDay: { usedPercent: 53, resetsAt: null }, models: [{ name: 'Opus', usedPercent: 11 }], extraUsage: { usedPercent: 6.2, used: 12.34, limit: 200, currency: 'USD' } });
   });
 
   test('a report of another shape is an error, one naming no window is unavailable, a figure past 100 is 100: never a report of zero usage', () => {
@@ -34,6 +35,7 @@ describe('Claude’s usage report (ADR-0090)', () => {
     expect(parseClaudeUsage({ five_hour: null, seven_day: null, limits: [] })).toMatchObject({ state: 'unavailable' });
     expect(parseClaudeUsage({ seven_day: { utilization: 250 } })).toMatchObject({ sevenDay: { usedPercent: 100 } });
     expect(parseClaudeUsage({ seven_day: { utilization: 'lots' }, limits: [{ kind: 'weekly_all', percent: 40 }] })).toMatchObject({ sevenDay: { usedPercent: 40, resetsAt: null } });
+    expect(parseClaudeUsage({ seven_day: { utilization: 11.333333333333334 } })).toMatchObject({ sevenDay: { usedPercent: 11.3 } });
   });
 
   test('the Keychain item is Claude Code’s default one without CLAUDE_CONFIG_DIR, and keyed to the dir with it', () => {
@@ -81,7 +83,7 @@ describe('reading one account’s usage', () => {
     const r = new ClaudeUsageReader({
       bin: () => '/bin/claude', configDir: '/home/acc', env, now: () => 1_000_000,
       credentials: async (dir) => { expect(dir).toBe('/home/acc'); return { accessToken: token, expiresAt: token === 'old' ? 999_999 : null }; },
-      run: async (cmd, _cwd, opts) => { runs.push(cmd); expect(opts?.env).toEqual(env); token = 'fresh'; return ok; },
+      run: async (cmd, cwd, opts) => { runs.push(cmd); expect(opts?.env).toEqual(env); expect(cwd.startsWith(tmpdir())).toBe(true); expect(cwd).not.toBe(homedir()); token = 'fresh'; return ok; },
       fetch: service('fresh', calls),
     });
     expect((await r.read()).state).toBe('available');
@@ -140,5 +142,47 @@ describe('reading one account’s usage', () => {
     const u = await r.read();
     expect(u).toMatchObject({ state: 'error', message: 'Claude’s usage service could not be reached.' });
     expect('fiveHour' in u).toBe(false);
+  });
+});
+
+describe('a sign-in Claude Code cannot renew', () => {
+  test('one run of Claude Code, then no new attempt for a quarter of an hour; the lapsed answer is kept five minutes; a changed sign-in starts over', async () => {
+    let now = 1_000_000;
+    let runs = 0;
+    let fetches = 0;
+    const r = new ClaudeUsageReader({ bin: () => '/bin/claude', configDir: '/home/acc', now: () => now, credentials: async () => ({ accessToken: 'expired', expiresAt: 1 }), run: async () => { runs++; return ok; }, fetch: (async () => { fetches++; return Response.json(REPORT); }) as unknown as typeof fetch });
+    expect(await r.read()).toMatchObject({ state: 'unavailable', message: expect.stringContaining('lapsed') });
+    expect(runs).toBe(1);
+    // an expired token is never sent
+    expect(fetches).toBe(0);
+    now += 2 * 60_000;
+    await r.read();
+    expect(runs).toBe(1);
+    // Refresh status asks again, but Claude Code is not run again before the quarter hour is up
+    now += 2 * 60_000;
+    await r.read(true);
+    expect(runs).toBe(1);
+    now += 12 * 60_000;
+    await r.read(true);
+    expect(runs).toBe(2);
+    r.invalidate();
+    await r.read();
+    expect(runs).toBe(3);
+    expect(fetches).toBe(0);
+  });
+
+  test('no sign-in at all is kept five minutes too, and read again when asked', async () => {
+    let now = 0;
+    let asked = 0;
+    const r = new ClaudeUsageReader({ bin: () => null, configDir: null, now: () => now, credentials: async () => { asked++; return null; } });
+    await r.read();
+    now = 4 * 60_000;
+    await r.read();
+    expect(asked).toBe(1);
+    now = 6 * 60_000;
+    await r.read();
+    expect(asked).toBe(2);
+    await r.read(true);
+    expect(asked).toBe(3);
   });
 });

@@ -3,8 +3,8 @@ import type { AccountUsage, AccountWindow } from '@foundry/engine/usage-types';
 import { Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { AgentProvider } from '../api.ts';
-import { BOARD_ROW, Badge, Card, cn, fmtUsd } from '../ui.tsx';
-import { AccountMeterBars, asOf } from './AccountMeters.tsx';
+import { BOARD_ROW, Badge, Card, ago, cn, fmtUsd } from '../ui.tsx';
+import { AccountMeterBars } from './AccountMeters.tsx';
 
 const SIGNAL: Record<string, { label: string; state: string }> = {
   allowed: { label: 'within limit', state: 'pass' },
@@ -49,7 +49,7 @@ export function AccountsUsageCard({ provider, accounts }: { provider: AgentProvi
                   {a.limitedUntil ? <span className="font-semibold text-bad-ink">limited until {new Date(a.limitedUntil).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span> : null}
                   {!a.plan && !a.limitedUntil ? ' ' : null}
                 </div>
-                {usage.state !== 'unread' && <div className="mt-1 text-[11px] text-ink-faint">usage as of {asOf(usage.checkedAt)}</div>}
+                {usage.state !== 'unread' && <div className="mt-1 text-[11px] text-ink-faint">usage as of {ago(usage.checkedAt)}</div>}
               </div>
               <div className="min-w-0 space-y-2">
                 <AccountMeterBars meters={usage} expanded={a.current} />

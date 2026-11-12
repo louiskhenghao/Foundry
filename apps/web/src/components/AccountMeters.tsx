@@ -6,12 +6,6 @@ const BAR: Record<string, string> = { ok: 'bg-work', warn: 'bg-you', bad: 'bg-ba
 const FIGURE: Record<string, string> = { ok: 'text-ink', warn: 'text-you-ink', bad: 'text-bad-ink', unknown: 'text-ink-faint' };
 const pct = (n: number | null) => (n == null ? '—' : `${n.toLocaleString(undefined, { maximumFractionDigits: n < 10 && n > 0 ? 1 : 0 })}%`);
 
-/** "just now", "3 min ago", "2 h ago": how old a reading is */
-export function asOf(iso: string, now = Date.now()): string {
-  const m = Math.max(0, Math.round((now - Date.parse(iso)) / 60_000));
-  return m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.floor(m / 60)} h ago`;
-}
-
 /**
  * One account's usage windows as bars (ADR-0090): compact on a row (a thin bar per window with its figure), or expanded
  * into cards for the current account, each with its reset time. The same component on the Accounts page and on the

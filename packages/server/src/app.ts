@@ -2048,8 +2048,9 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/accounts', async (c) => {
     const force = c.req.query('force') === '1';
     return c.json({ defaultProvider: engine.config.provider, accounts: await Promise.all(AGENT_PROVIDERS.map(async (provider) => {
-      // the Antigravity account's quota beside its status: the one account's usage, as the pooled agents' rows carry theirs (ADR-0090)
-      const [status, agyQuota] = await Promise.all([engine.accounts[provider].status(force), provider === 'agy' ? engine.agyQuota.read(force).catch(() => null) : undefined]);
+      // the Antigravity account's quota beside its status, as the pooled agents' rows carry theirs (ADR-0090): read again
+      // only on Refresh (force); any other caller (the New goal form) gets the last reading at once
+      const [status, agyQuota] = await Promise.all([engine.accounts[provider].status(force), provider === 'agy' ? (force ? engine.agyQuota.read(true).catch(() => null) : engine.agyQuota.current()) : undefined]);
       return {
         provider, status, agyQuota,
         installed: !!(provider === 'codex' ? engine.config.codexBin ?? Bun.which('codex') : provider === 'agy' ? engine.config.agyBin ?? Bun.which('agy') : engine.config.claudeBin ?? Bun.which('claude')),
@@ -2058,8 +2059,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
         pool: isPooled(provider) ? await (async () => {
           // each account's sign-in read first: the views then carry the plan it reports now, not the one stored when it was added
           const statuses = new Map(await Promise.all(engine.accountPool.views(provider).map(async (a) => [a.id, a.id === NATIVE_ACCOUNT ? status : await engine.accountPool.auth(provider, a.id).status(force).catch(() => null)] as const)));
-          // and each account's own usage (ADR-0090): Claude's from its usage report, Codex's from its quota; the page's Refresh reads them again
-          const usage = new Map(await Promise.all(engine.accountPool.views(provider).map(async (a) => [a.id, provider === 'claude' ? await engine.accountPool.claudeUsage(a.id, engine.claudeUsage).read(force).catch(() => undefined) : await engine.accountPool.codexQuota(a.id, engine.codexQuota).read(force).catch(() => undefined)] as const)));
+          // and each account's own usage (ADR-0090): Claude's from its usage report, Codex's from its quota, read again on Refresh
+          const usage = new Map(await Promise.all(engine.accountPool.views(provider).map(async (a) => {
+            const reader = provider === 'claude' ? engine.accountPool.claudeUsage(a.id, engine.claudeUsage) : engine.accountPool.codexQuota(a.id, engine.codexQuota);
+            return [a.id, force ? await reader.read(true).catch(() => undefined) : reader.current()] as const;
+          })));
           return {
             autoSwitch: engine.config.autoSwitch[provider],
             accounts: engine.accountPool.views(provider).map(({ home: _home, provider: _p, ...a }) => ({ ...a, status: statuses.get(a.id) ?? null, ...(provider === 'claude' ? { claudeUsage: usage.get(a.id) } : { codexQuota: usage.get(a.id) }) })),
@@ -2067,6 +2071,16 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
         })() : undefined,
       };
     })) });
+  });
+  // each account's own usage alone, from readings at most a minute old: what the Accounts page reads again every minute
+  // while it is open, without asking the sign-ins again (ADR-0090)
+  app.get('/api/accounts/usage', async (c) => {
+    const [claude, codex, agy] = await Promise.all([
+      Promise.all(engine.accountPool.list('claude').map(async (a) => [a.id, await engine.accountPool.claudeUsage(a.id, engine.claudeUsage).read().catch(() => undefined)] as const)),
+      Promise.all(engine.accountPool.list('codex').map(async (a) => [a.id, await engine.accountPool.codexQuota(a.id, engine.codexQuota).read().catch(() => undefined)] as const)),
+      engine.agyQuota.read().catch(() => null),
+    ]);
+    return c.json({ claude: Object.fromEntries(claude), codex: Object.fromEntries(codex), agy });
   });
   // a coding agent's other accounts (ADR-0065): their sign-ins run in their own homes, so none is refused while work runs,
   // except removing the account sessions run on

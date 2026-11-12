@@ -1620,10 +1620,12 @@ export class Engine {
         })
         .catch(() => {});
     // a Claude limit the session reported without a reset: the account's own usage says when the used-up window comes back (ADR-0090)
-    if (provider === 'claude' && accountLimit && byStatus === null)
-      void this.accountPool
-        .claudeUsage(accountId, this.claudeUsage)
-        .read(true)
+    if (provider === 'claude' && accountLimit && byStatus === null) {
+      // a reading taken since the limit hit serves a burst of sessions; an older one is read again
+      const reader = this.accountPool.claudeUsage(accountId, this.claudeUsage);
+      const last = reader.current();
+      void reader
+        .read(!last || Date.now() - Date.parse(last.checkedAt) > 10_000)
         .then((u) => {
           const reset = claudeResumeAt(u, Date.now());
           if (!reset) return;
@@ -1631,6 +1633,7 @@ export class Engine {
           if (this.isRateLimited('claude')) this.pauseUntil(this.config.autoSwitch.claude ? (this.accountPool.earliestReset('claude') ?? reset) : reset, 'claude-usage', 'Claude usage window used up', 'claude');
         })
         .catch(() => {});
+    }
   }
 
   /**

@@ -613,7 +613,7 @@ switch (cmd) {
       if (m.state === 'unread') return console.log(`${indent}usage not read yet`);
       if (m.state !== 'available') return console.log(`${indent}usage unavailable: ${m.message}`);
       if (!m.meters.length) console.log(`${indent}no usage window reported`);
-      for (const x of m.meters) console.log(`${indent}${x.title} (${x.window}): ${x.usedPercent == null ? 'usage unknown' : `${x.usedPercent}% used`}${x.resetsAt ? ` · resets ${new Date(x.resetsAt).toLocaleString()}` : ''}${x.note ? ` · ${x.note}` : ''}`);
+      for (const x of m.meters) console.log(`${indent}${x.title} (${x.window}): ${x.usedPercent == null ? 'usage unknown' : `${Math.round(x.usedPercent * 10) / 10}% used`}${x.resetsAt ? ` · resets ${new Date(x.resetsAt).toLocaleString()}` : ''}${x.note ? ` · ${x.note}` : ''}`);
       if (m.note) console.log(`${indent}${m.note}`);
     };
     const accounts: any[] = u.accounts ?? [];

@@ -352,6 +352,8 @@ export interface PoolAccount { id: string; email: string | null; orgName: string
 export interface AccountPoolInfo { autoSwitch: boolean; accounts: PoolAccount[] }
 export interface AccountInfo { provider: AgentProvider; installed: boolean; status: ClaudeAuthStatus; capabilities: { dollarCosts: boolean; skillTelemetry: boolean; nativeSubagents: boolean; managedMcp: boolean; externalSessions: boolean }; pool?: AccountPoolInfo; /** the one Antigravity account's quota (ADR-0090) */ agyQuota?: AgyQuota | null }
 export interface AccountsInfo { defaultProvider: AgentProvider; accounts: AccountInfo[] }
+/** each account's own usage alone (ADR-0090): what the Accounts page reads again while it is open */
+export interface AccountsUsage { claude: Record<string, ClaudeUsage | undefined>; codex: Record<string, CodexQuota | undefined>; agy: AgyQuota | null }
 export interface AuthInfo {
   provider: AgentProvider;
   status: ClaudeAuthStatus;
@@ -972,6 +974,7 @@ export function apiForProvider(provider?: AgentProvider) {
   dataDirDismiss: () => req<{ ok: true }>('/api/data-dir/notice/dismiss', { method: 'POST' }),
   engineRestart: () => req<{ started: true }>('/api/engine/restart', { method: 'POST' }),
   accounts: (force = false) => req<AccountsInfo>(`/api/accounts?force=${force ? '1' : '0'}`),
+  accountsUsage: () => req<AccountsUsage>('/api/accounts/usage'),
   auth: (force = false, provider?: AgentProvider) => req<AuthInfo>(`/api/auth?force=${force ? '1' : '0'}${provider ? '&provider=' + provider : ''}`),
   startLogin: (body: { email?: string }, provider?: AgentProvider) => req<LoginSession>(`/api/auth/login${provider ? '?provider=' + provider : ''}`, { method: 'POST', body: JSON.stringify(body) }),
   loginSession: (provider?: AgentProvider) => req<LoginSession | null>(`/api/auth/login${provider ? '?provider=' + provider : ''}`),

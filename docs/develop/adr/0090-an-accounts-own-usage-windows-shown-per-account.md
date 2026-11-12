@@ -42,15 +42,20 @@ The facts behind the Claude figures, verified on 2026-11-11 (Claude Code 2.1.312
   alone renews the token.** The reader takes the token from where Claude Code keeps it (the Keychain through the
   `security` tool, which Claude Code wrote the item with, so no prompt; else the credentials file; a token in the
   environment first, as for Claude Code) and never writes it, logs it or sends it anywhere but that one endpoint.
-  When the token has expired, or the service refuses it, the reader runs Claude Code's own `/usage` once in that
-  account's home and reads again; it never implements the refresh itself (refresh tokens rotate, and racing the CLI
-  could sign the account out). Only `five_hour`, `seven_day`, `limits[]` and `extra_usage` are read; the experiment
-  fields are left alone.
+  When the token has expired, or the service refuses it, the reader runs Claude Code's own `/usage` once with that
+  account's config dir, in an empty folder of its own (Claude Code reads the folder it starts in as a project), and
+  reads again; an expired token is never sent. It never implements the refresh itself (refresh tokens rotate, and
+  racing the CLI could sign the account out). A run that leaves the token as it was means the sign-in needs the
+  person: the row says so, and no new run is made for a quarter of an hour, so a lapsed account costs one Claude Code
+  run in that time rather than one per poll. Only `five_hour`, `seven_day`, `limits[]` and `extra_usage` are read; the
+  experiment fields are left alone.
 - **The report is read when asked and kept a minute, never polled by the engine.** The Accounts page reads every
-  account when it opens, every minute while it is open, and on **Refresh status**; the Usage page's Accounts card
-  asks for every account (`/api/usage?accounts=1`); the top bar's poll reads the current account alone. Each reading
-  is kept in memory for a minute (a quarter of that after a failure), so an account is asked at most once a minute
-  whatever asks. Nothing is stored: no table, no event.
+  account and sign-in when it opens and on **Refresh status** (`/api/accounts?force=1`); every minute while it is
+  open it reads the usage alone (`/api/accounts/usage`), not the sign-ins; any other caller of `/api/accounts` (the
+  New goal form) gets the last reading at once. The Usage page's Accounts card asks for every account
+  (`/api/usage?accounts=1`); the top bar's poll reads the current account alone. Each reading is kept in memory for a
+  minute (five when the sign-in cannot be read, a quarter of one after a failure), so an account is asked at most
+  once a minute whatever asks. Nothing is stored: no table, no event.
 - **The figures inform; they never switch accounts early.** Auto switch keeps ADR-0065's rule (only after a real
   rejection, the next account in list order). The one thing they decide is how long a pause lasts: when a session's
   limit comes without a reset time, the account's own report says when its used-up window resets, as Codex's quota
