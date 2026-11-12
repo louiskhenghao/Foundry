@@ -1,6 +1,22 @@
 import { ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
 import type { ReactNode } from 'react';
+import type { SimpleIcon } from 'simple-icons';
 import { cn } from '../../ui.tsx';
+
+/** a brand's logo from Simple Icons (CC0): its path on a 24-unit square, drawn in the colour the tile asks for */
+export function BrandLogo({ icon, size = 16 }: { icon: SimpleIcon; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" role="img" aria-label={icon.title} fill="currentColor">
+      <path d={icon.path} />
+    </svg>
+  );
+}
+/** white or near-black on the brand's colour, whichever reads */
+const onBrand = (hex: string) => {
+  const n = parseInt(hex, 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.6 ? '#111111' : '#ffffff';
+};
 
 /** whether a place's credentials are in: all of what it needs, some of it, or none */
 export type PlaceStatus = 'set' | 'partial' | 'unset';
@@ -13,11 +29,13 @@ const WORDS: Record<PlaceStatus, string> = { set: 'Set up', partial: 'Partly set
  * up on the closed card; its fields, each with where the value comes from, once opened. One place, one card, so the
  * fields of two places never sit on one line.
  */
-export function PlaceCard({ id, icon, name, tagline, status, open, onToggle, where, children }: { id: string; icon: ReactNode; name: string; /** one line on what the place is for */ tagline: string; status: PlaceStatus; open: boolean; onToggle: () => void; /** the pages the values come from, with what to do there */ where?: { label: string; href: string; note: string }[]; children: ReactNode }) {
+export function PlaceCard({ id, logo, name, tagline, status, open, onToggle, where, children }: { id: string; /** the place's own logo, on a tile of its brand colour */ logo: SimpleIcon; name: string; /** one line on what the place is for */ tagline: string; status: PlaceStatus; open: boolean; onToggle: () => void; /** the pages the values come from, with what to do there */ where?: { label: string; href: string; note: string }[]; children: ReactNode }) {
   return (
     <div className={cn('rounded-lg border bg-surface', open ? 'border-line-strong' : 'border-line')} data-place={id}>
       <button type="button" aria-expanded={open} aria-controls={`place-${id}`} onClick={onToggle} className="flex w-full items-center gap-3 px-3 py-2.5 text-left">
-        <span className={cn('grid size-8 shrink-0 place-items-center rounded-md ring-1 ring-inset', status === 'set' ? 'bg-ok/10 text-ok-ink ring-ok/30' : 'bg-sunken text-ink-soft ring-line')}>{icon}</span>
+        <span className="grid size-8 shrink-0 place-items-center rounded-md ring-1 ring-inset ring-black/10" style={{ background: `#${logo.hex}`, color: onBrand(logo.hex) }} title={logo.title}>
+          <BrandLogo icon={logo} />
+        </span>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-bold text-ink">{name}</span>
           <span className="block text-[11px] text-ink-faint">{tagline}</span>
