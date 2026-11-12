@@ -924,3 +924,32 @@ describe('the goal\'s own Design pack and the design mark (ADR-0092)', () => {
     await Bun.sleep(150);
   }, 20_000);
 });
+
+describe('a design link no session can open (ADR-0092)', () => {
+  test('the Clarifier is told the link is unreadable and not to ask or pretend; not when a design is attached', async () => {
+    const { stageFile } = await import('./attachments.ts');
+    const skeleton: BriefSkeleton = { title: 'feat(site): landing page', understanding: 'One page.', nature: 'code', areas: [areas[0]!], assumptions: [], openQuestions: [], styleOptions: [], run: null, apps: null, goalChecks: [{ key: 'G1', name: 'G1', tier: 'must', areaKey: null, type: 'command', cmd: 'true', rubric: null }], planningNotes: 'notes' };
+    const runner = new StructuredRunner((_spec, n) => (n % 2 === 1 ? skeleton : { tasks: [task('T1', 'A1', 'build page')], checks: [check('C1', 'T1')], costEstimateUsd: 1, timeEstimateMin: 5 }));
+    const engine = track(new Engine(cfg(), runner));
+    const linked = await engine.createGoal({ prompt: 'Build it as designed: https://claude.ai/artifact/abc#page-1', repoPath: repo, nature: 'code', interviewDepth: 0 });
+    await waitFor(() => getGoal(engine.store.db, linked.id)!.state === 'awaiting_brief_approval');
+    const clarify = runner.calls.filter((c) => c.label?.startsWith('clarify')).at(-1)!.prompt;
+    expect(clarify).toContain('# A design link no session can open');
+    expect(clarify).toContain('https://claude.ai/artifact/abc#page-1');
+    expect(clarify).toContain('neither you nor any worker can open it');
+    expect(clarify).toContain('do not offer to proceed as though it will be read');
+    expect(clarify).toContain('# Style directions for UI goals');
+    const brief = getBrief(engine.store.db, linked.id)!.brief;
+    expect(brief.questions.some((q) => q.blocking && q.text.includes('https://claude.ai/artifact/abc#page-1'))).toBe(true);
+    // the design attached beside the link: the section is gone, the design is supplied
+    const staged = stageFile(dataDir, { name: 'home.png', mime: 'image/png', bytes: new Uint8Array(16) });
+    const withDesign = await engine.createGoal({ prompt: 'Build it as designed: https://claude.ai/artifact/abc#page-1', repoPath: repo, nature: 'code', interviewDepth: 0, attachments: [{ ...staged, design: true }] });
+    await waitFor(() => getGoal(engine.store.db, withDesign.id)!.state === 'awaiting_brief_approval');
+    const second = runner.calls.filter((c) => c.label?.startsWith('clarify')).at(-1)!.prompt;
+    expect(second).not.toContain('# A design link no session can open');
+    expect(second).toContain('# The design is supplied');
+    engine.cancelGoal(linked.id);
+    engine.cancelGoal(withDesign.id);
+    await Bun.sleep(150);
+  }, 30_000);
+});

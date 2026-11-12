@@ -690,6 +690,20 @@ The person attached the design the result follows (see *Design reference* below)
 - Treat the design as the answer to every question about the look; ask only about what it leaves open.
 - A marked file that is plainly not a design of the result (a screenshot of a bug, a photo of a thing, a logo) is a reference, not the design: say so in \`understanding\`, derive no style card from it, add no "Matches the design" check for it, and plan the goal as one without a design.`;
 
+/**
+ * The goal points to a design-tool page behind a sign-in and no design is attached (ADR-0092): the Clarifier is told so
+ * outright, so it neither spends an interview round on it (the Brief itself asks the person for an export) nor invents a
+ * way the workers would read it — a live run offered "Foundry hands the artifact to every task, proceed as is".
+ */
+function unreadableLinkSection(goal: Pick<Goal, 'prompt' | 'attachments'>): string {
+  if (designSupplied(goal)) return '';
+  const links = unreadableDesignLinks(goal);
+  if (!links.length) return '';
+  return `# A design link no session can open
+${links.map(({ url, tool }) => `- ${url} is a ${tool} page.`).join('\n')}
+Such a page needs a sign-in: neither you nor any worker can open it, and no tool, fetch or browser will. The design behind it has NOT been supplied. Do not ask the person about it in an interview round, and do not offer to proceed as though it will be read: the Brief itself asks the person for an export (an HTML file, a zip or screenshots attached as the Design reference) or to go without. Write the Brief as for a goal without a design: say in \`understanding\` that the design was not supplied, propose \`styleOptions\` as usual, and plan the pages from the goal's words.`;
+}
+
 /** the planner's rules when the design is supplied (ADR-0092): a task per page it shows, each naming its file and checked against it */
 const DESIGN_SUPPLIED_PLANNER = `# The design is supplied
 The design reference below is the law for every page it shows. Give every page or screen in the Clarifier's **Design inventory** a task of its own (or a clearly named part of one): the task's spec names the design file it follows and what that page shows, and the task gets a task-level reviewer check named "Matches the design: <page>" whose rubric names the file and what must match (layout and sections, copy, colours, type, spacing, components, states). A state the design does not show follows the Brief's assumptions. A milestone's text names the design page to compare with.`;
@@ -849,6 +863,7 @@ function buildClarifyPrompt(goal: Goal, overview: string | null, skillsHint: str
     previous,
     goal.references.length ? `${renderReferences(goal)}\nGround the Brief in the report: what the reference does becomes the understanding and the acceptance checks, in the person's words. A goal that only asks to understand the reference, not to change this repository, is of nature research: its deliverable is the report under docs/, and its tasks analyse rather than build. Never plan copying the reference's code or assets.` : '',
     natureSection(goal, emptyRepo, imageGen, cadAvailable, figure, diagram, deck),
+    unreadableLinkSection(goal),
     attachments ? `${attachments}\nWhen an attachment matters for a specific task, name it (by file name) in that task's spec.` : '',
     overview ? `# Repository overview\n${overview}` : '',
     renderCompanions(goal),
