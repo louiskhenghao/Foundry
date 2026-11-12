@@ -25,6 +25,16 @@ describe('what a Transfer carries of the settings', () => {
   test('Keys & secrets are the credential leaves that hold a value', () => {
     expect(secretSettings(file)).toEqual({ 'tools.openaiApiKey': 'sk-secret-123456', 'notifications.telegramBotToken': 'tok' });
   });
+
+  test('the servers travel as Settings without their SSH keys; each key is a secret of its own, named by the server (ADR-0090)', () => {
+    const servers = [
+      { id: 's1', name: 'box', host: 'h', port: 22, user: 'deploy', privateKey: 'KEY-ONE', dir: '~/apps', publicUrl: null },
+      { id: 's2', name: 'other', host: 'o', port: 22, user: 'root', privateKey: null, dir: '~/foundry', publicUrl: 'https://o.example' },
+    ];
+    const withServers = { ...(file as object), delivery: { servers, vercelToken: 'vcp-secret-1234' } } as never;
+    expect(transferableSettings(withServers).delivery).toEqual({ servers: [{ ...servers[0]!, privateKey: null }, servers[1]!] });
+    expect(secretSettings(withServers)).toEqual({ 'tools.openaiApiKey': 'sk-secret-123456', 'notifications.telegramBotToken': 'tok', 'delivery.vercelToken': 'vcp-secret-1234', 'delivery.servers.s1.privateKey': 'KEY-ONE' });
+  });
 });
 
 test('a manifest from a later minor format still parses: unknown fields are ignored, missing ones defaulted', () => {

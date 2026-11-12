@@ -114,7 +114,8 @@ import { DiscordBot } from './notify/discord-bot.ts';
 import { endedForLearning, learnFromGoal, learnOnEnd, learningWork, learningsOf, setLearnings } from './learnings.ts';
 import { Memory, memorySessionEnv, type MemoryDeps } from './memory/memory.ts';
 import { Conversations } from './conversation/conversations.ts';
-import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployWork, deploying, goalDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
+import { DEPLOYABLE_STATES, type DeployRequest, deployCredentials, deployName, deployReadiness, deployServers, deployWork, deploying, goalDeployability, goalServerDeployability, npxCli, smokeAgain, smoking, startDeploy, unsupported } from './deploy/deploy.ts';
+import { serverSteps } from './deploy/server.ts';
 import { type RevertInfo, type RevertRequest, revertInfo, revertWork, startRevert } from './delivery/revert.ts';
 import { buildReport } from './reports.ts';
 import { deliverCompanions } from './companions.ts';
@@ -131,7 +132,7 @@ import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps
 import { artifactsDue, deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import { stuckCommits, takeBackOrphaned, takeBackStuck } from './take-back.ts';
 import { cadModelIn, recoverOverlays } from './goal-artifacts.ts';
-import type { Learning, SettingsPatch, SettingsView, DeployProvider } from '@foundry/core';
+import type { Learning, SettingsPatch, SettingsView, DeployProvider, DeployHostProvider, DeployReadiness } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -433,7 +434,9 @@ export class Engine {
   /** test seam: deps handed to runGraphRefresh (fake which/exec) */
   graphRefreshDeps: GraphRefreshDeps = {};
   /** how a host's CLI is run for Deploy (ADR-0041); tests point it at stand-ins */
-  deployCli: (p: DeployProvider) => string[] = npxCli;
+  deployCli: (p: DeployHostProvider) => string[] = npxCli;
+  /** how a server is reached for Deploy (ADR-0090): `ssh` from the PATH; tests point it at a stand-in */
+  deploySsh: string[] = ['ssh'];
 
   constructor(
     public readonly config: EngineConfig,
@@ -3287,23 +3290,45 @@ export class Engine {
   revertInfo(goalId: string): RevertInfo {
     return revertInfo(this, this.mustGoal(goalId));
   }
-  /** what Deploy can do for a goal now: whether its code is a web app, which hosts are set up and take it, the commands, the deploys so far */
-  deployInfo(goalId: string, provider?: DeployProvider, production = false) {
+  /**
+   * what Deploy can do for a goal now: whether its code is a web app (for the hosts) and what a server would run (its
+   * compose file or Dockerfile, ADR-0090), which hosts are set up and take it, the servers in Settings, the exact
+   * commands of the chosen place, the deploys so far
+   */
+  deployInfo(goalId: string, provider?: DeployProvider, production = false, target?: string | null) {
     const goal = this.mustGoal(goalId);
     const app = goalDeployability(this, goal);
+    const server = goalServerDeployability(this, goal);
     const c = deployCredentials(this);
+    const servers = deployServers(this);
+    const chosen = provider === 'server' ? servers.find((s) => s.id === target) : undefined;
+    const name = deployName(goal);
+    const plan =
+      provider && provider !== 'server' && app.ok
+        ? deploySteps({ provider, cwd: `<deploy folder>/${app.app.dir}`.replace(/\/$/, ''), kind: app.app.kind, name, production, branch: goal.branch.replace(/[^A-Za-z0-9-]+/g, '-').slice(0, 28), productionBranch: goal.baseBranch, install: app.app.install, build: app.app.build, outputDir: app.app.outputDir, message: `${goal.title} (Foundry)`, credentials: c, cli: this.deployCli }).map((s) => ({ label: s.label, command: redact(s.argv.join(' '), c) }))
+        : chosen && server.ok
+          ? serverSteps({ server: chosen, name, checkout: '<deploy folder>', keyFile: '<key file>', knownHosts: '<known hosts>', file: server.app.file, ssh: this.deploySsh }).map((s) => ({ label: s.label, command: s.argv.join(' ') }))
+          : [];
     return {
       app,
+      server,
       finished: DEPLOYABLE_STATES.has(goal.state),
       running: deploying(goalId),
       smoking: smoking(goalId),
       // the smoke a deploy can have (ADR-0058): the goal's milestone scripts
       smoke: { scripts: smokeScripts(this, goalId).map((s) => s.script) },
-      providers: DEPLOY_PROVIDERS.map((id) => ({ id, label: PROVIDER_LABEL[id], configured: configured(id, c), refused: unsupported(id, app) })),
-      // the exact commands a deploy runs, tokens left out: nothing else runs
-      plan: provider && app.ok ? deploySteps({ provider, cwd: `<deploy folder>/${app.app.dir}`.replace(/\/$/, ''), kind: app.app.kind, name: deployName(goal), production, branch: goal.branch.replace(/[^A-Za-z0-9-]+/g, '-').slice(0, 28), productionBranch: goal.baseBranch, install: app.app.install, build: app.app.build, outputDir: app.app.outputDir, message: `${goal.title} (Foundry)`, credentials: c, cli: this.deployCli }).map((s) => ({ label: s.label, command: redact(s.argv.join(' '), c) })) : [],
+      providers: [
+        ...DEPLOY_PROVIDERS.map((id) => ({ id: id as DeployProvider, target: null as string | null, kind: 'host' as const, label: PROVIDER_LABEL[id], configured: configured(id, c), refused: unsupported(id, app) })),
+        ...servers.map((s) => ({ id: 'server' as DeployProvider, target: s.id, kind: 'server' as const, label: s.name, configured: !!s.privateKey, refused: server.ok ? null : server.reason })),
+      ],
+      // the exact commands a deploy runs, tokens and the key file left out: nothing else runs
+      plan,
       deployments: goal.deployments ?? [],
     };
+  }
+  /** whether a deploy to one place can start (ADR-0090): the host's token, or the server tried over SSH now */
+  deployReadiness(provider: DeployProvider, target?: string | null): Promise<DeployReadiness> {
+    return deployReadiness(this, provider, target);
   }
 
   /** Prefill and start point for a Follow-up of this goal (the New goal form, `goal new --follows`). */

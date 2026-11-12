@@ -93,6 +93,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'delivery.netlifyTeam': { section: 'Git & delivery', help: 'The slug of the Netlify team a new site is made in (the part after app.netlify.com/teams/, not its name); empty = the token’s default team.' },
   'delivery.cloudflareToken': { section: 'Git & delivery', help: 'A Cloudflare API token (Cloudflare Pages: Edit) for Deploy. Kept by the engine only.' },
   'delivery.cloudflareAccountId': { section: 'Git & delivery', help: 'The Cloudflare account the Pages projects are in (with the token above).' },
+  'delivery.servers': { section: 'Git & delivery', help: 'Servers of your own that Deploy reaches over SSH (a list: id, name, host, port, user, privateKey, dir, publicUrl). A goal with a compose file or a Dockerfile is copied there and started with docker compose. Each private key is kept by the engine only: never handed to a coding session, written to a file only while a deploy runs.' },
   // Tools & keys
   'tools.useGraphify': { section: 'Tools & keys', help: 'Use the graphify code graph for relevant-file discovery when installed.' },
   'tools.markitdownBin': { section: 'Tools & keys', help: 'Path to markitdown (converts attachments to markdown); empty = auto-detect.' },
