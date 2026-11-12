@@ -694,6 +694,7 @@ export function apiForProvider(provider?: AgentProvider) {
   deployInfo: (goalId: string, provider?: DeployHost | null, production = false, target?: string | null) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}${target ? `target=${encodeURIComponent(target)}&` : ''}production=${production ? 1 : 0}`),
   deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean, target?: string | null) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, target: target ?? null, production, smoke }) }),
   /** the readiness check (ADR-0091): whether a deploy to this place can start, tried now */
+  deployStoreCheck: (goalId: string) => req<{ changed: number; deployments: Deployment[] }>(`/api/goals/${goalId}/deploy/store-check`, { method: 'POST' }),
   deployReadiness: (goalId: string, provider: DeployHost, target?: string | null) => req<DeployReadiness>(`/api/goals/${goalId}/deploy/readiness?provider=${provider}${target ? `&target=${encodeURIComponent(target)}` : ''}`),
   /** the runtime variables of a deploy (ADR-0093): a place's set for the goal's repository, names only */
   deployEnv: (goalId: string, place: string) => req<DeployEnvView>(`/api/goals/${goalId}/deploy/env?place=${encodeURIComponent(place)}`),
@@ -1138,15 +1139,17 @@ export interface MapResult {
 export const api = apiForProvider();
 
 /** where a goal is deployed: a web host, or `server` (one of the servers in Settings, named by `target`) */
-export type DeployHost = 'vercel' | 'netlify' | 'cloudflare' | 'server' | 'fly' | 'railway' | 'render';
+export type DeployHost = 'vercel' | 'netlify' | 'cloudflare' | 'server' | 'fly' | 'railway' | 'render' | 'appstore' | 'play';
 /** the platforms (ADR-0093): the whole project, a preview beside production */
 export type PaasId = 'fly' | 'railway' | 'render';
+/** the stores (ADR-0094): an Expo app built on EAS, to TestFlight or Google Play */
+export type StoreId = 'appstore' | 'play';
 /** one place the Deploy card offers: a host, or a server from Settings (ADR-0091) */
 export interface DeployPlace {
   id: DeployHost;
   /** the server's id when `id` is `server` */
   target: string | null;
-  kind: 'host' | 'server' | 'paas';
+  kind: 'host' | 'server' | 'paas' | 'store';
   label: string;
   /** the host's or platform's token, or the server's key, is in Settings */
   configured: boolean;
@@ -1197,6 +1200,8 @@ export interface RevertInfo {
   open: DeliveryRevert | null;
 }
 
+/** what a store would build (ADR-0094): the Expo app and the ids the stores want, or why nothing */
+export type ExpoDeployability = { ok: true; app: { dir: string; name: string | null; slug: string | null; projectId: string | null; owner: string | null; bundleId: string | null; package: string | null; version: string | null; configFile: string; dynamic: boolean; install: string[] }; notes: string[] } | { ok: false; reason: string };
 /** what a platform would run (ADR-0093): the Dockerfile, or the stack it builds itself, or why nothing */
 export type PaasDeployability = { ok: true; app: { dir: string; runtime: 'docker' | 'node' | 'python' | 'go' | 'ruby' | 'rust' | 'elixir'; port: number | null; build: string | null; start: string | null; from: string }; notes: string[] } | { ok: false; reason: string };
 export interface DeployInfo {
@@ -1206,6 +1211,8 @@ export interface DeployInfo {
   server: ServerDeployability;
   /** what each platform would run (ADR-0093) */
   paas: Record<PaasId, PaasDeployability>;
+  /** what each store would build (ADR-0094) */
+  stores: Record<StoreId, ExpoDeployability>;
   finished: boolean;
   running: boolean;
   /** a Smoke again runs (ADR-0058) */

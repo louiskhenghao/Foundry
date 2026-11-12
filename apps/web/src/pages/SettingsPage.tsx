@@ -21,7 +21,7 @@ import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { AccessCard } from './settings/AccessCard.tsx';
 import { DataDirNoticeBanner, DataFolder, RestartNowButton } from './settings/DataFolder.tsx';
 import { DeployServers } from './settings/DeployServers.tsx';
-import { Button, Card, CopyButton, Empty, Field, Input, Loading, PageHeader, Select, cn } from '../ui.tsx';
+import { Button, Card, CopyButton, Empty, Field, Input, Loading, PageHeader, Select, Textarea, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
 import { AppearanceCard } from './settings/AppearanceCard.tsx';
 import { INTERVIEW_DEPTHS } from '../interview-depth.ts';
@@ -264,6 +264,12 @@ export function SettingsPage() {
     // a value from the environment is not "saved": say where it comes from, like the badge beside it
     const from = view.meta[path]?.source === 'env' ? `from ${view.meta[path]?.env}` : 'saved';
     return <Input type="password" autoComplete="off" value={(get(draft, path) as string | null) ?? ''} placeholder={saved?.set ? `${from}: ${saved.hint} — type to replace` : placeholder} onChange={(e) => set(path, e.target.value === '' ? null : e.target.value)} />;
+  };
+  // a secret that is a file's contents (a .p8 key, a service account's JSON): several lines, never shown back once saved
+  const secretText = (path: Leaf, placeholder: string) => {
+    const saved = view.secrets[path];
+    const from = view.meta[path]?.source === 'env' ? `from ${view.meta[path]?.env}` : 'saved';
+    return <Textarea rows={3} className="mono text-[11px]" autoComplete="off" spellCheck={false} value={(get(draft, path) as string | null) ?? ''} placeholder={saved?.set ? `${from}: ${saved.hint} — paste to replace` : placeholder} onChange={(e) => set(path, e.target.value === '' ? null : e.target.value)} />;
   };
   const aside = (path: Leaf) => (
     <>
@@ -743,6 +749,29 @@ export function SettingsPage() {
               )}
             </div>
             <div className="pt-1 space-y-2">
+              <div className="text-sm font-bold text-ink">Stores — an Expo app to TestFlight and Google Play</div>
+              <p className="text-[11px] text-ink-faint">An Expo app is built in the cloud by EAS from Foundry's checkout and handed to the store: iOS to App Store Connect, where it lands in TestFlight (production is the one you then submit for review there; Foundry never submits for review), Android as an APK to install for a preview or to Google Play's production track for production. EAS holds the signing; Foundry never sees a certificate or a keystore. The card follows an iOS build through processing, TestFlight, review and release, and tells you at each step.</p>
+              {grid(
+                <>
+                  <Field label="Expo token" aside={aside('delivery.expoToken')} help="expo.dev → Account settings → Access tokens. Every EAS command runs with it.">
+                    {secret('delivery.expoToken', 'token')}
+                  </Field>
+                  <Field label="App Store Connect key id" aside={aside('delivery.ascKeyId')} help="App Store Connect → Users and Access → Integrations → App Store Connect API: a key with the App Manager role; its Key ID.">
+                    {text('delivery.ascKeyId', 'ABC123DEFG', true)}
+                  </Field>
+                  <Field label="App Store Connect issuer id" aside={aside('delivery.ascIssuerId')} help="On the same page, above the keys.">
+                    {text('delivery.ascIssuerId', '12345678-aaaa-bbbb-cccc-1234567890ab', true)}
+                  </Field>
+                  <Field label="App Store Connect key (.p8)" aside={aside('delivery.ascKey')} help="The contents of the downloaded AuthKey_….p8 file. Used for the upload to TestFlight and to read where a build stands; written to a file only while a command runs.">
+                    {secretText('delivery.ascKey', '-----BEGIN PRIVATE KEY-----\n…')}
+                  </Field>
+                  <Field label="Google Play service account key (JSON)" aside={aside('delivery.playServiceAccount')} help="Google Cloud → IAM → Service accounts → Keys → JSON, for an account invited in the Play Console (Users and permissions) with release rights to the app. Only a production submit needs it.">
+                    {secretText('delivery.playServiceAccount', '{ "type": "service_account", … }')}
+                  </Field>
+                </>,
+              )}
+            </div>
+            <div className="pt-1 space-y-2">
               <div className="flex items-center gap-2">
                 <div className="text-sm font-bold text-ink">Servers — the whole project on a machine of your own</div>
                 <span className="ml-auto flex items-center gap-1.5">{aside('delivery.servers')}</span>
@@ -766,6 +795,9 @@ export function SettingsPage() {
                     </Field>
                     <Field label="Auto-merge wait under branch protection (min)" aside={aside('delivery.automergeWaitMin')}>
                       {num('delivery.automergeWaitMin', { min: 1, max: 720 })}
+                    </Field>
+                    <Field label="Store watch (min)" aside={aside('delivery.storePollMin')} help="How often App Store Connect is asked where a submitted build stands.">
+                      {num('delivery.storePollMin', { min: 1, max: 1440 })}
                     </Field>
                   </>,
                 )}
