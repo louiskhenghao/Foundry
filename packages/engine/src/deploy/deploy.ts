@@ -1,5 +1,5 @@
 /**
- * Deploy (ADR-0041, ADR-0091): a finished goal, published when the person asks — a web page or an all-in-one web app
+ * Deploy (ADR-0041, ADR-0090): a finished goal, published when the person asks — a web page or an all-in-one web app
  * to a host (a preview address by default, production when they say so), or the whole project to a server of their
  * own over SSH (always production, confirmed each time).
  *
@@ -20,7 +20,7 @@ import { type Deployability, deployability } from './detect.ts';
 import { keepDeployFiles } from './keep-files.ts';
 import { CLI, PROVIDER_LABEL, SUPPORTS, type DeployCredentials, type DeployProvider as HostProvider, configured, deploySteps, deployedUrl, failureHint, isHost, lastWords, plain, projectName, redact, wentToProduction, whereLabel } from './providers.ts';
 import { withSecretFile } from './secret-file.ts';
-import { GENERATED_COMPOSE, type ServerDeployability, generatedCompose, serverAddress, serverDeployability, serverReadiness, serverSteps } from './server.ts';
+import { GENERATED_COMPOSE, GENERATED_ECOSYSTEM, type ServerDeployability, generatedCompose, generatedEcosystem, pm2Steps, serverAddress, serverDeployability, serverReadiness, serverSteps } from './server.ts';
 import { runSmoke, smokeScripts, type SmokeTarget } from './smoke.ts';
 
 /** a goal is deployed once it is done: a failed or unfinished goal's branch is not a thing to publish */
@@ -44,7 +44,7 @@ export function deployCredentials(engine: Engine): DeployCredentials {
   const d = engine.settings.values().delivery;
   return { vercelToken: d.vercelToken, vercelScope: d.vercelScope, netlifyToken: d.netlifyToken, netlifyTeam: d.netlifyTeam, cloudflareToken: d.cloudflareToken, cloudflareAccountId: d.cloudflareAccountId };
 }
-/** the servers in Settings (ADR-0091) */
+/** the servers in Settings (ADR-0090) */
 export const deployServers = (engine: Engine): DeployServer[] => engine.settings.values().delivery.servers;
 /** the server a request names, or why there is none */
 export function serverFor(engine: Engine, target: string | null | undefined): DeployServer {
@@ -116,9 +116,9 @@ const codeDir = (engine: Engine, goal: Goal) => {
 export function goalDeployability(engine: Engine, goal: Goal): Deployability {
   return deployability(codeDir(engine, goal));
 }
-/** what a server can run of a goal now (ADR-0091): its compose file or Dockerfile */
-export function goalServerDeployability(engine: Engine, goal: Goal): ServerDeployability {
-  return serverDeployability(codeDir(engine, goal));
+/** what a server can run of a goal now (ADR-0090): its compose file or Dockerfile; in PM2 mode (ADR-0091) its Node.js project */
+export function goalServerDeployability(engine: Engine, goal: Goal, mode: DeployServer['mode'] = 'docker'): ServerDeployability {
+  return serverDeployability(codeDir(engine, goal), mode, deployName(goal));
 }
 
 /** the reason a host cannot take an app of this kind, or null when it can */
@@ -243,14 +243,15 @@ async function run(engine: Engine, goal: Goal, dir: string, req: DeployRequest):
 }
 
 /**
- * A server deploy (ADR-0091): the checkout copied over SSH and started there with docker compose, the key on disk only
+ * A server deploy (ADR-0090): the checkout copied over SSH and started there with docker compose, the key on disk only
  * while the commands run. The address is the server's public one, else its host and the first published port; a smoke
  * follows only when asked, since a server deploy is production.
  */
 async function runServer(engine: Engine, goal: Goal, dir: string, ref: string, server: DeployServer, target: DeployTarget, req: DeployRequest, fail: (reason: string) => void): Promise<void> {
   const { store } = engine;
   const provider = 'server' as const;
-  const d = serverDeployability(dir);
+  const name = deployName(goal);
+  const d = serverDeployability(dir, server.mode, name);
   if (!d.ok) return fail(d.reason);
   // the compose file is reviewed before it runs on the server: what reaches outside its project is refused unless the
   // server's settings allow it, and then it is said in the goal's activity
@@ -258,14 +259,17 @@ async function runServer(engine: Engine, goal: Goal, dir: string, ref: string, s
     if (!server.allowPrivileged) return fail(`${d.app.file} reaches outside its project, which the server ${server.name} does not allow: ${d.app.review.dangers.join('; ')}. Edit the file, or allow it for this server under Settings → Git & delivery → Servers.`);
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `deploy: ${d.app.file} reaches outside its project, allowed for the server ${server.name}: ${d.app.review.dangers.join('; ')}` } });
   }
-  const started = store.append({ type: 'deploy.started', goalId: goal.id, payload: { provider, target, production: true, ref, framework: d.app.kind === 'compose' ? `docker compose (${d.app.file})` : 'Dockerfile', dir: '' } });
+  const framework = d.app.kind === 'compose' ? `docker compose (${d.app.file})` : d.app.kind === 'dockerfile' ? 'Dockerfile' : `PM2 (${d.app.pm2!.manager})`;
+  const started = store.append({ type: 'deploy.started', goalId: goal.id, payload: { provider, target, production: true, ref, framework, dir: '' } });
   for (const note of d.notes) store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `deploy: ${note}` } });
-  // a lone Dockerfile gets the compose file Foundry writes, in the checkout only: the repository never sees it
+  // a lone Dockerfile gets the compose file Foundry writes, a Node.js project without an ecosystem file the one Foundry
+  // writes: in the checkout only, the repository never sees them
   if (d.app.kind === 'dockerfile') writeFileSync(join(dir, GENERATED_COMPOSE), generatedCompose(d.app.port!));
-  const name = deployName(goal);
+  if (d.app.kind === 'pm2' && d.app.pm2!.generated) writeFileSync(join(dir, GENERATED_ECOSYSTEM), generatedEcosystem(name, d.app.pm2!.manager, d.app.port));
   const ok = await withSecretFile(engine.config.dataDir, 'id_deploy', server.privateKey!, async (keyFile) => {
     mkdirSync(dirname(knownHostsFile(engine)), { recursive: true });
-    const steps = serverSteps({ server, name, checkout: dir, keyFile, knownHosts: knownHostsFile(engine), file: d.app.file, ssh: engine.deploySsh });
+    const plan = { server, name, checkout: dir, keyFile, knownHosts: knownHostsFile(engine), file: d.app.file, ssh: engine.deploySsh };
+    const steps = d.app.kind === 'pm2' ? pm2Steps({ ...plan, pm2: d.app.pm2! }) : serverSteps(plan);
     for (const step of steps) {
       const t0 = Date.now();
       const r = await exec(step.argv, step.cwd, { timeoutMs: STEP_TIMEOUT_MS, env: step.env });
@@ -292,7 +296,7 @@ async function runServer(engine: Engine, goal: Goal, dir: string, ref: string, s
 }
 
 /**
- * Whether a deploy of this goal to one place can start (ADR-0091): a host needs its token in Settings; a server its
+ * Whether a deploy of this goal to one place can start (ADR-0090): a host needs its token in Settings; a server its
  * key, an answer over SSH, docker compose for that user, the project's folder free or Foundry's, and the ports the
  * project publishes free — tried now, with the key on disk only meanwhile. What is in front on 80/443 and whether the
  * public address answers are told but never block.
@@ -306,7 +310,7 @@ export async function deployReadiness(engine: Engine, goalId: string, provider: 
   }
   const server = serverFor(engine, target);
   const goal = getGoal(engine.store.db, goalId);
-  const app = goal ? goalServerDeployability(engine, goal) : null;
+  const app = goal ? goalServerDeployability(engine, goal, server.mode) : null;
   const project = goal ? { name: deployName(goal), ports: app?.ok ? app.app.review.ports : [] } : null;
   const deps = { knownHosts: knownHostsFile(engine), ssh: engine.deploySsh, project, run: (argv: string[], cwd: string, opts: { timeoutMs: number }) => exec(argv, cwd, opts) };
   mkdirSync(dirname(deps.knownHosts), { recursive: true });

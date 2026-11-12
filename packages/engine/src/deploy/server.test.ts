@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { DeployServer } from '@foundry/core';
 import type { ExecResult } from '../git/git.ts';
-import { folderScript, generatedCompose, parseListeners, publishedPort, remoteDir, reviewCompose, serverAddress, serverDeployability, serverReadiness, serverSteps, shellQuote, sshArgv } from './server.ts';
+import { folderScript, generatedCompose, generatedEcosystem, nginxParams, parseListeners, pm2Steps, publishedPort, remoteDir, reviewCompose, serverAddress, serverDeployability, serverReadiness, serverSteps, shellQuote, sshArgv } from './server.ts';
 
-const server: DeployServer = { id: 'srv1', name: 'box', host: 'h.example', port: 2222, user: 'deploy', privateKey: 'KEY', dir: '~/apps', publicUrl: null, allowPrivileged: false };
+const server: DeployServer = { id: 'srv1', name: 'box', host: 'h.example', port: 2222, user: 'deploy', privateKey: 'KEY', dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'docker' as const };
 
 function repo(files: Record<string, string>): string {
   const dir = mkdtempSync(join(tmpdir(), 'foundry-server-detect-'));
@@ -211,5 +211,60 @@ describe('what the readiness check sees of the server beyond Docker', () => {
     expect(await at(async () => ({ error: 'CERT_HAS_EXPIRED' }))).toMatchObject({ ok: false, severity: 'warn', detail: expect.stringContaining('a certificate the browser would refuse (CERT_HAS_EXPIRED)') });
     expect(await at(async () => ({ error: 'ENOTFOUND' }))).toMatchObject({ ok: false, detail: expect.stringContaining('does not resolve: add a DNS record for it pointing at h.example') });
     expect(await at(async () => ({ error: 'ECONNREFUSED' }))).toMatchObject({ ok: false, detail: expect.stringContaining('nothing answers at https://app.example.com yet') });
+  });
+});
+
+describe('a server in PM2 mode (ADR-0091): a Node.js project kept running by PM2', () => {
+  const pm2Server = { ...server, mode: 'pm2' as const };
+  test('a Node.js project with a start script: the package manager from its lockfile, the build when it has one, the port from its env file; Foundry writes the ecosystem file', () => {
+    const dir = repo({ 'package.json': JSON.stringify({ scripts: { start: 'node server.js', build: 'tsc' } }), 'yarn.lock': '', '.env.example': 'PORT=4000\nDATABASE_URL=\n' });
+    const d = serverDeployability(dir, 'pm2', 'shop-1');
+    expect(d).toMatchObject({ ok: true, app: { kind: 'pm2', file: 'ecosystem.foundry.config.cjs', services: ['shop-1'], port: 4000, review: { dangers: [], ports: [4000], built: ['shop-1'] }, pm2: { manager: 'yarn', install: 'yarn install --frozen-lockfile', build: 'yarn run build', generated: true } } });
+    expect((d as { notes: string[] }).notes.join(' ')).toContain('runs as the ssh user on the server itself, with no container');
+    expect(generatedEcosystem('shop-1', 'yarn', 4000)).toContain(`apps: [{ name: "shop-1", script: "yarn", args: 'start', cwd: __dirname, env: { NODE_ENV: 'production', PORT: '4000' }`);
+    rmSync(dir, { recursive: true, force: true });
+    // its own ecosystem file is used as it is; pnpm, bun and npm are told apart; yarn berry installs immutably
+    const own = repo({ 'package.json': JSON.stringify({ scripts: {} }), 'ecosystem.config.js': 'module.exports = {}', 'pnpm-lock.yaml': '' });
+    expect(serverDeployability(own, 'pm2', 'x')).toMatchObject({ ok: true, app: { file: 'ecosystem.config.js', port: null, pm2: { manager: 'pnpm', install: 'pnpm install --frozen-lockfile', build: null, generated: false } } });
+    rmSync(own, { recursive: true, force: true });
+    const bun = repo({ 'package.json': JSON.stringify({ scripts: { start: 'bun run src/index.ts' } }), 'bun.lock': '', Dockerfile: 'FROM oven/bun\nEXPOSE 8787\n' });
+    expect(serverDeployability(bun, 'pm2', 'x')).toMatchObject({ ok: true, app: { port: 8787, pm2: { manager: 'bun', install: 'bun install --frozen-lockfile' } } });
+    rmSync(bun, { recursive: true, force: true });
+    const berry = repo({ 'package.json': JSON.stringify({ scripts: { start: 'node .' } }), 'yarn.lock': '', '.yarnrc.yml': 'nodeLinker: node-modules\n' });
+    expect(serverDeployability(berry, 'pm2', 'x')).toMatchObject({ ok: true, app: { pm2: { install: 'yarn install --immutable' } } });
+    rmSync(berry, { recursive: true, force: true });
+    const npm = repo({ 'package.json': JSON.stringify({ scripts: { start: 'node .' } }), 'package-lock.json': '{}' });
+    expect(serverDeployability(npm, 'pm2', 'x')).toMatchObject({ ok: true, app: { pm2: { manager: 'npm', install: 'npm ci' } } });
+    rmSync(npm, { recursive: true, force: true });
+  });
+  test('what PM2 mode refuses: no package.json, no start script and no ecosystem file', () => {
+    const go = repo({ 'go.mod': 'module x\n', 'main.go': 'package main\n' });
+    expect(serverDeployability(go, 'pm2', 'x')).toEqual({ ok: false, reason: expect.stringContaining('no package.json') });
+    rmSync(go, { recursive: true, force: true });
+    const lib = repo({ 'package.json': JSON.stringify({ scripts: { build: 'tsc' } }) });
+    expect(serverDeployability(lib, 'pm2', 'x')).toEqual({ ok: false, reason: expect.stringContaining('package.json has none') });
+    rmSync(lib, { recursive: true, force: true });
+  });
+  test('the commands: the same folder and copy, then install, build, start or reload under PM2 and save', () => {
+    const steps = pm2Steps({ server: pm2Server, name: 'shop-1', checkout: '/data/deploy/shop-1', keyFile: '/tmp/k', knownHosts: '/tmp/kh', file: 'ecosystem.foundry.config.cjs', pm2: { manager: 'yarn', install: 'yarn install --frozen-lockfile', build: 'yarn run build', ecosystem: 'ecosystem.foundry.config.cjs', generated: true } });
+    expect(steps.map((s) => s.label)).toEqual(['make the folder on the server', 'copy the project over', 'install, build and start it under PM2']);
+    expect(steps[2]!.argv.at(-1)).toBe("cd ~/apps/shop-1 && export NODE_ENV=production && command -v yarn >/dev/null 2>&1 || corepack enable >/dev/null 2>&1 || true; yarn install --frozen-lockfile && yarn run build && pm2 startOrReload 'ecosystem.foundry.config.cjs' --update-env && pm2 save");
+  });
+  test('the readiness check asks for node and pm2 instead of Docker, points at the recipe, and knows a port held by node in the project’s own folder', async () => {
+    const SS = 'LISTEN 0 511 0.0.0.0:4000 0.0.0.0:* users:(("node",pid=812,fd=6))\n';
+    const base = { 'foundry-ok': { stdout: 'foundry-ok\n' }, 'test -w': { stdout: 'writable\nproject=ours\n' }, 'ss -ltnpH': { stdout: `${SS}::ours::\n` } };
+    const missing = await serverReadiness(pm2Server, { ...deps, project: { name: 'shop-1', ports: [4000] }, run: fakeRun({ ...base, 'node -v': { code: 127, stderr: 'sh: 1: pm2: not found\n' } }).run });
+    expect(missing.map((i) => i.id)).toEqual(['key', 'reach', 'runtime', 'folder', 'ports', 'front']);
+    expect(missing.find((i) => i.id === 'runtime')).toMatchObject({ ok: false, detail: expect.stringContaining('PM2 is not installed for deploy on h.example'), fix: { recipe: 'install-node-pm2', recipeParams: { TARGET_USER: 'deploy' } } });
+    const fine = await serverReadiness(pm2Server, { ...deps, project: { name: 'shop-1', ports: [4000] }, run: fakeRun({ ...base, 'node -v': { stdout: 'v24.1.0\n5.4.2\n1.22.22\n' } }).run });
+    expect(fine.find((i) => i.id === 'runtime')).toMatchObject({ ok: true, detail: 'node v24.1.0, pm2 5.4.2, yarn 1.22.22' });
+    expect(fine.find((i) => i.id === 'ports')).toMatchObject({ ok: true, detail: "4000 (this project's own, from an earlier deploy)" });
+  });
+  test('the docker and front items name the recipe that puts them right, with the project’s values filled in', async () => {
+    const r = await serverReadiness({ ...server, publicUrl: 'https://shop.example.com' }, { ...deps, project: { name: 'shop-1', ports: [8080] }, run: fakeRun({ 'foundry-ok': { stdout: 'foundry-ok' }, 'docker compose version': { code: 127, stderr: 'docker: not found' }, 'test -w': { stdout: 'writable\nproject=new' }, 'ss -ltnpH': { stdout: '::ours::' } }).run, probe: async () => ({ error: 'ECONNREFUSED' }) });
+    expect(r.find((i) => i.id === 'docker')!.fix).toMatchObject({ recipe: 'install-docker', recipeParams: { TARGET_USER: 'deploy' } });
+    expect(r.find((i) => i.id === 'front')!.fix).toMatchObject({ recipe: 'nginx-site', recipeParams: { DOMAIN: 'shop.example.com', APP_PORT: '8080', SITE_NAME: 'shop-1' } });
+    expect(r.find((i) => i.id === 'public')!.fix).toMatchObject({ recipe: 'nginx-site' });
+    expect(nginxParams({ publicUrl: null }, null)).toEqual({ DOMAIN: '', APP_PORT: '', SITE_NAME: 'app' });
   });
 });

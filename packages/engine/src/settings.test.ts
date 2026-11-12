@@ -234,8 +234,8 @@ describe('engine + settings', () => {
   });
 });
 
-describe('a list setting with a secret in each item: the servers’ SSH keys (ADR-0091)', () => {
-  const box = (over: Record<string, unknown> = {}) => ({ id: 's1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: 'KEY-0123456789abcdef-END', dir: '~/apps', publicUrl: null, allowPrivileged: false, ...over });
+describe('a list setting with a secret in each item: the servers’ SSH keys (ADR-0090)', () => {
+  const box = (over: Record<string, unknown> = {}) => ({ id: 's1', name: 'box', host: 'h.example', port: 22, user: 'deploy', privateKey: 'KEY-0123456789abcdef-END', dir: '~/apps', publicUrl: null, allowPrivileged: false, mode: 'docker' as const, ...over });
   test('the view carries the items without their keys, each key named beside with a hint; a list saved without them keeps the saved ones; an empty string forgets one', () => {
     const dir = mkdtempSync(join(tmpdir(), 'foundry-settings-servers-'));
     const s = new SettingsStore(dir, {});
