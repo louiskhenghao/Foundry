@@ -94,3 +94,23 @@ test('a cad task gets the CAD conventions (source in the repository, exports and
   expect(styleApplies('cad')).toBe(false);
   expect(styleApplies('image')).toBe(true);
 });
+
+test('a design reference sits right after the task, before the style direction; the other attachments stay where they were (ADR-0093)', () => {
+  const design = '# Design reference\nThe person supplied the design the result follows.\n- [image] home.png → /data/a/home.png. Open it with the Read tool before writing any markup or styles.';
+  const att = `${design}\n\n# Attachments from the user\n- [pdf] spec.pdf → /data/a/spec.pdf. Read it.`;
+  const style = { key: 'S1', name: 'From your design', palette: ['#111111'], fonts: [], keywords: [], description: '', samples: [], chosenSample: null } as any;
+  const p = buildAttemptPrompt({ ...base, attachments: att, style, decisions: '# Decisions from the human\n- x', task: { title: 'T', spec: 'spec', relevantFiles: ['src/a.ts'] } as any });
+  expect(p.indexOf('# Your task')).toBeLessThan(p.indexOf('# Design reference'));
+  expect(p.indexOf('# Design reference')).toBeLessThan(p.indexOf('# Decisions from the human'));
+  expect(p.indexOf('# Decisions from the human')).toBeLessThan(p.indexOf('# Style direction'));
+  expect(p.indexOf('# Start here')).toBeLessThan(p.indexOf('# Attachments from the user'));
+  expect(p.split('# Design reference').length).toBe(2);
+  // the style line says where it came from, so a worker never weighs the two against each other
+  expect(p).toContain('read from the design reference: where they disagree, the design wins');
+  // a design alone, nothing else attached
+  const only = buildAttemptPrompt({ ...base, attachments: design, style });
+  expect(only).toContain('# Design reference');
+  expect(only).not.toContain('# Attachments from the user');
+  // without a design the style line stays as it was
+  expect(buildAttemptPrompt({ ...base, style })).not.toContain('read from the design reference');
+});

@@ -190,6 +190,8 @@ docs、infra、research、image 和 video 类任务从来不加 TDD 规则；单
 
 这个 goal 的每个会话都能读到这些附件。一个文件最大 25 MB，音频或视频文件（参考影片、音乐）最大 200 MB，一个 goal 最多 20 个附件。它们永远不会被加进你的项目。文档会在后台转成文本，转好后会显示一个小标签。之后你还可以在 goal 页面上继续添加附件。
 
+**Design reference.** 图片、HTML 导出件或设计稿的 zip 附到代码 goal 上时会被标为 **Design reference**：goal 会照着它画的做。点那个小标签，它就变回普通参考。Claude、Figma、Canva 或 Framer 页面的链接当不了设计稿：那些页面要登录，会话永远看不到；表单会说明这一点并请你导出。见[带上你自己的设计稿](./bringing-your-own-design.zh.md)。
+
 ### Reference
 
 **+ add a reference** 填入这个 goal 要学习的已发布软件：一个网站、这台电脑上的一个应用（`/Applications/Notes.app`）、一个安装包或解包后的应用，以及要看哪个功能。Clarify 之前，REA（一个逆向工程 server，在 **Extensions → MCP servers** 装一次）会调查每个参考对象，写出带证据的报告：功能怎么实现、哪些没能核实、该做什么。goal 的每个会话都读得到这份报告，它还会以 `docs/reference/<name>.md` 提交到 goal 分支上，Brief 页面会显示它，并带 **Investigate again**。最多五个参考对象；调查的花费和时间上限在 Settings 里。

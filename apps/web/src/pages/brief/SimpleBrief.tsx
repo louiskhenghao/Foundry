@@ -8,6 +8,7 @@ import { Button, Card, Input, cn } from '../../ui.tsx';
 import { areaStyle } from './shared.ts';
 import { NotesComposer } from './NotesComposer.tsx';
 import { StyleCards } from './StyleCards.tsx';
+import { DesignQuestion } from './DesignQuestion.tsx';
 import { ACCEPTED_TICK, AnsweredTick, ApprovalBar, type Hold, ReadOnlyTick, answerChip, blockingTag } from './marks.tsx';
 import { HelpLink } from '../HelpPage.tsx';
 import { SectionTitle } from './SectionTitle.tsx';
@@ -25,6 +26,8 @@ export function SimpleBrief(p: {
   /** the planner is still splitting the goal into pieces of work: the Brief skeleton shows, approval waits */
   planning?: boolean;
   update: (patch: Partial<Brief>) => void;
+  /** the design question's remedy (ADR-0093): write the Brief again from the export dropped on it */
+  onRerunWithDesign: () => Promise<void>;
   budgetDraft: { maxCostUsd: number | null; maxDurationMin: number | null };
   setBudgetEdit: (b: { maxCostUsd: number | null; maxDurationMin: number | null }) => void;
   proposed: { maxCostUsd: number | null; maxDurationMin: number | null };
@@ -60,7 +63,7 @@ export function SimpleBrief(p: {
         {asked.length > 0 && (
           <Card title={<SectionTitle section="questions">{blockingUnanswered.length ? `Please answer (${blockingUnanswered.length})` : 'Questions'}</SectionTitle>}>
             <div className="space-y-5">
-              {brief.questions.map((q, i) => (q.kind === 'note' ? null : q.kind === 'style' && brief.styleOptions.length ? <StyleCards key={q.id} goalId={g.id} brief={brief} question={q} editable={editable} update={update} tag="needed" /> : (
+              {brief.questions.map((q, i) => (q.kind === 'note' ? null : q.kind === 'design' ? <DesignQuestion key={q.id} goalId={g.id} brief={brief} question={q} attachments={g.attachments} editable={editable} update={update} onRerun={p.onRerunWithDesign} tag="needed" /> : q.kind === 'style' && brief.styleOptions.length ? <StyleCards key={q.id} goalId={g.id} brief={brief} question={q} editable={editable} update={update} tag="needed" /> : (
                 <div key={q.id}>
                   {/* needed and unanswered waits for you, in yellow; once answered it is ticked green */}
                   <div className="text-sm font-semibold text-ink mb-2 flex items-start gap-2 flex-wrap">

@@ -66,5 +66,6 @@ The full glossary, for the curious, is `CONTEXT.md` in the Foundry repository.
 18. [Moving to a new computer](./moving-to-a-new-computer.md): carrying settings, keys and goals to another Foundry.
 19. [Ports](./ports.md): which ports are in use, who holds them, and freeing one.
 20. [FAQ](./faq.md): short answers to common questions.
+21. [Bringing your own design](./bringing-your-own-design.md): handing a goal the screens you designed, and what the Brief and the workers do with them.
 
 **Help** in the ⚙ menu at the right of the top bar shows this guide inside Foundry. The same menu holds **Settings**, **Setup**, **Transfer**, **Ports**, **Learnings**, **Schedules**, the light or dark mode, **Appearance** (the theme; see [Themes](./themes.md)), and the version you run: a red dot on the ⚙ button marks a newer one, and pressing the version opens **About & updates**.
