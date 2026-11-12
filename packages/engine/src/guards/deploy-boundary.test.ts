@@ -50,8 +50,9 @@ const DEPLOYS = [
   'render services create --repo https://github.com/x/y',
   "ssh deploy@box 'cd ~/apps/x && docker compose up -d --build'",
   'ssh -i key box docker-compose pull',
+  "ssh deploy@box 'cd ~/apps/x && pm2 startOrReload ecosystem.config.js'",
 ];
-const LOCAL = ['eas build:list --json', 'eas whoami', 'fastlane test', 'fly status', 'fly logs', 'railway logs', 'railway status', 'render services list', 'docker compose up -d', 'docker compose -f compose.yaml up --build', 'ssh box ls -la', 'ssh box "docker ps"', 'vercel dev', 'vercel build', 'vercel env pull .env.local', 'vercel link --yes --project x', 'cat vercel.json', 'echo vercel', 'npm run vercel-build', 'wrangler dev', 'wrangler pages dev dist', 'netlify dev', 'netlify build', 'bun test'];
+const LOCAL = ['pm2 start ecosystem.config.js', 'pm2 logs', 'ssh box pm2 list', 'eas build:list --json', 'eas whoami', 'fastlane test', 'fly status', 'fly logs', 'railway logs', 'railway status', 'render services list', 'docker compose up -d', 'docker compose -f compose.yaml up --build', 'ssh box ls -la', 'ssh box "docker ps"', 'vercel dev', 'vercel build', 'vercel env pull .env.local', 'vercel link --yes --project x', 'cat vercel.json', 'echo vercel', 'npm run vercel-build', 'wrangler dev', 'wrangler pages dev dist', 'netlify dev', 'netlify build', 'bun test'];
 
 describe('deploys stay the person’s', () => {
   test('every way of deploying to the hosts is blocked by the hook and named by its mirror', async () => {
