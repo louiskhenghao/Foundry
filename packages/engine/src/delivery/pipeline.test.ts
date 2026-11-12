@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
-import { getGoal, listEscalations, listTasks } from '@foundry/core';
+import { getGoal, listEscalations, listTasks, upsertGoal } from '@foundry/core';
 import { deliveryWorkspacePath, goalWorkspacePath } from '../workspace.ts';
 import { deliverArtifacts } from '../completion.ts';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
-import { FakeRunner, makeRepoWithRemote, sh, terminal, waitFor } from '../test-helpers.ts';
+import { FakeRunner, makeRepo, makeRepoWithRemote, sh, terminal, waitFor } from '../test-helpers.ts';
 import { FakeGh } from './gh.fake.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
@@ -1255,6 +1255,31 @@ describe('a delivery that stops says why and can be finished (Inbox, Retry, Re-c
     expect(d.cleanup).toBeNull();
     expect(existsSync(ws)).toBe(true);
     expect(inbox(engine, goal.id)).toHaveLength(0);
+    await engine.stop();
+  });
+});
+
+describe('a folder whose name GitHub cannot use as it is', () => {
+  test('the repository is created under the name GitHub gives it; a goal recorded with the raw name carries on and takes the real name', async () => {
+    const folder = await makeRepo('My App V2-');
+    const empty = mkdtempSync(join(tmpdir(), 'foundry-test-bare-')) + '.git';
+    await sh(`git init -q --bare ${JSON.stringify(empty)}`, folder);
+    const gh = new FakeGh(empty);
+    const engine = new Engine(cfg(), worker(), gh);
+    const goal = await engine.createGoal({ prompt: 'name me', repoPath: folder, autoBrief: { mustChecks: ['test -f done.txt'] }, delivery: { mode: 'pr', createRepo: { owner: 'tester', name: 'My App V2', visibility: 'private' } } });
+    const g0 = getGoal(engine.store.db, goal.id)!;
+    expect(g0.delivery.policy.createRepo?.name).toBe('My-App-V2');
+    // a goal recorded before the rule holds the folder's name as typed
+    upsertGoal(engine.store.db, { ...g0, delivery: { ...g0.delivery, policy: { ...g0.delivery.policy, createRepo: { owner: 'tester', name: 'My App V2', visibility: 'private' } } } });
+    await waitFor(() => ['delivered', 'failed'].includes(deliveredStatus(engine, goal.id).status), 20_000);
+    const d = deliveredStatus(engine, goal.id);
+    expect(d.error).toBeNull();
+    expect(d).toMatchObject({ status: 'delivered', outcome: 'pr_open' });
+    expect(gh.calls).toContainEqual(['repoCreate', 'tester/My-App-V2']);
+    expect(d.policy.createRepo?.name).toBe('My-App-V2');
+    const created = engine.store.listByGoal(goal.id, 5000).find((e) => e.type === 'delivery.repo_created')?.payload as any;
+    expect(created).toMatchObject({ name: 'My-App-V2', url: 'https://github.com/tester/My-App-V2' });
+    expect([...gh.prs.values()][0]?.repo).toBe('tester/My-App-V2');
     await engine.stop();
   });
 });

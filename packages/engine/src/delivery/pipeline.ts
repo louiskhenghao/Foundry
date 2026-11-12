@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { companionExtras } from '../companions.ts';
 import type { Check, DeliveryPolicy, DeliveryStep, Goal, ReviewRound, Task } from '@foundry/core';
-import { IdPrefix, getBrief, getGoal, getTask, listCheckResultsByGoal, listChecks, listTasks, newId } from '@foundry/core';
+import { IdPrefix, getBrief, getGoal, getTask, githubRepoName, listCheckResultsByGoal, listChecks, listTasks, newId } from '@foundry/core';
 import { maxAttemptsFor, runAttempt } from '../attempt-loop.ts';
 import { runCommandCheck } from '../checks/command.ts';
 import { truncateOutput } from '../distill/truncate.ts';
@@ -17,7 +17,7 @@ import { artifactsForChecks } from '../goal-artifacts.ts';
 import { deliveryWorkspacePath, ensureGoalWorkspace, goalWorkspacePath, isStackBranch, listStackBranches, stackBranchName } from '../workspace.ts';
 import { describeFailing, failingChecks, reduceChecks, type GhClient, type PrView } from './gh.ts';
 import { closeDeliveryFailures, raiseDeliveryFailure } from './inbox.ts';
-import { baseOf, buildPrBody, buildTaskPrBody, type DiffStats, needsGh, planDelivery, repoSlug } from './policy.ts';
+import { baseOf, buildPrBody, buildTaskPrBody, type DiffStats, needsGh, planDelivery, repoSlug, sameGithubRepo } from './policy.ts';
 import { pendingRounds, renderReviewSpec, replyText, reviewReply, roundAllowed } from './reviews.ts';
 
 /** what a range changes, for a PR body's Merge Danger: files and lines from `git diff --shortstat`, commits from `rev-list` */
@@ -163,7 +163,11 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
       const url = await remoteUrl(ctx);
       if (url) {
         ctx.repo = repoSlug(url);
-        if (policy.createRepo && ctx.repo !== `${policy.createRepo.owner}/${policy.createRepo.name}`) throw new DeliveryFailed('ensure-remote', `remote ${ctx.remote} points to ${url}, not ${policy.createRepo.owner}/${policy.createRepo.name}; refusing to change it`);
+        if (policy.createRepo) {
+          // the repository an earlier run created, under the name GitHub gave it (a folder "My App V2" asks for that name and gets My-App-V2)
+          if (!sameGithubRepo(ctx.repo, policy.createRepo)) throw new DeliveryFailed('ensure-remote', `remote ${ctx.remote} points to ${url}, not ${policy.createRepo.owner}/${githubRepoName(policy.createRepo.name)}; refusing to change it`);
+          recordRepoName(ctx, ctx.repo);
+        }
         return { status: 'ok', detail: `${ctx.remote} → ${url}` };
       }
       if (policy.remoteUrl) {
@@ -172,7 +176,9 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
         return { status: 'ok', detail: `added remote ${ctx.remote} → ${policy.remoteUrl}` };
       }
       if (policy.createRepo) {
-        const { owner, name, visibility } = policy.createRepo;
+        const { owner, visibility } = policy.createRepo;
+        // a policy recorded before githubRepoName holds the folder's name as typed; GitHub would respell it on the way in anyway
+        const name = githubRepoName(policy.createRepo.name);
         const exists = await ctx.gh.repoExists(owner, name);
         let url2: string;
         if (exists) {
@@ -181,9 +187,12 @@ export async function runDelivery(engine: Engine, goalIn: Goal, signal: AbortSig
         } else {
           const created = await ctx.gh.repoCreate({ owner, name, visibility, sourcePath: ctx.repoPath, remote: ctx.remote });
           url2 = created.url;
-          ev({ type: 'delivery.repo_created', goalId: goal.id, payload: { owner, name, url: url2, visibility } });
         }
-        ctx.repo = `${owner}/${name}`;
+        // the name GitHub really gave it, read off the URL: the pull requests and the policy go by that one
+        const slug = repoSlug(url2);
+        ctx.repo = /^[^/\s]+\/[^/\s]+$/.test(slug) ? slug : `${owner}/${name}`;
+        if (!exists) ev({ type: 'delivery.repo_created', goalId: goal.id, payload: { owner, name: ctx.repo.slice(ctx.repo.indexOf('/') + 1), url: url2, visibility } });
+        recordRepoName(ctx, ctx.repo);
         // the one and only push of the base branch: a brand-new repository needs one so the PR has a base
         await run(ctx, 'ensure-remote', ['git', 'push', '-u', ctx.remote, `refs/heads/${ctx.base}:refs/heads/${ctx.base}`], ctx.goalWs, true);
         return { status: 'ok', detail: `${exists ? 'reusing' : 'created'} ${url2}; pushed ${ctx.base}` };
@@ -843,6 +852,20 @@ function bodyPath(ctx: Ctx, name: string): string {
 async function remoteUrl(ctx: Ctx): Promise<string | null> {
   const r = await git(['remote', 'get-url', ctx.remote], ctx.repoPath);
   return r.code === 0 ? r.stdout.trim() : null;
+}
+
+/**
+ * The policy takes the name the repository really has on GitHub when it asked for another: a goal recorded before
+ * githubRepoName holds its folder's name as typed, and GitHub spells a name its own way. The Delivery tab then shows
+ * the real name and the next run compares the remote against it.
+ */
+function recordRepoName(ctx: Ctx, slug: string): void {
+  const asked = ctx.policy.createRepo;
+  const name = slug.slice(slug.indexOf('/') + 1);
+  if (!asked || !name || name === asked.name) return;
+  const policy: DeliveryPolicy = { ...ctx.policy, createRepo: { ...asked, name } };
+  ctx.engine.store.append({ type: 'delivery.policy_saved', goalId: ctx.goal.id, payload: { policy } });
+  ctx.policy = policy;
 }
 
 function logCmd(ctx: Ctx, step: DeliveryStep, cmd: string[], cwd: string, r: ExecResult, ms: number) {
