@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { FakeRunner, waitFor } from '../test-helpers.ts';
-import { netlifyTokenIn } from './signin.ts';
+import { flyOrgSlugs, netlifyTokenIn } from './signin.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 let dataDir: string;
@@ -37,6 +37,7 @@ case "$cli" in
         n=0; while [ ! -f "${join(fakes, 'APPROVE')}" ] && [ ! -f "$HOME/.fly/config.yml" ]; do sleep 0.1; n=$((n+1)); [ $n -gt 300 ] && exit 2; done
         mkdir -p "$HOME/.fly"; echo "access_token: sess" > "$HOME/.fly/config.yml"; echo "successfully logged in as louis@example.com" ;;
       "auth whoami") [ -f "$HOME/.fly/config.yml" ] && echo "louis@example.com" || { echo "no access token" >&2; exit 1; } ;;
+      "orgs list --json") if [ -f "${join(fakes, 'MANY_ORGS')}" ]; then echo '[{"Slug":"acme","Name":"Acme"},{"Slug":"beta","Name":"Beta"}]'; else echo '[{"ID":"o1","Name":"Louis","Slug":"personal","Type":"PERSONAL"},{"ID":"o2","Name":"Acme","Slug":"acme","Type":"SHARED"}]'; fi ;;
       "tokens create org"*) if [ -f "${join(fakes, 'NO_TOKEN')}" ]; then echo "Error: not allowed" >&2; exit 1; fi; echo '{"token":"FlyV1 fm2_SECRETORGTOKEN0123456789"}' ;;
     esac ;;
   netlify)
@@ -91,7 +92,9 @@ describe('signing in to a deploy place through its CLI (ADR-0097)', () => {
     expect(done).toMatchObject({ status: 'done', account: 'louis@example.com', output: '' });
     expect(done.detail).toContain('signed in as louis@example.com');
     expect(e.settings.values().delivery.flyToken).toBe('FlyV1 fm2_SECRETORGTOKEN0123456789');
-    expect(calls().map((l) => l.split('|')[1])).toEqual(['auth login', 'auth whoami', 'tokens create org --name Foundry (deploys) --expiry 87600h --json']);
+    expect(calls().map((l) => l.split('|')[1])).toEqual(['auth login', 'auth whoami', 'orgs list --json', 'tokens create org --name Foundry (deploys) --expiry 87600h --json --org personal']);
+    expect(e.settings.values().delivery.flyOrg).toBe('personal');
+    expect(done.detail).toContain('for personal');
     expect(existsSync(home)).toBe(false);
     expect(JSON.stringify(e.settingsView())).not.toContain('SECRETORGTOKEN');
   }, 20_000);
@@ -118,6 +121,15 @@ describe('signing in to a deploy place through its CLI (ADR-0097)', () => {
     await waitFor(() => e2.signInStatus('fly').status !== 'waiting');
     expect(e2.signInStatus('fly')).toMatchObject({ status: 'failed', detail: expect.stringContaining('no token could be made') });
     expect(e2.settings.values().delivery.flyToken).toBeNull();
+    // several organizations and none personal, nothing in Settings: the person picks, in words
+    const e3 = engine();
+    e3.updateSettings({ delivery: { flyToken: null, flyOrg: null } });
+    rmSync(join(fakes, 'NO_TOKEN'));
+    writeFileSync(join(fakes, 'MANY_ORGS'), '');
+    e3.signIn('fly');
+    await waitFor(() => e3.signInStatus('fly').status !== 'waiting');
+    expect(e3.signInStatus('fly').detail).toContain('several organizations (acme, beta): set Fly.io organization in Settings');
+    expect(e3.settings.values().delivery.flyToken).toBeNull();
   }, 20_000);
 
   test('Netlify: a ticket, its page, the check until approved, the token the CLI stored read from its home; a denied ticket and a cancel end it', async () => {
@@ -150,6 +162,8 @@ describe('signing in to a deploy place through its CLI (ADR-0097)', () => {
   }, 20_000);
 
   test('the Netlify token is found wherever its CLI put config.json under the home; flyctl’s presence and install are reported', async () => {
+    expect(flyOrgSlugs('[{"Slug":"personal"},{"slug":"acme"},{"Name":"x"}]')).toEqual(['personal', 'acme']);
+    expect(flyOrgSlugs('nope')).toEqual([]);
     const home = mkdtempSync(join(tmpdir(), 'foundry-nl-home-'));
     expect(netlifyTokenIn(home)).toBeNull();
     mkdirSync(join(home, 'Library/Preferences/netlify'), { recursive: true });

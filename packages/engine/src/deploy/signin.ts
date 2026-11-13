@@ -184,8 +184,16 @@ async function flyFinish(engine: Engine, run: Run) {
   const fly = engine.deployCli('fly');
   const who = await capture(engine, run, [...fly, 'auth', 'whoami'], 60_000);
   const account = who.code === 0 ? lastLine(who.out) : null;
-  const org = engine.settings.values().delivery.flyOrg;
-  const made = await capture(engine, run, [...fly, 'tokens', 'create', 'org', '--name', 'Foundry (deploys)', '--expiry', '87600h', '--json', ...(org ? ['--org', org] : [])], 120_000);
+  // the token is an organization's, and flyctl names no default when no person is at the terminal: the one from
+  // Settings, else the account's only one, else its personal one; several others are the person's to choose from
+  let org = engine.settings.values().delivery.flyOrg;
+  if (!org) {
+    const listed = await capture(engine, run, [...fly, 'orgs', 'list', '--json'], 60_000);
+    const slugs = flyOrgSlugs(listed.out);
+    org = slugs.length === 1 ? slugs[0]! : (slugs.find((x) => x === 'personal') ?? null);
+    if (!org) return end(run, 'failed', `signed in${account ? ` as ${account}` : ''}, but the account has several organizations (${slugs.join(', ') || 'none listed'}): set Fly.io organization in Settings to the one Foundry deploys to, then sign in again`);
+  }
+  const made = await capture(engine, run, [...fly, 'tokens', 'create', 'org', '--name', 'Foundry (deploys)', '--expiry', '87600h', '--json', '--org', org], 120_000);
   let token: string | null = null;
   try {
     const j = JSON.parse(made.out.slice(made.out.indexOf('{'), made.out.lastIndexOf('}') + 1)) as { token?: string };
@@ -193,9 +201,10 @@ async function flyFinish(engine: Engine, run: Run) {
   } catch {}
   if (!token) token = made.out.match(/FlyV1\s+\S+/)?.[0]?.trim() ?? null;
   if (made.code !== 0 || !token) return end(run, 'failed', `signed in${account ? ` as ${account}` : ''}, but no token could be made (${lastLine(made.out)}): make one with \`fly tokens create org\` and paste it`);
-  engine.updateSettings({ delivery: { flyToken: token } });
+  // the organization the token belongs to is the one the deploys go to
+  engine.updateSettings({ delivery: { flyToken: token, flyOrg: org } });
   run.state = { ...run.state, account, output: '' };
-  end(run, 'done', `signed in${account ? ` as ${account}` : ''}; an organization token named “Foundry (deploys)” is saved in Settings`);
+  end(run, 'done', `signed in${account ? ` as ${account}` : ''}; an organization token named “Foundry (deploys)” for ${org} is saved in Settings`);
 }
 
 async function netlifySignIn(engine: Engine, run: Run) {
@@ -225,6 +234,16 @@ async function netlifySignIn(engine: Engine, run: Run) {
     engine.updateSettings({ delivery: { netlifyToken: token } });
     run.state = { ...run.state, account: status.user?.email ?? status.user?.name ?? null, output: '' };
     return end(run, 'done', `signed in${status.user?.email ? ` as ${status.user.email}` : ''}; the personal access token Netlify made is saved in Settings`);
+  }
+}
+
+/** the organizations `fly orgs list --json` names, by slug (flyctl prints its API structs: Slug or slug) */
+export function flyOrgSlugs(out: string): string[] {
+  try {
+    const j = JSON.parse(out.slice(out.indexOf('['), out.lastIndexOf(']') + 1)) as Record<string, unknown>[];
+    return j.map((o) => (typeof o.Slug === 'string' ? o.Slug : typeof o.slug === 'string' ? o.slug : null)).filter((x): x is string => !!x);
+  } catch {
+    return [];
   }
 }
 
