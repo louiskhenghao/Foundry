@@ -41,12 +41,23 @@ const git = (a: string[], cwd = ROOT) => run(['git', ...a], { cwd });
 if (!bumpArg) fail('usage: bun run release patch|minor|major|x.y.z [--notes "..."] [--dry-run]');
 if ((await git(['status', '--porcelain'])).out) fail('working tree is not clean — commit or stash first');
 if ((await git(['rev-parse', '--abbrev-ref', 'HEAD'])).out !== 'main') fail('release from main only');
+// a release built on a stale main cannot push main at the end (step 4) — and retrying it is how a second version gets bumped by mistake
+await git(['fetch', 'origin', 'main']);
+const behind = Number((await git(['rev-list', '--count', 'HEAD..origin/main'])).out || '0');
+if (behind > 0) fail(`main is ${behind} commit${behind === 1 ? '' : 's'} behind origin/main — merge first (git pull --no-rebase origin main), then release`);
 if ((await run(['docker', 'buildx', 'version'], { canFail: true })).code !== 0) fail('docker buildx is required for the multi-arch image');
 
 // ---------- version ----------
 const pkgPath = join(ROOT, 'package.json');
 const pkg = JSON.parse(readFileSync(pkgPath, 'utf8'));
 const cur = String(pkg.version);
+// HEAD is the last release's own commit and origin/main does not have it: that release never finished.
+// A patch|minor|major now would tag a second version and publish an empty changelog section for it.
+if (bumpArg === 'patch' || bumpArg === 'minor' || bumpArg === 'major') {
+  const headTag = await run(['git', 'describe', '--tags', '--exact-match', 'HEAD'], { canFail: true });
+  const onOrigin = (await run(['git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main'], { canFail: true })).code === 0;
+  if (headTag.code === 0 && headTag.out === `v${cur}` && !onOrigin) fail(`the last release v${cur} is not on origin/main yet — finish it first: bun run release ${cur} (or git push origin main --tags when its image is already published), then bump`);
+}
 const m = cur.match(/^(\d+)\.(\d+)\.(\d+)$/);
 if (!m) fail(`current version ${cur} is not stable semver`);
 const next =
