@@ -59,7 +59,7 @@ Once you pick a mode other than **Local only**, more options appear.
 If your project has no online copy yet, the form says **No remote yet** and offers two ways:
 
 - **existing remote URL**: paste the address of an empty repository you created, for example `git@github.com:you/repo.git`.
-- **or create a GitHub repo**: pick the owner (you or one of your organisations), a name, and **private** or **public**. Foundry creates it at delivery time. When you are connected to GitHub, this is filled in for you: your account, the folder's name, private.
+- **or create a GitHub repo**: pick the owner (you or one of your organisations), a name, and **private** or **public**. Foundry creates it at delivery time. When you are connected to GitHub, this is filled in for you: your account, the folder's name, private. GitHub allows only letters, digits, `.`, `-` and `_` in a name and turns every other character into `-`, so a folder called `My App V2` gives `My-App-V2`: the form shows the name the repository will get, and the goal keeps that name.
 
 ### Once the PR is open
 

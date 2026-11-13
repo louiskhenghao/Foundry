@@ -1,3 +1,4 @@
+import { githubRepoName } from '@foundry/core';
 import type { ExecResult } from '../git/git.ts';
 import { git } from '../git/git.ts';
 import type { GhAvailability, GhClient, IssueView, PrRef, PrReview, PrReviewComment, PrView } from './gh.ts';
@@ -80,15 +81,17 @@ export class FakeGh implements GhClient {
   async orgs() {
     return [this.login_, 'acme-org'];
   }
+  /** a repository goes by the name GitHub gives it (githubRepoName): the fake respells as the real thing does */
   async repoExists(owner: string, name: string) {
     this.calls.push(['repoExists', owner, name]);
-    return this.repos.has(`${owner}/${name}`);
+    return this.repos.has(`${owner}/${githubRepoName(name)}`);
   }
   async repoCreate(i: { owner: string; name: string; visibility: 'private' | 'public'; sourcePath: string; remote: string }) {
-    this.calls.push(['repoCreate', `${i.owner}/${i.name}`]);
-    this.repos.add(`${i.owner}/${i.name}`);
+    const name = githubRepoName(i.name);
+    this.calls.push(['repoCreate', `${i.owner}/${name}`]);
+    this.repos.add(`${i.owner}/${name}`);
     if (this.bareRemote) await git(['remote', 'add', i.remote, this.bareRemote], i.sourcePath);
-    return { url: `https://github.com/${i.owner}/${i.name}` };
+    return { url: `https://github.com/${i.owner}/${name}` };
   }
   async prFind(_cwd: string, i: { repo: string; head: string; base: string }): Promise<PrRef | null> {
     const pr = [...this.prs.values()].find((p) => p.repo === i.repo && p.head === i.head && p.base === i.base && p.state === 'OPEN');

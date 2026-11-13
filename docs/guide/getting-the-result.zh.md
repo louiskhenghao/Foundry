@@ -59,7 +59,7 @@ pull request 类的方式需要 GitHub CLI 和一个已连接的账户：见 [�
 如果你的项目还没有线上副本，表单会显示 **No remote yet**，并提供两种办法：
 
 - **existing remote URL**：粘贴你建好的空仓库地址，比如 `git@github.com:you/repo.git`。
-- **or create a GitHub repo**：选择所有者（你自己或你的某个组织）、名字，以及 **private** 或 **public**。Foundry 在交付时创建它。连接了 GitHub 时，这些会替你填好：你的账户、文件夹的名字、private。
+- **or create a GitHub repo**：选择所有者（你自己或你的某个组织）、名字，以及 **private** 或 **public**。Foundry 在交付时创建它。连接了 GitHub 时，这些会替你填好：你的账户、文件夹的名字、private。GitHub 的仓库名只允许字母、数字、`.`、`-` 和 `_`，其他字符一律换成 `-`，所以叫 `My App V2` 的文件夹会得到 `My-App-V2`：表单会显示仓库实际会用的名字，目标也记住这个名字。
 
 ### PR 开出之后
 
