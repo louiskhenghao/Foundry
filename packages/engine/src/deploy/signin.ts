@@ -52,6 +52,8 @@ const key = (engine: Engine, place: SignInPlace) => `${engine.config.dataDir}\u0
 
 export const signInState = (engine: Engine, place: SignInPlace): SignInState => runs.get(key(engine, place))?.state ?? idle(place);
 
+/** what the CLIs are told to open the browser with: a command that does nothing, so the page opens once, from the Settings page */
+const NO_BROWSER = existsSync('/usr/bin/false') ? '/usr/bin/false' : 'false';
 /** the marks of a CI machine: flyctl refuses `fly auth login` when it sees one (an empty CI counts), so none reaches a sign-in */
 const CI_MARKS = ['CI', 'CONTINUOUS_INTEGRATION', 'BUILD_NUMBER', 'RUN_ID', 'GITHUB_ACTIONS', 'GITLAB_CI', 'CIRCLECI', 'TRAVIS', 'BUILDKITE', 'TEAMCITY_VERSION', 'TF_BUILD', 'APPVEYOR', 'CODEBUILD_BUILD_ID', 'NETLIFY', 'VERCEL', 'FLY_API_TOKEN', 'FLY_ACCESS_TOKEN'];
 /** the CLI's whole environment for a sign-in: a home of its own, the real npm cache (so npx does not fetch the CLI again), no update nags, no CI marks and no token of an earlier sign-in */
@@ -59,7 +61,8 @@ function signInEnv(home: string): Record<string, string> {
   const real = homedir();
   const env: Record<string, string> = {};
   for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !CI_MARKS.includes(k)) env[k] = v;
-  return { ...env, HOME: home, XDG_CONFIG_HOME: join(home, '.config'), npm_config_cache: process.env.npm_config_cache ?? join(real, '.npm'), FLY_NO_UPDATE_CHECK: '1', NO_COLOR: '1' };
+  // the page opens from the Settings page in the person's browser, once; the CLI's own attempt would open a second tab
+  return { ...env, HOME: home, XDG_CONFIG_HOME: join(home, '.config'), npm_config_cache: process.env.npm_config_cache ?? join(real, '.npm'), FLY_NO_UPDATE_CHECK: '1', NO_COLOR: '1', BROWSER: NO_BROWSER };
 }
 /** `fly` as the person has it: on the PATH, or where Fly.io's installer puts it */
 export function flyBin(): string {
@@ -217,8 +220,6 @@ async function netlifySignIn(engine: Engine, run: Run) {
   } catch {}
   if (req.code !== 0 || !ticket.ticket_id || !ticket.url) return end(run, 'failed', `Netlify gave no sign-in ticket: ${lastLine(req.out)}`);
   run.state = { ...run.state, url: ticket.url, detail: 'approve the sign-in in the browser' };
-  // the browser, when there is one here: the CLI's ticket page opens like the CLI itself would open it
-  await openBrowser(ticket.url);
   while (run.state.status === 'waiting') {
     await new Promise((r) => setTimeout(r, engine.signInPollMs));
     if (run.state.status !== 'waiting') return;
@@ -280,16 +281,6 @@ export function netlifyTokenIn(home: string): string | null {
     } catch {}
   }
   return null;
-}
-
-/** open a page in the browser of the machine Foundry runs on, when it has one; silent otherwise (the page is shown to click) */
-async function openBrowser(url: string): Promise<void> {
-  const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? null : Bun.which('xdg-open') ? 'xdg-open' : null;
-  if (!opener || process.env.FOUNDRY_NO_BROWSER) return;
-  try {
-    const p = Bun.spawn([opener, url], { stdout: 'ignore', stderr: 'ignore', stdin: 'ignore' });
-    await p.exited;
-  } catch {}
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

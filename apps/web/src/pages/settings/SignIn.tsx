@@ -14,6 +14,8 @@ export function SignInPanel({ place, label, onSignedIn, where }: { place: SignIn
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const opened = useRef<string | null>(null);
+  // the tab for the place's page, opened on the click itself (a tab opened later, from a timer, is what browsers block)
+  const tab = useRef<Window | null>(null);
   useEffect(() => {
     api.signInStatus(place).then(setSt).catch(() => {});
   }, [place]);
@@ -34,9 +36,23 @@ export function SignInPanel({ place, label, onSignedIn, where }: { place: SignIn
   useEffect(() => {
     if (st?.status === 'waiting' && st.url && opened.current !== st.url) {
       opened.current = st.url;
-      window.open(st.url, '_blank', 'noopener');
+      if (tab.current && !tab.current.closed) tab.current.location.href = st.url;
+      else window.open(st.url, '_blank', 'noopener');
+      tab.current = null;
     }
+    // a sign-in that ended before its page was known leaves no blank tab behind
+    if (st && st.status !== 'waiting' && tab.current && !tab.current.closed && !opened.current) tab.current.close();
+    if (st && st.status !== 'waiting') tab.current = null;
   }, [st?.url, st?.status]);
+  const start = () => {
+    opened.current = null;
+    try {
+      tab.current = window.open('about:blank', '_blank');
+    } catch {
+      tab.current = null;
+    }
+    void act(() => api.signIn(place));
+  };
   const act = async (fn: () => Promise<SignInState>) => {
     setBusy(true);
     setErr(null);
@@ -64,7 +80,7 @@ export function SignInPanel({ place, label, onSignedIn, where }: { place: SignIn
             Cancel
           </Button>
         ) : (
-          <Button size="sm" disabled={busy} onClick={() => void act(() => api.signIn(place))}>
+          <Button size="sm" disabled={busy} onClick={start}>
             {busy ? <Loader2 size={12} className="animate-spin" /> : <LogIn size={12} />} Sign in
           </Button>
         )}

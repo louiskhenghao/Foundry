@@ -26,7 +26,7 @@ function fakeCli(): string {
     path,
     `#!/bin/sh
 cli="$1"; shift
-printf '%s|%s|home=%s|ci=%s|token=%s\\n' "$cli" "$*" "$HOME" "\${CI+set}" "\${FLY_API_TOKEN:+set}" >> "${join(fakes, 'calls.log')}"
+printf '%s|%s|home=%s|ci=%s|token=%s|browser=%s\\n' "$cli" "$*" "$HOME" "\${CI+set}" "\${FLY_API_TOKEN:+set}" "$BROWSER" >> "${join(fakes, 'calls.log')}"
 case "$cli" in
   fly)
     case "$*" in
@@ -81,7 +81,7 @@ describe('signing in to a deploy place through its CLI (ADR-0097)', () => {
     const login = calls().find((l) => l.startsWith('fly|auth login|'))!;
     const home = login.split('home=')[1]!.split('|')[0]!;
     expect(home.startsWith(join(dataDir, 'tmp'))).toBe(true);
-    expect(login).toContain('|ci=|token=');
+    expect(login).toMatch(/\|ci=\|token=\|browser=\S*false$/);
     delete process.env.CI;
     delete process.env.FLY_API_TOKEN;
     // a second click while it waits changes nothing

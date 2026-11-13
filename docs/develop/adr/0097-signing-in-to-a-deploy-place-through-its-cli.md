@@ -23,8 +23,9 @@ where the token is made.
   login — `fly auth login`; `netlify login --request` for a ticket, then `netlify login --check` until approved —
   with a **home folder of its own** under the data folder (`HOME`, `XDG_CONFIG_HOME`), so the CLI writes its session
   where Foundry knows and nothing lands in the person's dotfiles; the folder is removed when the sign-in ends,
-  whatever way. The CLI opens the browser where it can; the page's address is also shown on the card and opened in a
-  new tab by the page, so a Foundry in Docker or on a server works the same. Fly.io's approval page shows a code that
+  whatever way. The page opens once, from the Settings page in the person's own browser (a tab opened on the click,
+  pointed at the address when the CLI names it); the CLI is told not to open one (`BROWSER` set to a no-op), so no
+  second tab appears and a Foundry in Docker or on a server works the same; the address stays on the card to click. Fly.io's approval page shows a code that
   finishes a login from another machine (`fly auth login --code`), and the card takes it.
 - **What is kept is a token like a pasted one.** After Fly.io's approval Foundry makes an organization token
   (`fly tokens create org --name "Foundry (deploys)" --expiry 87600h`, the organization from Settings when set) and
