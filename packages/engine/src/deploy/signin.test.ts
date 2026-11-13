@@ -37,7 +37,7 @@ case "$cli" in
         n=0; while [ ! -f "${join(fakes, 'APPROVE')}" ] && [ ! -f "$HOME/.fly/config.yml" ]; do sleep 0.1; n=$((n+1)); [ $n -gt 300 ] && exit 2; done
         mkdir -p "$HOME/.fly"; echo "access_token: sess" > "$HOME/.fly/config.yml"; echo "successfully logged in as louis@example.com" ;;
       "auth whoami") [ -f "$HOME/.fly/config.yml" ] && echo "louis@example.com" || { echo "no access token" >&2; exit 1; } ;;
-      "orgs list --json") if [ -f "${join(fakes, 'MANY_ORGS')}" ]; then echo '[{"Slug":"acme","Name":"Acme"},{"Slug":"beta","Name":"Beta"}]'; else echo '[{"ID":"o1","Name":"Louis","Slug":"personal","Type":"PERSONAL"},{"ID":"o2","Name":"Acme","Slug":"acme","Type":"SHARED"}]'; fi ;;
+      "orgs list --json") if [ -f "${join(fakes, 'MANY_ORGS')}" ]; then echo '{"acme":"Acme","beta":"Beta"}'; else echo '{"personal":"Louis","acme":"Acme"}'; fi ;;
       "tokens create org"*) if [ -f "${join(fakes, 'NO_TOKEN')}" ]; then echo "Error: not allowed" >&2; exit 1; fi; echo '{"token":"FlyV1 fm2_SECRETORGTOKEN0123456789"}' ;;
     esac ;;
   netlify)
@@ -162,7 +162,10 @@ describe('signing in to a deploy place through its CLI (ADR-0097)', () => {
   }, 20_000);
 
   test('the Netlify token is found wherever its CLI put config.json under the home; flyctl’s presence and install are reported', async () => {
-    expect(flyOrgSlugs('[{"Slug":"personal"},{"slug":"acme"},{"Name":"x"}]')).toEqual(['personal', 'acme']);
+    // what flyctl prints: a map of slug to name; a list of records or of slugs is read too
+    expect(flyOrgSlugs('{"personal":"Louis","louis-loo":"louis-loo"}')).toEqual(['personal', 'louis-loo']);
+    expect(flyOrgSlugs('Update available…\n[{"Slug":"personal"},{"slug":"acme"},{"Name":"x"}]')).toEqual(['personal', 'acme']);
+    expect(flyOrgSlugs('["personal"]')).toEqual(['personal']);
     expect(flyOrgSlugs('nope')).toEqual([]);
     const home = mkdtempSync(join(tmpdir(), 'foundry-nl-home-'));
     expect(netlifyTokenIn(home)).toBeNull();

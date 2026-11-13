@@ -238,14 +238,21 @@ async function netlifySignIn(engine: Engine, run: Run) {
   }
 }
 
-/** the organizations `fly orgs list --json` names, by slug (flyctl prints its API structs: Slug or slug) */
+/**
+ * The organizations `fly orgs list --json` names, by slug. flyctl prints a map of slug to name (`{"personal":"Louis"}`);
+ * a list of org records (`Slug`/`slug`) or of slugs is read too, should a version print one.
+ */
 export function flyOrgSlugs(out: string): string[] {
+  const starts = [out.indexOf('{'), out.indexOf('[')].filter((i) => i >= 0);
+  if (!starts.length) return [];
+  const start = Math.min(...starts);
+  const end = Math.max(out.lastIndexOf('}'), out.lastIndexOf(']'));
   try {
-    const j = JSON.parse(out.slice(out.indexOf('['), out.lastIndexOf(']') + 1)) as Record<string, unknown>[];
-    return j.map((o) => (typeof o.Slug === 'string' ? o.Slug : typeof o.slug === 'string' ? o.slug : null)).filter((x): x is string => !!x);
-  } catch {
-    return [];
-  }
+    const j = JSON.parse(out.slice(start, end + 1)) as unknown;
+    if (Array.isArray(j)) return j.map((o) => (typeof o === 'string' ? o : o && typeof o === 'object' ? ((o as Record<string, unknown>).Slug ?? (o as Record<string, unknown>).slug) : null)).filter((x): x is string => typeof x === 'string' && !!x);
+    if (j && typeof j === 'object') return Object.keys(j as Record<string, unknown>);
+  } catch {}
+  return [];
 }
 
 /** the token the Netlify CLI stored in the sign-in's home: `users.<id>.auth.token` in its config.json, wherever it put it */
