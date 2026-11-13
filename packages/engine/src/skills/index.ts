@@ -12,3 +12,4 @@ export * from './sources.ts';
 export * from './updates.ts';
 export * from './updaters.ts';
 export * from './workflow.ts';
+export * from './goal-skills.ts';

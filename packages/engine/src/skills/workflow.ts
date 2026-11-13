@@ -174,19 +174,57 @@ export function goalScenario(tasks: Pick<Task, 'scenario' | 'origin'>[]): TaskSc
 /** how the section names the suite the rules come from (ADR-0049) */
 const SUITE_LABEL: Record<WorkflowProfile, string> = { mattpocock: "Matt Pocock's", pstack: "pstack's", plain: 'the' };
 
+/** the invoke a status is named by in a prompt */
+const invokeOf = (s: CatalogEntryStatus): string => s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`;
+
+/** the installed entries a section lists after its rules: relevant to the role and scenario, not already a rule, at most eight */
+function otherInstalled(i: WorkflowSectionInput, visible: CatalogEntryStatus[], rules: MandatedSkill[]): CatalogEntryStatus[] {
+  const ruleNames = new Set(rules.map((r) => r.invoke));
+  return visible
+    // discipline off = not mentioned at all, not even as "installed" (filtered by the caller)
+    .filter((s) => s.entry.roles.includes(i.role) && scenarioOk(s.entry.scenarios, i.scenario))
+    .filter((s) => !ruleNames.has(invokeOf(s)))
+    .slice(0, 8);
+}
+
+/** a skill a session was told about, for the goal's record of them (ADR-0098) */
+export interface OfferedSkill {
+  /** catalog name (`tdd`), or the project skill's folder name */
+  name: string;
+  /** as the session names it: `/tdd`, `/mattpocock-skills:tdd` */
+  invoke: string;
+  mandate: 'must' | 'prefer' | 'available' | 'project';
+  /** a command-line tool rather than a skill: nothing to read */
+  cli: string | null;
+}
+
+/**
+ * The skills the section built from the same input names, one per invoke: the rules first (a skill with a MUST and a
+ * Prefer rule counts as MUST), then the other installed entries the section lists, then the project skills. Under the
+ * plain suite, the one-line hint's entries, all `available`.
+ */
+export function offeredSkills(i: WorkflowSectionInput): OfferedSkill[] {
+  const visible = visibleStatuses(i).filter((s) => !hiddenByDiscipline(s.entry, i));
+  const out = new Map<string, OfferedSkill>();
+  const add = (o: OfferedSkill) => !out.has(o.invoke) && out.set(o.invoke, o);
+  if (i.profile === 'plain') {
+    for (const s of visible.filter((x) => x.entry.roles.includes(i.role)).slice(0, 8)) add({ name: s.entry.name, invoke: invokeOf(s), mandate: 'available', cli: cliOnly(s.entry) });
+    return [...out.values()];
+  }
+  const rules = applicableRules(i);
+  for (const r of rules) add({ name: r.name, invoke: r.invoke, mandate: r.mandate, cli: r.cli ?? null });
+  for (const s of otherInstalled(i, visible, rules)) add({ name: s.entry.name, invoke: invokeOf(s), mandate: 'available', cli: cliOnly(s.entry) });
+  for (const name of i.projectSkills ?? []) add({ name, invoke: `/${name}`, mandate: 'project', cli: null });
+  return [...out.values()];
+}
+
 /** Full prompt section (with its own heading), or null when there is nothing to say. */
 export function formatWorkflowSection(i: WorkflowSectionInput): string | null {
   const visible = visibleStatuses(i).filter((s) => !hiddenByDiscipline(s.entry, i));
   const hint = formatSkillsHint(i.role, visible);
   if (i.profile === 'plain') return hint ? `# Skills\n${hint}` : null;
   const rules = applicableRules(i);
-  const ruleNames = new Set(rules.map((r) => r.invoke));
-  const others = visible
-    // discipline off = not mentioned at all, not even as "installed" (filtered above)
-    .filter((s) => s.entry.roles.includes(i.role) && scenarioOk(s.entry.scenarios, i.scenario))
-    .filter((s) => !ruleNames.has(s.entry.invoke ?? s.installedInvoke ?? `/${s.entry.name}`))
-    .map(useLabel)
-    .slice(0, 8);
+  const others = otherInstalled(i, visible, rules).map(useLabel);
   const project = i.projectSkills ?? [];
   if (!rules.length && !others.length && !project.length) return null;
   const codex = (i.provider ?? 'claude') !== 'claude'; // no Skill tool: skills are read from their SKILL.md

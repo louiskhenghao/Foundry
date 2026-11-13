@@ -27,6 +27,7 @@ import { attachmentsDir } from '../attachments.ts';
 import { unpackTransfer } from './archive.ts';
 import { TransferError } from './errors.ts';
 import { transferGoalDir } from './paths.ts';
+import { SNAPSHOT_DIR } from '../skills/goal-skills.ts';
 import { holdPreviewEnv } from './pending-env.ts';
 import { mapRepo } from './reattach.ts';
 import { openSecrets } from './secrets.ts';
@@ -405,6 +406,13 @@ function importGoal(engine: Engine, dir: string, m: TransferManifest, entry: Tra
     throw new TransferError(`"${entry.title}" could not be read in (${String((err as Error).message ?? err).slice(0, 200)}); it may come from a newer Foundry`, 422);
   }
   const goal = getGoal(engine.store.db, entry.id)!;
+
+  // the SKILL.md copies its sessions saw (ADR-0098): named by their content, so a copy this folder already has is the same
+  const snaps = join(dir, SNAPSHOT_DIR);
+  if (existsSync(snaps)) {
+    mkdirSync(join(dataDir, SNAPSHOT_DIR), { recursive: true });
+    for (const name of readdirSync(snaps)) if (/^[0-9a-f]{40}\.md$/.test(name) && statSync(join(snaps, name)).isFile()) keep(join(snaps, name), join(dataDir, SNAPSHOT_DIR, name));
+  }
 
   // its logs, by the ids of the goal and its tasks, attempts and escalations
   let logs = false;

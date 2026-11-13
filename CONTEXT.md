@@ -385,6 +385,9 @@ A Skill whose author publishes it as an archive with no repository and no versio
 **Project Skills**
 Skills matched to a repository's own stack (React, Tailwind, Supabase…) that autoskills installs into a Goal's workspace after the Brief is approved. They use the Goal's native skill location (`.claude/skills` for Claude or `.agents/skills` for Codex), have newly installed contents git-excluded while pre-existing tracked project skills are preserved, and are copied into task workspaces and listed to every Worker of that Goal. An empty repository has no stack to detect yet, so the install is retried after each Task lands until a stack manifest exists.
 
+**Skills a Goal saw**
+The record of every skill a Goal's sessions were told about — a rule of the Workflow suite (must or prefer), an installed skill listed as relevant to the role (available), a Project Skill, or one a session invoked without being told (invoked) — each with the SKILL.md as it read the moment the session was given it. The text is kept once per content, under its git blob sha, in the data folder's `skill-snapshots/`, so a skill the Extensions page later updated still shows what the Goal read. A Goal's Skills card lists them by how they were told, says how many sessions invoked each (Claude Code only), and opens a skill as the Goal saw it beside the copy installed now. A Goal from before the record knows its Project Skills by name only.
+
 **Model Registry**
 What this machine has learned about a coding agent's model names: native catalog entries, which id a requested name resolved to, and when it last worked or failed. A discovered model is not proof of account access; an explicit Test checks a model by running a session.
 

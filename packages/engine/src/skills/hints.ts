@@ -2,7 +2,7 @@ import type { AgentProvider } from '@foundry/core';
 import type { TaskKind, TaskScenario, WorkflowProfile } from '@foundry/core';
 import { SATISFIED, useLabel } from './catalog.ts';
 import type { CatalogEntryStatus, SkillRole } from './types.ts';
-import { formatWorkflowSection, mandatedSkillsFor, type MandatedSkill } from './workflow.ts';
+import { formatWorkflowSection, mandatedSkillsFor, offeredSkills, type MandatedSkill, type OfferedSkill, type WorkflowSectionInput } from './workflow.ts';
 
 const MAX = 8;
 
@@ -61,11 +61,21 @@ export class SkillsHints {
     const s = await this.statuses();
     return s ? formatSkillsHint(role, s) : null;
   }
+  /** what a section and its list of skills are built from */
+  private input(role: SkillRole, opts: SectionOpts, statuses: CatalogEntryStatus[]): WorkflowSectionInput {
+    return { role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, files: opts.files, profile: opts.profile ?? this.opts.profile?.() ?? 'mattpocock', statuses, packs: { ...this.packs(), ...(opts.packs ?? {}) }, gates: this.opts.gates?.(), provider: this.opts.provider };
+  }
   /** Full `# Workflow skills` section for a role (task kind, scenario), or null. */
   async sectionFor(role: SkillRole, opts: SectionOpts = {}): Promise<string | null> {
     const s = await this.statuses();
     if (!s) return null;
-    return formatWorkflowSection({ role, taskKind: opts.taskKind, scenario: opts.scenario, projectSkills: opts.projectSkills, discipline: opts.discipline, files: opts.files, profile: opts.profile ?? this.opts.profile?.() ?? 'mattpocock', statuses: s, packs: { ...this.packs(), ...(opts.packs ?? {}) }, gates: this.opts.gates?.(), provider: this.opts.provider });
+    return formatWorkflowSection(this.input(role, opts, s));
+  }
+  /** The skills `sectionFor` names with the same options, for the goal's record of them (ADR-0098); none while hints are off. */
+  async offeredFor(role: SkillRole, opts: SectionOpts = {}): Promise<OfferedSkill[]> {
+    const s = await this.statuses();
+    if (!s) return [];
+    return offeredSkills(this.input(role, opts, s));
   }
   /** Skills this role MUST invoke for this task kind / scenario (for the reviewer's note). */
   async mandatedFor(role: SkillRole, opts: SectionOpts = {}): Promise<MandatedSkill[]> {

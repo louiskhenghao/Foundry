@@ -96,7 +96,7 @@ goal 标题栏里的 **Simple | Expert** 用来切换视图，两种视图下它
   - **Rerun** 重新录制一个里程碑；**Rerun all** 重新录制所有已完成的里程碑。见 [Milestones](#milestones)。
   - 各行上方的 **Final walkthrough** 写着所有任务完成后，每个脚本是否都通过了。
 - **Model fallback**：只在某个模型不可用、Foundry 换了另一个模型时出现。
-- **Project skills**：Foundry 为你项目的技术栈添加的 skill，按 Frontend、Backend、Database、Testing、Tooling 分组，并显示数量。它们不会进入你的提交。
+- **Skills**：这个 goal 的会话被告知过的每一个 skill，显示数量，分四组。**Workflow** 是工作流套件的规则（标了 **must** 的是必须使用的）；**Project** 是 Foundry 为你项目的技术栈添加的 skill，它们不会进入你的提交；**Available** 是会话被告知可以使用的已安装 skill；**Also invoked** 是会话自己选用的 skill。用 Claude Code 时，skill 后面的数字是调用过它的会话数，角落里显示总共有多少个被调用过；Codex 和 Antigravity 不回报调用。点击一个 skill 可以读到它的 SKILL.md **当时的样子**：会话被给到一个 skill 的那一刻，Foundry 就保存一份它的文本，所以后来更新过的 skill 仍然显示这个 goal 当时读到的内容。如果现在安装的版本已经不同，窗口里会同时提供 **As the goal saw it** 和 **As installed now**。在 Foundry 开始保存这些副本之前的 goal 只按名字显示它的 project skills，打开的是现在安装的版本。
 - **Completion**：审计、文档、知识图谱刷新和媒体文件各占一行，写着结果。见 [完成后的附加项](./getting-the-result.zh.md#完成后的附加项)。
 - **Acceptance**（右侧）：每个 **must** 和 **stretch** 检查及其最新结果，比如 **3/4 passed**。点一个检查会在弹窗里打开：它检查什么（命令，或审查员的评分标准）、它的每一次运行（新的在上，点某一次就看那一次的输出），然后是所选那次运行的输出。命令的输出带行号显示，审查员的结论以 Markdown 显示（可切换 **Preview** 和 **Raw**），JSON 输出显示成树。输出上方有一行说明你看到的是 Foundry 保留的部分（长输出只保留开头、结尾和报错的行，失败时会做摘要）还是全部：**Show the whole output** 加载这次运行打印的全部内容，**Show the summary** 切回去。下面是 **Self-check** 开关和它最近一次的结果（见 [Self-check](#self-check)），goal 有里程碑时还有 **Have a look: pause at milestones**（见 [Milestones](#milestones)）。
 

@@ -439,6 +439,11 @@ const DEMO_CHECKS = [
 function recordCompletionExtras(engine: Engine, goalId: string): void {
   const rec = (type: string, payload: object) => engine.store.append({ type, goalId, payload } as never);
   rec('goal.autoskills', { status: 'installed', skills: ['accessibility', 'frontend-design', 'next-best-practices', 'nodejs-best-practices', 'react-best-practices', 'seo', 'tailwind-css-patterns', 'typescript-advanced-types', 'vitest', 'zod'], detail: 'matched package.json' });
+  // the skills its sessions were told about (ADR-0098): the suite's rules for the worker and the reviewers, the design skill, the project skills
+  const seen = (name: string, invoke: string, mandate: string, source: string, origin: string | null) => ({ name, invoke, mandate, source, origin, sha: null, dir: null, version: null });
+  rec('goal.skills_seen', { role: 'worker', skills: [seen('tdd', '/mattpocock-skills:tdd', 'must', 'plugin', 'mattpocock/skills'), seen('impeccable', '/impeccable', 'must', 'foundry', 'pbakaus/impeccable'), seen('codebase-design', '/mattpocock-skills:codebase-design', 'prefer', 'plugin', 'mattpocock/skills'), seen('webapp-testing', '/webapp-testing', 'available', 'foundry', 'anthropics/skills'), ...['accessibility', 'frontend-design', 'next-best-practices', 'nodejs-best-practices', 'react-best-practices', 'seo', 'tailwind-css-patterns', 'typescript-advanced-types', 'vitest', 'zod'].map((n) => seen(n, `/${n}`, 'project', 'project', null))] });
+  rec('goal.skills_seen', { role: 'reviewer-task', skills: [seen('code-review', '/mattpocock-skills:code-review', 'must', 'plugin', 'mattpocock/skills')] });
+  rec('goal.skills_seen', { role: 'reviewer-goal', skills: [seen('code-review', '/mattpocock-skills:code-review', 'must', 'plugin', 'mattpocock/skills'), seen('ponytail-review', '/ponytail-review', 'prefer', 'foundry', 'louiskhenghao/ponytail')] });
   rec('goal.completion_set', { graphRefresh: true, docs: ['to-prd', 'readme-update'], reason: 'inferred: coding goal' });
   rec('goal.docs_generated', { status: 'ok', types: ['to-prd', 'readme-update'], files: ['docs/prd/newsletter-sign-up.md', 'README.md'], costUsd: 0.21, detail: 'committed 9c4e1a7 (2 file(s))', ref: '9c4e1a7d2b8f6e0c3a5d7b9e1f2a4c6d8e0b1a3c' });
   rec('goal.completion_ran', {

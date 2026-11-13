@@ -287,7 +287,7 @@ export interface FsRecent {
   nativePicker: boolean;
 }
 import type { AgentLogChunk, AgentsList, AgentsSummary } from '@foundry/engine/agents-types';
-import type { DoctorReport, InstallResult, ReleaseForecast, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from '@foundry/engine/skills-types';
+import type { DoctorReport, GoalSkillsView, InstallResult, ReleaseForecast, SkillSnapshotView, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from '@foundry/engine/skills-types';
 import type { AgyQuota, ClaudeUsage, CodexQuota, MinimaxQuota, Report, UsageSummary } from '@foundry/engine/usage-types';
 
 export type Usage = UsageSummary & { pausedUntil: string | null };
@@ -525,6 +525,8 @@ export interface EditorView {
 
 export interface GoalDetail {
   goal: Goal;
+  /** every skill its sessions were given or invoked, as their SKILL.md read then (ADR-0098) */
+  skills?: GoalSkillsView;
   /** how far earlier goals ran from their estimate (ADR-0056) */
   calibration?: Calibration;
   /** how many Learnings the goal's folder has (ADR-0040) */
@@ -683,6 +685,8 @@ export function apiForProvider(provider?: AgentProvider) {
   killAgent: (sessionId: string) => req<{ ok: true }>(`/api/agents/${sessionId}/kill`, { method: 'POST' }),
   goals: () => req<GoalRow[]>('/api/goals'),
   goal: (id: string) => req<GoalDetail>(`/api/goals/${id}`),
+  /** one skill of the goal as its sessions saw it, beside the copy installed now (ADR-0098) */
+  goalSkill: (id: string, invoke: string) => req<SkillSnapshotView>(`/api/goals/${id}/skills/view?invoke=${encodeURIComponent(invoke)}`),
   createGoal: (body: unknown) => req<Goal>('/api/goals', { method: 'POST', body: JSON.stringify(body) }),
   followUpDraft: (id: string) => req<FollowUpDraft>(`/api/goals/${id}/follow-up-draft`),
   /** every folder with Learnings, or one folder's (ADR-0040) */

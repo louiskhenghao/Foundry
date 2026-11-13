@@ -17,7 +17,7 @@ import { CodexModelsCard } from './CodexModelsCard.tsx';
 import { CheckDialog } from './CheckDialog.tsx';
 import { CHECK_RESULT, CheckSquare, CompletionCard } from './CompletionCard.tsx';
 import { MilestonesCard } from './MilestoneEvidence.tsx';
-import { ProjectSkillsCard } from './ProjectSkillsCard.tsx';
+import { SkillsCard } from './SkillsCard.tsx';
 import { ProvidesCard } from './ProvidesCard.tsx';
 import { AdjustCard } from './AdjustCard.tsx';
 import { RerenderCard } from './RerenderCard.tsx';
@@ -106,7 +106,7 @@ export function OverviewTab({ d }: { d: GoalDetail }) {
               </div>
             </Card>
           )}
-          <ProjectSkillsCard d={d} />
+          <SkillsCard d={d} />
           <CompletionCard d={d} />
           <RerenderCard d={d} />
           <AdjustCard d={d} />

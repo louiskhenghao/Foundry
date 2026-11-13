@@ -11,6 +11,7 @@ import { OpenMenu } from '../../components/OpenMenu.tsx';
 import { taskMark } from '../../components/progress.tsx';
 import { TaskTags } from '../../components/TaskTags.tsx';
 import { ScoreRow } from '../../components/ScoreRow.tsx';
+import { UsedSkillChip } from '../../components/SkillMd.tsx';
 import { Badge, Button, ConfirmDialog, ago, chipClass, choiceClass, cn, fmtUsd, stateLabel } from '../../ui.tsx';
 import { areaStyle } from '../brief/shared.ts';
 import { CHECK_RESULT, CheckSquare } from './CompletionCard.tsx';
@@ -364,7 +365,7 @@ function AttemptStats({ a, d, concluded }: { a: Attempt; d: GoalDetail; conclude
         {cell('Started', <span className="mono">{ago(a.startedAt)}</span>)}
         {cell('Duration', a.endedAt ? <span className="mono">{fmtDur(Date.parse(a.endedAt) - Date.parse(a.startedAt))}</span> : 'running…')}
         {cell('Session', a.sessionId ? <span className="mono">{a.sessionId.slice(0, 8)}</span> : '—', a.sessionId ?? undefined)}
-        {cell('Skills', d.goal.provider !== 'claude' && d.goal.provider != null ? 'not observable' : a.skillsUsed.length ? a.skillsUsed.join(', ') : '—', 'skills invoked with the Skill tool')}
+        {cell('Skills', d.goal.provider !== 'claude' && d.goal.provider != null ? 'not observable' : a.skillsUsed.length ? <span className="flex flex-wrap gap-1 font-normal">{a.skillsUsed.map((s) => <UsedSkillChip key={s} goalId={d.goal.id} used={s} skills={d.skills?.skills ?? []} />)}</span> : '—', 'skills invoked with the Skill tool; click one to read it as the session saw it')}
       </div>
       {!running && concluded?.reason && <div className={cn('text-xs font-semibold', concluded.state === 'passed' ? 'text-ok-ink' : concluded.state === 'failed' || concluded.state === 'error' ? 'text-bad-ink' : 'text-ink-soft')}>→ {concluded.reason}</div>}
       {a.sessions.length > 0 && (

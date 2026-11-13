@@ -35,6 +35,7 @@ import { ARTIFACTS_DIR, goalWorkspacePath, screenshotsDir } from '../workspace.t
 import { packTransfer } from './archive.ts';
 import { TransferError } from './errors.ts';
 import { transferGoalDir } from './paths.ts';
+import { SNAPSHOT_DIR, snapshotPath } from '../skills/goal-skills.ts';
 import { sealSecrets } from './secrets.ts';
 
 /** What a Transfer needs of a Foundry: the export side runs with or without a live engine (the CLI) */
@@ -229,6 +230,7 @@ async function stageGoal(host: TransferHost, g: Goal, stage: string, transcripts
   // the pictures of its Subjects, which live beside the attachments
   if (hasFiles(subjectsDir(dataDir, g.id))) link(stage, join('subjects', g.id), subjectsDir(dataDir, g.id));
   if (transcripts) stageLogs(host, g, stage);
+  stageSkillSnapshots(host, g, stage);
 
   return {
     id: g.id,
@@ -279,4 +281,17 @@ function stageLogs(host: TransferHost, g: Goal, stage: string): void {
   const refs = new Set(listCheckResultsByGoal(store.db, g.id).map((r) => r.rawRef));
   for (const e of store.listByGoalOfTypes(g.id, ['review.goal.finished'])) if (e.type === 'review.goal.finished') for (const r of [...e.payload.mustResults, ...e.payload.stretchResults]) refs.add(r.rawRef);
   for (const ref of refs) if (ref && ref.startsWith(`${odir}/`) && existsSync(ref) && !existsSync(join(stage, 'check-output', basename(ref)))) link(stage, join('check-output', basename(ref)), ref);
+}
+
+/** the SKILL.md copies the goal's sessions saw (ADR-0098), by their content's sha; a goal from before the record has none */
+function stageSkillSnapshots(host: TransferHost, g: Goal, stage: string): void {
+  for (const e of host.store.listByGoalOfTypes(g.id, ['goal.skills_seen'])) {
+    if (e.type !== 'goal.skills_seen') continue;
+    for (const s of e.payload.skills) {
+      if (!s.sha) continue;
+      const from = snapshotPath(host.dataDir, s.sha);
+      const rel = join(SNAPSHOT_DIR, `${s.sha}.md`);
+      if (existsSync(from) && !existsSync(join(stage, rel))) link(stage, rel, from);
+    }
+  }
 }

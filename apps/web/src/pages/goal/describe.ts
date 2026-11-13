@@ -20,6 +20,8 @@ export function describe(e: EngineEvent, costAvailable = true): { text: string; 
       return { text: `Session ended: ${p.resultSubtype} · ${cost(p.costUsd)} · ${costAvailable ? p.numTurns + ' turns' : 'turn count unavailable'}${p.skillsUsed?.length ? ` · used ${p.skillsUsed.map((s: string) => `/${s}`).join(', ')}` : ''}`, tone: p.resultSubtype === 'success' ? 'muted' : 'warn' };
     case 'attempt.concluded':
       return { text: `Attempt ${p.state}: ${p.reason}`, tone: p.state === 'passed' ? 'ok' : 'warn' };
+    case 'goal.skills_seen':
+      return { text: `Skills the ${p.role} was given: ${p.skills.map((s: { invoke: string }) => s.invoke).join(', ')}`, tone: 'muted' };
     case 'check.finished':
       return { text: `Check ${p.result.status}: ${p.result.summary.split('\n')[0]?.slice(0, 100)}`, tone: p.result.status === 'pass' ? 'ok' : 'err', ...cut(p.result.summary, 100, true) };
     case 'review.task.finished':

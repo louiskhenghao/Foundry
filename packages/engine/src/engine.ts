@@ -83,6 +83,9 @@ import { pythonEnvPath, pythonOf } from './skills/installer.ts';
 import { filesOverlap } from './catchup.ts';
 import { SkillsManager } from './skills/manager.ts';
 import { skillUsage } from './skills/usage.ts';
+import { goalSkillsView, recordInvokedSkills, recordSkillsSeen, skillSnapshotView, type GoalSkillsDeps } from './skills/goal-skills.ts';
+import type { SectionOpts } from './skills/hints.ts';
+import type { GoalSkillsView, SkillRole, SkillSnapshotView } from './skills/types.ts';
 import { linkSkillDirs, linkSuiteSkills } from './skills/suites.ts';
 import { exportLearningsSkill } from './learnings-skill.ts';
 import { secondOpinion, secondOpinionFailureOf, secondOpinionOf, secondOpinionOnBrief, startSecondOpinion, type SecondOpinionFailure, type SecondOpinionView } from './brief-second-opinion.ts';
@@ -1208,6 +1211,8 @@ export class Engine {
     const record = (payload: { status: 'installed' | 'skipped' | 'failed'; skills: string[]; detail: string }) => {
       try {
         this.store.append({ type: 'goal.autoskills', goalId: goal.id, payload });
+        // the project skills as installed, for the goal's record of skills (ADR-0098): every worker of the goal is told about them
+        if (payload.status === 'installed') recordSkillsSeen({ ...this.goalSkillsDeps(goal), workspaceDir: ws }, goal, 'worker', payload.skills.map((name) => ({ name, invoke: `/${name}`, mandate: 'project' as const, cli: null })));
       } catch (err) {
         this.config.log(`[autoskills] ${goal.id}: could not record result: ${String(err)}`);
       }
@@ -1617,6 +1622,15 @@ export class Engine {
         ...(result.accountId ? { accountId: result.accountId } : {}),
       },
     });
+    // a skill the session chose itself, which no prompt of the goal named: into the goal's record as installed now (ADR-0098)
+    if (meta.goalId && result.skillsUsed?.length) {
+      try {
+        const goal = this.mustGoal(meta.goalId);
+        recordInvokedSkills(this.goalSkillsDeps(goal), goal, meta.kind, result.skillsUsed);
+      } catch (err) {
+        this.config.log(`[skills] ${meta.goalId}: could not record the invoked skills: ${String(err)}`);
+      }
+    }
     this.observeRateLimit(result, provider);
   }
 
@@ -2412,6 +2426,35 @@ export class Engine {
 
   skillsFor(goal: Goal): SkillsManager {
     return this.providerSkills[goal.provider ?? this.config.provider];
+  }
+
+  /** what the goal's record of skills needs (ADR-0098): its events, its coding agent's installed skills, its workspace */
+  private goalSkillsDeps(goal: Goal): GoalSkillsDeps {
+    const skills = this.skillsFor(goal);
+    return { dataDir: this.config.dataDir, store: this.store, rows: () => skills.scan(goal.repoPath).installed, paths: skills.paths, provider: goal.provider ?? this.config.provider, workspaceDir: goalWorkspacePath(this.config.dataDir, goal) };
+  }
+  /**
+   * The `# Workflow skills` section of a role's prompt, built with the goal's suite and packs; the skills it names go
+   * into the goal's record as their SKILL.md reads now (ADR-0098). A record that fails never costs the session its section.
+   */
+  async skillsSection(goal: Goal, role: SkillRole, opts: SectionOpts = {}): Promise<string | null> {
+    const hints = this.skillsFor(goal).hints;
+    const o: SectionOpts = { packs: this.packsFor(goal), profile: this.workflowProfileOf(goal), ...opts };
+    const [section, offered] = await Promise.all([hints.sectionFor(role, o), hints.offeredFor(role, o)]);
+    try {
+      recordSkillsSeen(this.goalSkillsDeps(goal), goal, role, offered);
+    } catch (err) {
+      this.config.log(`[skills] ${goal.id}: could not record the ${role}'s skills: ${String(err)}`);
+    }
+    return section;
+  }
+  /** every skill the goal's sessions were given or invoked (ADR-0098) */
+  skillsView(goal: Goal): GoalSkillsView {
+    return goalSkillsView(this.goalSkillsDeps(goal), goal);
+  }
+  /** one skill of the goal as its sessions saw it, beside the copy installed now; null when the goal never saw it */
+  skillSnapshot(goal: Goal, invoke: string): SkillSnapshotView | null {
+    return skillSnapshotView(this.goalSkillsDeps(goal), goal, invoke);
   }
 
   /** the workflow suite a goal's sessions follow: its own, or the Settings default for a goal from before suites were per goal (ADR-0049) */

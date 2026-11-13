@@ -43,6 +43,7 @@ Around them: `roles/*.md` are the role prompts (see [roles.md](roles.md)). `cata
 | `providers/<other-provider>/` | model/skill manager caches for the backend other than the launch profile |
 | `transcripts/*.jsonl`, `*.prompt.md` | every session's raw stream-json, plus the worker prompt beside it |
 | `check-output/` | full output of command Checks |
+| `skill-snapshots/<sha>.md` | every SKILL.md a goal's session was given, kept once per content under its git blob sha (`engine/src/skills/goal-skills.ts`, ADR-0098) |
 | `attachments/` | Attachments and their markdown renditions (`engine/src/attachments.ts`) |
 | `skills-*` | skills cache, trash and update state (`engine/src/skills/*`) |
 | `worktrees/<goal>/` | the **legacy** workspace layout, from before progress folders (ADR-0011) |

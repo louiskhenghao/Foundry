@@ -38,6 +38,7 @@ On macOS, a local install's Claude login is in the Keychain, not in `~/.claude`.
 | `models.json` | native model catalog for the launch provider | optional |
 | `providers/<other-provider>/` | the other backend’s model catalog and skills cache/trash/update state; goal events remain in the shared `engine.db` | keep with the whole data folder |
 | `transcripts/`, `check-output/` | session logs, check output | optional |
+| `skill-snapshots/` | the SKILL.md of every skill a goal's sessions were given, as it read then (small, one copy per content) | yes, if you want a goal's Skills card to open them |
 | `attachments/` | files and links attached to goals | yes, if you want them |
 | `skills-cache/`, `skills-trash/` | fetched skill sources; uninstalled skills (restorable) | optional |
 | `worktrees/`, `screenshots/` | work of goals created before 0.3.0 (before progress folders) | until those goals are delivered |
