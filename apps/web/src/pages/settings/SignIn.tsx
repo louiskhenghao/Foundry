@@ -81,12 +81,13 @@ export function SignInPanel({ place, label, onSignedIn, where }: { place: SignIn
         </div>
       )}
       {waiting && st?.code && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <span className="text-ink-faint">Approving on another machine? Enter the code the page shows:</span>
-          <Input aria-label="Approval code" value={code} placeholder="code" spellCheck={false} autoComplete="off" onChange={(e) => setCode(e.target.value)} className="mono w-36 py-1 text-[11px]" />
-          <Button size="sm" variant="ghost" disabled={busy || !code.trim()} onClick={() => void act(() => api.signInCode(place, code.trim()))}>
-            Finish
+        <div className="mt-1.5 flex flex-wrap items-center gap-2 rounded-md border border-you/40 bg-you/5 px-2 py-1.5">
+          <span className="text-ink">After you approve, the page shows a code — paste it here to finish:</span>
+          <Input aria-label="Approval code" value={code} placeholder="code from the page" spellCheck={false} autoComplete="off" onChange={(e) => setCode(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && code.trim() && void act(() => api.signInCode(place, code.trim()))} className="mono w-44 py-1 text-[11px]" />
+          <Button size="sm" variant="primary" disabled={busy || !code.trim()} onClick={() => void act(() => api.signInCode(place, code.trim()))}>
+            {busy ? <Loader2 size={12} className="animate-spin" /> : null} Finish sign-in
           </Button>
+          <span className="text-ink-faint">(or wait: a login approved on this machine may finish by itself)</span>
         </div>
       )}
       {waiting && st?.output && <pre className="mono mt-1.5 max-h-24 overflow-auto whitespace-pre-wrap rounded border border-line bg-surface p-2 text-[10.5px] text-ink-faint">{st.output}</pre>}
