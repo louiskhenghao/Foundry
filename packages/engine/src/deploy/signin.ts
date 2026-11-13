@@ -52,10 +52,14 @@ const key = (engine: Engine, place: SignInPlace) => `${engine.config.dataDir}\u0
 
 export const signInState = (engine: Engine, place: SignInPlace): SignInState => runs.get(key(engine, place))?.state ?? idle(place);
 
-/** the CLI's environment for a sign-in: a home of its own, the real npm cache (so npx does not fetch the CLI again), no update nags */
+/** the marks of a CI machine: flyctl refuses `fly auth login` when it sees one (an empty CI counts), so none reaches a sign-in */
+const CI_MARKS = ['CI', 'CONTINUOUS_INTEGRATION', 'BUILD_NUMBER', 'RUN_ID', 'GITHUB_ACTIONS', 'GITLAB_CI', 'CIRCLECI', 'TRAVIS', 'BUILDKITE', 'TEAMCITY_VERSION', 'TF_BUILD', 'APPVEYOR', 'CODEBUILD_BUILD_ID', 'NETLIFY', 'VERCEL', 'FLY_API_TOKEN', 'FLY_ACCESS_TOKEN'];
+/** the CLI's whole environment for a sign-in: a home of its own, the real npm cache (so npx does not fetch the CLI again), no update nags, no CI marks and no token of an earlier sign-in */
 function signInEnv(home: string): Record<string, string> {
   const real = homedir();
-  return { HOME: home, XDG_CONFIG_HOME: join(home, '.config'), npm_config_cache: process.env.npm_config_cache ?? join(real, '.npm'), FLY_NO_UPDATE_CHECK: '1', CI: '', NO_COLOR: '1' };
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(process.env)) if (v !== undefined && !CI_MARKS.includes(k)) env[k] = v;
+  return { ...env, HOME: home, XDG_CONFIG_HOME: join(home, '.config'), npm_config_cache: process.env.npm_config_cache ?? join(real, '.npm'), FLY_NO_UPDATE_CHECK: '1', NO_COLOR: '1' };
 }
 /** `fly` as the person has it: on the PATH, or where Fly.io's installer puts it */
 export function flyBin(): string {
@@ -124,7 +128,7 @@ const lastLine = (out: string) => plain(out).trim().split('\n').filter(Boolean).
 
 /** a short command in the sign-in's home, its output kept (tokens blanked by the caller) */
 async function capture(engine: Engine, run: Run, argv: string[], timeoutMs: number): Promise<{ code: number; out: string }> {
-  const proc = Bun.spawn(argv, { cwd: run.home, env: { ...process.env, ...signInEnv(run.home) }, stdout: 'pipe', stderr: 'pipe', stdin: 'ignore' });
+  const proc = Bun.spawn(argv, { cwd: run.home, env: signInEnv(run.home), stdout: 'pipe', stderr: 'pipe', stdin: 'ignore' });
   const t = setTimeout(() => killGroup(proc as { pid: number; kill: (sig?: number | NodeJS.Signals) => void }), timeoutMs);
   const [out, err] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
   const code = await proc.exited;
@@ -135,7 +139,7 @@ async function capture(engine: Engine, run: Run, argv: string[], timeoutMs: numb
 
 /** the browser login as a long-running process: its lines read as they come, the page's address picked out */
 function watch(run: Run, argv: string[], onLine?: (line: string) => void): Promise<number> {
-  const proc = Bun.spawn(argv, { cwd: run.home, env: { ...process.env, ...signInEnv(run.home) }, stdout: 'pipe', stderr: 'pipe', stdin: 'ignore' });
+  const proc = Bun.spawn(argv, { cwd: run.home, env: signInEnv(run.home), stdout: 'pipe', stderr: 'pipe', stdin: 'ignore' });
   run.proc = proc;
   const tail: string[] = [];
   const read = async (stream: ReadableStream<Uint8Array> | null) => {
