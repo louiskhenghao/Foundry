@@ -119,6 +119,7 @@ import { Conversations } from './conversation/conversations.ts';
 import { DEPLOYABLE_STATES, type DeployRequest, checkStoreDeploys, defaultCli, deployCredentials, deployName, deployReadiness, deployServers, deployWork, deploying, goalDeployability, goalPaasDeployability, goalServerDeployability, goalStoreDeployability, paasCredentials, smokeAgain, smoking, startDeploy, storeCredentials, unsupported } from './deploy/deploy.ts';
 import { FOUNDRY_PROFILE, STORE_LABEL, STORE_PLATFORM, STORE_PROVIDERS, needsInstall } from './deploy/eas.ts';
 import { PAAS_LABEL, PAAS_PROVIDERS, RENDER_API, paasConfigured, paasSteps, paasTarget } from './deploy/paas.ts';
+import { type SignInPlace, type SignInState, type ToolState, cancelSignIn, finishSignInWithCode, flyctlState, installFlyctl, signInState, startSignIn } from './deploy/signin.ts';
 import { pm2Steps, serverSteps } from './deploy/server.ts';
 import { listRecipes, recipeRuns, recipeWork, startRecipe } from './deploy/recipes.ts';
 import { type DeployEnvView, copyPreviewEnv, deployEnvView, importCheckoutDeployEnv, setDeployEnv } from './deploy/env.ts';
@@ -458,6 +459,10 @@ export class Engine {
   paasFetch: (url: string, init: RequestInit) => Promise<Response> = (url, init) => fetch(url, init);
   /** how often a Render deploy is looked at while it runs */
   paasPollMs = 10_000;
+  /** how often Netlify is asked whether a sign-in ticket was approved (ADR-0097) */
+  signInPollMs = 5_000;
+  /** how flyctl is installed on a click (ADR-0097): Fly.io's installer; tests stand in */
+  installFlyCommand: string[] = ['sh', '-c', 'curl -fsSL https://fly.io/install.sh | sh'];
   /** how App Store Connect and Google Play are reached (ADR-0096); tests stand in for the network */
   storeFetch: (url: string, init: RequestInit) => Promise<Response> = (url, init) => fetch(url, init);
   /** how often an EAS build is looked at while it runs */
@@ -3448,6 +3453,26 @@ export class Engine {
     return deployReadiness(this, goalId, provider, target);
   }
   /** ask App Store Connect now where the goal's submitted builds stand (ADR-0096); returns how many changed */
+  /** signing in to a deploy place through its CLI, from Settings (ADR-0097): the browser page, then the token into Settings */
+  signIn(place: SignInPlace): SignInState {
+    return startSignIn(this, place);
+  }
+  signInStatus(place: SignInPlace): SignInState {
+    return signInState(this, place);
+  }
+  signInCancel(place: SignInPlace): SignInState {
+    return cancelSignIn(this, place);
+  }
+  signInCode(place: SignInPlace, code: string): Promise<SignInState> {
+    return finishSignInWithCode(this, place, code);
+  }
+  /** flyctl on this computer, and its install on a click (ADR-0097) */
+  flyctl(): Promise<ToolState> {
+    return flyctlState(this);
+  }
+  installFlyctl(): ToolState {
+    return installFlyctl(this);
+  }
   checkStores(goalId: string): Promise<number> {
     this.mustGoal(goalId);
     return checkStoreDeploys(this, goalId);
