@@ -26,7 +26,7 @@ Both serve the web UI on `http://127.0.0.1:4111`.
 - [Bun](https://bun.sh) 1.4 or newer. Bun 1.3 runs Foundry but can end a browser it opened for a self-check or a milestone walkthrough (a runtime defect, oven-sh/bun#33828); Doctor says so. The Docker image ships Bun 1.4.3.
 - git.
 - For Claude goals: the Claude Code CLI, `claude` on your `PATH`, signed in. Install it with its native installer,
-  `curl -fsSL https://claude.ai/install.sh | bash` (no npm needed), or `npm install -g @anthropic-ai/claude-code`. The Docker image ships 2.1.259; the Fable 5.1 model needs at least that version.
+  `curl -fsSL https://claude.ai/install.sh | bash` (no npm needed), or `npm install -g @anthropic-ai/claude-code`. The Docker image ships 2.1.323; the Fable 5.2 model (what `fable` means from 2.1.321 on) needs at least 2.1.321, Fable 5.1 at least 2.1.259.
 - For Codex goals: a hooks-capable Codex CLI, `codex` on your `PATH`, signed in with ChatGPT. This Dockerfile pins 0.160.0. Install with `brew install --cask codex` (macOS), `npm install -g @openai/codex`, or the release binary from [github.com/openai/codex](https://github.com/openai/codex/releases); run `codex login`.
 - For Antigravity goals: the Antigravity CLI, `agy` on your `PATH` (1.1.15 or newer), signed in once from a terminal. Install with `curl -fsSL https://antigravity.google/cli/install.sh | bash` or `brew install --cask antigravity-cli`; see [antigravity.md](antigravity.md).
 - [graphify](https://github.com/safishamsi/graphify). It is the one *required* entry in the skills catalog; the
