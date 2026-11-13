@@ -18,7 +18,7 @@ bun run release patch|minor|major|x.y.z [--notes "..."] [--dry-run]
 ## Before you run it
 
 - **The local engine is idle.** No goal should be running on your own instance. The bump rewrites `package.json`, which restarts a `bun --watch` dev server, and a restart mid-goal interrupts sessions (see [testing.md](testing.md#manual-qa-against-a-throwaway-server)). Check the Agents page, or `bun run cli status`.
-- **Clean tree, on `main`.** The script refuses to run otherwise.
+- **Clean tree, on `main`, and `main` carries everything on `origin/main`.** The script fetches and refuses to run when `main` is behind: a release built on a stale `main` cannot push it at the end (step 4). Merge first with `git pull --no-rebase origin main`. It also refuses `patch|minor|major` while the last release's own commit is tagged but not on `origin/main` yet, because that release has not finished (see [when something fails](#when-something-fails)).
 - **Docker Desktop is running and signed in to Docker Hub** with push rights to `imlouiskhenghao/foundry`. `docker buildx` must be available (the script checks). To confirm the credential is there:
 
   ```sh
@@ -56,7 +56,7 @@ sequenceDiagram
   participant R as data/releases-repo<br/>(louiskhenghao/foundry-releases)
   participant D as Docker Hub<br/>(imlouiskhenghao/foundry)
   participant O as origin (main repo)
-  S->>S: preconditions: clean tree, on main, docker buildx
+  S->>S: preconditions: clean tree, on main, not behind origin/main, docker buildx
   S->>G: bump package.json, commit "release: vX.Y.Z", tag vX.Y.Z
   S->>R: gh repo clone (created public on first release) or pull --ff-only
   S->>R: add the X.Y.Z section to CHANGELOG.md, commit, push
@@ -85,4 +85,6 @@ When the requested version equals the current one **and** its tag exists, the sc
 
 **The final `git push` failed.** The image is already published. Fix the access problem and run `git push origin main --tags` by hand. Don't run the release again: that would rebuild and re-push the same image, which is harmless but slow.
 
-**Something failed before the bump** (dirty tree, wrong branch, no buildx). Nothing has happened yet. Fix it and run the original command again.
+If the push was **rejected as non-fast-forward**, a pull request was merged to `origin/main` while the image was building. Merge and push: `git pull --no-rebase origin main && git push origin main --tags`. The tag keeps pointing at the commit the image was built from; what landed in between goes into the next release. Never answer this with `bun run release patch|minor|major`: with the tag already in place the script would bump a *second* version and publish an empty changelog section for it before the build even starts. The script refuses that while it can tell (the last release's commit is tagged and not on `origin/main`); once you have merged, a bump is a real new release again.
+
+**Something failed before the bump** (dirty tree, wrong branch, `main` behind `origin/main`, the last release not on `origin/main` yet, no buildx). Nothing has happened yet. Fix it and run the original command again.
