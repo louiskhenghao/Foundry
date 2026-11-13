@@ -473,6 +473,7 @@ case "$cli" in
       *"deploy"*) echo "==> Building image"; echo "Visit your newly deployed app at https://ignored.fly.dev/" ;;
       *"status"*) echo '{"Name":"x","Hostname":"x.fly.dev","Status":"running"}' ;;
       *"version"*) echo "flyctl v0.3.100 linux/amd64" ;;
+      *"orgs list"*) echo '{"acme":"Acme"}' ;;
     esac ;;
   railway)
     case "$*" in
@@ -511,12 +512,13 @@ describe('deploying to a platform (ADR-0095)', () => {
     expect(info.providers.find((p) => p.id === 'fly')).toMatchObject({ kind: 'paas', label: 'Fly.io', configured: true, refused: null });
     expect(info.plan.map((s) => s.command)).toEqual([expect.stringContaining(`apps create ${deployName(goal)}-preview --org acme --json`), expect.stringContaining('secrets import'), expect.stringContaining('--config fly.foundry.toml'), expect.stringContaining('status')]);
     const ready = await engine.deployReadiness(goal.id, 'fly', null);
-    expect(ready.items.map((i) => [i.id, i.ok])).toEqual([['token', true], ['cli', true], ['env', true]]);
+    expect(ready.items.map((i) => [i.id, i.ok])).toEqual([['token', true], ['cli', true], ['org', true], ['env', true]]);
+    expect(ready.items.find((i) => i.id === 'org')!.detail).toBe('acme (Acme)');
     engine.deploy(goal.id, { provider: 'fly', production: false });
     await waitFor(() => last(engine, goal.id)?.status !== 'running' && (getGoal(engine.store.db, goal.id)!.deployments ?? []).length === 1);
     expect(last(engine, goal.id)).toMatchObject({ status: 'live', url: 'https://x.fly.dev', production: false, provider: 'fly' });
-    // the readiness check asked flyctl for its version; the deploy's own calls follow
-    const log = paasLog().filter((l) => l.split('|')[1] !== 'version');
+    // the readiness check asked flyctl for its version and the organizations; the deploy's own calls follow
+    const log = paasLog().filter((l) => l.split('|')[1] !== 'version' && !l.split('|')[1]!.startsWith('orgs list'));
     expect(log.map((l) => l.split('|')[1]!.split(' ').slice(0, 2).join(' '))).toEqual(['apps create', 'secrets import', 'deploy --config', 'status -a']);
     expect(log[1]).toContain('stdin=DATABASE_URL=postgres://db-host-0123/app|');
     expect(log.every((l) => l.includes('fly=set') && l.includes('ci=1'))).toBe(true);
