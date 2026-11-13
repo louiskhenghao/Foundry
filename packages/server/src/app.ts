@@ -2000,6 +2000,25 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.post('/api/goals/:id/deploy/env/from-preview', (c) => c.json(engine.copyPreviewEnvToDeploy(goalOr404(c).id, placeOf(c))));
   app.post('/api/goals/:id/deploy/env/import', (c) => c.json(engine.importCheckoutDeployEnv(goalOr404(c).id, placeOf(c))));
   // ---------- Server recipes (ADR-0092): scripts that set a server up, run on the person's click after they read them ----------
+  // signing in to a deploy place through its CLI (ADR-0097), and flyctl's install
+  const signInPlace = (c: { req: { param: (k: string) => string } }) => {
+    const p = c.req.param('place');
+    if (p !== 'fly' && p !== 'netlify') throw new HttpError(400, { error: 'a sign-in is for fly or netlify' });
+    return p;
+  };
+  app.get('/api/deploy/signin/:place', (c) => c.json(engine.signInStatus(signInPlace(c))));
+  app.post('/api/deploy/signin/:place', (c) => c.json(engine.signIn(signInPlace(c))));
+  app.delete('/api/deploy/signin/:place', (c) => c.json(engine.signInCancel(signInPlace(c))));
+  app.post('/api/deploy/signin/:place/code', async (c) => {
+    const { code } = z.object({ code: z.string().min(1) }).parse(await c.req.json());
+    try {
+      return c.json(await engine.signInCode(signInPlace(c), code));
+    } catch (e) {
+      throw new HttpError(409, { error: (e as Error).message });
+    }
+  });
+  app.get('/api/deploy/tools/fly', async (c) => c.json(await engine.flyctl()));
+  app.post('/api/deploy/tools/fly/install', (c) => c.json(engine.installFlyctl()));
   app.get('/api/servers/recipes', (c) => c.json({ recipes: engine.serverRecipes() }));
   app.get('/api/servers/:id/recipes/runs', (c) => c.json({ runs: engine.serverRecipeRuns(c.req.param('id')) }));
   app.post('/api/servers/:id/recipes/:recipe/run', async (c) => {

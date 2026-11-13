@@ -30,6 +30,12 @@ test('Deploy: what a goal offers, and a deploy refused before it starts', async 
     // the stores (ADR-0096) stay off the card for a project that is no Expo app; the watch has nothing to check
     expect(info.stores).toEqual({ appstore: { ok: false, reason: expect.stringContaining('no package.json') }, play: { ok: false, reason: expect.stringContaining('no package.json') } });
     expect(await (await app.request(`/api/goals/${goal.id}/deploy/store-check`, { method: 'POST' })).json()).toEqual({ changed: 0, deployments: [] });
+    // a sign-in through a CLI (ADR-0097): idle until clicked, for the two places that have one; flyctl's presence
+    expect(await (await app.request('/api/deploy/signin/fly')).json()).toMatchObject({ place: 'fly', status: 'idle', url: null });
+    expect((await app.request('/api/deploy/signin/vercel')).status).toBe(400);
+    expect((await app.request('/api/deploy/signin/fly/code', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"code":"ABCD"}' })).status).toBe(409);
+    engine.deployCli = (p) => (p === 'fly' ? ['/nonexistent/fly'] : ['npx', '--yes', p]);
+    expect(await (await app.request('/api/deploy/tools/fly')).json()).toMatchObject({ tool: 'fly', installed: null, status: 'idle' });
     expect((await (await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=appstore`)).json()).items[0]).toMatchObject({ id: 'token', ok: false, label: 'Expo token in Settings' });
     expect((await (await app.request(`/api/goals/${goal.id}/deploy/readiness?provider=railway`)).json()).items[0]).toMatchObject({ id: 'token', ok: false, label: 'Railway token in Settings' });
     const refused = await post(goal.id, { provider: 'vercel', production: false });

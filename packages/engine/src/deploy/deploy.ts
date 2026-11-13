@@ -26,6 +26,7 @@ import { FLY_CONFIG, PAAS_LABEL, RENDER_API, RENDER_DONE, type PaasApp, type Paa
 import { redactor } from '../preview/env.ts';
 import { FOUNDRY_ENV_FILE, deployEnvView, deployVars, writeServerEnv } from './env.ts';
 import { withSecretFile } from './secret-file.ts';
+import { flyBin } from './signin.ts';
 import { GENERATED_COMPOSE, GENERATED_ECOSYSTEM, type ServerDeployability, generatedCompose, generatedEcosystem, pm2Steps, serverAddress, serverDeployability, serverReadiness, serverSteps, shellQuote } from './server.ts';
 import { runSmoke, smokeScripts, type SmokeTarget } from './smoke.ts';
 
@@ -56,7 +57,7 @@ export function paasCredentials(engine: Engine): PaasCredentials {
   return { flyToken: d.flyToken, flyOrg: d.flyOrg, flyRegion: d.flyRegion, railwayToken: d.railwayToken, railwayWorkspace: d.railwayWorkspace, renderApiKey: d.renderApiKey, renderOwner: d.renderOwner, renderRegion: d.renderRegion, renderPlan: d.renderPlan };
 }
 /** how a CLI is run: the hosts' through npx (pinned), Fly.io's binary from the PATH, Railway's and EAS's packages through npx */
-export const defaultCli = (p: HostProvider | 'fly' | 'railway' | 'eas'): string[] => (p === 'fly' ? ['fly'] : p === 'railway' ? ['npx', '--yes', '@railway/cli@5'] : p === 'eas' ? ['npx', '--yes', EAS_CLI.pkg] : npxCli(p));
+export const defaultCli = (p: HostProvider | 'fly' | 'railway' | 'eas'): string[] => (p === 'fly' ? [flyBin()] : p === 'railway' ? ['npx', '--yes', '@railway/cli@5'] : p === 'eas' ? ['npx', '--yes', EAS_CLI.pkg] : npxCli(p));
 /** the stores' credentials (ADR-0096): Expo's token, App Store Connect's key, Google Play's service account */
 export interface StoreCredentials {
   expoToken: string | null;
@@ -682,7 +683,7 @@ export async function deployReadiness(engine: Engine, goalId: string, provider: 
     const items: ReadinessItem[] = [{ id: 'token', label: `${PAAS_LABEL[provider]} token in Settings`, ok: tokenOk, severity: 'error', detail: tokenOk ? 'set' : 'add it under Settings → Git & delivery → Platforms', fix: tokenOk ? null : { settings: 'git' } }];
     if (provider === 'fly') {
       const v = await exec([...engine.deployCli('fly'), 'version'], process.cwd(), { timeoutMs: 30_000 }).catch(() => ({ code: 127, stdout: '', stderr: 'not found' }));
-      items.push({ id: 'cli', label: 'flyctl on this computer', ok: v.code === 0, severity: 'error', detail: v.code === 0 ? plain(v.stdout).trim().split('\n')[0] ?? 'found' : 'flyctl is not installed here: Fly.io deploys run its CLI from this computer', fix: v.code === 0 ? null : { url: 'https://fly.io/docs/flyctl/install/' } });
+      items.push({ id: 'cli', label: 'flyctl on this computer', ok: v.code === 0, severity: 'error', detail: v.code === 0 ? plain(v.stdout).trim().split('\n')[0] ?? 'found' : 'flyctl is not installed here: Fly.io deploys run its CLI from this computer — the Fly.io card in Settings installs it on a click', fix: v.code === 0 ? null : { settings: 'git' } });
     }
     const goal = getGoal(engine.store.db, goalId);
     if (provider === 'render' && goal) {
