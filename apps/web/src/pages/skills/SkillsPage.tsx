@@ -4,7 +4,7 @@ import type { InstalledSkill, SkillScope, SkillSource, SkillSourceRow, SkillTier
 import { Blocks, FolderGit2, PackageCheck, Plug, RefreshCw, Search, SearchX, SquareTerminal, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
-import { MarkdownPanel } from '../../components/Markdown.tsx';
+import { SkillMdView } from '../../components/SkillMd.tsx';
 import { Board, Button, ConfirmDialog, Empty, EmptyState, Input, Loading, Modal, ago, chipClass, cn, code, useAffix, useFolds } from '../../ui.tsx';
 import { categorySquare, notice } from '../agents/marks.ts';
 import { OpsDock } from './OpsDock.tsx';
@@ -363,31 +363,7 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
           <div className="space-y-3">
             <div className="text-[11px] text-ink-faint mono break-all">{view.dir}</div>
             {view.skillMd ? (
-              (() => {
-                const m = view.skillMd.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
-                const fm = m ? m[1]! : null;
-                const body = m ? view.skillMd.slice(m[0].length) : view.skillMd;
-                return (
-                  <>
-                    {fm && (
-                      <div className="rounded-md border border-line bg-sunken p-2.5 text-xs space-y-0.5">
-                        {fm.split('\n').map((line, i) => {
-                          const k = line.match(/^([\w-]+):\s*(.*)$/);
-                          return k ? (
-                            <div key={i} className="flex gap-2">
-                              <span className="mono text-ink-faint w-28 shrink-0">{k[1]}</span>
-                              <span className="text-ink break-words min-w-0">{k[2]}</span>
-                            </div>
-                          ) : (
-                            <div key={i} className="text-ink-soft pl-30 break-words">{line}</div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <MarkdownPanel title="SKILL.md" source={body} maxHeight={520} />
-                  </>
-                );
-              })()
+              <SkillMdView source={view.skillMd} />
             ) : (
               <div className="text-xs text-bad-ink">no SKILL.md in this directory</div>
             )}

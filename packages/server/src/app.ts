@@ -460,6 +460,14 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return goal;
   };
   app.get('/api/goals/:id/preview', (c) => c.json(engine.preview.status(goalOr404(c).id)));
+  // one skill of the goal as its sessions saw it, beside the copy installed now (ADR-0098)
+  app.get('/api/goals/:id/skills/view', (c) => {
+    const goal = goalOr404(c);
+    const invoke = c.req.query('invoke') ?? '';
+    const v = engine.skillSnapshot(goal, invoke);
+    if (!v) throw new HttpError(404, { error: `no session of this goal was given ${invoke || 'that skill'}` });
+    return c.json(v);
+  });
   // the branch a finished goal's preview runs from: the choices, and picking one (null = the default)
   app.get('/api/goals/:id/preview/sources', async (c) => c.json(await engine.preview.sources(goalOr404(c))));
   app.put('/api/goals/:id/preview/source', async (c) => {
@@ -898,6 +906,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
       goal,
       paths: { repo: goal.repoPath, workspace: existsSync(ws) ? ws : null },
       budget: budgetStatus(goal),
+      // every skill its sessions were given or invoked, as their SKILL.md read then (ADR-0098)
+      skills: engine.skillsView(goal),
       // Adjust the result (ADR-0078): whether the person can ask for one now, and the Adjustments made
       adjust: engine.adjustView(goal),
       // the Editor (ADR-0086): the HyperFrames projects, the motion-studio films and Re-render
