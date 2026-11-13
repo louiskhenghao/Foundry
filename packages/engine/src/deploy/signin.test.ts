@@ -26,7 +26,7 @@ function fakeCli(): string {
     path,
     `#!/bin/sh
 cli="$1"; shift
-printf '%s|%s|home=%s\\n' "$cli" "$*" "$HOME" >> "${join(fakes, 'calls.log')}"
+printf '%s|%s|home=%s|ci=%s|token=%s\\n' "$cli" "$*" "$HOME" "\${CI+set}" "\${FLY_API_TOKEN:+set}" >> "${join(fakes, 'calls.log')}"
 case "$cli" in
   fly)
     case "$*" in
@@ -65,6 +65,9 @@ function engine() {
 describe('signing in to a deploy place through its CLI (ADR-0097)', () => {
   test('Fly.io: the login page is shown while the CLI waits in a home of its own; the approval makes an org token that lands in Settings; the home goes', async () => {
     process.env.FOUNDRY_NO_BROWSER = '1';
+    // the engine may run where CI is set (a test runner, a server): flyctl must not see it, nor an earlier token
+    process.env.CI = '1';
+    process.env.FLY_API_TOKEN = 'FlyV1 old';
     const e = engine();
     expect(e.signInStatus('fly')).toMatchObject({ status: 'idle', url: null });
     const started = e.signIn('fly');
@@ -74,8 +77,12 @@ describe('signing in to a deploy place through its CLI (ADR-0097)', () => {
     expect(waiting).toMatchObject({ status: 'waiting', url: 'https://fly.io/app/auth/cli/abc123def456', code: true, detail: 'approve the sign-in in the browser' });
     expect(waiting.output).toContain('Waiting for the approval');
     // the CLI ran with a home under the data folder, not the person's
-    const home = calls().find((l) => l.startsWith('fly|auth login|'))!.split('home=')[1]!;
+    const login = calls().find((l) => l.startsWith('fly|auth login|'))!;
+    const home = login.split('home=')[1]!.split('|')[0]!;
     expect(home.startsWith(join(dataDir, 'tmp'))).toBe(true);
+    expect(login).toContain('|ci=|token=');
+    delete process.env.CI;
+    delete process.env.FLY_API_TOKEN;
     // a second click while it waits changes nothing
     expect(e.signIn('fly').status).toBe('waiting');
     writeFileSync(join(fakes, 'APPROVE'), '');
