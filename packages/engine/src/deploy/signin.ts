@@ -188,14 +188,14 @@ async function flyFinish(engine: Engine, run: Run) {
   const who = await capture(engine, run, [...fly, 'auth', 'whoami'], 60_000);
   const account = who.code === 0 ? lastLine(who.out) : null;
   // the token is an organization's, and flyctl names no default when no person is at the terminal: the one from
-  // Settings, else the account's only one, else its personal one; several others are the person's to choose from
-  let org = engine.settings.values().delivery.flyOrg;
-  if (!org) {
-    const listed = await capture(engine, run, [...fly, 'orgs', 'list', '--json'], 60_000);
-    const slugs = flyOrgSlugs(listed.out);
-    org = slugs.length === 1 ? slugs[0]! : (slugs.find((x) => x === 'personal') ?? null);
-    if (!org) return end(run, 'failed', `signed in${account ? ` as ${account}` : ''}, but the account has several organizations (${slugs.join(', ') || 'none listed'}): set Fly.io organization in Settings to the one Foundry deploys to, then sign in again`);
-  }
+  // Settings (its slug, or its name turned into the slug — `fly apps create --org` takes slugs only), else the
+  // account's only one, else its personal one; several others are the person's to choose from
+  const listed = await capture(engine, run, [...fly, 'orgs', 'list', '--json'], 60_000);
+  const orgs = flyOrgs(listed.out);
+  const slugs = Object.keys(orgs);
+  const chosen = flyOrgSlug(engine.settings.values().delivery.flyOrg, orgs);
+  if (!chosen.slug) return end(run, 'failed', `signed in${account ? ` as ${account}` : ''}, but ${chosen.why}: set Fly.io organization in Settings to one of ${slugs.length ? slugs.join(', ') : 'the account’s organization slugs'}, then sign in again`);
+  const org = chosen.slug;
   const made = await capture(engine, run, [...fly, 'tokens', 'create', 'org', '--name', 'Foundry (deploys)', '--expiry', '87600h', '--json', '--org', org], 120_000);
   let token: string | null = null;
   try {
@@ -205,9 +205,10 @@ async function flyFinish(engine: Engine, run: Run) {
   if (!token) token = made.out.match(/FlyV1\s+\S+/)?.[0]?.trim() ?? null;
   if (made.code !== 0 || !token) return end(run, 'failed', `signed in${account ? ` as ${account}` : ''}, but no token could be made (${lastLine(made.out)}): make one with \`fly tokens create org\` and paste it`);
   // the organization the token belongs to is the one the deploys go to
+  const was = engine.settings.values().delivery.flyOrg;
   engine.updateSettings({ delivery: { flyToken: token, flyOrg: org } });
   run.state = { ...run.state, account, output: '' };
-  end(run, 'done', `signed in${account ? ` as ${account}` : ''}; an organization token named “Foundry (deploys)” for ${org} is saved in Settings`);
+  end(run, 'done', `signed in${account ? ` as ${account}` : ''}; an organization token named “Foundry (deploys)” for ${org}${orgs[org] && orgs[org] !== org ? ` (${orgs[org]})` : ''} is saved in Settings${was && was !== org ? ` — the organization setting was “${was}” and is ${org} now, the slug flyctl takes` : ''}`);
 }
 
 async function netlifySignIn(engine: Engine, run: Run) {
@@ -238,14 +239,54 @@ async function netlifySignIn(engine: Engine, run: Run) {
   }
 }
 
-/** the organizations `fly orgs list --json` names, by slug (flyctl prints its API structs: Slug or slug) */
-export function flyOrgSlugs(out: string): string[] {
+/**
+ * The organizations `fly orgs list --json` names: slug to name. flyctl prints that map (`{"personal":"Louis"}`); a
+ * list of org records (`Slug`/`Name`) or of slugs is read too, should a version print one.
+ */
+export function flyOrgs(out: string): Record<string, string> {
+  const starts = [out.indexOf('{'), out.indexOf('[')].filter((i) => i >= 0);
+  if (!starts.length) return {};
+  const start = Math.min(...starts);
+  const end = Math.max(out.lastIndexOf('}'), out.lastIndexOf(']'));
   try {
-    const j = JSON.parse(out.slice(out.indexOf('['), out.lastIndexOf(']') + 1)) as Record<string, unknown>[];
-    return j.map((o) => (typeof o.Slug === 'string' ? o.Slug : typeof o.slug === 'string' ? o.slug : null)).filter((x): x is string => !!x);
-  } catch {
-    return [];
+    const j = JSON.parse(out.slice(start, end + 1)) as unknown;
+    if (Array.isArray(j)) {
+      const out: Record<string, string> = {};
+      for (const o of j) {
+        if (typeof o === 'string') out[o] = o;
+        else if (o && typeof o === 'object') {
+          const r = o as Record<string, unknown>;
+          const slug = typeof r.Slug === 'string' ? r.Slug : typeof r.slug === 'string' ? r.slug : null;
+          if (slug) out[slug] = typeof r.Name === 'string' ? r.Name : typeof r.name === 'string' ? r.name : slug;
+        }
+      }
+      return out;
+    }
+    if (j && typeof j === 'object') return Object.fromEntries(Object.entries(j as Record<string, unknown>).map(([k, v]) => [k, typeof v === 'string' ? v : k]));
+  } catch {}
+  return {};
+}
+export const flyOrgSlugs = (out: string) => Object.keys(flyOrgs(out));
+/**
+ * The slug of the organization Foundry deploys to: the setting when it is a slug, the slug of the organization the
+ * setting names (a personal organization is shown by the person's name, its slug is `personal`), else the account's
+ * only one, else its personal one; otherwise why none was picked.
+ */
+export function flyOrgSlug(setting: string | null, orgs: Record<string, string>): { slug: string | null; why: string } {
+  const slugs = Object.keys(orgs);
+  // "Louis Loo" and "louis-loo" are the same name
+  const plainName = (x: string) => x.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  if (setting) {
+    if (setting in orgs) return { slug: setting, why: '' };
+    const byName = Object.entries(orgs).find(([slug, name]) => plainName(name) === plainName(setting) || plainName(slug) === plainName(setting))?.[0];
+    if (byName) return { slug: byName, why: '' };
+    // one organization is the only place to go, whatever the setting says
+    if (slugs.length === 1) return { slug: slugs[0]!, why: '' };
+    return { slug: null, why: `the Fly.io organization in Settings, “${setting}”, is neither the slug nor the name of one the account has (${slugs.join(', ') || 'none listed'})` };
   }
+  if (slugs.length === 1) return { slug: slugs[0]!, why: '' };
+  if (slugs.includes('personal')) return { slug: 'personal', why: '' };
+  return { slug: null, why: `the account has several organizations (${slugs.join(', ') || 'none listed'})` };
 }
 
 /** the token the Netlify CLI stored in the sign-in's home: `users.<id>.auth.token` in its config.json, wherever it put it */

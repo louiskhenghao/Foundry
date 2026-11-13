@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { defaultConfig } from '../config.ts';
 import { Engine } from '../engine.ts';
 import { FakeRunner, waitFor } from '../test-helpers.ts';
-import { flyOrgSlugs, netlifyTokenIn } from './signin.ts';
+import { flyOrgSlug, flyOrgSlugs, flyOrgs, netlifyTokenIn } from './signin.ts';
 
 const ROOT = resolve(import.meta.dir, '../../../..');
 let dataDir: string;
@@ -37,7 +37,7 @@ case "$cli" in
         n=0; while [ ! -f "${join(fakes, 'APPROVE')}" ] && [ ! -f "$HOME/.fly/config.yml" ]; do sleep 0.1; n=$((n+1)); [ $n -gt 300 ] && exit 2; done
         mkdir -p "$HOME/.fly"; echo "access_token: sess" > "$HOME/.fly/config.yml"; echo "successfully logged in as louis@example.com" ;;
       "auth whoami") [ -f "$HOME/.fly/config.yml" ] && echo "louis@example.com" || { echo "no access token" >&2; exit 1; } ;;
-      "orgs list --json") if [ -f "${join(fakes, 'MANY_ORGS')}" ]; then echo '[{"Slug":"acme","Name":"Acme"},{"Slug":"beta","Name":"Beta"}]'; else echo '[{"ID":"o1","Name":"Louis","Slug":"personal","Type":"PERSONAL"},{"ID":"o2","Name":"Acme","Slug":"acme","Type":"SHARED"}]'; fi ;;
+      "orgs list --json") if [ -f "${join(fakes, 'MANY_ORGS')}" ]; then echo '{"acme":"Acme","beta":"Beta"}'; else echo '{"personal":"louis-loo","acme":"Acme"}'; fi ;;
       "tokens create org"*) if [ -f "${join(fakes, 'NO_TOKEN')}" ]; then echo "Error: not allowed" >&2; exit 1; fi; echo '{"token":"FlyV1 fm2_SECRETORGTOKEN0123456789"}' ;;
     esac ;;
   netlify)
@@ -111,9 +111,30 @@ describe('signing in to a deploy place through its CLI (ADR-0097)', () => {
     expect(calls().some((l) => l.includes('auth login --code ABCD-1234'))).toBe(true);
     expect(calls().at(-1)).toContain('tokens create org --name Foundry (deploys) --expiry 87600h --json --org acme');
     expect(e.settings.values().delivery.flyToken).toBe('FlyV1 fm2_SECRETORGTOKEN0123456789');
+    // the organization's name in Settings (a personal organization shows the person's name) becomes its slug
+    const e1 = engine();
+    e1.updateSettings({ delivery: { flyToken: null, flyOrg: 'louis-loo' } });
+    rmSync(join(fakes, 'calls.log'), { force: true });
+    writeFileSync(join(fakes, 'APPROVE'), '');
+    e1.signIn('fly');
+    await waitFor(() => e1.signInStatus('fly').status !== 'waiting');
+    expect(e1.signInStatus('fly').detail).toContain('for personal');
+    expect(calls().at(-1)).toContain('--org personal');
+    expect(e1.settings.values().delivery.flyOrg).toBe('personal');
+    rmSync(join(fakes, 'APPROVE'));
+    // a setting that is neither slug nor name: said, with the slugs
+    const e4 = engine();
+    e4.updateSettings({ delivery: { flyToken: null, flyOrg: 'nope-org' } });
+    writeFileSync(join(fakes, 'APPROVE'), '');
+    e4.signIn('fly');
+    await waitFor(() => e4.signInStatus('fly').status !== 'waiting');
+    expect(e4.signInStatus('fly').detail).toContain('“nope-org”, is neither the slug nor the name');
+    expect(e4.signInStatus('fly').detail).toContain('one of personal, acme');
+    expect(e4.settings.values().delivery.flyToken).toBeNull();
+    rmSync(join(fakes, 'APPROVE'));
     // no token: failed in words, nothing saved
     const e2 = engine();
-    e2.updateSettings({ delivery: { flyToken: null } });
+    e2.updateSettings({ delivery: { flyToken: null, flyOrg: 'acme' } });
     rmSync(join(fakes, 'calls.log'), { force: true });
     writeFileSync(join(fakes, 'NO_TOKEN'), '');
     writeFileSync(join(fakes, 'APPROVE'), '');
@@ -128,7 +149,7 @@ describe('signing in to a deploy place through its CLI (ADR-0097)', () => {
     writeFileSync(join(fakes, 'MANY_ORGS'), '');
     e3.signIn('fly');
     await waitFor(() => e3.signInStatus('fly').status !== 'waiting');
-    expect(e3.signInStatus('fly').detail).toContain('several organizations (acme, beta): set Fly.io organization in Settings');
+    expect(e3.signInStatus('fly').detail).toContain('several organizations (acme, beta): set Fly.io organization in Settings to one of acme, beta');
     expect(e3.settings.values().delivery.flyToken).toBeNull();
   }, 20_000);
 
@@ -162,7 +183,16 @@ describe('signing in to a deploy place through its CLI (ADR-0097)', () => {
   }, 20_000);
 
   test('the Netlify token is found wherever its CLI put config.json under the home; flyctl’s presence and install are reported', async () => {
-    expect(flyOrgSlugs('[{"Slug":"personal"},{"slug":"acme"},{"Name":"x"}]')).toEqual(['personal', 'acme']);
+    // what flyctl prints: a map of slug to name; a list of records or of slugs is read too
+    expect(flyOrgSlugs('{"personal":"Louis","louis-loo":"louis-loo"}')).toEqual(['personal', 'louis-loo']);
+    expect(flyOrgs('[{"Slug":"personal","Name":"Louis"}]')).toEqual({ personal: 'Louis' });
+    expect(flyOrgSlug('Louis', { personal: 'Louis' })).toEqual({ slug: 'personal', why: '' });
+    expect(flyOrgSlug('louis-loo', { personal: 'Louis Loo' })).toEqual({ slug: 'personal', why: '' });
+    expect(flyOrgSlug('whatever', { personal: 'Louis Loo' })).toEqual({ slug: 'personal', why: '' });
+    expect(flyOrgSlug('whatever', { a: 'A', b: 'B' }).slug).toBeNull();
+    expect(flyOrgSlug(null, { a: 'A', b: 'B' }).slug).toBeNull();
+    expect(flyOrgSlugs('Update available…\n[{"Slug":"personal"},{"slug":"acme"},{"Name":"x"}]')).toEqual(['personal', 'acme']);
+    expect(flyOrgSlugs('["personal"]')).toEqual(['personal']);
     expect(flyOrgSlugs('nope')).toEqual([]);
     const home = mkdtempSync(join(tmpdir(), 'foundry-nl-home-'));
     expect(netlifyTokenIn(home)).toBeNull();

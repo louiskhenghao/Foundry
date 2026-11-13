@@ -26,7 +26,7 @@ import { FLY_CONFIG, PAAS_LABEL, RENDER_API, RENDER_DONE, type PaasApp, type Paa
 import { redactor } from '../preview/env.ts';
 import { FOUNDRY_ENV_FILE, deployEnvView, deployVars, writeServerEnv } from './env.ts';
 import { withSecretFile } from './secret-file.ts';
-import { flyBin } from './signin.ts';
+import { flyBin, flyOrgSlug, flyOrgs } from './signin.ts';
 import { GENERATED_COMPOSE, GENERATED_ECOSYSTEM, type ServerDeployability, generatedCompose, generatedEcosystem, pm2Steps, serverAddress, serverDeployability, serverReadiness, serverSteps, shellQuote } from './server.ts';
 import { runSmoke, smokeScripts, type SmokeTarget } from './smoke.ts';
 
@@ -683,7 +683,15 @@ export async function deployReadiness(engine: Engine, goalId: string, provider: 
     const items: ReadinessItem[] = [{ id: 'token', label: `${PAAS_LABEL[provider]} token in Settings`, ok: tokenOk, severity: 'error', detail: tokenOk ? 'set' : 'add it under Settings → Git & delivery → Platforms', fix: tokenOk ? null : { settings: 'git' } }];
     if (provider === 'fly') {
       const v = await exec([...engine.deployCli('fly'), 'version'], process.cwd(), { timeoutMs: 30_000 }).catch(() => ({ code: 127, stdout: '', stderr: 'not found' }));
-      items.push({ id: 'cli', label: 'flyctl on this computer', ok: v.code === 0, severity: 'error', detail: v.code === 0 ? plain(v.stdout).trim().split('\n')[0] ?? 'found' : 'flyctl is not installed here: Fly.io deploys run its CLI from this computer — the Fly.io card in Settings installs it on a click', fix: v.code === 0 ? null : { settings: 'git' } });
+      items.push({ id: 'cli', label: 'flyctl on this computer', ok: v.code === 0, severity: 'error', detail: v.code === 0 ? (plain(v.stdout).trim().split('\n')[0] ?? 'found').split(' Commit:')[0]! : 'flyctl is not installed here: Fly.io deploys run its CLI from this computer — the Fly.io card in Settings installs it on a click', fix: v.code === 0 ? null : { settings: 'git' } });
+      // the organization the apps are made in: the token must reach it, and `fly apps create --org` takes its slug
+      if (tokenOk && v.code === 0) {
+        const l = await exec([...engine.deployCli('fly'), 'orgs', 'list', '--json'], process.cwd(), { timeoutMs: 60_000, env: { FLY_API_TOKEN: c.flyToken!, FLY_NO_UPDATE_CHECK: '1', CI: '1' } }).catch(() => ({ code: 1, stdout: '', stderr: 'not run' }));
+        const orgs = l.code === 0 ? flyOrgs(plain(l.stdout)) : {};
+        const pick = flyOrgSlug(c.flyOrg, orgs);
+        const renamed = c.flyOrg && pick.slug && pick.slug !== c.flyOrg;
+        items.push({ id: 'org', label: 'The Fly.io organization', ok: l.code === 0 && !!pick.slug && !renamed, severity: 'error', detail: l.code !== 0 ? `Fly.io refused the token for the organizations: ${lastWords(plain(`${l.stdout}\n${l.stderr}`))}` : renamed ? `“${c.flyOrg}” is the organization’s name; its slug is ${pick.slug} — set Fly.io organization in Settings to ${pick.slug}` : pick.slug ? `${pick.slug}${orgs[pick.slug] && orgs[pick.slug] !== pick.slug ? ` (${orgs[pick.slug]})` : ''}` : pick.why, fix: l.code === 0 && pick.slug && !renamed ? null : { settings: 'git' } });
+      }
     }
     const goal = getGoal(engine.store.db, goalId);
     if (provider === 'render' && goal) {
