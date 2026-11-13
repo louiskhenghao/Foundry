@@ -694,6 +694,13 @@ export function apiForProvider(provider?: AgentProvider) {
   deployInfo: (goalId: string, provider?: DeployHost | null, production = false, target?: string | null) => req<DeployInfo>(`/api/goals/${goalId}/deploy?${provider ? `provider=${provider}&` : ''}${target ? `target=${encodeURIComponent(target)}&` : ''}production=${production ? 1 : 0}`),
   deploy: (goalId: string, provider: DeployHost, production: boolean, smoke: boolean, target?: string | null) => req<{ started: boolean }>(`/api/goals/${goalId}/deploy`, { method: 'POST', body: JSON.stringify({ provider, target: target ?? null, production, smoke }) }),
   /** the readiness check (ADR-0091): whether a deploy to this place can start, tried now */
+  // signing in to a deploy place through its CLI (ADR-0097), and flyctl's install
+  signIn: (place: SignInPlace) => req<SignInState>(`/api/deploy/signin/${place}`, { method: 'POST' }),
+  signInStatus: (place: SignInPlace) => req<SignInState>(`/api/deploy/signin/${place}`),
+  signInCancel: (place: SignInPlace) => req<SignInState>(`/api/deploy/signin/${place}`, { method: 'DELETE' }),
+  signInCode: (place: SignInPlace, code: string) => req<SignInState>(`/api/deploy/signin/${place}/code`, { method: 'POST', body: JSON.stringify({ code }) }),
+  flyctl: () => req<ToolState>('/api/deploy/tools/fly'),
+  installFlyctl: () => req<ToolState>('/api/deploy/tools/fly/install', { method: 'POST' }),
   deployStoreCheck: (goalId: string) => req<{ changed: number; deployments: Deployment[] }>(`/api/goals/${goalId}/deploy/store-check`, { method: 'POST' }),
   deployReadiness: (goalId: string, provider: DeployHost, target?: string | null) => req<DeployReadiness>(`/api/goals/${goalId}/deploy/readiness?provider=${provider}${target ? `&target=${encodeURIComponent(target)}` : ''}`),
   /** the runtime variables of a deploy (ADR-0095): a place's set for the goal's repository, names only */
@@ -1144,6 +1151,28 @@ export const api = apiForProvider();
 export type DeployHost = 'vercel' | 'netlify' | 'cloudflare' | 'server' | 'fly' | 'railway' | 'render' | 'appstore' | 'play';
 /** the platforms (ADR-0095): the whole project, a preview beside production */
 export type PaasId = 'fly' | 'railway' | 'render';
+/** a sign-in to a deploy place through its CLI (ADR-0097): the page to approve, then the account and the token in Settings */
+export type SignInPlace = 'fly' | 'netlify';
+export interface SignInState {
+  place: SignInPlace;
+  status: 'idle' | 'waiting' | 'done' | 'failed';
+  url: string | null;
+  /** Fly.io: the approval page shows a code that finishes the login from another machine */
+  code: boolean;
+  account: string | null;
+  detail: string;
+  output: string;
+  startedAt: string | null;
+  endedAt: string | null;
+}
+/** flyctl on this computer, and its install on a click */
+export interface ToolState {
+  tool: 'fly';
+  installed: { path: string; version: string } | null;
+  status: 'idle' | 'installing' | 'done' | 'failed';
+  detail: string;
+  output: string;
+}
 /** the stores (ADR-0096): an Expo app built on EAS, to TestFlight or Google Play */
 export type StoreId = 'appstore' | 'play';
 /** one place the Deploy card offers: a host, or a server from Settings (ADR-0091) */
