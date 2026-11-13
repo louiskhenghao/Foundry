@@ -29,6 +29,7 @@ import {
   EscalationSuggestion,
   EscalationAnswer,
   Goal,
+  GoalSkillSeen,
   GoalNature,
   FigurePack,
   GoalState,
@@ -182,6 +183,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
   ev('selfcheck.finished', { taskId: z.string().nullable(), status: z.enum(['pass', 'fail', 'error']), url: z.string().nullable(), screenshot: z.string().nullable(), errors: z.array(z.string()), summary: z.string() }),
   /** per-goal autoskills run: project skills matched to the repository's stack, installed in the goal workspace */
   ev('goal.autoskills', { status: z.enum(['installed', 'skipped', 'failed']), skills: z.array(z.string()), detail: z.string() }),
+  /** the skills one role's session was given, as its SKILL.md read then (ADR-0098): only the ones the goal had not recorded for that role and content yet */
+  ev('goal.skills_seen', { role: z.string(), skills: z.array(GoalSkillSeen) }),
   /** the goal's nature was settled (user chose it at creation, or the Clarifier decided for an `auto` goal) */
   ev('goal.nature_set', { nature: GoalNature, reason: z.string() }),
   /** the goal's Figure pack was settled for it (the Clarifier read the style from the goal's words, ADR-0076); Settings' default applies while unset */

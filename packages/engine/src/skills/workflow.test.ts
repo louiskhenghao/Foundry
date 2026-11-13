@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { CatalogEntry, type CatalogEntryStatus } from './types.ts';
-import { applicableRules, formatWorkflowSection, goalScenario, mandatedSkillsFor, resolveDiscipline } from './workflow.ts';
+import { applicableRules, formatWorkflowSection, goalScenario, mandatedSkillsFor, offeredSkills, resolveDiscipline } from './workflow.ts';
 import { formatWorkflowObservation, usedSkill } from '../checks/reviewer.ts';
 import { summarizeReport } from '../attempt-prompt.ts';
 
@@ -14,6 +14,35 @@ const statuses: CatalogEntryStatus[] = [
   st(entry({ id: 'webapp-testing', roles: ['worker'] }), 'installed', '/webapp-testing'),
   st(entry({ id: 'resolving-merge-conflicts', roles: ['merger'], workflow: [{ role: 'merger', mandate: 'must', when: 'any', scenarios: [], instruction: 'hunk by hunk' }] }), 'missing', null),
 ];
+
+describe('the skills a section names, as data (ADR-0098)', () => {
+  test('the rules with their mandate first, then the other installed entries, then the project skills', () => {
+    const input = { role: 'worker' as const, taskKind: 'feature' as const, profile: 'mattpocock' as const, statuses, projectSkills: ['next-best-practices'] };
+    const offered = offeredSkills(input);
+    expect(offered.map((s) => [s.invoke, s.mandate])).toEqual([
+      ['/mattpocock-skills:tdd', 'must'],
+      ['/codebase-design', 'prefer'],
+      ['/diagnosing-bugs', 'available'],
+      ['/webapp-testing', 'available'],
+      ['/next-best-practices', 'project'],
+    ]);
+    // the same skills the section names, no more and no fewer
+    const section = formatWorkflowSection(input)!;
+    for (const o of offered) expect(section).toContain(o.invoke);
+    expect(section).not.toContain('resolving-merge-conflicts');
+  });
+  test("a command-line tool is marked, so the record leaves it out; the plain suite names the hint's entries as available", () => {
+    const tool = st(entry({ id: 'rg', roles: ['worker'], source: { type: 'cli', install: 'brew install ripgrep', detect: 'rg', skill: false }, workflow: [{ role: 'worker', mandate: 'prefer', when: 'any', scenarios: [], instruction: 'search with it' }] }), 'installed', null);
+    expect(offeredSkills({ role: 'worker', taskKind: 'feature', profile: 'mattpocock', statuses: [tool] })).toEqual([{ name: 'rg', invoke: '/rg', mandate: 'prefer', cli: 'rg' }]);
+    expect(offeredSkills({ role: 'worker', taskKind: 'feature', profile: 'plain', statuses }).map((s) => [s.invoke, s.mandate])).toEqual([
+      ['/mattpocock-skills:tdd', 'available'],
+      ['/diagnosing-bugs', 'available'],
+      ['/codebase-design', 'available'],
+      ['/webapp-testing', 'available'],
+    ]);
+    expect(offeredSkills({ role: 'merger', profile: 'mattpocock', statuses })).toEqual([]);
+  });
+});
 
 describe('workflow section', () => {
   test('worker/feature: MUST tdd (plugin invoke), prefer codebase-design, other installed listed, never-run line', () => {

@@ -390,6 +390,33 @@ export function repoHere(g: { transfer?: GoalTransfer | null }): boolean {
 export const PreviewPlace = z.enum(['auto', 'checkout', 'foundry']);
 export type PreviewPlace = z.infer<typeof PreviewPlace>;
 
+/** how a skill reached the machine the goal ran on (ADR-0098) */
+export const GoalSkillSource = z.enum(['foundry', 'plugin', 'suite', 'bundled', 'project', 'linked', 'hand', 'unknown']);
+export type GoalSkillSource = z.infer<typeof GoalSkillSource>;
+/**
+ * how a session was told about a skill: a rule of the workflow suite (`must`, `prefer`), listed as installed and relevant to
+ * the role (`available`), a project skill of the repository's stack (`project`), or never named and only seen invoked (`invoked`)
+ */
+export const GoalSkillMandate = z.enum(['must', 'prefer', 'available', 'project', 'invoked']);
+export type GoalSkillMandate = z.infer<typeof GoalSkillMandate>;
+/** one skill as a session of the goal saw it (ADR-0098): the key of its SKILL.md copy under `<data>/skill-snapshots` */
+export const GoalSkillSeen = z.object({
+  /** the skill's own name (`tdd`, `pstack:tdd` for a suite copy) */
+  name: z.string(),
+  /** how the session names it: `/tdd`, `/mattpocock-skills:tdd` */
+  invoke: z.string(),
+  source: GoalSkillSource,
+  mandate: GoalSkillMandate,
+  /** git blob sha of the SKILL.md as the session saw it, the file name of its copy; null when it could not be read */
+  sha: z.string().nullable(),
+  /** the folder it was read from */
+  dir: z.string().nullable(),
+  version: z.string().nullable(),
+  /** where the copy came from, for the window's heading: a GitHub repository, a plugin id, a suite and its release */
+  origin: z.string().nullable(),
+});
+export type GoalSkillSeen = z.infer<typeof GoalSkillSeen>;
+
 export const Goal = z.object({
   /** Fixed at creation. Absent only in events written before provider support. */
   provider: AgentProvider.optional(),

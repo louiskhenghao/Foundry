@@ -3,6 +3,7 @@
  * Exported as `@foundry/engine/skills-types`.
  */
 import { AgentProvider } from '@foundry/core/browser';
+import type { GoalSkillMandate, GoalSkillSource } from '@foundry/core/browser';
 import { z } from 'zod';
 
 export const SkillTier = z.enum(['required', 'recommended', 'optional']);
@@ -459,3 +460,40 @@ export const SkillsOverview = z.object({
   usageWindow: z.object({ goals: z.number(), limit: z.number() }).nullable(),
 });
 export type SkillsOverview = z.infer<typeof SkillsOverview>;
+
+// ---------- a goal's record of skills (ADR-0098) ----------
+
+/** One skill of a goal, every record of it merged, with how often its sessions invoked it. */
+export interface GoalSkillView {
+  name: string;
+  invoke: string;
+  source: GoalSkillSource;
+  origin: string | null;
+  /** the strongest way a session was told about it */
+  mandate: GoalSkillMandate;
+  /** the roles (session kinds) that were told about it */
+  roles: string[];
+  /** the SKILL.md the latest session saw; null when none could be read (a goal from before the record, a missing copy) */
+  sha: string | null;
+  version: string | null;
+  /** how many different contents the goal's sessions saw: 2 = the skill changed while the goal ran */
+  versions: number;
+  firstSeenAt: string | null;
+  lastSeenAt: string | null;
+  dir: string | null;
+  /** sessions that invoked it with the Skill tool; null = none did (or the coding agent reports no invocations) */
+  used: { sessions: number; lastAt: string | null; roles: string[] } | null;
+}
+
+export interface GoalSkillsView {
+  skills: GoalSkillView[];
+  /** whether invocations can be seen at all: Claude Code reports them, Codex and Antigravity do not */
+  observable: boolean;
+}
+
+/** One skill opened from the goal: the SKILL.md its sessions saw, and the copy installed now when there is one. */
+export interface SkillSnapshotView {
+  skill: GoalSkillView;
+  snapshot: { sha: string; content: string } | null;
+  current: { sha: string; content: string; dir: string } | null;
+}
