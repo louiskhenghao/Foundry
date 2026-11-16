@@ -546,14 +546,14 @@ A helper agent a session spawns for a sub-task. It has its own conversation and 
 ## Release & update
 
 **Release**
-One published version of the whole product — a single stable semver shared by every package, with its notes published where any deployment can read them. Foundry has no per-component versions.
+One published version of the whole product — a single stable semver shared by every package, with its notes and its files (the executables with their resources, per platform, and their `SHA256SUMS`) published as a GitHub Release of the public releases repository, where any deployment reads them. Foundry has no per-component versions.
 _Avoid_: build, deploy
 
 **Deployment Mode**
-How this instance runs: *docker* (the published image) or *local* (a git checkout served directly). Detected by the instance itself, never configured; it decides what Self-Update does and what a Guided Update shows.
+How this instance runs: *docker* (the published image), *local* (a git checkout served directly), *app* (the macOS application, a compiled foundry inside a bundle with its files in Contents/Resources) or *binary* (a compiled foundry with a `resources/` folder beside it, from a release tarball). Detected by the instance itself, never configured ([ADR-0101](docs/develop/adr/0101-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)); it decides what Self-Update does and what a Guided Update shows. The two compiled modes keep their data under the platform's place for application data, not in a tree.
 
 **Update Check**
-The instance asking, on a schedule or on demand, whether a Release newer than itself exists. Only stable semver counts — pre-release and floating tags are invisible to it. The result is remembered, shown in the UI, and announced through Notifications once per new Release.
+The instance asking GitHub Releases, on a schedule or on demand, whether a Release newer than itself exists. Only stable semver counts — pre-release and floating tags are invisible to it. The result is remembered, shown in the UI, and announced through Notifications once per new Release.
 _Avoid_: version poll, upgrade check
 
 **Self-Update**
