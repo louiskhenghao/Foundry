@@ -238,6 +238,9 @@ restart. If the server listens somewhere other than `http://127.0.0.1:4111`, tel
 
 ## Install with Docker
 
+The image is retired with 3.0, which ships only as the app and the binary: a container moves to them with the
+steps in [Moving to 3.0](updates-and-backup.md#moving-to-30).
+
 The image brings the engine, the UI and every tool Foundry uses. It does not bring two things, because they are
 yours: **your native accounts** and **your repositories**. Persist the corresponding homes and mount the repositories. What each image version contains is in the [changelog](https://github.com/louiskhenghao/foundry-releases/blob/main/CHANGELOG.md).
 

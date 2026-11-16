@@ -560,6 +560,10 @@ _Avoid_: version poll, upgrade check
 The macOS app's own part ([ADR-0102](docs/develop/adr/0102-the-foundry-app-and-the-release-installs.md)): a status item that starts the engine with the PATH a terminal has, says whether it runs and what waits for the person, opens the page in their browser, starts Foundry at login, and installs a release the engine downloaded by swapping the app. The page is the engine's, in the browser, as with every other install; the menu bar app holds no screen of its own.
 _Avoid_: tray, desktop app (the UI is not in it)
 
+**Switch**
+What a checkout or a container does when the newest Release is a new major that ships only as the app and the binary ([ADR-0103](docs/develop/adr/0103-before-3-0-a-switch-not-an-update.md)): not an update but a change of how Foundry is installed, shown first in a risk dialog (what it does, the risks, the way back) and done only on a ticked box. A checkout's Foundry hands over to the new release's installer, which stops it, copies its data folder and starts the new install on the same port; a container gets the steps to run on its host.
+_Avoid_: upgrade, migration (the data copy is one step of it)
+
 **Self-Update**
 The one-click path from a noticed Release to running it: the instance drains active work, replaces itself, and comes back on the new version — rolling back and staying put if any step fails. An instance that lacks the means to replace itself falls back to a Guided Update instead of failing.
 _Avoid_: auto-update, hot update
