@@ -8,11 +8,12 @@ import { sectionOf } from '../src/pages/settings/section-of.ts';
 
 const page = readFileSync(join(import.meta.dir, '../src/pages/SettingsPage.tsx'), 'utf8');
 /** the sections of the page, as the guide test reads them */
-const sections = [...(page.match(/const SECTIONS[^=]*=\s*\[([\s\S]*?)\];/)?.[1] ?? '').matchAll(/id: '([a-z]+)'/g)].map((m) => m[1]!);
+const sections = [...(readFileSync(join(import.meta.dir, '../src/pages/settings/sections.tsx'), 'utf8').match(/const SECTIONS[^=]*=\s*\[([\s\S]*?)\];/)?.[1] ?? '').matchAll(/id: '([a-z]+)'/g)].map((m) => m[1]!);
 
 test('every setting the page edits sits in one of its sections, so its unsaved change is counted somewhere', () => {
   expect(sections.length).toBeGreaterThan(10);
-  const paths = new Set([...page.matchAll(/'((?:workflow|reviews|delivery|sync|models|sessions|engine|tools|preview|checks|notifications|safety|beta)\.[a-zA-Z]+)'/g)].map((m) => m[1]!));
+  // a setting's path is quoted where its value is read or set, and named on its Setting or Toggle
+  const paths = new Set([...page.matchAll(/['"]((?:workflow|reviews|delivery|sync|models|sessions|engine|tools|preview|checks|notifications|safety|beta)\.[a-zA-Z]+)['"]/g)].map((m) => m[1]!));
   expect(paths.size).toBeGreaterThan(80);
   const lost = [...paths].filter((p) => !sections.includes(sectionOf(p) ?? ''));
   expect(lost).toEqual([]);

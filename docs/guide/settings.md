@@ -16,6 +16,7 @@ Open the ⚙ menu at the right of the top bar and choose **Settings**. The secti
 ## How Settings works
 
 - Change what you want, then press **Save** in the bar at the top (it says **N unsaved**). **Discard** throws your changes away. One exception: choosing a skill pack under [Skills](#skills) saves the moment you click it.
+- **Search settings…**, at the left of that bar, finds a setting in any section: type a word of its name, of its help or of the environment variable that seeds it, and pick a result (↓ ↑ and Enter work too). Its section opens, the page scrolls to the setting and outlines it for a moment; a setting that sits in a card (a deploy place, a key, a channel) has its card opened for it. A section's own name is a result as well.
 - Most changes apply at once. A few are marked **restart**: they apply after Foundry restarts. A banner at the top then offers **Restart now**: Foundry stops and starts again by itself, once no goal is at work, and the page reloads when it is back.
 - Each setting has a small badge: **default** (never changed), **saved** (you changed it here) or **env** (set by whoever installed Foundry). The ↺ arrow next to a saved value forgets it and goes back to the default.
 
@@ -284,14 +285,15 @@ How Foundry keeps up with the online copy of your project, and how long delivery
 ## Tools & keys
 
 - **Use graphify for relevant-file discovery** (on): uses a code map to find the relevant files, when that tool is installed.
-Media-service keys below are separate from agent sign-in. Codex execution continues to use ChatGPT only; entering an image key does not enable API-key inference.
 
-- **OpenAI-compatible API key**: needed for image goals to produce real images. Without it, image tasks fall back to hand-drawn SVG renders. **OpenAI-compatible base URL**: only for a proxy or another compatible provider.
-- **Gemini API key**: an alternative for one of the image packs.
-- **Kimi (Moonshot) API key**: used by one design pack's models, where a skill calls them.
-- **MiniMax API key**: for video and narration through mmx. Leave it empty if you already signed in with `mmx auth login` on this computer; in Docker, fill it in.
-- **ElevenLabs API key** and **Groq API key**: narration voices, and speech-to-text for video captions, when a video pack uses them.
-- **markitdown binary**: the converter that turns attached documents into text. Leave empty.
+The keys are cards, one per service, like the deploy places under Git & delivery: each says **Set up** or **Not set up** on its closed card, and opens on the page its key is made on and the field itself. They are separate from agent sign-in: Codex keeps running on ChatGPT; an image key does not switch it to the API.
+
+- **OpenAI-compatible** — **OpenAI-compatible API key**: needed for image goals to produce real images. Without it, image tasks fall back to hand-drawn SVG renders. **OpenAI-compatible base URL**: only for a proxy or another compatible provider.
+- **Gemini** — **Gemini API key**: an alternative for one of the image packs.
+- **Kimi (Moonshot)** — **Kimi (Moonshot) API key**: used by one design pack's models, where a skill calls them.
+- **MiniMax** — **MiniMax API key**: for video and narration through mmx. Leave it empty if you already signed in with `mmx auth login` on this computer; in Docker, fill it in.
+- **ElevenLabs** and **Groq** — **ElevenLabs API key** and **Groq API key**: narration voices, and speech-to-text for video captions, when a video pack uses them.
+- **markitdown binary** (below the cards): the converter that turns attached documents into text. Leave empty.
 
 **VS Code in the browser (code-server)** says whether it is installed; **Install code-server** installs it once into your home folder (about 150 MB, no administrator rights). It is what **Open ▾ → VS Code (web)** starts.
 
@@ -311,6 +313,8 @@ When to change: turn the self-check on by default if most of your goals are web 
 ## Notifications
 
 Foundry can message you on Telegram or Discord when something happens, so you do not have to watch the page. Setting up the bot or webhook is in [notifications.md](../operate/notifications.md); after that, press **Send test message**.
+
+The channels are cards: **Telegram** (the bot token, the chat id with its **Detect** button, and **Answer from Telegram**), **Discord** (the webhook URL and the optional bot token) and **Tailscale** (the links on your tailnet, and this machine's name). Each says on its closed card whether it is set up — Tailscale says **Auto** or **Off** — and opens on where its values come from and the fields themselves. **Link base URL** sits under the cards, then the switches.
 
 **Link base URL**: the address where you open Foundry from elsewhere (a LAN address, a domain). Messages link to it; without it they link to this computer (`http://localhost`). **Tailscale links** (auto) adds links on your tailnet when Tailscale runs here, for Foundry and for previews (not the CAD Viewer, which stays on this computer), so they open on your phone; **Tailscale name** overrides the machine's name. See [notifications.md](../operate/notifications.md#links).
 

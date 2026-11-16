@@ -9,9 +9,30 @@ const hue = (i: number) => {
 };
 
 /**
+ * The sections of the Settings page, in its order, one open at a time: the left-hand menu (a row of chips on a phone or
+ * a tablet) opens one, and the URL's hash names it (`/settings#models`), so a link opens its section and the browser's
+ * back button returns to the one before. The ids are the cards' ids on the page; the search names a section by them.
+ */
+export const SECTIONS: { id: string; label: string }[] = [
+  { id: 'goals', label: 'New goal defaults' },
+  { id: 'models', label: 'Models & limits' },
+  { id: 'skills', label: 'Skills' },
+  { id: 'git', label: 'Git & delivery' },
+  { id: 'tools', label: 'Tools & keys' },
+  { id: 'preview', label: 'Preview & self-check' },
+  { id: 'notifications', label: 'Notifications' },
+  { id: 'access', label: 'Access' },
+  { id: 'safety', label: 'Safety' },
+  { id: 'beta', label: 'Beta' },
+  { id: 'engine', label: 'Engine (install)' },
+  { id: 'appearance', label: 'Appearance' },
+  { id: 'about', label: 'About & updates' },
+];
+
+/**
  * Each section of the Settings page (by its card's id) with an icon and a category colour of its own, as the Brief's
  * sections have: fixed per section, never by place in what is shown, and no two neighbours in the page's order share
- * one. Machine set-up (tools, engine) shares teal. The page's own SECTIONS list holds the names and the order.
+ * one. Machine set-up (tools, engine) shares teal. SECTIONS above holds the names and the order.
  */
 export const SECTION_STYLE: Record<string, { Icon: LucideIcon; ink: string; dot: string }> = {
   goals: { Icon: Target, ...hue(0) },
