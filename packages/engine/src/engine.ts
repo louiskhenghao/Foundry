@@ -142,7 +142,7 @@ import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps
 import { artifactsDue, deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import { stuckCommits, takeBackOrphaned, takeBackStuck } from './take-back.ts';
 import { cadModelIn, recoverOverlays } from './goal-artifacts.ts';
-import type { Learning, SettingsPatch, SettingsView, DeployProvider, DeployHostProvider, DeployReadiness, RecipeRun, ServerRecipe } from '@foundry/core';
+import type { ConcurrencyView, Learning, SettingsPatch, SettingsView, DeployProvider, DeployHostProvider, DeployReadiness, RecipeRun, ServerRecipe } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -169,6 +169,7 @@ import { workerTools } from './guards/boundary.ts';
 import { DESKTOP_APPS_PATTERNS, SLICER_APP_PATTERNS, SLICER_HEADLESS_PATTERNS } from './guards/patterns.ts';
 import { pluginServerPrefix, strictServers } from './mcp/servers.ts';
 import { CONNECTOR_PREFIX, leanSettings, ownSkillNames, projectSkillNames } from './lean-sessions.ts';
+import { autoConcurrency, fiveHourSignal, readMachine, windowHeld, windowHoldReason, type AutoConcurrency, type Machine, type WindowSignal } from './concurrency.ts';
 import { serverBaseArgs } from './skills/installer.ts';
 import { MOTION_STUDIO, exportHouseStyle, motionStudioCheck } from './motion-studio.ts';
 import { HYPERFRAMES, hyperframesCheck } from './hyperframes.ts';
@@ -554,6 +555,7 @@ export class Engine {
       const named = AgentProvider.safeParse(spec.meta?.provider);
       return named.success ? named.data : config.provider;
     }, config.maxConcurrent);
+    this.appliedLimit = config.maxConcurrent;
     this.roles = new Roles(config.rolesDir);
     const makeSkills = (provider: AgentProvider) => new SkillsManager({
       provider, codexBin: config.codexBin, codexHome: config.codexHome, agyBin: config.agyBin,
@@ -936,7 +938,7 @@ export class Engine {
   // ---------- settings ----------
 
   settingsView(): SettingsView {
-    return this.settings.view();
+    return { ...this.settings.view(), concurrency: this.concurrencyView() };
   }
   /** Validate, persist and hot-apply a settings patch; restart-only keys are persisted and reported. */
   updateSettings(patch: SettingsPatch): SettingsView {
@@ -950,7 +952,7 @@ export class Engine {
     }
     const { changed, view } = this.settings.update(patch);
     this.applySettingsChange(changed);
-    return view;
+    return { ...view, concurrency: this.concurrencyView() };
   }
   /**
    * Settings sections taken from another Foundry (Transfer, ADR-0030): each chosen section becomes what it saved there,
@@ -1024,7 +1026,7 @@ export class Engine {
     const modelsBefore = { ...this.config.models };
     applySettingsToConfig(this.config, this.settings.values(), new Set(changed.filter((key) => !['engine.provider', 'engine.codexBin', 'engine.codexHome'].includes(key))));
     if (changed.some((k) => k.startsWith('models.'))) this.propagateModels(modelsBefore);
-    if (changed.includes('engine.maxConcurrent')) this.runner.setMaxConcurrent?.(this.config.maxConcurrent);
+    if (changed.includes('engine.maxConcurrent') || changed.includes('engine.concurrency')) this.applyConcurrency();
     if (changed.includes('tools.useGraphify')) {
       this.context = this.buildContext();
       this.config.log(`[engine] context provider: ${this.context.name}`);
@@ -1296,6 +1298,12 @@ export class Engine {
     }, this.settings.values().delivery.storePollMin * 60_000);
     this.storeWatchTimer.unref?.();
     void checkStoreDeploys(this).catch((err) => this.config.log(`[deploy] the store watch failed: ${String((err as Error).message ?? err)}`));
+    // Concurrency (ADR-0103): Auto reads the machine now and again every half minute
+    this.applyConcurrency();
+    this.concurrencyTimer = setInterval(() => {
+      if (!this.stopped && this.config.concurrency === 'auto') this.applyConcurrency();
+    }, 30_000);
+    this.concurrencyTimer.unref?.();
     this.telegram.start();
     this.discord.start();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
@@ -1304,6 +1312,15 @@ export class Engine {
   private prWatchTimer: ReturnType<typeof setInterval> | null = null;
   private scheduleTimer: ReturnType<typeof setInterval> | null = null;
   private storeWatchTimer: ReturnType<typeof setInterval> | null = null;
+  private concurrencyTimer: ReturnType<typeof setInterval> | null = null;
+  /** the session limit the runners hold now: Settings' number, or what auto concurrency read from the machine (ADR-0103) */
+  private appliedLimit: number;
+  /** Auto: the machine as last read and what it carries */
+  private autoNow: (AutoConcurrency & Machine) | null = null;
+  /** the 5-hour window each account's last session reported, by `<provider>:<account>` (ADR-0103) */
+  private windows = new Map<string, WindowSignal>();
+  /** goals already told their coding agent runs one task at a time, by goal and window */
+  private windowNoted = new Set<string>();
   /** start() is putting right what the last run left (orphaned attempts, overlays): no goal runs meanwhile */
   private reconciling = false;
   private deliveryRefreshAt = new Map<string, number>();
@@ -1431,6 +1448,7 @@ export class Engine {
     if (this.prWatchTimer) clearInterval(this.prWatchTimer);
     if (this.scheduleTimer) clearInterval(this.scheduleTimer);
     if (this.storeWatchTimer) clearInterval(this.storeWatchTimer);
+    if (this.concurrencyTimer) clearInterval(this.concurrencyTimer);
     for (const timer of this.resumeTimers.values()) clearTimeout(timer);
     this.resumeTimers.clear();
     for (const account of Object.values(this.accounts)) account.cancelLogin();
@@ -1634,7 +1652,72 @@ export class Engine {
         this.config.log(`[skills] ${meta.goalId}: could not record the invoked skills: ${String(err)}`);
       }
     }
+    // the 5-hour window the session's account had used, for auto concurrency's hold (ADR-0103)
+    const window = fiveHourSignal(result.rateLimit?.raw);
+    if (window) this.windows.set(`${provider}:${result.accountId ?? NATIVE_ACCOUNT}`, window);
     this.observeRateLimit(result, provider);
+  }
+
+  /**
+   * Applies Settings → Concurrency (ADR-0103): Fixed holds the runners at Concurrent agent sessions, Auto at what this
+   * machine carries now. Sessions running are never stopped: a lower limit holds the next ones back.
+   */
+  applyConcurrency(): void {
+    let limit = this.config.maxConcurrent;
+    if (this.config.concurrency === 'auto') {
+      const machine = (this.config.machine ?? readMachine)();
+      this.autoNow = { ...machine, ...autoConcurrency(machine) };
+      limit = this.autoNow.limit;
+    } else this.autoNow = null;
+    if (limit === this.appliedLimit) return;
+    this.appliedLimit = limit;
+    this.runner.setMaxConcurrent?.(limit);
+    const a = this.autoNow;
+    this.config.log(`[engine] concurrent sessions: ${limit}${a ? ` (auto: ${a.cpus} cores, ${Math.round(a.memGB)} GB${a.busy ? `, halved while the load is ${a.load1.toFixed(1)}` : ''})` : ''}`);
+  }
+
+  /** what Settings shows under Concurrency */
+  concurrencyView(): ConcurrencyView {
+    const now = Date.now();
+    const a = this.autoNow;
+    return {
+      mode: this.config.concurrency,
+      limit: this.appliedLimit,
+      ...(a ? { auto: { cap: a.cap, busy: a.busy, cpus: a.cpus, memGB: Math.round(a.memGB), load1: Math.round(a.load1 * 10) / 10 } } : {}),
+      held: AGENT_PROVIDERS.flatMap((provider) => {
+        const w = this.windowHold(provider, now);
+        return w ? [{ provider, utilization: w.utilization, resetsAt: new Date(w.resetsAt * 1000).toISOString() }] : [];
+      }),
+    };
+  }
+
+  /**
+   * The 5-hour window that holds a coding agent at one task at a time under auto concurrency (ADR-0103): its current
+   * account's last session said it was used 90% or more, and it has not reset. null with Fixed, below the mark, and when
+   * auto switch would move new sessions to another account with room left.
+   */
+  windowHold(provider: AgentProvider, now = Date.now()): WindowSignal | null {
+    if (this.config.concurrency !== 'auto') return null;
+    const account = isPooled(provider) ? this.accountPool.currentId(provider) : NATIVE_ACCOUNT;
+    const w = this.windows.get(`${provider}:${account}`);
+    if (!windowHeld(w, now)) return null;
+    if (isPooled(provider) && this.config.autoSwitch[provider] && this.accountPool.next(provider)) return null;
+    return w;
+  }
+
+  /** the tasks of a coding agent's goals at work now */
+  inFlightOf(provider: AgentProvider): number {
+    let n = 0;
+    for (const f of this.inFlight.values()) if ((getGoal(this.store.db, f.goalId)?.provider ?? this.config.provider) === provider) n++;
+    return n;
+  }
+
+  /** says once per goal and window why its tasks start one at a time */
+  noteWindowHold(goal: Goal, w: WindowSignal): void {
+    const key = `${goal.id}:${w.resetsAt}`;
+    if (this.windowNoted.has(key)) return;
+    this.windowNoted.add(key);
+    this.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `Tasks start one at a time: ${windowHoldReason(w)}.` } });
   }
 
   private observeRateLimit(result: RunResult, provider: AgentProvider): void {
@@ -2170,6 +2253,10 @@ export class Engine {
     const running = tasks.filter((t) => inFlight.includes(t.id));
     const names = (ts: Task[]) => ts.map((t) => `"${t.title}"`).join(', ');
     if (inFlight.length >= goal.budgets.maxConcurrent) return { kind: 'capacity', reason: `every slot is taken (${names(running) || `${inFlight.length} running`})` };
+    // near the end of its 5-hour window a coding agent runs one task at a time (Concurrency: Auto, ADR-0103)
+    const provider = goal.provider ?? this.config.provider;
+    const held = this.windowHold(provider);
+    if (held && this.inFlightOf(provider) > 0) return { kind: 'capacity', reason: windowHoldReason(held) };
     // not a dependency: a task the Brief marked not parallelizable runs alone, so it waits for whatever runs now
     if (!task.parallelizable && inFlight.length > 0) return { kind: 'serial', reason: `it runs alone (not parallelizable), so it starts once ${names(running) || 'the running task'} ${running.length > 1 ? 'finish' : 'finishes'}; it does not depend on ${running.length > 1 ? 'them' : 'it'}` };
     const clash = running.find((x) => filesOverlap(task.relevantFiles, x.relevantFiles).length > 0);

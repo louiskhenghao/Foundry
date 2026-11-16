@@ -24,6 +24,8 @@ export const EngineSettings = z.object({
   port: z.number().int().min(1).max(65535).default(4111),
   host: z.string().min(1).default('127.0.0.1'),
   maxConcurrent: z.number().int().min(1).max(16).default(3),
+  /** `fixed`: at most maxConcurrent sessions at once; `auto`: as many as this machine carries, read from it (ADR-0103) */
+  concurrency: z.enum(['fixed', 'auto']).default('fixed'),
   /** path to the claude binary; null = first on PATH */
   claudeBin: z.string().nullable().default(null),
   /** Claude Code home; null = ~/.claude (or CLAUDE_CONFIG_DIR) */
@@ -475,6 +477,16 @@ export interface SettingMeta {
   env: string | null;
   default: unknown;
 }
+/** what Settings → Concurrency runs at now (ADR-0103) */
+export interface ConcurrencyView {
+  mode: 'fixed' | 'auto';
+  /** the sessions that may run at once now */
+  limit: number;
+  /** Auto: what this machine carries and why the limit is what it is */
+  auto?: { cap: number; busy: boolean; cpus: number; memGB: number; load1: number };
+  /** coding agents running one task at a time near the end of their 5-hour window */
+  held: { provider: string; utilization: number; resetsAt: string }[];
+}
 export interface SettingsView {
   /** every value, except SECRET_SETTINGS, which are null here */
   values: Settings;
@@ -485,4 +497,6 @@ export interface SettingsView {
   restartNeeded: string[];
   file: string;
   fileExists: boolean;
+  /** what Concurrency runs at now: the engine adds it, the settings file has nothing to say about it */
+  concurrency?: ConcurrencyView;
 }
