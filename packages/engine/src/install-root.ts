@@ -15,6 +15,14 @@ import { basename, dirname, join, resolve } from 'node:path';
 
 export type InstallKind = 'checkout' | 'app' | 'binary';
 
+/**
+ * The macOS app's two executables in Contents/MacOS (ADR-0102): the menu bar shell is the bundle's own executable, and the
+ * compiled foundry beside it cannot be called `foundry` — on the case-insensitive disk most Macs have, that is the shell's
+ * `Foundry`.
+ */
+export const APP_SHELL_EXECUTABLE = 'Foundry';
+export const APP_ENGINE_EXECUTABLE = 'foundry-engine';
+
 export interface InstallRoot {
   kind: InstallKind;
   /** the folder the engine's rootDir points at */
