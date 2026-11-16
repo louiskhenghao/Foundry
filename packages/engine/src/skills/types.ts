@@ -331,6 +331,10 @@ export type UpdaterKind = z.infer<typeof UpdaterKind>;
 export const SkillRowStatus = z.enum(['up-to-date', 'outdated', 'unreleased', 'modified', 'unknown', 'broken']);
 export type SkillRowStatus = z.infer<typeof SkillRowStatus>;
 
+/** a catalog pin as a row or a source carries it: the ref the catalog names, the commit it is, whether upstream moved the skill on since */
+export const SkillPin = z.object({ ref: z.string(), commit: z.string(), behind: z.boolean() });
+export type SkillPin = z.infer<typeof SkillPin>;
+
 export const SkillSourceRow = z.object({
   name: z.string(),
   /** why a user-level skill cannot be uninstalled from this side (Claude Code links to it, its own tooling owns it) */
@@ -353,6 +357,11 @@ export const SkillSourceRow = z.object({
   duplicateOf: z.array(z.string()),
   catalogId: z.string().nullable(),
   actions: z.array(z.enum(['update', 'adopt', 'uninstall', 'trash-shadow'])),
+  /**
+   * the catalog pins this skill to a commit or a release tag (ADR-0100): the copy is compared with the pin, which is what
+   * Update installs; `behind` says upstream changed the skill since the pin (news, not an update waiting)
+   */
+  pinned: SkillPin.nullable().optional(),
 });
 export type SkillSourceRow = z.infer<typeof SkillSourceRow>;
 
@@ -371,6 +380,8 @@ export const SkillSource = z.object({
   updater: z.object({ kind: UpdaterKind, command: z.array(z.string()).nullable(), hint: z.string().nullable() }),
   error: z.string().nullable(),
   skills: z.array(SkillSourceRow),
+  /** the pin its skills sit at, when the catalog pins them (ADR-0100) */
+  pinned: SkillPin.nullable().optional(),
 });
 export type SkillSource = z.infer<typeof SkillSource>;
 

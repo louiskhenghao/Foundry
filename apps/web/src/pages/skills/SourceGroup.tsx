@@ -64,6 +64,8 @@ export function SourceGroup({ s, busy, updating, running, filter, expand = false
     s.local.installedAt ? `installed ${fmtDate(s.local.installedAt)}` : null,
     s.local.updatedAt && s.local.updatedAt !== s.local.installedAt ? `updated ${fmtDate(s.local.updatedAt)}` : null,
     s.local.commit ? s.local.commit.slice(0, 7) : null,
+    // the catalog's pin (ADR-0100): what Update installs, whatever upstream did since
+    s.pinned ? `pinned ${s.pinned.commit.slice(0, 7)}${s.pinned.behind ? ' · upstream moved on' : ''}` : null,
     s.upstream ? `upstream ${s.upstream.commit.slice(0, 7)} · ${fmtDate(s.upstream.committedAt)} (${ago(s.upstream.committedAt)})` : 'upstream not checked',
   ].filter(Boolean) as string[];
 
@@ -176,8 +178,8 @@ export function SourceGroup({ s, busy, updating, running, filter, expand = false
           </span>
         </div>
       </header>
-      {/* why the update waits (upstream changed, the version did not): nothing for you to do yet */}
-      {unreleased && s.updater.hint && <div className="px-4 pb-2 sm:pl-10 text-xs text-ink-soft">{s.updater.hint}</div>}
+      {/* why the update waits (upstream changed, the version did not), or why none waits though upstream moved (the catalog's pin): nothing for you to do yet */}
+      {(unreleased || (s.pinned?.behind && s.updateAvailable === false)) && s.updater.hint && <div className="px-4 pb-2 sm:pl-10 text-xs text-ink-soft">{s.updater.hint}</div>}
       {s.updater.command && open && canUpdate && (
         <div className="px-4 pb-2 sm:pl-10 text-[11px] text-ink-faint mono truncate">
           {s.updater.command.join(' ')} <CopyButton text={s.updater.command.join(' ')} />
@@ -221,6 +223,13 @@ function Row({ r, usage, windowGoals, busy, selected, onSelect, onView, onAdopt,
             <span title={r.upstream.exact ? `upstream commit ${r.upstream.commit}` : 'history truncated — repo HEAD date'}>
               upstream {ago(r.upstream.committedAt)}
               {r.upstream.exact ? '' : '*'}
+            </span>
+          )}
+          {/* the catalog's pin (ADR-0100): the copy is compared with it, and upstream's later changes are news, not an update */}
+          {r.pinned && (
+            <span title={`Foundry's catalog pins this skill to ${r.pinned.ref}; Update installs that${r.pinned.behind ? '. Upstream changed the skill since; Foundry moves the pin in a release.' : '.'}`}>
+              pinned {r.pinned.commit.slice(0, 7)}
+              {r.pinned.behind ? ' · upstream moved on' : ''}
             </span>
           )}
           {/* a fact, not a request: a quiet chip */}

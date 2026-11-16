@@ -5,7 +5,7 @@ import { exec } from '../git/git.ts';
 import { makeFakeHome, skillMd, writeCatalog, type FakeHome } from './fake-home.test-helper.ts';
 import { loadCatalog } from './catalog.ts';
 import { scanSkills } from './scanner.ts';
-import { dirFingerprint, gitBlobSha1, sourceOf } from './sources.ts';
+import { dirFingerprint, gitBlobSha1, ignoredPath, sourceOf } from './sources.ts';
 import { SkillsUpdateChecker } from './updates.ts';
 import { runSourceUpdate } from './updaters.ts';
 import { readMarker } from './installer.ts';
@@ -85,6 +85,15 @@ describe('skills sources & updates', () => {
     const upDir = join(fh.paths.cacheDir, 'mattpocock', 'skills', 'skills', 'engineering', 'diagnosing-bugs');
     expect(dirFingerprint(dir)).toBe(dirFingerprint(upDir));
     expect(gitBlobSha1(Buffer.from('hello\n'))).toBe('ce013625030ba8dba906f756967f9e9ca394464a');
+    // what a skill's scripts leave behind when they run is not a change of the skill
+    mkdirSync(join(dir, 'scripts', '__pycache__'), { recursive: true });
+    writeFileSync(join(dir, 'scripts', '__pycache__', 'tool.cpython-312.pyc'), 'bytecode');
+    mkdirSync(join(dir, '.venv', 'bin'), { recursive: true });
+    writeFileSync(join(dir, '.venv', 'bin', 'python'), 'x');
+    expect(dirFingerprint(dir)).toBe(dirFingerprint(upDir));
+    expect(ignoredPath('scripts/__pycache__/tool.cpython-312.pyc')).toBe(true);
+    expect(ignoredPath('.foundry.json')).toBe(true);
+    expect(ignoredPath('scripts/tool.py')).toBe(false);
   });
 
   test('report: up-to-date / older copy / differs / unknown, grouped by source', async () => {
@@ -237,4 +246,66 @@ describe('isStaleShadow', () => {
     expect(isStaleShadow({ ...row, shadowedBy: null } as any)).toBe(false);
     expect(isStaleShadow({ ...row, status: 'up-to-date' } as any)).toBe(false);
   });
+});
+
+describe('a catalog entry pinned to one commit (ADR-0100)', () => {
+  test('the copy at the pin is up to date though upstream moved on; Update changes nothing; a hand edit is modified; a moved pin is an update, and Update all takes it', async () => {
+    const fh = makeFakeHome();
+    const upstream = await makeUpstream(fh.home);
+    const entry = (ref: string) => ({ id: 'diagnosing-bugs', name: 'diagnosing-bugs', summary: 's', why: 'w', tier: 'recommended', bundle: 'mp', source: { type: 'git', repo: 'mattpocock/skills', url: upstream.url, ref, path: 'skills/engineering/diagnosing-bugs' }, roles: ['worker'] });
+    const runs: string[] = [];
+    const lines: string[] = [];
+    const manager = (catalogPath: string) => new SkillsManager({ claudeHome: fh.claudeHome, dataDir: fh.dataDir, catalogPath, which: () => null, onRun: (r) => runs.push(`${r.sourceId}:${r.changed.length}`), updates: { ttlMs: 60_000, urlFor: () => upstream.url } });
+    const sourceOf = (report: Awaited<ReturnType<SkillsManager['updates']>>) => report.sources.find((s) => s.id === 'foundry:mattpocock/skills')!;
+    const m = manager(writeCatalog(join(fh.home, 'catalog-v2'), [entry(upstream.v2)]));
+    expect((await m.install('diagnosing-bugs')).ok).toBe(true);
+    expect(readMarker(join(fh.paths.skillsDir, 'diagnosing-bugs'))?.commit).toBe(upstream.v2);
+
+    // at the pin, and upstream has not touched the skill since (its head only added a README)
+    let src = sourceOf(await m.updates({ refresh: true }));
+    expect(src.skills.map((r) => [r.name, r.status])).toEqual([['diagnosing-bugs', 'up-to-date']]);
+    expect(src.pinned).toEqual({ ref: upstream.v2, commit: upstream.v2, behind: false });
+    expect(src.updater.hint).toBeNull();
+
+    // upstream moves the skill on: still up to date (Update would install the pin), said as behind, never as an update
+    writeFileSync(join(upstream.up, 'skills', 'engineering', 'diagnosing-bugs', 'SKILL.md'), skillMd('diagnosing-bugs', 'find bugs v3'));
+    await sh(['git', 'add', '-A'], upstream.up);
+    await sh(['git', ...gitEnv, 'commit', '-q', '-m', 'v3', '--date=2026-05-01T00:00:00Z'], upstream.up);
+    const v3 = await sh(['git', 'rev-parse', 'HEAD'], upstream.up);
+    src = sourceOf(await m.updates({ refresh: true }));
+    expect(src.skills[0]!.status).toBe('up-to-date');
+    expect(src.skills[0]!.pinned).toEqual({ ref: upstream.v2, commit: upstream.v2, behind: true });
+    expect(src.pinned).toEqual({ ref: upstream.v2, commit: upstream.v2, behind: true });
+    expect(src.updateAvailable).toBe(false);
+    expect(src.updater.hint).toContain(`Pinned to ${upstream.v2.slice(0, 7)}`);
+    const run = await m.updateSource(src.id, { onLine: (l) => lines.push(l) });
+    expect(run.changed).toEqual([]);
+    expect(lines.some((l) => l.startsWith('= diagnosing-bugs: already at'))).toBe(true);
+    expect(readFileSync(join(fh.paths.skillsDir, 'diagnosing-bugs', 'SKILL.md'), 'utf8')).not.toContain('v3');
+
+    // edited on this computer: modified, not an update waiting
+    writeFileSync(join(fh.paths.skillsDir, 'diagnosing-bugs', 'SKILL.md'), skillMd('diagnosing-bugs', 'find bugs, edited here'));
+    src = sourceOf(await m.updates({ refresh: true }));
+    expect(src.skills[0]!.status).toBe('modified');
+    expect(src.updateAvailable).toBe(false);
+
+    // a Foundry release moves the pin to v3: now the copy is outdated, and Update all brings it to the pin
+    const m2 = manager(writeCatalog(join(fh.home, 'catalog-v3'), [entry(v3)]));
+    src = sourceOf(await m2.updates({ refresh: true }));
+    expect(src.skills[0]!.status).toBe('outdated');
+    expect(src.skills[0]!.pinned).toEqual({ ref: v3, commit: v3, behind: false });
+    expect(src.updateAvailable).toBe(true);
+    const all = await m2.updateAll({ onLine: (l) => lines.push(l) });
+    expect(all.skipped).toEqual([]);
+    expect(all.runs.map((r) => [r.sourceId, r.changed.map((c) => c.name)])).toEqual([['foundry:mattpocock/skills', ['diagnosing-bugs']]]);
+    expect(runs).toEqual(['foundry:mattpocock/skills:0', 'foundry:mattpocock/skills:1']);
+    expect(readMarker(join(fh.paths.skillsDir, 'diagnosing-bugs'))?.commit).toBe(v3);
+    expect(readFileSync(join(fh.paths.skillsDir, 'diagnosing-bugs', 'SKILL.md'), 'utf8')).toContain('v3');
+    src = sourceOf(await m2.updates({ refresh: true }));
+    expect(src.skills[0]!.status).toBe('up-to-date');
+    expect(src.pinned).toEqual({ ref: v3, commit: v3, behind: false });
+    expect(src.updater.hint).toBeNull();
+    // nothing waits: Update all has nothing to run
+    expect(await m2.updateAll()).toEqual({ runs: [], skipped: [] });
+  }, 60_000);
 });
