@@ -18,7 +18,8 @@ describe('generated reference docs', () => {
     expect(read('docs/operate/cli.md')).toBe(renderCliReference(help));
   });
   test('every Settings section label used by the reference exists in the web UI', () => {
-    const page = read('apps/web/src/pages/SettingsPage.tsx');
+    // the sections live in settings/sections.tsx since the Settings page was split into cards
+    const page = read('apps/web/src/pages/settings/sections.tsx');
     for (const section of new Set(Object.values(SETTING_DOCS).map((d) => d.section))) expect(page).toContain(`label: '${section}'`);
   });
 });
