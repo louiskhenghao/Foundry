@@ -151,7 +151,9 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
       <div className="flex items-center gap-3">
         <div role="tablist" aria-label="Kind of goal" className="-mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto whitespace-nowrap px-1 py-1">
           {(['all', ...kinds] as (TemplateNature | 'all')[]).map((k) => (
-            <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setKind(k)} className={cn('shrink-0 rounded-md px-2.5 py-1.5 text-sm font-semibold transition-colors', kind === k ? 'bg-panel text-ink shadow-[0_0_0_1px_var(--color-line)]' : 'text-ink-soft hover:text-ink')}>
+            <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setKind(k)} className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-semibold transition-colors', kind === k ? 'bg-panel text-ink shadow-[0_0_0_1px_var(--color-line)]' : 'text-ink-soft hover:text-ink')}>
+              {/* the kind's colour as a small square before its name, as the Settings sections wear theirs */}
+              {k !== 'all' && <span className={cn('h-2 w-2 shrink-0 rounded-[2px]', NATURE_ICON[k].dot)} aria-hidden="true" />}
               {k === 'all' ? 'All' : NATURE_WORD[k]}
             </button>
           ))}
@@ -174,8 +176,23 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
       } />
 
       {shelves.map((g) => {
-        const { Icon, ink } = NATURE_ICON[g.nature];
-        return <Shelf key={g.nature} id={`shipped-${g.nature}`} title={<span className="inline-flex items-center gap-2"><Icon size={18} strokeWidth={2.25} className={ink} aria-hidden="true" />{NATURE_WORD[g.nature]}</span>} subtitle={`Foundry's — ${NATURE_LINE[g.nature]}`} items={g.templates.map(tile)} />;
+        const { Icon, chip } = NATURE_ICON[g.nature];
+        return (
+          <Shelf
+            key={g.nature}
+            id={`shipped-${g.nature}`}
+            title={
+              <span className="inline-flex items-center gap-2">
+                <span className={cn('grid size-7 shrink-0 place-items-center rounded-md', chip)} aria-hidden="true">
+                  <Icon size={15} strokeWidth={2.25} />
+                </span>
+                {NATURE_WORD[g.nature]}
+              </span>
+            }
+            subtitle={`Foundry's — ${NATURE_LINE[g.nature]}`}
+            items={g.templates.map(tile)}
+          />
+        );
       })}
 
       <Card id="templates-folder" title="The templates folder">
@@ -244,10 +261,21 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
 export function UseTemplateDialog({ entry, lang, onClose, onConfirm }: { entry: TemplateEntry | null; lang: TemplateLang; onClose: () => void; onConfirm: () => void }) {
   if (!entry) return null;
   const v = shownVersion(entry, lang);
+  const { Icon, ink } = NATURE_ICON[entry.nature];
   const required = v.inputs.filter(inputRequired).length;
   const brings = templateBrings(entry);
   return (
-    <ConfirmDialog open title={`Use “${v.name}” for a new goal?`} confirmLabel="Use" onConfirm={onConfirm} onClose={onClose}>
+    <ConfirmDialog
+      open
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Icon size={15} strokeWidth={2.25} className={cn('shrink-0', ink)} aria-hidden="true" /> Use “{v.name}” for a new goal?
+        </span>
+      }
+      confirmLabel="Use"
+      onConfirm={onConfirm}
+      onClose={onClose}
+    >
       <div className="space-y-2">
         {v.summary && <p className="text-ink-soft">{v.summary}</p>}
         <p>
@@ -304,7 +332,7 @@ function Shelf({ id, title, subtitle, items, empty }: { id: string; title: React
 /** one template as a card on a shelf: its kind's mark on a tile, its name, whose it is, its summary, what it asks, and what can be done with it */
 function TemplateTile({ entry, lang, editors, onError, onUse, onView, onCopy, onRename, onExport, onDelete }: { entry: TemplateEntry; lang: TemplateLang; editors: OpenTarget[]; onError: (e: string | null) => void; onUse: () => void; onView: () => void; onCopy: () => void; onRename?: () => void; onExport: (l: TemplateLang) => void; onDelete?: () => void }) {
   const v = shownVersion(entry, lang);
-  const { Icon, ink } = NATURE_ICON[entry.nature];
+  const { Icon, ink, chip } = NATURE_ICON[entry.nature];
   const langs = (['en', 'zh'] as TemplateLang[]).filter((l) => entry[l]);
   const required = v.inputs.filter(inputRequired).length;
   const openIn = (t: OpenTarget) => {
@@ -314,8 +342,9 @@ function TemplateTile({ entry, lang, editors, onError, onUse, onView, onCopy, on
   return (
     <article className="flex flex-col rounded-xl border border-line bg-panel p-4 shadow-[var(--surface-shadow)]" aria-label={v.name}>
       <div className="flex items-start gap-3">
-        <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-sunken ring-1 ring-inset ring-line" aria-hidden="true">
-          <Icon size={18} strokeWidth={2} className={ink} />
+        {/* the kind's mark on a tile of the kind's colour (ADR-0067), as a brand's logo sits on its tile in Settings */}
+        <span className={cn('grid size-10 shrink-0 place-items-center rounded-lg', chip)} aria-hidden="true">
+          <Icon size={18} strokeWidth={2} />
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-[15px] font-bold leading-tight text-ink" title={v.name}>
@@ -324,7 +353,7 @@ function TemplateTile({ entry, lang, editors, onError, onUse, onView, onCopy, on
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-ink-faint">
             <span className={cn(!entry.builtIn && 'font-semibold text-ink-soft')}>{entry.builtIn ? 'Foundry' : 'yours'}</span>
             <span aria-hidden="true">·</span>
-            <span>{NATURE_WORD[entry.nature]}</span>
+            <span className={cn('font-semibold', ink)}>{NATURE_WORD[entry.nature]}</span>
             {langs.length === 2 && (
               <>
                 <span aria-hidden="true">·</span>

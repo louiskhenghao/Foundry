@@ -8,17 +8,19 @@ import { Markdown } from './Markdown.tsx';
 import { Button, ButtonGroup, Input, Modal, Select, Textarea, buttonClass, choiceClass, cn, code } from '../ui.tsx';
 import { NATURE_WORD, byNature, matchesSearch, shownVersion } from '../pages/new-goal-template.ts';
 
-/** each kind's icon and category colour, as the New goal form's Kind of goal card draws them (ADR-0067) */
-export const NATURE_ICON: Record<TemplateNature, { Icon: LucideIcon; ink: string }> = {
-  code: { Icon: CodeXml, ink: code(0).ink },
-  docs: { Icon: FileText, ink: code(1).ink },
-  research: { Icon: Telescope, ink: code(2).ink },
-  image: { Icon: ImageIcon, ink: code(6).ink },
-  video: { Icon: Clapperboard, ink: code(4).ink },
-  figure: { Icon: Lamp, ink: code(3).ink },
-  diagram: { Icon: Workflow, ink: code(7).ink },
-  deck: { Icon: Presentation, ink: code(1).ink },
-  cad: { Icon: Box, ink: code(5).ink },
+/** a kind's icon with its category colour (ADR-0067): the icon's ink, the square before its name, a tinted tile for the icon */
+const kind = (Icon: LucideIcon, i: number) => ({ Icon, ink: code(i).ink, dot: code(i).dot, chip: code(i).chip });
+/** each kind's icon and category colour, as the New goal form's Kind of goal card and the Templates page draw them */
+export const NATURE_ICON: Record<TemplateNature, { Icon: LucideIcon; ink: string; dot: string; chip: string }> = {
+  code: kind(CodeXml, 0),
+  docs: kind(FileText, 1),
+  research: kind(Telescope, 2),
+  image: kind(ImageIcon, 6),
+  video: kind(Clapperboard, 4),
+  figure: kind(Lamp, 3),
+  diagram: kind(Workflow, 7),
+  deck: kind(Presentation, 1),
+  cad: kind(Box, 5),
 };
 
 /** English or 中文, for this browser: the templates' names, inputs and words follow */
