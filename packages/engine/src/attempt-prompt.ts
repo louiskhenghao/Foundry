@@ -44,6 +44,8 @@ export interface AttemptPromptInput {
   checks: Check[];
   attemptIndex: number;
   maxAttempts: number;
+  /** the wall-clock cap of this session in minutes, told to the worker so it paces itself (ADR-0101); absent = not said */
+  timeoutMin?: number | null;
   prevReport: ObservationReport | null;
   rolledBack: { toRef: string; reason: string } | null;
   hint: string | null;
@@ -160,12 +162,19 @@ export function buildAttemptPrompt(i: AttemptPromptInput): string {
     );
   } else if (i.task.scenario === 'docs' || i.task.scenario === 'research') {
     lines.push(
-      `# Writing conventions\n- The deliverable is committed prose (markdown unless the spec says otherwise). Match the repository's existing documents in tone and structure.${i.task.scenario === 'research' ? '\n- Every claim needs a source: link it where the claim is made. Conclusions must follow from the cited evidence.' : ''}\n- Test-suite rules do not apply; run only the command checks your task lists.`,
+      `# Writing conventions\n- The deliverable is committed prose (markdown unless the spec says otherwise). Match the repository's existing documents in tone and structure.${i.task.scenario === 'research' ? '\n- Every claim needs a source: link it where the claim is made. Conclusions must follow from the cited evidence.\n- Reading sources is slow and fills your context with whole pages: hand each source or question to a sub-agent (the Agent tool) and keep only its findings with their citations. Write the report as you go, section by section, so a session cut short loses little.' : ''}\n- Test-suite rules do not apply; run only the command checks your task lists.`,
     );
   }
-  lines.push(
-    `# How to work\n1. Write a short plan (3-8 bullet points) as your first message, then execute it.\n2. Stay inside the scope of this task. Do not push, open PRs, deploy or touch anything outside this workspace.\n3. Do not commit; the engine commits for you (Conventional Commits — this task ends as one commit titled after it).\n4. When done, reply with a brief summary: what changed, which checks you ran and their outcome, anything left undone.${i.markitdownHint ? `\n5. ${i.markitdownHint}` : ''}`,
-  );
+  const steps = [
+    'Write a short plan (3-8 bullet points) as your first message, then execute it.',
+    'Stay inside the scope of this task. Do not push, open PRs, deploy or touch anything outside this workspace.',
+    'Do not commit; the engine commits for you (Conventional Commits — this task ends as one commit titled after it).',
+    // the session's wall-clock cap (ADR-0101): a worker that knows it paces itself instead of being cut mid-work
+    ...(i.timeoutMin ? [`This session is stopped after ${i.timeoutMin} minutes of wall clock and resumed with a fresh allowance, at the price of a replay. Pace yourself: write results to files as you go, and start anything that may run for more than a few minutes (a full test suite, a build, a render) in the background and check on it, so you keep working meanwhile.`] : []),
+    'When done, reply with a brief summary: what changed, which checks you ran and their outcome, anything left undone.',
+    ...(i.markitdownHint ? [i.markitdownHint] : []),
+  ];
+  lines.push(`# How to work\n${steps.map((s, n) => `${n + 1}. ${s}`).join('\n')}`);
   return lines.join('\n\n');
 }
 

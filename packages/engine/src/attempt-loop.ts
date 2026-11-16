@@ -235,7 +235,9 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
   const style = brief && styleApplies(task.scenario) ? chosenStyle(brief) : null;
   // the real things the result depicts, with their pictures (outside the worktree: their folder is added to the session)
   const subjects = renderSubjects(config.dataDir, goal.id, brief, 'worker', task.scenario);
-  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, prevReport, rolledBack, hint: task.hint, adjustment: task.adjustment ? renderAdjustment(goal, task.adjustment, config.dataDir) : '', relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), provides: renderProvides(goal, brief, task, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, memory, style, subjects, baseMoved: opts.baseMoved ?? null, deck });
+  // the session's wall-clock cap (ADR-0101): the goal's own (Budgets, ADR-0077), else Settings'; a figure task gets at least 45 minutes and a deck task 60 (ADR-0076, ADR-0084); the worker is told it
+  const sessionTimeoutMs = attemptTimeoutMs({ ...config, attemptTimeoutMs: goalSessionTimeoutMs(goal, config) }, task);
+  const freshPrompt = (relevantContext: Awaited<ReturnType<typeof engine.context.locate>> | null, prevReport: ObservationReport | null) => buildAttemptPrompt({ goal, task, checks, attemptIndex: index, maxAttempts, timeoutMin: Math.round(sessionTimeoutMs / 60_000), prevReport, rolledBack, hint: task.hint, adjustment: task.adjustment ? renderAdjustment(goal, task.adjustment, config.dataDir) : '', relevantContext, skillsHint, attachments: renderAttachments(goal, config.dataDir), provides: renderProvides(goal, brief, task, config.dataDir), markitdownHint: markitdownHint(engine.markitdown.available(), engine.markitdown.binary()), areaDescription, decisions, upstream, learnings, memory, style, subjects, baseMoved: opts.baseMoved ?? null, deck });
   const prompt = resume ? resume.message : freshPrompt(relevantContext, prevReport);
   // the -p prompt is not echoed in stream-json; keep it next to the transcript for inspection (continuations append)
   mkdirSync(dirname(attempt.transcriptPath!), { recursive: true });
@@ -259,8 +261,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
       settings: boundarySettings(config.hooksDir),
       settingSources: config.settingSources,
       addDirs: sessionDirs([...(goal.attachments.length ? [attachmentsDir(config.dataDir, goal.id)] : []), ...(subjects ? subjectsAddDirs(config.dataDir, goal.id, brief) : [])]),
-      // the session's cap: the goal's own (Budgets, ADR-0077), else Settings'; a figure task gets at least 45 minutes (ADR-0076)
-      timeoutMs: attemptTimeoutMs({ ...config, attemptTimeoutMs: goalSessionTimeoutMs(goal, config) }, task),
+      timeoutMs: sessionTimeoutMs,
       transcriptPath: attempt.transcriptPath!,
       resumeSessionId,
       // a deck task finds the deck skill's Python environment first on its PATH (ADR-0084)

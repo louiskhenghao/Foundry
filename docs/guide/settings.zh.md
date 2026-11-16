@@ -183,7 +183,7 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 | 设置 | 默认 | 作用 |
 |---|---|---|
 | **Claude cost cap per session (USD)** | 10 | Claude worker 花到这个数就停（也不会超过 goal 剩余预算）。Codex 没有美元上限。 |
-| **Attempt timeout (minutes)** | 20 | 运行超过这个时间的会话会被停止。它已提交的内容会保留；Foundry 会续接或重试。 |
+| **Attempt timeout (minutes)** | 45 | 运行超过这个时间的会话会被停止。它已提交的内容会保留；Foundry 会续接或重试。worker 会被告知这个上限。没有工具调用在进行、却 5 分钟没有输出的会话会更早被停止。 |
 | **Continuations per attempt** | 2 | 被停止的会话在开始新尝试之前最多续接几次（续接更便宜，会保留它读过的内容）。 |
 | **Turn cap per session** | 150 | Claude 的模型轮数；Codex 的工具调用次数；Antigravity 每轮允许三次工具调用，因为它每读一个文件就调用一次工具。设宽松一点。 |
 | **Concurrent agent sessions** | 3 | 两种编码智能体的所有 goal 加起来同时运行的会话总数。 |

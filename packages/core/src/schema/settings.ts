@@ -61,7 +61,7 @@ export const SessionSettings = z.object({
   maxContinuations: z.number().int().min(0).max(5).default(2),
   attemptMaxTurns: z.number().int().min(10).max(2000).default(150),
   attemptMaxCostUsd: z.number().min(0.5).max(500).default(10),
-  attemptTimeoutMin: z.number().int().min(5).max(240).default(20),
+  attemptTimeoutMin: z.number().int().min(5).max(240).default(45),
 });
 /** media-pipeline is the image packs' MCP server (claude-image-gen): allowed unless switched off */
 export const DEFAULT_MCP_ALLOWED = ['mcp__plugin_media-pipeline_media-pipeline'] as const;

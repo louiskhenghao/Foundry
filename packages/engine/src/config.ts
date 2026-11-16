@@ -243,7 +243,8 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     smallGoalLines: Number(process.env.FOUNDRY_SMALL_GOAL_LINES ?? 400),
     models: { strong: 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: 'opus' },
     modelFallbacks: (process.env.FOUNDRY_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
-    attemptTimeoutMs: 20 * 60_000,
+    // 45 minutes (ADR-0101): twenty cut workers a hundred turns deep mid-work, and every cut costs a fresh context
+    attemptTimeoutMs: 45 * 60_000,
     maxContinuations: process.env.FOUNDRY_MAX_CONTINUATIONS ? Number(process.env.FOUNDRY_MAX_CONTINUATIONS) : 2,
     // the cost cap is the real guard; turns only stop runaway loops
     attemptMaxTurns: Number(process.env.FOUNDRY_ATTEMPT_MAX_TURNS ?? 150),
