@@ -16,6 +16,7 @@
 ## Settings 怎么用
 
 - 改你想改的，然后按顶部栏里的 **Save**（它会显示 **N unsaved**）。**Discard** 放弃你的改动。有一个例外：在 [Skills](#skills) 下选择 skill 包，一点就立即保存。
+- 这一栏左边的 **Search settings…** 能找到任何部分里的设置：输入它的名字、说明文字或对应环境变量里的一个词，选一个结果（也可以用 ↓ ↑ 和 Enter）。它所在的部分会打开，页面滚到这个设置并把它框出来一会儿；放在卡片里的设置（部署目标、key、通知渠道）会连卡片一起展开。各部分的名字本身也是结果。
 - 大多数改动立即生效。少数标着 **restart**：Foundry 重启后才生效。这时页面顶部的横幅会给出 **Restart now**：等到没有 goal 在跑，Foundry 自己停下再启动，回来后页面自动刷新。
 - 每个设置都有个小标记：**default**（从没改过）、**saved**（你在这里改过）或 **env**（由安装 Foundry 的人设定）。已保存的值旁边的 ↺ 箭头会忘掉它，回到默认值。
 
@@ -284,14 +285,15 @@ Foundry 怎样跟上你项目的线上副本，以及交付要等多久。
 ## Tools & keys
 
 - **Use graphify for relevant-file discovery**（开）：安装了这个工具时，用代码地图找相关文件。
-以下媒体服务 key 与编码智能体登录无关。Codex 始终只用 ChatGPT 登录，填写图片 key 不会启用 API-key 推理。
 
-- **OpenAI-compatible API key**：图片 goal 要生成真正的图片就需要它。没有它，图片任务只能退回到手绘的 SVG 渲染。**OpenAI-compatible base URL**：只在用代理或其它兼容服务商时需要。
-- **Gemini API key**：某个图片包的替代选择。
-- **Kimi (Moonshot) API key**：某个设计包的模型会用到，在 skill 调用它们的时候。
-- **MiniMax API key**：通过 mmx 做视频和配音时用。如果你已经在这台电脑上用 `mmx auth login` 登录过，就留空；用 Docker 的话要填。
-- **ElevenLabs API key** 和 **Groq API key**：视频包用到时，分别用于配音声音和视频字幕的语音转文字。
-- **markitdown binary**：把附件文档转成文字的转换器。留空。
+这些 key 是一张张卡片，每个服务一张，和 Git & delivery 里的部署目标一样：收起时写着 **Set up** 或 **Not set up**，展开后是生成 key 的页面和输入框本身。它们与编码智能体登录无关：Codex 始终只用 ChatGPT 登录，填写图片 key 不会把它切到 API。
+
+- **OpenAI-compatible** —— **OpenAI-compatible API key**：图片 goal 要生成真正的图片就需要它。没有它，图片任务只能退回到手绘的 SVG 渲染。**OpenAI-compatible base URL**：只在用代理或其它兼容服务商时需要。
+- **Gemini** —— **Gemini API key**：某个图片包的替代选择。
+- **Kimi (Moonshot)** —— **Kimi (Moonshot) API key**：某个设计包的模型会用到，在 skill 调用它们的时候。
+- **MiniMax** —— **MiniMax API key**：通过 mmx 做视频和配音时用。如果你已经在这台电脑上用 `mmx auth login` 登录过，就留空；用 Docker 的话要填。
+- **ElevenLabs** 和 **Groq** —— **ElevenLabs API key** 和 **Groq API key**：视频包用到时，分别用于配音声音和视频字幕的语音转文字。
+- **markitdown binary**（在卡片下方）：把附件文档转成文字的转换器。留空。
 
 **VS Code in the browser (code-server)** 显示它装没装；**Install code-server** 把它装进你的用户目录，只需装一次（约 150 MB，不需要管理员权限）。**Open ▾ → VS Code (web)** 启动的就是它。
 
@@ -311,6 +313,8 @@ key 对下一个会话生效，不用重启。保存过的 key 不会再显示�
 ## Notifications
 
 有事发生时，Foundry 可以在 Telegram 或 Discord 上给你发消息，这样你不用一直盯着页面。机器人或 webhook 的设置方法在 [notifications.md](../operate/notifications.md)；设好之后，按 **Send test message**。
+
+渠道是一张张卡片：**Telegram**（机器人 token、带 **Detect** 按钮的 chat id，以及 **Answer from Telegram**）、**Discord**（webhook URL 和可选的机器人 token）和 **Tailscale**（tailnet 上的链接，以及这台机器的名字）。每张卡片收起时写着设好没有 —— Tailscale 写的是 **Auto** 或 **Off** —— 展开后是这些值从哪来和输入框本身。**Link base URL** 在卡片下方，再往下是那些开关。
 
 **Link base URL**：你从别处打开 Foundry 用的地址（局域网地址、域名）。消息里的链接指向它；不设就指向这台电脑（`http://localhost`）。**Tailscale links**（auto）在这台电脑运行 Tailscale 时，额外附上 Foundry 和预览在你 tailnet 上的链接（CAD Viewer 除外，它只留在这台电脑上），手机上也能打开；**Tailscale name** 可以手动指定这台机器的名字。见 [notifications.md](../operate/notifications.md#links)。
 

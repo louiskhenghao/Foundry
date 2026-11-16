@@ -3,9 +3,9 @@ import { KNOWN_EFFORTS } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Settings, SettingsView } from '@foundry/core/browser';
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
-import { Check, CheckCircle2, CircleDashed, LoaderCircle, RotateCcw, XCircle } from 'lucide-react';
-import { siAppstore, siCloudflarepages, siExpo, siFlydotio, siGoogleplay, siNetlify, siRailway, siRender, siVercel } from 'simple-icons';
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { AudioLines, Check, CheckCircle2, CircleDashed, LoaderCircle, RotateCcw, Sparkles, XCircle } from 'lucide-react';
+import { siAppstore, siCloudflarepages, siDiscord, siElevenlabs, siExpo, siFlydotio, siGooglegemini, siGoogleplay, siKimi, siMinimax, siNetlify, siRailway, siRender, siTailscale, siTelegram, siVercel } from 'simple-icons';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api, type ModelRecordView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from './LiveLog.tsx';
@@ -13,8 +13,12 @@ import { ModelPresetsSection } from './settings/ModelPresets.tsx';
 import { CodexModelPresetsSection } from './settings/CodexModelPresets.tsx';
 import { AgyModelsSection } from './settings/AgyModels.tsx';
 import { SectionTitle } from './settings/PresetParts.tsx';
-import { SECTION_STYLE, SettingsTitle } from './settings/sections.tsx';
+import { SECTIONS, SECTION_STYLE, SettingsTitle } from './settings/sections.tsx';
 import { sectionOf } from './settings/section-of.ts';
+import { Aside, RESTART_TAG, Setting, SettingsControlsProvider, TAG, Toggle, get } from './settings/controls.tsx';
+import { SettingsSearch } from './settings/SettingsSearch.tsx';
+import type { SettingHit } from './settings/search-index.ts';
+import { wordsOf, type SettingKey } from './settings/texts.ts';
 import { SectionChipNav, SectionSideNav, type NavSection } from '../components/SectionNav.tsx';
 import { DesignPacks } from '../components/DesignPacks.tsx';
 import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
@@ -40,28 +44,6 @@ const SEED_MODELS: { id: string; label: string }[] = [
   { id: 'sonnet', label: 'Sonnet — fast, good for routine tasks' },
   { id: 'haiku', label: 'Haiku — cheapest' },
 ];
-const get = (o: any, path: string) => path.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
-
-/**
- * the sections of the page, one open at a time: the left-hand menu (a row of chips on a phone or a tablet) opens one, and
- * the URL's hash names it (`/settings#models`), so a link opens its section and the browser's back button returns to the
- * one before. The ids are the Card ids further down, and each section's colour and icon are in settings/sections.tsx.
- */
-const SECTIONS: { id: string; label: string }[] = [
-  { id: 'goals', label: 'New goal defaults' },
-  { id: 'models', label: 'Models & limits' },
-  { id: 'skills', label: 'Skills' },
-  { id: 'git', label: 'Git & delivery' },
-  { id: 'tools', label: 'Tools & keys' },
-  { id: 'preview', label: 'Preview & self-check' },
-  { id: 'notifications', label: 'Notifications' },
-  { id: 'access', label: 'Access' },
-  { id: 'safety', label: 'Safety' },
-  { id: 'beta', label: 'Beta' },
-  { id: 'engine', label: 'Engine (install)' },
-  { id: 'appearance', label: 'Appearance' },
-  { id: 'about', label: 'About & updates' },
-];
 /** the section a hash names, else the first */
 const sectionFromHash = (hash: string): string => {
   let id = hash.replace(/^#/, '');
@@ -70,27 +52,6 @@ const sectionFromHash = (hash: string): string => {
   } catch {}
   return SECTIONS.some((s) => s.id === id) ? id : SECTIONS[0]!.id;
 };
-
-/**
- * a small fact beside a setting (where its value comes from, a restart it needs) as a plate. Its outline is an
- * inset-ring: with ring-inset the theme's colour named inset would win over the ring's own colour.
- */
-const TAG = 'inline-flex items-center whitespace-nowrap rounded-sm px-1.5 py-px text-[10px] font-bold uppercase tracking-[0.08em] inset-ring';
-/** a setting that applies only after a restart, told apart from the rest in orange (a kind of setting, not a state) */
-const RESTART_TAG = 'bg-code-4/12 text-code-4-ink inset-ring-code-4/45';
-
-/** where a setting's value comes from, told apart by colour as before themes: saved green, the environment blue, the default hollow */
-function SourceBadge({ view, path }: { view: SettingsView; path: string }) {
-  const m = view.meta[path];
-  if (!m) return null;
-  const label = m.source === 'file' ? 'saved' : m.source === 'env' ? 'env' : 'default';
-  const title = m.source === 'env' ? `from ${m.env}` : m.env ? `set ${m.env} to seed this value (default ${JSON.stringify(m.default)})` : `default ${JSON.stringify(m.default)}`;
-  return (
-    <span className={cn(TAG, m.source === 'file' ? 'bg-code-2/12 text-code-2-ink inset-ring-code-2/45' : m.source === 'env' ? 'bg-code-1/12 text-code-1-ink inset-ring-code-1/45' : 'text-ink-faint inset-ring-line')} title={title}>
-      {label}
-    </span>
-  );
-}
 
 type Tone = 'ok' | 'work' | 'bad' | 'none';
 const TONE_INK: Record<Tone, string> = { ok: 'text-ok-ink', work: 'text-work-ink', bad: 'text-bad-ink', none: 'text-ink-soft' };
@@ -126,6 +87,8 @@ export function SettingsPage() {
   const [flyInstalled, setFlyInstalled] = useState<boolean | null>(null);
   const [updBusy, setUpdBusy] = useState(false);
   const [updOpen, setUpdOpen] = useState(false);
+  // the setting the search chose: once its section is open, the page opens what hides it, scrolls to it and marks it
+  const [wanted, setWanted] = useState<SettingHit | null>(null);
   const { hash, search } = useLocation();
   const navigate = useNavigate();
   const requestedProvider = new URLSearchParams(search).get('provider');
@@ -144,6 +107,42 @@ export function SettingsPage() {
   useEffect(() => {
     document.querySelector('main')?.scrollTo({ top: 0 });
   }, [open]);
+  const jumpTo = (hit: SettingHit) => {
+    setWanted(hit);
+    select(hit.section);
+  };
+  // the environment variable that seeds a setting is a word the search finds it by
+  const envWords = useCallback((target: string) => view?.meta[target]?.env ?? '', [view]);
+  useEffect(() => {
+    if (!wanted || open !== wanted.section) return;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const look = () => {
+      const el = document.querySelector<HTMLElement>(`[data-setting="${wanted.target}"]`) ?? document.getElementById(wanted.target);
+      if (!el) {
+        // a component still loading what it shows: ask again for a moment
+        if (++tries < 20) timer = setTimeout(look, 100);
+        else setWanted(null);
+        return;
+      }
+      // what hides it opens first (the effect runs again once it has): its card, another coding agent's region, a details
+      const place = el.closest<HTMLElement>('[data-place]')?.dataset.place;
+      if (place && !placeOpen.has(place)) return setPlaceOpen((o) => new Set(o).add(place));
+      const provider = el.closest<HTMLElement>('[data-provider]')?.dataset.provider;
+      if (provider && provider !== modelProvider) return setModelProvider(provider as AgentProvider);
+      for (let d = el.closest('details'); d; d = d.parentElement?.closest('details') ?? null) d.open = true;
+      setWanted(null);
+      // a section itself is open now, at the top; a setting is scrolled to and marked for a moment
+      if (el.tagName === 'SECTION') return;
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el.classList.remove('setting-flash');
+      void el.offsetWidth;
+      el.classList.add('setting-flash');
+      el.addEventListener('animationend', () => el.classList.remove('setting-flash'), { once: true });
+    };
+    look();
+    return () => clearTimeout(timer);
+  }, [wanted, open, placeOpen, modelProvider]);
   const loadUpdate = () => api.updateStatus().then(setUpd).catch(() => {});
   const checkUpdate = async () => {
     setUpdBusy(true);
@@ -296,35 +295,8 @@ export function SettingsPage() {
     const from = view.meta[path]?.source === 'env' ? `from ${view.meta[path]?.env}` : 'saved';
     return <Textarea rows={3} className="mono text-[11px]" autoComplete="off" spellCheck={false} value={(get(draft, path) as string | null) ?? ''} placeholder={saved?.set ? `${from}: ${saved.hint} — paste to replace` : placeholder} onChange={(e) => set(path, e.target.value === '' ? null : e.target.value)} />;
   };
-  const aside = (path: Leaf) => (
-    <>
-      <SourceBadge view={view} path={path} />
-      {view.meta[path]?.restart && (
-        <span className={cn(TAG, RESTART_TAG)} title="takes effect after the engine restarts">
-          restart
-        </span>
-      )}
-      {view.meta[path]?.source === 'file' && (
-        <button type="button" className="text-ink-faint hover:text-ink" title="forget the saved value (back to env / default)" disabled={busy} onClick={() => reset(path)}>
-          <RotateCcw size={11} />
-        </button>
-      )}
-    </>
-  );
   const num = (path: Leaf, props: { min?: number; max?: number; step?: number } = {}) => <Input type="number" {...props} value={String(get(draft, path) ?? '')} onChange={(e) => set(path, e.target.value === '' ? get(view.values, path) : Number(e.target.value))} />;
   const text = (path: Leaf, placeholder?: string, nullable = false) => <Input value={(get(draft, path) as string | null) ?? ''} placeholder={placeholder} onChange={(e) => set(path, nullable && e.target.value === '' ? null : e.target.value)} />;
-  const bool = (path: Leaf, label: string, help: string) => (
-    <label className="flex items-start gap-2 cursor-pointer">
-      <input type="checkbox" className="mt-0.5" checked={!!get(draft, path)} onChange={(e) => set(path, e.target.checked)} />
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="text-xs font-semibold text-ink">{label}</span>
-          <span className="ml-auto flex items-center gap-1.5">{aside(path)}</span>
-        </span>
-        <span className="block mt-0.5 text-[11px] leading-snug text-ink-faint">{help}</span>
-      </span>
-    </label>
-  );
   const model = (path: Leaf) => {
     const v = get(draft, path) as string;
     const options: { id: string; label: string }[] = known?.length
@@ -358,9 +330,24 @@ export function SettingsPage() {
   const list = (path: Leaf, placeholder: string) => <Input className="mono" value={((get(draft, path) as string[] | null) ?? []).join(', ')} placeholder={placeholder} onChange={(e) => set(path, e.target.value.trim() ? e.target.value.split(',').map((s) => s.trim()).filter(Boolean) : null)} />;
 
   const grid = (children: ReactNode) => <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4">{children}</div>;
+  // a skill pack's block: its heading with its plate, the packs to choose from, and what the pack is for, worded from the texts table
+  const packBlock = (path: SettingKey, pack?: 'image' | 'video' | 'figure' | 'diagram' | 'deck', beta = false) => (
+    <div data-setting={path}>
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-sm font-bold text-ink">{wordsOf(path).label}</span>
+        {beta && <span className="rounded-sm bg-sunken px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line">beta</span>}
+        <span className="ml-auto flex items-center gap-1.5">
+          <Aside path={path} />
+        </span>
+      </div>
+      <DesignPacks key={`${modelProvider}:${pack ?? 'design'}`} provider={modelProvider} compact pack={pack} />
+      <p className="text-[11px] text-ink-faint mt-1.5">{wordsOf(path).help}</p>
+    </div>
+  );
   const agent = PROVIDER_STYLE[draft.engine.provider];
 
   return (
+    <SettingsControlsProvider value={{ view, draft, busy, set, reset }}>
     <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16">
       <PageHeader
         title="Settings"
@@ -376,11 +363,14 @@ export function SettingsPage() {
             browser scrolls to the card's id on arrival; the parent's rule outranks each card's own scroll margin) */}
         <div className="min-w-0 space-y-4 [&>section]:scroll-mt-28 lg:[&>section]:scroll-mt-16">
           {/* the save bar stays at the top while a long section scrolls: the change you just made may be at its bottom, and
-              Save saves every section's. On a phone or a tablet the sections ride in it too, as the side list's row of chips */}
+              Save saves every section's. The search at its left finds a setting in any section. On a phone or a tablet the
+              sections ride in the bar too, as the side list's row of chips. From a tablet up its row is inset as the cards'
+              insides are; on a phone the page's own padding is enough, and the row keeps to the column's edges */}
           <div className="sticky top-0 z-20 bg-page border-b border-line">
             <SectionChipNav items={nav} label="Settings sections" inBar choice={{ current: open, onSelect: select }} />
-            <div className="py-2.5 flex items-center gap-2">
-              <span className="text-[13px] text-ink-faint mr-auto">{changed.length ? <><b className="mono font-bold text-ink">{changed.length}</b> unsaved</> : 'no changes'}</span>
+            <div className="flex items-center gap-2 py-2.5 sm:px-4">
+              <SettingsSearch className="min-w-0 flex-1 sm:max-w-xs" onPick={jumpTo} extraWords={envWords} />
+              <span className="ml-auto whitespace-nowrap text-[13px] text-ink-faint">{changed.length ? <><b className="mono font-bold text-ink">{changed.length}</b> unsaved</> : <span className="hidden sm:inline">no changes</span>}</span>
               <Button size="sm" variant="ghost" disabled={!changed.length || busy} onClick={() => setDraft(structuredClone(view.values))}>
                 Discard
               </Button>
@@ -429,27 +419,27 @@ export function SettingsPage() {
           <div className="space-y-4">
             {grid(
               <>
-                <Field label="Default goal view" aside={aside('workflow.defaultMode')} help="What a new goal opens in. Simple: one plain-language Brief and a progress view; Expert: every control. Switchable per goal.">
+                <Setting path="workflow.defaultMode">
                   <Select value={draft.workflow.defaultMode} onChange={(e) => set('workflow.defaultMode', e.target.value)}>
                     <option value="expert">expert</option>
                     <option value="simple">simple</option>
                   </Select>
-                </Field>
-                <Field label="Pace for new goals" aside={aside('workflow.defaultPace')} help="thorough: the engine runs its own task and goal reviews and can spawn fix tasks · fast: it skips them, so a goal ends as soon as your approved checks pass. Image and video goals start fast whatever this says. Switchable per goal.">
+                </Setting>
+                <Setting path="workflow.defaultPace">
                   <Select value={draft.workflow.defaultPace} onChange={(e) => set('workflow.defaultPace', e.target.value)}>
                     <option value="thorough">thorough — engine reviews the work</option>
                     <option value="fast">fast — approved checks only</option>
                   </Select>
-                </Field>
-                <Field label="Interview depth" aside={aside('workflow.interviewDepth')} help="How deep the Clarifier questions you before writing the Brief. It sets how thoroughly it probes, not a number of rounds: from 1, only what a wrong guess would waste, to 5, every detail until nothing is left to decide. Switchable per goal when creating it.">
+                </Setting>
+                <Setting path="workflow.interviewDepth">
                   <Select value={String(draft.workflow.interviewDepth ?? { never: 0, auto: 3, always: 4 }[draft.workflow.interview])} onChange={(e) => set('workflow.interviewDepth', Number(e.target.value))}>
                     {INTERVIEW_DEPTHS.map((d) => (
                       <option key={d.id} value={d.id}>{d.label}</option>
                     ))}
                   </Select>
-                </Field>
-                {bool('workflow.milestonePause', 'Have a look: pause new goals at milestones', 'On: a goal pauses for the final walkthrough once every task is done, and when a milestone without a script lands, so you can look before it goes on. Off: it goes on, and what each milestone shows is sent to your notification channels. Each goal has its own switch on its Brief and its page.')}
-                <Field label="Effort for new goals" aside={aside('workflow.effort')} help="An explicit level overrides every role's effort. Default uses each Codex role's preset effort, the Antigravity effort under Models & limits, or the Claude CLI default. Switchable per goal when creating it.">
+                </Setting>
+                <Toggle path="workflow.milestonePause" />
+                <Setting path="workflow.effort">
                   <Select value={(draft.workflow.effort as string | null) ?? ''} onChange={(e) => set('workflow.effort', e.target.value || null)}>
                     <option value="">Role preset / CLI default</option>
                     {/* the levels the Claude Code binary takes, read at the last model sync (ADR-0085); a saved level it no longer lists stays selectable */}
@@ -459,63 +449,63 @@ export function SettingsPage() {
                       </option>
                     ))}
                   </Select>
-                </Field>
-                <Field label="TDD for new Expert goals" aside={aside('workflow.tdd')} help="required: workers must invoke tdd and the reviewer is told when they skipped it · preferred: suggested only · off: never mentioned. Simple goals start with preferred; each goal and task can override.">
+                </Setting>
+                <Setting path="workflow.tdd">
                   <Select value={draft.workflow.tdd} onChange={(e) => set('workflow.tdd', e.target.value)}>
                     <option value="required">required</option>
                     <option value="preferred">preferred</option>
                     <option value="off">off</option>
                   </Select>
-                </Field>
-                <Field label="Workflow suite for new goals" aside={aside('workflow.profile')} help="Whose skills the roles follow; each goal fixes its own on the New goal form. mattpocock: Matt Pocock's suite (tests first for features, diagnose first for bugs, code review at the end), and Claude sessions report which skills they used. pstack: pstack's suite, with Matt Pocock's skills where pstack has none. plain: sessions only hear which skills are installed.">
+                </Setting>
+                <Setting path="workflow.profile">
                   <Select value={draft.workflow.profile} onChange={(e) => set('workflow.profile', e.target.value)}>
                     <option value="mattpocock">mattpocock (Matt Pocock's suite)</option>
                     <option value="pstack">pstack</option>
                     <option value="plain">plain (hint only)</option>
                   </Select>
-                </Field>
-                <Field label="Ponytail for new goals" aside={aside('workflow.ponytail')} help="on: workers write the smallest change that fully solves the task and reuse what the repository already has, the planner plans lean, and ponytail-review reviews tasks and the goal (TDD still decides how tests are written) · off: the Ponytail skills are never mentioned. Each goal has its own switch.">
+                </Setting>
+                <Setting path="workflow.ponytail">
                   <Select value={draft.workflow.ponytail} onChange={(e) => set('workflow.ponytail', e.target.value)}>
                     <option value="on">on</option>
                     <option value="off">off</option>
                   </Select>
-                </Field>
-                {bool('workflow.audit', 'Audit at the end of new goals', 'Once every task is done, ponytail-audit maps the finished branch and ranks what to fix; must-fix findings in the code the goal touched become fix tasks before the final review, the rest is listed for a follow-up. Chosen per goal at Brief approval.')}
-                {bool('workflow.designCheck', 'Compare the screens with the attached design', 'A frontend task of a goal that follows a design you attached is started from its worktree and photographed at 1440 and 390 px before its review; the task and goal reviewers compare the screens with the design. Off: they judge the design from the diff and the files alone. Needs Chromium for Playwright.')}
-                {bool('workflow.qa', 'Browser QA at the end of new goals', 'New goals with a web app: once every task is done, one session opens the finished app in Chromium and tries each acceptance check with Playwright; a must check that fails becomes a fix task before the final review. Chosen per goal at Brief approval; needs Chromium for Playwright.')}
-                {bool('workflow.learnings', 'Learn from finished goals', "When a goal ends, a short session on the housekeeping model adds what it taught about the project to that folder's Learnings, which later goals there are given. Off: nothing is learned automatically; the Learnings you keep are still used.")}
-                {bool('workflow.briefSecondOpinion', 'Second opinion on every Brief', "Once a goal's Brief is ready for your approval, a reviewer that did not write it reads it against the repository and proposes what to change, on the goal reviewer's model — a checklist on the Brief page you apply or not. Off: the Brief page still has the button.")}
-                {bool('workflow.learningsSkill', 'Share Learnings with your own sessions', "Writes each folder's Learnings into the repository as a project skill (foundry-learnings, kept out of git) that your own coding-agent sessions there read; rewritten whenever the Learnings change. Off: the file is removed.")}
-                <Field label="Goal-level fix cycles" aside={aside('reviews.maxFixCycles')} help="How many review → fix-task rounds before the goal escalates to you (thorough pace only).">
+                </Setting>
+                <Toggle path="workflow.audit" />
+                <Toggle path="workflow.designCheck" />
+                <Toggle path="workflow.qa" />
+                <Toggle path="workflow.learnings" />
+                <Toggle path="workflow.briefSecondOpinion" />
+                <Toggle path="workflow.learningsSkill" />
+                <Setting path="reviews.maxFixCycles">
                   {num('reviews.maxFixCycles', { min: 0, max: 5 })}
-                </Field>
-                <Field label="Small goal (diff lines)" aside={aside('reviews.smallGoalLines')} help="A goal whose whole diff is this many lines or fewer is reviewed by the Task reviewer model, without review skills or sub-agents. 0 = never.">
+                </Setting>
+                <Setting path="reviews.smallGoalLines">
                   {num('reviews.smallGoalLines', { min: 0, max: 5000 })}
-                </Field>
+                </Setting>
               </>,
             )}
-            {bool('reviews.alwaysReviewTasks', 'Review every task', 'Run the lightweight task reviewer even when the Brief defined no reviewer check for the task (thorough pace only).')}
+            <Toggle path="reviews.alwaysReviewTasks" />
             <div className="border-t border-line pt-4">
               <div className="text-sm font-bold text-ink mb-3">Delivery — what happens to the branch when a goal finishes</div>
               {grid(
                 <>
-                  <Field label="Mode for new goals" aside={aside('delivery.defaultMode')}>
+                  <Setting path="delivery.defaultMode">
                     <Select value={draft.delivery.defaultMode} onChange={(e) => set('delivery.defaultMode', e.target.value)}>
                       <option value="local">local only</option>
                       <option value="push">push branch</option>
                       <option value="pr">open a PR</option>
                       <option value="pr-automerge">PR + auto-merge</option>
                     </Select>
-                  </Field>
-                  <Field label="Granularity" aside={aside('delivery.defaultUnit')}>
+                  </Setting>
+                  <Setting path="delivery.defaultUnit">
                     <Select value={draft.delivery.defaultUnit} onChange={(e) => set('delivery.defaultUnit', e.target.value)}>
                       <option value="task">one PR per task (stacked)</option>
                       <option value="goal">one PR per goal</option>
                     </Select>
-                  </Field>
-                  <Field label="Remote" aside={aside('delivery.defaultRemote')}>
+                  </Setting>
+                  <Setting path="delivery.defaultRemote">
                     {text('delivery.defaultRemote', 'origin')}
-                  </Field>
+                  </Setting>
                 </>,
               )}
             </div>
@@ -526,28 +516,28 @@ export function SettingsPage() {
       {open === 'models' && (
         <Card id="models" title={<SettingsTitle id="models">Models & limits<HelpLink to="settings#models--limits" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
           <ProviderSelector className="mb-5" value={modelProvider} onChange={setModelProvider} controls={{ claude: 'models-claude', codex: 'models-codex', agy: 'models-agy' }} />
-          <div id="models-codex" role="region" aria-label="Codex models" hidden={modelProvider !== 'codex'}>
+          <div id="models-codex" data-provider="codex" role="region" aria-label="Codex models" hidden={modelProvider !== 'codex'}>
             <CodexModelPresetsSection draft={draft} setFields={(patch) => setDraft((previous) => previous ? { ...previous, models: { ...previous.models, ...patch } } : previous)} />
           </div>
-          <div id="models-agy" role="region" aria-label="Antigravity models" hidden={modelProvider !== 'agy'}>
+          <div id="models-agy" data-provider="agy" role="region" aria-label="Antigravity models" hidden={modelProvider !== 'agy'}>
             <AgyModelsSection model={String(get(draft, 'models.agyModel') ?? 'agy-default')} effort={String(get(draft, 'models.agyEffort') ?? 'high')} onModel={(value) => set('models.agyModel', value)} onEffort={(value) => set('models.agyEffort', value)} />
             <p className="mt-2 text-[11px] text-ink-faint">Antigravity reports tokens, not dollars: goals on it keep time, attempt and concurrency limits, never a USD budget. No presets, no fallback order: an unknown model fails the session outright.</p>
           </div>
-          <div id="models-claude" role="region" aria-label="Claude Code models" hidden={modelProvider !== 'claude'}>
+          <div id="models-claude" data-provider="claude" role="region" aria-label="Claude Code models" hidden={modelProvider !== 'claude'}>
           <ModelPresetsSection draft={draft} set={set as (p: `models.${string}`, v: unknown) => void} known={known} reloadModels={loadModels} />
           <div className="border-t border-line mt-5 pt-4 mb-3">
             <SectionTitle>Other models</SectionTitle>
           </div>
           {grid(
             <>
-              <Field label="Housekeeping model" aside={aside('models.cheap')} help="One-turn engine chores: classifying a goal, summarising logs, the rate-limit probe. Cents per goal.">
+              <Setting path="models.cheap">
                 {model('models.cheap')}
-              </Field>
-              <Field label="Fallbacks (in order)" aside={aside('models.fallbacks')} help="When a session's model is unavailable (deprecated alias, retired id, typo) the engine re-runs it with the next of these and remembers the replacement for that goal; only when all fail does it ask you.">
+              </Setting>
+              <Setting path="models.fallbacks">
                 {list('models.fallbacks', 'opus, sonnet, haiku')}
-              </Field>
+              </Setting>
               <div className="sm:col-span-2">
-                {bool('models.escalateLastAttempt', 'Last attempt on the Complex-task model', 'When a task has 2 or more attempts, its last one — and every retry you grant from the Inbox — runs on the Complex-task model of its preset before the task comes back to you. The timeline says when it happens.')}
+                <Toggle path="models.escalateLastAttempt" />
               </div>
             </>,
           )}
@@ -557,27 +547,27 @@ export function SettingsPage() {
             <div className="text-sm font-bold text-ink mb-3">Limits — what one session may spend before the engine stops it</div>
             {grid(
               <>
-                {<Field label="Claude cost cap per session (USD)" aside={aside('sessions.attemptMaxCostUsd')} help="The real guard: a worker session stops at this spend (also bounded by the goal's remaining budget).">
+                <Setting path="sessions.attemptMaxCostUsd">
                   {num('sessions.attemptMaxCostUsd', { min: 0.5, max: 500, step: 0.5 })}
-                </Field>}
-                <Field label="Attempt timeout (minutes)" aside={aside('sessions.attemptTimeoutMin')} help="A session killed at this mark keeps what it committed; the attempt then continues or restarts.">
+                </Setting>
+                <Setting path="sessions.attemptTimeoutMin">
                   {num('sessions.attemptTimeoutMin', { min: 5, max: 240 })}
-                </Field>
-                <Field label="Reference investigation: cost cap" aside={aside('workflow.investigationMaxCostUsd')} help="The session that studies a goal's reference app or site with REA before Clarify stops at this cost and writes up what it found so far.">
+                </Setting>
+                <Setting path="workflow.investigationMaxCostUsd">
                   {num('workflow.investigationMaxCostUsd', { min: 0.5, max: 50, step: 0.5 })}
-                </Field>
-                <Field label="Reference investigation: minutes" aside={aside('workflow.investigationMaxMinutes')} help="Its time cap.">
+                </Setting>
+                <Setting path="workflow.investigationMaxMinutes">
                   {num('workflow.investigationMaxMinutes', { min: 5, max: 120 })}
-                </Field>
-                <Field label="Continuations per attempt" aside={aside('sessions.maxContinuations')} help="How often one attempt may resume its own session (after a restart, a turn/cost cap, a timeout, or failing checks with progress) before a fresh attempt is started. Resuming keeps the session's context — far cheaper than starting over. 0 = always start fresh.">
+                </Setting>
+                <Setting path="sessions.maxContinuations">
                   {num('sessions.maxContinuations', { min: 0, max: 5 })}
-                </Field>
-                <Field label="Turn cap per session" aside={aside('sessions.attemptMaxTurns')} help="Claude: model turns. Codex: tool calls. Antigravity: three tool calls per turn. Keep it generous; wall-clock timeout remains the hard stop.">
+                </Setting>
+                <Setting path="sessions.attemptMaxTurns">
                   {num('sessions.attemptMaxTurns', { min: 10, max: 2000 })}
-                </Field>
-                <Field label="Concurrent agent sessions" aside={aside('engine.maxConcurrent')} help="Global cap across all goals (workers, reviewers, clarify) — the throughput knob, and the one that decides how fast the bill grows. Applies immediately.">
+                </Setting>
+                <Setting path="engine.maxConcurrent">
                   {num('engine.maxConcurrent', { min: 1, max: 16 })}
-                </Field>
+                </Setting>
                 <Field label="Account switch on a usage limit" help="With several accounts of a coding agent, new sessions can move to the next one when the current one's usage limit stops a session. It is turned on per coding agent on the Accounts page, which says first what the provider's terms say about it.">
                   {/* each switch's state in its colour: on green, off plain */}
                   <p className="text-xs text-ink-soft">
@@ -599,13 +589,13 @@ export function SettingsPage() {
             </div>
             {grid(
               <>
-                {modelProvider === 'claude' && <Field label="Setting sources" aside={aside('workflow.settingSources')} help="`--setting-sources` for sessions, comma-separated (user, project, local); empty = inherit everything. Without `user`, your own skills never load.">
+                {modelProvider === 'claude' && <Setting path="workflow.settingSources">
                   {list('workflow.settingSources', 'user, project')}
-                </Field>}
+                </Setting>}
               </>,
             )}
-            {bool('workflow.mcpDynamicTools', 'MCP tools that run or change things', 'Let sessions use the tools of allowed MCP servers that run or change things — for REA: launching the target app, attaching a debugger, touching a connected Android device. Off: static analysis only (binaries, apps, packages, websites, captures).')}
-            {bool('workflow.autoskills', 'autoskills per goal', 'After the Brief is approved, run `npx autoskills` in the goal workspace to install skills matching the repository’s stack (needs Node ≥ 22). Uses .claude/skills for Claude and .agents/skills for Codex and Antigravity. The generated CLAUDE.md is restored and the skills are git-excluded.')}
+            <Toggle path="workflow.mcpDynamicTools" />
+            <Toggle path="workflow.autoskills" />
             <p className="text-[11px] text-ink-faint">
               Memory — a Hindsight server that remembers what each folder’s goals did and taught — is set up on the{' '}
               <Link to="/skills?provider=claude#mcp" className="underline hover:text-ink">
@@ -617,63 +607,12 @@ export function SettingsPage() {
               </Link>
               .
             </p>
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-sm font-bold text-ink">Design skills</span>
-                <span className="ml-auto flex items-center gap-1.5">{aside('workflow.designPack')}</span>
-              </div>
-              <DesignPacks key={`${modelProvider}:design`} provider={modelProvider} compact />
-              <p className="text-[11px] text-ink-faint mt-1.5">Choosing a pack saves immediately; only that pack is shown to sessions working on frontend / fullstack tasks.</p>
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-sm font-bold text-ink">Image skills</span>
-                <span className="ml-auto flex items-center gap-1.5">{aside('workflow.imagePack')}</span>
-              </div>
-              <DesignPacks key={`${modelProvider}:image`} provider={modelProvider} compact pack="image" />
-              <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on image tasks (scenario `image`). The pack only generates when a key is set under Tools &amp; keys.</p>
-            </div>
-            <div>
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="text-sm font-bold text-ink">Video skills</span>
-                <span className="ml-auto flex items-center gap-1.5">{aside('workflow.videoPack')}</span>
-              </div>
-              <DesignPacks key={`${modelProvider}:video`} provider={modelProvider} compact pack="video" />
-              <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on video tasks (scenario `video`).</p>
-            </div>
-            {view?.values.beta.figure && (
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-sm font-bold text-ink">Figure skills</span>
-                  <span className="rounded-sm bg-sunken px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line">beta</span>
-                  <span className="ml-auto flex items-center gap-1.5">{aside('workflow.figurePack')}</span>
-                </div>
-                <DesignPacks key={`${modelProvider}:figure`} provider={modelProvider} compact pack="figure" />
-                <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on figure tasks (scenario `figure`); a goal may pick the other installed style on the New goal form. Both skills are bundled with Foundry: installing copies the snapshot, nothing is downloaded. Colorfigures builds its page with python3 and checks its own shots in a Chrome on this computer; Foundry's own render check needs Playwright's Chromium (Preview &amp; self-check).</p>
-              </div>
-            )}
-            {view?.values.beta.diagram && (
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-sm font-bold text-ink">Diagram skills</span>
-                  <span className="rounded-sm bg-sunken px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line">beta</span>
-                  <span className="ml-auto flex items-center gap-1.5">{aside('workflow.diagramPack')}</span>
-                </div>
-                <DesignPacks key={`${modelProvider}:diagram`} provider={modelProvider} compact pack="diagram" />
-                <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on diagram tasks (scenario `diagram`): in diagram goals, and in document or code goals that carry a diagram task. The skill is installed from its repository at one pinned commit; its SVG export and self-check run with python3 (standard library only), and Foundry's own render check needs Playwright's Chromium (Preview &amp; self-check).</p>
-              </div>
-            )}
-            {view?.values.beta.deck && (
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <span className="text-sm font-bold text-ink">Deck skills</span>
-                  <span className="rounded-sm bg-sunken px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-ink-soft ring-1 ring-inset ring-line">beta</span>
-                  <span className="ml-auto flex items-center gap-1.5">{aside('workflow.deckPack')}</span>
-                </div>
-                <DesignPacks key={`${modelProvider}:deck`} provider={modelProvider} compact pack="deck" />
-                <p className="text-[11px] text-ink-faint mt-1.5">Mandated to workers on deck tasks (scenario `deck`). Installing clones the skill at one pinned release and makes a Python environment for its scripts with uv (needs uv on PATH; the Setup page's doctor says when it is missing); deck sessions find that Python first. AI pictures in a deck need an image key under Tools &amp; keys; Foundry's slide previews need Playwright's Chromium (Preview &amp; self-check).</p>
-              </div>
-            )}
+            {packBlock('workflow.designPack')}
+            {packBlock('workflow.imagePack', 'image')}
+            {packBlock('workflow.videoPack', 'video')}
+            {view?.values.beta.figure && packBlock('workflow.figurePack', 'figure', true)}
+            {view?.values.beta.diagram && packBlock('workflow.diagramPack', 'diagram', true)}
+            {view?.values.beta.deck && packBlock('workflow.deckPack', 'deck', true)}
           </div>
         </Card>
       )}
@@ -681,86 +620,86 @@ export function SettingsPage() {
       {open === 'git' && (
         <Card id="git" title={<SettingsTitle id="git">Git &amp; delivery<HelpLink to="settings#git--delivery" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
           <div className="space-y-3">
-            {bool('sync.fetchBeforeGoal', 'Fetch the base branch before a goal starts', 'Only remote-tracking refs are updated — your checkout is never touched. The Clarifier explores, and the goal branch starts from, the freshest tip.')}
+            <Toggle path="sync.fetchBeforeGoal" />
             {grid(
               <>
-              <Field label="Where the goal branch starts" aside={aside('sync.startFrom')} help="auto: from <remote>/<base> when your local base is behind it (and not ahead); local: always from your local branch.">
+              <Setting path="sync.startFrom">
                 <Select value={draft.sync.startFrom} onChange={(e) => set('sync.startFrom', e.target.value)}>
                   <option value="auto">auto — remote tip when local is behind</option>
                   <option value="local">always the local branch</option>
                 </Select>
-              </Field>
-              <Field label="Commit author" aside={aside('delivery.commitAuthor')} help="Who Foundry's commits are written by. Your identity comes from the repository's git config, else the global one, else your GitHub account (gh). Deploy integrations such as Vercel teams refuse commits by an unknown author. Applies to commits made from now on.">
+              </Setting>
+              <Setting path="delivery.commitAuthor">
                 <Select value={draft.delivery.commitAuthor} onChange={(e) => set('delivery.commitAuthor', e.target.value)}>
                   <option value="you-coauthor">you, with Foundry as co-author</option>
                   <option value="you">you only</option>
                   <option value="foundry">Foundry only</option>
                 </Select>
-              </Field>
+              </Setting>
               </>,
             )}
-            {bool('sync.refreshBetweenTasks', 'Refresh between tasks', 'When nothing is running, fetch again and merge a moved base branch into the goal branch (conflicts go to a Merge Attempt). Useful for long goals on busy repositories; off by default because mid-goal merges can surprise workers.')}
-            {bool('delivery.updateLocalBase', 'Update my local base branch after a merge', 'When a pull request merges, Foundry fetches and fast-forwards your local base branch (only when that is safe: no uncommitted changes, no commits of your own on it), then removes the goal\'s progress folder, worktrees and local branches. Screenshots and the goal itself stay.')}
-            <div className="pt-1 space-y-2">
+            <Toggle path="sync.refreshBetweenTasks" />
+            <Toggle path="delivery.updateLocalBase" />
+            <div id="deploy-places" className="pt-1 space-y-2">
               <div className="text-sm font-bold text-ink">Deploy — where a finished goal goes</div>
               <p className="text-[11px] text-ink-faint">Each place is a card: open it for its fields and where each value comes from. The tokens and keys are kept by the engine only and never handed to a coding session; a place with nothing filled in stays off the goal's Deploy card.</p>
               <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint pt-1">Web hosts — a web page or an all-in-one web app, a preview address unless you ask for production</div>
               <div className="space-y-2">
                 <PlaceCard id="vercel" logo={siVercel} name="Vercel" tagline="Builds the source itself; takes a folder of pages, a built site or a full-stack web framework." status={placeStatus(['delivery.vercelToken'])} open={placeOpen.has('vercel')} onToggle={() => togglePlace('vercel')} tool={<ToolNote>Runs through npx — vercel is fetched on first use; nothing to install.</ToolNote>} toolDone={null} access={<TokenLinks where={[{ label: 'vercel.com → Account Settings → Tokens', href: 'https://vercel.com/account/tokens', note: 'make a token scoped to the team you deploy to' }]} />}>
-                  <Field label="Vercel token" aside={aside('delivery.vercelToken')} help="A token from the page above, scoped to the team you deploy to.">
+                  <Setting path="delivery.vercelToken">
                     {secret('delivery.vercelToken', 'vcp_…')}
-                  </Field>
-                  <Field label="Vercel team" aside={aside('delivery.vercelScope')} help="The team's slug: the part after vercel.com/. Empty = the token's own account.">
+                  </Setting>
+                  <Setting path="delivery.vercelScope">
                     {text('delivery.vercelScope', 'my-team', true)}
-                  </Field>
+                  </Setting>
                 </PlaceCard>
                 <PlaceCard id="netlify" logo={siNetlify} name="Netlify" tagline="Builds here with Netlify's own build, then uploads; takes the same web apps as Vercel." status={placeStatus(['delivery.netlifyToken'])} open={placeOpen.has('netlify')} onToggle={() => togglePlace('netlify')} tool={<ToolNote>Runs through npx — netlify-cli is fetched on first use; nothing to install.</ToolNote>} toolDone={null} access={<SignInPanel place="netlify" label="Netlify" onSignedIn={refreshView} where={<TokenLinks lead="Or make a token on" where={[{ label: 'app.netlify.com → User settings → Applications', href: 'https://app.netlify.com/user/applications#personal-access-tokens', note: 'Personal access tokens → New access token' }]} />} />}>
-                  <Field label="Netlify token" aside={aside('delivery.netlifyToken')} help="A personal access token from the page above.">
+                  <Setting path="delivery.netlifyToken">
                     {secret('delivery.netlifyToken', 'nfp_…')}
-                  </Field>
-                  <Field label="Netlify team" aside={aside('delivery.netlifyTeam')} help="The slug of the team a new site is made in: the part after app.netlify.com/teams/, not the team's name. Empty = your default team.">
+                  </Setting>
+                  <Setting path="delivery.netlifyTeam">
                     {text('delivery.netlifyTeam', 'my-team', true)}
-                  </Field>
+                  </Setting>
                 </PlaceCard>
                 <PlaceCard id="cloudflare" logo={siCloudflarepages} name="Cloudflare Pages" tagline="Gets the files built here, so static sites only; a server-rendered app goes to Vercel or Netlify." status={placeStatus(['delivery.cloudflareToken', 'delivery.cloudflareAccountId'])} open={placeOpen.has('cloudflare')} onToggle={() => togglePlace('cloudflare')} tool={<ToolNote>Runs through npx — wrangler is fetched on first use; nothing to install.</ToolNote>} toolDone={null} access={<TokenLinks where={[{ label: 'dash.cloudflare.com → My Profile → API Tokens', href: 'https://dash.cloudflare.com/profile/api-tokens', note: 'Create Token with the permission Cloudflare Pages: Edit' }, { label: 'dash.cloudflare.com → the account', href: 'https://dash.cloudflare.com/', note: 'the account id is on the overview page, under API' }]} />}>
-                  <Field label="Cloudflare API token" aside={aside('delivery.cloudflareToken')} help="A token with the permission Cloudflare Pages: Edit.">
+                  <Setting path="delivery.cloudflareToken">
                     {secret('delivery.cloudflareToken', 'API token')}
-                  </Field>
-                  <Field label="Cloudflare account id" aside={aside('delivery.cloudflareAccountId')} help="On the account's overview page, under API.">
+                  </Setting>
+                  <Setting path="delivery.cloudflareAccountId">
                     {text('delivery.cloudflareAccountId', '0123abcd…', true)}
-                  </Field>
+                  </Setting>
                 </PlaceCard>
               </div>
               <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint pt-2">Platforms — the whole project, backend and workers included, a preview beside production</div>
               <p className="text-[11px] text-ink-faint">A goal with a Dockerfile, or a stack the platform builds itself (Node.js, Python, Go, Ruby, Rust, Elixir). The runtime variables kept on the goal's card go to the platform's own store first.</p>
               <div className="space-y-2">
                 <PlaceCard id="fly" logo={siFlydotio} name="Fly.io" tagline="Dockerfiles only, built remotely; a preview app beside the production app. flyctl must be installed on this computer." status={placeStatus(['delivery.flyToken'])} open={placeOpen.has('fly')} onToggle={() => togglePlace('fly')} tool={<FlyctlRow onState={setFlyInstalled} />} toolDone={flyInstalled} access={<SignInPanel place="fly" label="Fly.io" onSignedIn={refreshView} where={<TokenLinks lead="Or make a token on" where={[{ label: 'fly.io → the organization → Tokens', href: 'https://fly.io/dashboard', note: 'an org token; or run `fly tokens create deploy -x 9999h` for one app' }]} />} />}>
-                  <Field label="Fly.io token" aside={aside('delivery.flyToken')} help="A deploy token (one app) or an organization token.">
+                  <Setting path="delivery.flyToken">
                     {secret('delivery.flyToken', 'FlyV1 …')}
-                  </Field>
-                  <Field label="Fly.io organization" aside={aside('delivery.flyOrg')} help="The slug of the organization a new app is made in. Empty = your personal organization.">
+                  </Setting>
+                  <Setting path="delivery.flyOrg">
                     {text('delivery.flyOrg', 'personal', true)}
-                  </Field>
-                  <Field label="Fly.io region" aside={aside('delivery.flyRegion')} help="Where a new app's machine runs: iad (Virginia), lhr (London), sin (Singapore), nrt (Tokyo), syd (Sydney)… `fly platform regions` lists them.">
+                  </Setting>
+                  <Setting path="delivery.flyRegion">
                     {text('delivery.flyRegion', 'iad')}
-                  </Field>
+                  </Setting>
                 </PlaceCard>
                 <PlaceCard id="railway" logo={siRailway} name="Railway" tagline="Builds from the stack itself or a Dockerfile; a preview environment of the same project beside production." status={placeStatus(['delivery.railwayToken'])} open={placeOpen.has('railway')} onToggle={() => togglePlace('railway')} tool={<ToolNote>Runs through npx — the Railway CLI is fetched on first use; nothing to install.</ToolNote>} toolDone={null} access={<TokenLinks where={[{ label: 'railway.com → Account settings → Tokens', href: 'https://railway.com/account/tokens', note: 'an account token or a workspace token, not a project token (it cannot make a project)' }]} />}>
-                  <Field label="Railway token" aside={aside('delivery.railwayToken')} help="An account or workspace token from the page above.">
+                  <Setting path="delivery.railwayToken">
                     {secret('delivery.railwayToken', 'token')}
-                  </Field>
-                  <Field label="Railway workspace" aside={aside('delivery.railwayWorkspace')} help="The workspace a new project is made in, when the token reaches several. Empty = the token's own.">
+                  </Setting>
+                  <Setting path="delivery.railwayWorkspace">
                     {text('delivery.railwayWorkspace', 'my-workspace', true)}
-                  </Field>
+                  </Setting>
                 </PlaceCard>
                 <PlaceCard id="render" logo={siRender} name="Render" tagline="Deploys the repository's branch from GitHub (its GitHub app must be allowed on the repository); a preview service beside production." status={placeStatus(['delivery.renderApiKey'])} open={placeOpen.has('render')} onToggle={() => togglePlace('render')} tool={<ToolNote>Reached through Render’s API — nothing to install. Render’s GitHub app must be allowed on the repositories it deploys.</ToolNote>} toolDone={null} access={<TokenLinks where={[{ label: 'dashboard.render.com → Account Settings → API Keys', href: 'https://dashboard.render.com/u/settings#api-keys', note: 'Create API Key' }, { label: 'Render → connect GitHub', href: 'https://github.com/apps/render/installations/new', note: 'allow Render\'s GitHub app on the repositories it may deploy' }]} />}>
-                  <Field label="Render API key" aside={aside('delivery.renderApiKey')} help="An API key from the page above.">
+                  <Setting path="delivery.renderApiKey">
                     {secret('delivery.renderApiKey', 'rnd_…')}
-                  </Field>
-                  <Field label="Render owner" aside={aside('delivery.renderOwner')} help="The workspace id (usr-… or tea-…) a new service is made in; it is in the dashboard's address. Empty = the key's first workspace.">
+                  </Setting>
+                  <Setting path="delivery.renderOwner">
                     {text('delivery.renderOwner', 'tea-…', true)}
-                  </Field>
-                  <Field label="Render region" aside={aside('delivery.renderRegion')} help="Where a new service runs.">
+                  </Setting>
+                  <Setting path="delivery.renderRegion">
                     <Select value={draft.delivery.renderRegion} onChange={(e) => set('delivery.renderRegion', e.target.value)}>
                       {['oregon', 'ohio', 'virginia', 'frankfurt', 'singapore'].map((r) => (
                         <option key={r} value={r}>
@@ -768,8 +707,8 @@ export function SettingsPage() {
                         </option>
                       ))}
                     </Select>
-                  </Field>
-                  <Field label="Render plan" aside={aside('delivery.renderPlan')} help="What a new service is made as: free sleeps when idle and takes a while to wake; the paid plans are Render's.">
+                  </Setting>
+                  <Setting path="delivery.renderPlan">
                     <Select value={draft.delivery.renderPlan} onChange={(e) => set('delivery.renderPlan', e.target.value)}>
                       {['free', 'starter', 'standard', 'pro', 'pro plus', 'pro max', 'pro ultra'].map((r) => (
                         <option key={r} value={r}>
@@ -777,63 +716,65 @@ export function SettingsPage() {
                         </option>
                       ))}
                     </Select>
-                  </Field>
+                  </Setting>
                 </PlaceCard>
               </div>
               <div className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint pt-2">Stores — an Expo app, built in the cloud by EAS, to TestFlight and Google Play</div>
               <p className="text-[11px] text-ink-faint">EAS holds the signing; Foundry never sees a certificate or a keystore. iOS lands in TestFlight (Foundry never submits for review); Android is an APK to install for a preview, or Google Play's production track for production.</p>
               <div className="space-y-2">
                 <PlaceCard id="expo" logo={siExpo} name="Expo EAS" tagline="The builds themselves, for both stores: every EAS command runs with this token." status={placeStatus(['delivery.expoToken'])} open={placeOpen.has('expo')} onToggle={() => togglePlace('expo')} tool={<ToolNote>Runs through npx — eas-cli is fetched on first use; nothing to install.</ToolNote>} toolDone={null} access={<TokenLinks where={[{ label: 'expo.dev → Account settings → Access tokens', href: 'https://expo.dev/settings/access-tokens', note: 'Create token' }]} />}>
-                  <Field label="Expo token" aside={aside('delivery.expoToken')} help="An access token from the page above.">
+                  <Setting path="delivery.expoToken">
                     {secret('delivery.expoToken', 'token')}
-                  </Field>
+                  </Setting>
                 </PlaceCard>
                 <PlaceCard id="appstore" logo={siAppstore} name="App Store Connect" tagline="The upload to TestFlight and the watch on the review; needs the Expo EAS card too." status={placeStatus(['delivery.ascKeyId', 'delivery.ascIssuerId', 'delivery.ascKey'])} open={placeOpen.has('appstore')} onToggle={() => togglePlace('appstore')} tool={<ToolNote>Through Expo EAS (the card above) — nothing more to install.</ToolNote>} toolDone={null} access={<TokenLinks where={[{ label: 'App Store Connect → Users and Access → Integrations → App Store Connect API', href: 'https://appstoreconnect.apple.com/access/integrations/api', note: 'generate a key with the App Manager role; the issuer id is above the list, the key id in the row, the .p8 downloads once' }]} />}>
-                  <Field label="Key id" aside={aside('delivery.ascKeyId')} help="The Key ID in the key's row.">
+                  <Setting path="delivery.ascKeyId">
                     {text('delivery.ascKeyId', 'ABC123DEFG', true)}
-                  </Field>
-                  <Field label="Issuer id" aside={aside('delivery.ascIssuerId')} help="Above the list of keys on the same page.">
+                  </Setting>
+                  <Setting path="delivery.ascIssuerId">
                     {text('delivery.ascIssuerId', '12345678-aaaa-bbbb-cccc-1234567890ab', true)}
-                  </Field>
-                  <Field label="Key (.p8)" aside={aside('delivery.ascKey')} help="The contents of the downloaded AuthKey_….p8 file, pasted whole; written to a file only while a command runs." className="sm:col-span-2">
+                  </Setting>
+                  <Setting path="delivery.ascKey" className="sm:col-span-2">
                     {secretText('delivery.ascKey', '-----BEGIN PRIVATE KEY-----\n…')}
-                  </Field>
+                  </Setting>
                 </PlaceCard>
                 <PlaceCard id="play" logo={siGoogleplay} name="Google Play" tagline="The production submit only (a preview APK needs none); needs the Expo EAS card too." status={placeStatus(['delivery.playServiceAccount'])} open={placeOpen.has('play')} onToggle={() => togglePlace('play')} tool={<ToolNote>Through Expo EAS (the card above) — nothing more to install.</ToolNote>} toolDone={null} access={<TokenLinks where={[{ label: 'Google Cloud → IAM → Service accounts', href: 'https://console.cloud.google.com/iam-admin/serviceaccounts', note: 'a service account → Keys → Add key → JSON' }, { label: 'Play Console → Users and permissions', href: 'https://play.google.com/console/', note: 'invite the service account\'s email with release rights to the app' }]} />}>
-                  <Field label="Service account key (JSON)" aside={aside('delivery.playServiceAccount')} help="The downloaded JSON key, pasted whole; written to a file only while a command runs." className="sm:col-span-2">
+                  <Setting path="delivery.playServiceAccount" className="sm:col-span-2">
                     {secretText('delivery.playServiceAccount', '{ "type": "service_account", … }')}
-                  </Field>
+                  </Setting>
                 </PlaceCard>
               </div>
             </div>
-            <div className="pt-1 space-y-2">
+            <div className="pt-1 space-y-2" data-setting="delivery.servers">
               <div className="flex items-center gap-2">
-                <div className="text-sm font-bold text-ink">Servers — the whole project on a machine of your own</div>
-                <span className="ml-auto flex items-center gap-1.5">{aside('delivery.servers')}</span>
+                <div className="text-sm font-bold text-ink">{wordsOf('delivery.servers').label}</div>
+                <span className="ml-auto flex items-center gap-1.5">
+                  <Aside path="delivery.servers" />
+                </span>
               </div>
-              <p className="text-[11px] text-ink-faint">A goal with a compose file or a Dockerfile is copied to the server over SSH and started there with docker compose: any backend, with the services beside it. Always production, confirmed each time; the card checks the server first (the key, SSH, Docker, the folder).</p>
+              <p className="text-[11px] text-ink-faint">{wordsOf('delivery.servers').help}</p>
               <DeployServers servers={draft.delivery.servers} secrets={view.secrets} savedIds={view.values.delivery.servers.map((s) => s.id)} onChange={(next) => set('delivery.servers', next)} />
             </div>
-            <details className="pt-1">
+            <details id="delivery-timings" className="pt-1">
               <summary className="text-xs font-semibold text-ink-soft hover:text-ink cursor-pointer">Delivery timings (advanced)</summary>
               <div className="mt-3">
                 {grid(
                   <>
-                    <Field label="Poll interval (s)" aside={aside('delivery.pollSec')}>
+                    <Setting path="delivery.pollSec">
                       {num('delivery.pollSec', { min: 5, max: 600 })}
-                    </Field>
-                    <Field label="Grace before “no checks” (s)" aside={aside('delivery.noChecksGraceSec')}>
+                    </Setting>
+                    <Setting path="delivery.noChecksGraceSec">
                       {num('delivery.noChecksGraceSec', { min: 0, max: 3600 })}
-                    </Field>
-                    <Field label="Checks timeout (min)" aside={aside('delivery.checksTimeoutMin')}>
+                    </Setting>
+                    <Setting path="delivery.checksTimeoutMin">
                       {num('delivery.checksTimeoutMin', { min: 1, max: 720 })}
-                    </Field>
-                    <Field label="Auto-merge wait under branch protection (min)" aside={aside('delivery.automergeWaitMin')}>
+                    </Setting>
+                    <Setting path="delivery.automergeWaitMin">
                       {num('delivery.automergeWaitMin', { min: 1, max: 720 })}
-                    </Field>
-                    <Field label="Store watch (min)" aside={aside('delivery.storePollMin')} help="How often App Store Connect is asked where a submitted build stands.">
+                    </Setting>
+                    <Setting path="delivery.storePollMin">
                       {num('delivery.storePollMin', { min: 1, max: 1440 })}
-                    </Field>
+                    </Setting>
                   </>,
                 )}
               </div>
@@ -845,34 +786,36 @@ export function SettingsPage() {
       {open === 'tools' && (
         <Card id="tools" title={<SettingsTitle id="tools">Tools &amp; keys<HelpLink to="settings#tools--keys" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
           <div className="space-y-3">
-            {bool('tools.useGraphify', 'Use graphify for relevant-file discovery', 'When the graphify CLI is installed, sessions get a code-graph based context instead of grep.')}
+            <Toggle path="tools.useGraphify" />
+            <div className="pt-1 space-y-2">
+              <div className="text-sm font-bold text-ink">Keys — the services a skill may call</div>
+              <p className="text-[11px] text-ink-faint">Each service is a card: open it for its key and where to make one. A key is handed to the coding sessions that need it, as the environment variable its field names, and applies to the next session; a saved key is never shown again. None of them signs the coding agent in: Codex keeps running on ChatGPT, an image key does not move it to the API.</p>
+              <div className="space-y-2">
+                <PlaceCard id="openai" logo={{ Icon: Sparkles, hex: '10A37F', title: 'OpenAI' }} name="OpenAI-compatible" tagline="Real images from the image packs, and anything else that speaks the OpenAI API; a proxy or another provider through the base URL." status={placeStatus(['tools.openaiApiKey'])} open={placeOpen.has('openai')} onToggle={() => togglePlace('openai')} access={<TokenLinks where={[{ label: 'platform.openai.com → API keys', href: 'https://platform.openai.com/api-keys', note: 'Create new secret key' }]} />}>
+                  <Setting path="tools.openaiApiKey">{secret('tools.openaiApiKey', 'sk-…')}</Setting>
+                  <Setting path="tools.openaiBaseUrl">{text('tools.openaiBaseUrl', 'https://api.openai.com/v1', true)}</Setting>
+                </PlaceCard>
+                <PlaceCard id="gemini" logo={siGooglegemini} name="Gemini" tagline="Pictures through Gemini for the claude-image-gen pack, which uses it by default; its OpenAI mode uses the key above." status={placeStatus(['tools.geminiApiKey'])} open={placeOpen.has('gemini')} onToggle={() => togglePlace('gemini')} access={<TokenLinks where={[{ label: 'aistudio.google.com → Get API key', href: 'https://aistudio.google.com/app/apikey', note: 'Create API key' }]} />}>
+                  <Setting path="tools.geminiApiKey">{secret('tools.geminiApiKey', 'AIza…')}</Setting>
+                </PlaceCard>
+                <PlaceCard id="kimi" logo={siKimi} name="Kimi (Moonshot)" tagline="Kimi's sponsored models, where a design skill calls them." status={placeStatus(['tools.kimiApiKey'])} open={placeOpen.has('kimi')} onToggle={() => togglePlace('kimi')} access={<TokenLinks where={[{ label: 'platform.moonshot.ai → API Keys', href: 'https://platform.moonshot.ai/console/api-keys', note: 'Create API key' }]} />}>
+                  <Setting path="tools.kimiApiKey">{secret('tools.kimiApiKey', 'sk-…')}</Setting>
+                </PlaceCard>
+                <PlaceCard id="minimax" logo={siMinimax} name="MiniMax" tagline="Video and narration through mmx-cli; saved where mmx reads it too." status={placeStatus(['tools.minimaxApiKey'])} open={placeOpen.has('minimax')} onToggle={() => togglePlace('minimax')} access={<TokenLinks where={[{ label: 'platform.minimax.io → API keys', href: 'https://platform.minimax.io/user-center/basic-information/interface-key', note: 'Create new secret key — or sign in once with mmx auth login on this computer and leave the field empty' }]} />}>
+                  <Setting path="tools.minimaxApiKey">{secret('tools.minimaxApiKey', 'sk-cp-… or sk-api-…')}</Setting>
+                </PlaceCard>
+                <PlaceCard id="elevenlabs" logo={siElevenlabs} name="ElevenLabs" tagline="Narration voices for web-video-presentation." status={placeStatus(['tools.elevenlabsApiKey'])} open={placeOpen.has('elevenlabs')} onToggle={() => togglePlace('elevenlabs')} access={<TokenLinks where={[{ label: 'elevenlabs.io → Developers → API keys', href: 'https://elevenlabs.io/app/settings/api-keys', note: 'Create API key' }]} />}>
+                  <Setting path="tools.elevenlabsApiKey">{secret('tools.elevenlabsApiKey', 'sk_…')}</Setting>
+                </PlaceCard>
+                <PlaceCard id="groq" logo={{ Icon: AudioLines, hex: 'F55036', title: 'Groq' }} name="Groq" tagline="Captions: hyperframes transcribes locally and falls back to Groq (or the OpenAI key) when the audio is too noisy." status={placeStatus(['tools.groqApiKey'])} open={placeOpen.has('groq')} onToggle={() => togglePlace('groq')} access={<TokenLinks where={[{ label: 'console.groq.com → API Keys', href: 'https://console.groq.com/keys', note: 'Create API Key' }]} />}>
+                  <Setting path="tools.groqApiKey">{secret('tools.groqApiKey', 'gsk_…')}</Setting>
+                </PlaceCard>
+              </div>
+            </div>
             {grid(
-              <>
-                <Field label="OpenAI-compatible API key" aside={aside('tools.openaiApiKey')} help="Handed to every session as OPENAI_API_KEY — the image pack needs it to actually generate images (without it, image tasks fall back to hand-authored SVG renders). Empty = whatever the engine's own environment has.">
-                  {secret('tools.openaiApiKey', 'sk-…')}
-                </Field>
-                <Field label="OpenAI-compatible base URL" aside={aside('tools.openaiBaseUrl')} help="Handed to sessions as OPENAI_BASE_URL for proxies / compatible providers; empty = the provider's default endpoint.">
-                  {text('tools.openaiBaseUrl', 'https://api.openai.com/v1', true)}
-                </Field>
-                <Field label="Gemini API key" aside={aside('tools.geminiApiKey')} help="Handed to sessions as GEMINI_API_KEY — the claude-image-gen image pack option uses Gemini by default (its OpenAI mode uses the key above). Empty = whatever the engine's own environment has.">
-                  {secret('tools.geminiApiKey', 'AIza…')}
-                </Field>
-                <Field label="Kimi (Moonshot) API key" aside={aside('tools.kimiApiKey')} help="Handed to sessions as MOONSHOT_API_KEY and KIMI_API_KEY — used by taste-skill's sponsored Kimi models where a skill calls them. Empty = whatever the engine's own environment has.">
-                  {secret('tools.kimiApiKey', 'sk-…')}
-                </Field>
-                <Field label="MiniMax API key" aside={aside('tools.minimaxApiKey')} help="For mmx-cli (video and narration). Foundry saves it where mmx reads it and hands it to sessions as MINIMAX_API_KEY. Empty = the engine's own environment, or your own `mmx auth login`.">
-                  {secret('tools.minimaxApiKey', 'sk-cp-… or sk-api-…')}
-                </Field>
-                <Field label="ElevenLabs API key" aside={aside('tools.elevenlabsApiKey')} help="Handed to sessions as ELEVENLABS_API_KEY — narration voices for web-video-presentation. Empty = whatever the engine's own environment has.">
-                  {secret('tools.elevenlabsApiKey', 'sk_…')}
-                </Field>
-                <Field label="Groq API key" aside={aside('tools.groqApiKey')} help="Handed to sessions as GROQ_API_KEY — hyperframes transcribes captions locally and falls back to Groq (or the OpenAI key) when the audio is too noisy. Empty = whatever the engine's own environment has.">
-                  {secret('tools.groqApiKey', 'gsk_…')}
-                </Field>
-                <Field label="markitdown binary" aside={aside('tools.markitdownBin')} help="Converts attachments and repository documents to markdown before sessions read them. Empty = auto-detect on PATH and ~/.local/bin.">
-                  {text('tools.markitdownBin', 'markitdown', true)}
-                </Field>
-              </>,
+              <Setting path="tools.markitdownBin">
+                {text('tools.markitdownBin', 'markitdown', true)}
+              </Setting>,
             )}
             <CodeServerInstall />
           </div>
@@ -885,18 +828,18 @@ export function SettingsPage() {
             <p className="text-xs text-ink-faint">At a milestone, and on request from a goal's page, the engine starts the goal's dev server in its progress folder and links you to it. With the self-check on, it also opens that preview in headless Chromium after every task lands, takes a screenshot and fails the goal's must checks on console or network errors.</p>
             {grid(
               <>
-                <Field label="First port" aside={aside('preview.portFrom')} help="Previews take the first free port in this range.">
+                <Setting path="preview.portFrom">
                   {num('preview.portFrom', { min: 1024, max: 65535 })}
-                </Field>
-                <Field label="Last port" aside={aside('preview.portTo')} help="Docker: publish this range in docker-compose.yml so the preview is reachable from the host.">
+                </Setting>
+                <Setting path="preview.portTo">
                   {num('preview.portTo', { min: 1024, max: 65535 })}
-                </Field>
-                <Field label="Idle minutes" aside={aside('preview.idleMinutes')} help="A preview nobody opened for this long is stopped (never while the goal waits for your look).">
+                </Setting>
+                <Setting path="preview.idleMinutes">
                   {num('preview.idleMinutes', { min: 5, max: 1440 })}
-                </Field>
+                </Setting>
               </>,
             )}
-            {bool('checks.selfCheck', 'Self-check new goals by default', "Off by default: it needs Playwright's Chromium (below) and only helps goals whose result runs in a browser. Each goal's page has its own switch.")}
+            <Toggle path="checks.selfCheck" />
             <PlaywrightInstall />
           </div>
         </Card>
@@ -905,52 +848,50 @@ export function SettingsPage() {
       {open === 'notifications' && (
         <Card id="notifications" title={<SettingsTitle id="notifications">Notifications<HelpLink to="settings#notifications" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
           <div className="space-y-4">
-            <p className="text-xs text-ink-faint">Get pinged outside the app the moment a goal needs you or finishes. Every enabled event goes to every configured channel; leave a channel's fields empty to keep it off.</p>
-            {grid(
-              <>
-                <Field label="Telegram bot token" aside={aside('notifications.telegramBotToken')} help="Create a bot with @BotFather in Telegram and paste its token here.">
-                  {secret('notifications.telegramBotToken', '123456:ABC-DEF…')}
-                </Field>
-                <Field label="Telegram chat id" aside={aside('notifications.telegramChatId')} help="Open your bot in Telegram and send it any message, then Detect fills this in.">
+            <p className="text-xs text-ink-faint">Get pinged outside the app the moment a goal needs you or finishes. Each channel is a card: every enabled event goes to every channel that is set up, and a card with nothing filled in stays off.</p>
+            <div className="space-y-2">
+              <PlaceCard id="telegram" logo={siTelegram} name="Telegram" tagline="Messages from a bot of your own, with buttons that answer." status={placeStatus(['notifications.telegramBotToken', 'notifications.telegramChatId'])} open={placeOpen.has('telegram')} onToggle={() => togglePlace('telegram')} access={<TokenLinks lead="Make a bot with" where={[{ label: '@BotFather in Telegram', href: 'https://t.me/BotFather', note: '/newbot gives the token; then send your bot any message and press Detect below for the chat id' }]} />}>
+                <Setting path="notifications.telegramBotToken">{secret('notifications.telegramBotToken', '123456:ABC-DEF…')}</Setting>
+                <Setting path="notifications.telegramChatId">
                   <div className="flex gap-1">
                     <Input className="mono" value={(get(draft, 'notifications.telegramChatId') as string | null) ?? ''} placeholder="123456789" onChange={(e) => set('notifications.telegramChatId', e.target.value === '' ? null : e.target.value)} />
                     <Button size="sm" variant="ghost" className="shrink-0" disabled={busy || (!get(draft, 'notifications.telegramBotToken') && !view.secrets['notifications.telegramBotToken']?.set)} onClick={() => detectChatId(draft.notifications.telegramBotToken)} title="Asks Telegram which chat last messaged your bot and fills in its id">
                       Detect
                     </Button>
                   </div>
-                </Field>
-                <Field label="Discord webhook URL" aside={aside('notifications.discordWebhookUrl')} help="In your Discord channel: Settings → Integrations → Webhooks → New Webhook, then copy its URL.">
-                  {secret('notifications.discordWebhookUrl', 'https://discord.com/api/webhooks/…')}
-                </Field>
-                <Field label="Discord bot token (buttons)" aside={aside('notifications.discordBotToken')} help="Optional, beside the webhook: a bot of yours posts the messages that wait for you in the webhook's channel, with buttons that answer. Empty = Discord messages without buttons.">
-                  {secret('notifications.discordBotToken', 'MTIz…')}
-                </Field>
-                <Field label="Link base URL" aside={aside('notifications.baseUrl')} help="Where this UI is reachable from elsewhere (a LAN address, a domain). Empty = links point at this computer (http://localhost); tailnet links are added below.">
-                  {text('notifications.baseUrl', 'http://192.168.1.20:4111', true)}
-                </Field>
-                <Field label="Tailscale links" aside={aside('notifications.tailscale')} help="auto: when Tailscale runs on this computer, messages also link to Foundry and the previews on your tailnet, so they open on your phone; Foundry serves those ports with `tailscale serve` (reusing what you already serve) and takes the previews' down when they stop. off: never.">
+                </Setting>
+                <Toggle path="notifications.telegramActions" className="sm:col-span-2" />
+              </PlaceCard>
+              <PlaceCard id="discord" logo={siDiscord} name="Discord" tagline="Messages into a channel through its webhook; a bot of yours adds the buttons." status={placeStatus(['notifications.discordWebhookUrl'])} open={placeOpen.has('discord')} onToggle={() => togglePlace('discord')} access={<ul className="space-y-0.5 text-ink-soft"><li>In your channel: Settings → Integrations → Webhooks → New Webhook, then copy its URL.</li><li>For the buttons, a bot token from <a href="https://discord.com/developers/applications" target="_blank" rel="noreferrer" className="font-semibold text-work-ink hover:underline">discord.com/developers</a> (your application → Bot); invite that bot to the channel.</li></ul>}>
+                <Setting path="notifications.discordWebhookUrl">{secret('notifications.discordWebhookUrl', 'https://discord.com/api/webhooks/…')}</Setting>
+                <Setting path="notifications.discordBotToken">{secret('notifications.discordBotToken', 'MTIz…')}</Setting>
+              </PlaceCard>
+              <PlaceCard id="tailscale" logo={siTailscale} name="Tailscale" tagline="Links on your tailnet in every message, so Foundry and the previews open on your phone." status={draft.notifications.tailscale === 'auto' ? 'set' : 'unset'} statusWord={draft.notifications.tailscale === 'auto' ? 'Auto' : 'Off'} open={placeOpen.has('tailscale')} onToggle={() => togglePlace('tailscale')}>
+                <Setting path="notifications.tailscale">
                   <Select value={draft.notifications.tailscale} onChange={(e) => set('notifications.tailscale', e.target.value)}>
                     <option value="auto">auto — when Tailscale runs here</option>
                     <option value="off">off</option>
                   </Select>
-                </Field>
-                <Field label="Tailscale name" aside={aside('notifications.tailscaleHost')} help="This computer's tailnet name. Empty = read from `tailscale status`.">
-                  {text('notifications.tailscaleHost', 'my-mac.tailnet-123.ts.net', true)}
-                </Field>
-              </>,
+                </Setting>
+                <Setting path="notifications.tailscaleHost">{text('notifications.tailscaleHost', 'my-mac.tailnet-123.ts.net', true)}</Setting>
+              </PlaceCard>
+            </div>
+            {grid(
+              <Setting path="notifications.baseUrl">
+                {text('notifications.baseUrl', 'http://192.168.1.20:4111', true)}
+              </Setting>,
             )}
             <div className="space-y-2">
-              {bool('notifications.telegramActions', 'Answer from Telegram', "Messages about something that waits for you carry buttons (Retry, Skip, Continue, Approve…), and a reply answers in words. Foundry reads the bot's messages while this is on, so give each Foundry its own bot. Commands outside the workspace are approved in the Inbox only.")}
-              {bool('notifications.onEscalation', 'Needs you', 'An escalation was raised — a task or goal is blocked until you answer it on the Inbox page.')}
-              {bool('notifications.onInterview', 'Interview round', 'The Clarifier asked a round of questions before writing the Brief; the goal waits for your answers.')}
-              {bool('notifications.onBriefReady', 'Brief ready', 'A Brief waits for your approval. A Brief the engine approves itself (an automatic one, a delegated goal its main goal approves, a scheduled run that approves its own) never notifies.')}
-              {bool('notifications.onSchedule', 'Schedule fired', 'A schedule fired: the goal it made, or why none was made (its previous run still going).')}
-              {bool('notifications.onGoalFinished', 'Goal finished', 'A goal ended done, over-delivered, or failed. Cancelling a goal yourself never notifies.')}
-              {bool('notifications.onDelivery', 'Delivery', 'A pull request was opened or merged, or the delivery failed.')}
-              {bool('notifications.onRateLimit', 'Usage pause', 'A provider usage limit paused its goals, and when the retry pause lifts.')}
-              {bool('notifications.onUpdateAvailable', 'New version', 'A Foundry release newer than this instance exists — once per version. Update from the header pill or Settings → About & updates.')}
+              <Toggle path="notifications.onEscalation" />
+              <Toggle path="notifications.onInterview" />
+              <Toggle path="notifications.onBriefReady" />
+              <Toggle path="notifications.onSchedule" />
+              <Toggle path="notifications.onGoalFinished" />
+              <Toggle path="notifications.onDelivery" />
+              <Toggle path="notifications.onRateLimit" />
+              <Toggle path="notifications.onUpdateAvailable" />
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div id="notify-test" className="flex items-center gap-2 flex-wrap">
               <Button size="sm" variant="ghost" disabled={busy} onClick={() => sendTestNotification({ telegramBotToken: draft.notifications.telegramBotToken, telegramChatId: draft.notifications.telegramChatId, discordWebhookUrl: draft.notifications.discordWebhookUrl, discordBotToken: draft.notifications.discordBotToken })} title="Sends a test message with the values above (saved or not)">
                 Send test message
               </Button>
@@ -965,16 +906,16 @@ export function SettingsPage() {
         <Card id="safety" title={<SettingsTitle id="safety">Safety<HelpLink to="settings#safety" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
           {grid(
             <>
-              <Field label="Extra boundary patterns" aside={aside('safety.extraBoundaryPatterns')} help="Additional ERE patterns the boundary hook blocks, '|'-separated (e.g. `terraform apply|kubectl`).">
+              <Setting path="safety.extraBoundaryPatterns">
                 {text('safety.extraBoundaryPatterns', 'terraform apply|kubectl', true)}
-              </Field>
-              <Field label="Folder browser roots" aside={aside('safety.allowedRoots')} help="Directories the repository picker may enter, comma-separated; empty = your home and /Volumes.">
+              </Setting>
+              <Setting path="safety.allowedRoots">
                 {list('safety.allowedRoots', '/Users/you/Projects')}
-              </Field>
+              </Setting>
             </>,
           )}
           <div className="mt-3">
-            {bool('safety.desktopApps', 'Desktop apps & printers', "Let sessions open desktop apps and hand files to printers on this computer — text-to-cad's Bambu hand-off (Bambu Connect / Bambu Studio), `open …`, `xdg-open`, the slicers' windows. Off: the boundary guard refuses those commands and the hand-off skill (sessions are not pointed at it either); a refused command comes to your Inbox. Headless slicing and preflight reports stay available.")}
+            <Toggle path="safety.desktopApps" />
           </div>
         </Card>
       )}
@@ -982,30 +923,30 @@ export function SettingsPage() {
       {open === 'beta' && (
         <Card id="beta" title={<SettingsTitle id="beta">Beta<HelpLink to="settings#beta" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
           <p className="mb-3 text-xs text-ink-faint">Features on trial: each one stays off until you switch it on, while it settles.</p>
-          {bool('beta.conversation', 'Conversation on the goal page', "A bubble at the bottom right of a goal's page (and of its Brief page) opens a Conversation: a read-only Explainer, on the preset's Conversation model, answers your questions about the goal's code and Foundry's records of it, and never changes anything. Its answers cost the goal, outside its budget. Off: no bubble and no Conversation tab.")}
-          {bool('beta.motionStudio', 'Motion studio video engine', 'Video goals get an Engine picker on the New goal form: the motion-studio engine (a deterministic seek(t) renderer with a critique loop) beside the Video skills pack, with its bundled skill in the catalog and its doctor checks for ffmpeg and Chromium. Off: the Video skills pack alone, as before.')}
-          {bool('beta.deck', 'Deck goals', "A kind of goal of its own: slide decks as native, editable PPTX files — a pitch, a lecture, a report, a document turned into slides — made by the Deck pack (ppt-master) in a Python environment Foundry keeps, with the Brief standing in for the skill's two confirmation stages. When a task lands Foundry counts the slides, runs the skill's delivery check and renders the per-slide previews. On: Slides is among the kinds of goal, Deck skills sits under Skills, the CLI takes --nature deck and the doctor checks uv, the environment and Chromium. Off: none of that shows; deck goals made before still open.")}
-          {bool('beta.diagram', 'Diagram goals', "A kind of goal of its own: editorial diagrams — architecture, flows, sequences, timelines, charts — one web page with an SVG beside it each, drawn by the Diagram pack (diagram-design) and opened headless by Foundry when a task lands. Document and code goals may carry diagram tasks too. On: Diagrams is among the kinds of goal, Diagram skills sits under Skills, the CLI takes --nature diagram and the doctor checks the tools. Off: none of that shows; diagram goals made before still open.")}
-          {bool('beta.figure', 'Figure goals', "A kind of goal of its own: interactive isometric figures of everyday objects and machines, one web page each, drawn by the Figure pack (Colorfigures or iso-glow, bundled with Foundry) and opened headless by Foundry when a task lands. On: Figures is among the kinds of goal, Figure skills sits under Skills, the CLI takes --nature figure and the doctor checks the tools. Off: none of that shows; figure goals made before still open.")}
-          {bool('beta.editor', 'Editor on video goals', "A HyperFrames goal's page gets an Editor row per project folder — Foundry starts HyperFrames' browser editor (timeline, inspector, captions, export) as a preview app, while the goal runs and after it finished, reachable over your tailnet like any preview — and a motion-studio goal's page a scrubber page per film. A finished HyperFrames goal gets Re-render: the films rendered again after your edits, the earlier result kept, the edits committed, the new files delivered. Off: no Editor rows, no scrubber pages, no Re-render; edits already made stay in the goal's folder.")}
-          {bool('beta.adjust', 'Adjust the result', "A box on a finished goal's page takes your words on its result — what should change, with pictures or files — and the goal carries them out itself: the finished task's session resumes with them, or a task is appended, or a failed goal's failed tasks run again with them. The checks and reviews run again; the output folder and an open pull request get the new result; the earlier result is kept. It costs the goal, inside its budget. Off: no box; adjustments already made stay on the goal.")}
+          <Toggle path="beta.conversation" />
+          <Toggle path="beta.motionStudio" />
+          <Toggle path="beta.deck" />
+          <Toggle path="beta.diagram" />
+          <Toggle path="beta.figure" />
+          <Toggle path="beta.editor" />
+          <Toggle path="beta.adjust" />
         </Card>
       )}
 
       {open === 'engine' && (
         <Card id="engine" title={<SettingsTitle id="engine">Engine (install)<HelpLink to="settings#engine-install" className="ml-1.5" /></SettingsTitle>} className="scroll-mt-16">
           {/* the data folder (ADR-0082) is not a Setting: Settings live inside it */}
-          <div className="mb-4">
+          <div id="data-folder" className="mb-4">
             <DataFolder />
           </div>
           {grid(
             <>
-              <Field label="Port" aside={aside('engine.port')} help="HTTP port of the local server and of the boundary hook callback.">
+              <Setting path="engine.port">
                 {num('engine.port', { min: 1, max: 65535 })}
-              </Field>
-              <Field label="Host" aside={aside('engine.host')} help="Bind address; keep 127.0.0.1 unless you know why.">
+              </Setting>
+              <Setting path="engine.host">
                 {text('engine.host')}
-              </Field>
+              </Setting>
               <Field label="Default coding agent" help="Default for new goals in this data directory. Choose any coding agent on New goal; existing goals keep theirs.">
                 {/* the coding agent in its own colour and icon, as everywhere it is named */}
                 <div className={cn('inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-sm font-semibold', agent.chip)}>
@@ -1014,18 +955,18 @@ export function SettingsPage() {
                 </div>
               </Field>
               {<>
-                <Field label="Codex binary" aside={aside('engine.codexBin')} help="Empty = codex on PATH.">{text('engine.codexBin', 'codex', true)}</Field>
-                <Field label="Codex home" aside={aside('engine.codexHome')} help="Empty = CODEX_HOME or ~/.codex.">{text('engine.codexHome', '~/.codex', true)}</Field>
-                <Field label="Antigravity binary" aside={aside('engine.agyBin')} help="Empty = agy on PATH. Needs agy 1.1.15 or newer.">{text('engine.agyBin', 'agy', true)}</Field>
-              </>}<><Field label="Claude binary" aside={aside('engine.claudeBin')} help="Path to the Claude Code CLI; empty = first `claude` on PATH.">
+                <Setting path="engine.codexBin">{text('engine.codexBin', 'codex', true)}</Setting>
+                <Setting path="engine.codexHome">{text('engine.codexHome', '~/.codex', true)}</Setting>
+                <Setting path="engine.agyBin">{text('engine.agyBin', 'agy', true)}</Setting>
+              </>}<><Setting path="engine.claudeBin">
                 {text('engine.claudeBin', 'claude', true)}
-              </Field>
-              <Field label="Claude Code home" aside={aside('engine.claudeHome')} help="Where skills, plugins and settings.json live; empty = ~/.claude (or CLAUDE_CONFIG_DIR).">
+              </Setting>
+              <Setting path="engine.claudeHome">
                 {text('engine.claudeHome', '~/.claude', true)}
-              </Field></>
-              <Field label="Progress folders" aside={aside('engine.workspacesRoot')} help="Where each goal's working folder is created. Empty = next to the repository, as <repo>-foundry/<goal>. A folder here = <folder>/<repo>/<goal>. Applies to goals created from now on.">
+              </Setting></>
+              <Setting path="engine.workspacesRoot">
                 {text('engine.workspacesRoot', '/Users/you/Foundry', true)}
-              </Field>
+              </Setting>
             </>,
           )}
         </Card>
@@ -1082,6 +1023,7 @@ export function SettingsPage() {
         </div>
       </div>
     </div>
+    </SettingsControlsProvider>
   );
 }
 
@@ -1105,7 +1047,7 @@ function CodeServerInstall() {
     return () => clearInterval(poll);
   }, [running]);
   return (
-    <div className="text-xs text-ink-soft space-y-2 border-t border-line pt-3">
+    <div id="code-server" className="text-xs text-ink-soft space-y-2 border-t border-line pt-3">
       <div className="text-sm font-bold text-ink">VS Code in the browser (code-server)</div>
       <p className="text-[11px] text-ink-faint">Open ▾ → <b>VS Code (web)</b> opens a repository or a goal's folder in VS Code in a browser tab, also on your phone over Tailscale. It starts when first used, listens on this computer only behind a password the menu shows, and stops after two idle hours.</p>
       <div className="flex items-center gap-2 flex-wrap">
@@ -1145,7 +1087,7 @@ function PlaywrightInstall() {
     void load();
   }, []);
   return (
-    <div className="text-xs text-ink-soft space-y-2">
+    <div id="playwright" className="text-xs text-ink-soft space-y-2">
       <div className="flex items-center gap-2 flex-wrap">
         {/* Playwright ships with Foundry, so its absence is a fault; a browser not downloaded yet is only not there yet */}
         <InstallState tone={!st ? 'work' : st.browser ? 'ok' : st.installed ? 'none' : 'bad'}>{st ? (st.browser ? 'Chromium installed' : st.installed ? 'Chromium not downloaded yet' : 'Playwright unavailable') : '…'}</InstallState>

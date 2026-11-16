@@ -60,7 +60,7 @@ describe('user guide (docs/guide)', () => {
   });
 
   test('Settings explained has a section for every section of the Settings page', () => {
-    const sections = read(join(ROOT, 'apps/web/src/pages/SettingsPage.tsx')).match(/const SECTIONS[^=]*=\s*\[([\s\S]*?)\];/)?.[1] ?? '';
+    const sections = read(join(ROOT, 'apps/web/src/pages/settings/sections.tsx')).match(/const SECTIONS[^=]*=\s*\[([\s\S]*?)\];/)?.[1] ?? '';
     const labels = [...sections.matchAll(/label: '([^']+)'/g)].map((m) => m[1]!);
     expect(labels.length).toBeGreaterThan(5);
     for (const file of ['settings.md', 'settings.zh.md']) {

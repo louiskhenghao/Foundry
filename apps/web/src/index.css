@@ -325,6 +325,23 @@ progress {
   accent-color: var(--color-accent);
 }
 
+/* a setting the Settings search landed on: an outline in the accent colour around it that fades once you have seen it */
+.setting-flash {
+  outline: 2px solid transparent;
+  outline-offset: 6px;
+  border-radius: 6px;
+  animation: setting-flash 2.2s ease-out both;
+}
+@keyframes setting-flash {
+  0%,
+  55% {
+    outline-color: var(--color-accent);
+  }
+  100% {
+    outline-color: transparent;
+  }
+}
+
 html,
 body,
 #root {

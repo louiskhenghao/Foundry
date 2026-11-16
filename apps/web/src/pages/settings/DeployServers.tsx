@@ -2,7 +2,7 @@ import type { DeployServer, RecipeRun, SecretState, ServerRecipe } from '@foundr
 import { Plus, Trash2, Wrench } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api } from '../../api.ts';
-import { Button, Field, Input, Select, Textarea } from '../../ui.tsx';
+import { Button, CheckRow, Field, Input, Select, Textarea } from '../../ui.tsx';
 import { RecipeDialog, RecipeRuns } from './RecipeDialog.tsx';
 
 /** a new server's id: unique enough among a person's few servers, stable once saved (deploys name it) */
@@ -60,13 +60,7 @@ export function DeployServers({ servers, secrets, savedIds, onChange }: { server
           <Field label="SSH private key" help="The key whose public half is in that user's ~/.ssh/authorized_keys on the server. Kept by the engine only: never shown again, never handed to a coding session, written to a file only while a deploy runs.">
             <Textarea rows={3} className="mono text-[11px]" autoComplete="off" spellCheck={false} value={s.privateKey ?? ''} placeholder={keyPlaceholder(secrets[`delivery.servers.${s.id}.privateKey`])} onChange={(e) => edit(s.id, { privateKey: e.target.value === '' ? null : e.target.value })} />
           </Field>
-          <label className="flex items-start gap-2 cursor-pointer">
-            <input type="checkbox" className="mt-0.5" checked={s.allowPrivileged} onChange={(e) => edit(s.id, { allowPrivileged: e.target.checked })} />
-            <span className="min-w-0 flex-1">
-              <span className="text-xs font-semibold text-ink">Allow a compose file that reaches outside its project</span>
-              <span className="block mt-0.5 text-[11px] leading-snug text-ink-faint">Off: a compose file that runs a privileged container, uses the host's network or pid space, mounts the Docker socket or bind-mounts a path outside the project folder is refused with the reasons — a coding session may have written it. On: such a file runs after the confirmation lists what it reaches; the activity records it.</span>
-            </span>
-          </label>
+          <CheckRow checked={s.allowPrivileged} onChange={(on) => edit(s.id, { allowPrivileged: on })} label="Allow a compose file that reaches outside its project" help="Off: a compose file that runs a privileged container, uses the host's network or pid space, mounts the Docker socket or bind-mounts a path outside the project folder is refused with the reasons — a coding session may have written it. On: such a file runs after the confirmation lists what it reaches; the activity records it." />
           <ServerScripts server={s} saved={saved.has(s.id)} />
         </div>
       ))}
