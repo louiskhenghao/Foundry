@@ -58,9 +58,12 @@ foundry — drive the host Claude Code or Codex CLI to deliver on goals
   setup [--agent claude,codex,agy] [--with "markitdown chromium ffmpeg"] [--dry-run]
                                           install what this computer lacks: git, uv, the coding agents' CLIs, graphify (required),
                                           the GitHub CLI and Node.js (recommended) and the tools named with --with
-  migrate [--from <checkout>] [--yes] [--dry-run]
+  migrate [--from <checkout>] [--data <folder>] [--yes] [--dry-run]
                                           move a source install's goals into this app or release install: stops the checkout's
-                                          service, copies its data folders, leaves the originals as the backup
+                                          service, copies its data folders, leaves the originals as the backup; --data names the
+                                          folder it ran on when that was not the checkout's own (FOUNDRY_DATA_DIR)
+  repath <from> <to>                      rewrite a path in this install's history, Foundry stopped: a container's /app/data or
+                                          /repos becomes the folder it is on this computer
   link                                    put this foundry on the terminal's PATH (~/.local/bin/foundry)
   hook <name> [args]                      run one of Foundry's session hooks (what a coding agent's hook settings call)
   playwright <args>                       Playwright's own CLI inside foundry, e.g. playwright install chromium
