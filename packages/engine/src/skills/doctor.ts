@@ -8,6 +8,9 @@ import { packAllows } from './packs.ts';
 import type { SkillsPaths } from './paths.ts';
 import { agentCliInstall } from '../agent-cli.ts';
 import { installRoot } from '../install-root.ts';
+import { homedir } from 'node:os';
+import { toolRecipe, type ToolEnv, type ToolId } from '../tools/installers.ts';
+import { cliLinkState, pathHint } from '../cli-link.ts';
 import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, SkillsUpdateReport } from './types.ts';
 
 export interface DoctorContext {
@@ -78,8 +81,14 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
 
   }
 
+  // the tools beside the coding agents get an Install button where Foundry can run their installer (ADR-0102)
+  const tenv: ToolEnv = { which, platform: process.platform, arch: process.arch, home: homedir() };
+  const fixOf = (id: ToolId): DoctorCheck['fix'] => {
+    const r = toolRecipe(id, tenv);
+    return { command: r.manual, url: r.url, ...(r.command ? { installId: id, action: 'install-tool' as const } : {}) };
+  };
   const git = which('git');
-  checks.push(git ? ok('git', 'git', git) : err('git', 'git', 'git not found on PATH', { command: 'xcode-select --install', url: 'https://git-scm.com/downloads' }));
+  checks.push(git ? ok('git', 'git', git) : err('git', 'git', 'git not found on PATH', fixOf('git')));
   // a compiled foundry carries its runtime (ADR-0101): nothing to find on PATH
   const embedded = installRoot().kind !== 'checkout';
   const bun = embedded ? process.execPath : which('bun');
@@ -89,6 +98,17 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
   // and by then the numbers belong to the running browser (oven-sh/bun#33828, fixed in 1.4)
   const old = runtime !== null && typeof Bun !== 'undefined' && Bun.semver.satisfies(runtime, `<${BUN_MIN_VERSION}`);
   checks.push(embedded ? ok('bun', 'Bun runtime', `built into foundry (Bun ${runtime ?? '?'})`) : bun && old ? warn('bun', 'Bun runtime', `${bun} (${runtime}): Bun ${BUN_MIN_VERSION} or newer is needed for reliable previews; 1.3 can end a browser Foundry opened for a self-check or a milestone walkthrough (oven-sh/bun#33828)`, { command: 'bun upgrade', url: 'https://github.com/oven-sh/bun/issues/33828' }) : bun ? ok('bun', 'Bun runtime', `${bun} (${runtime ?? '?'})`) : err('bun', 'Bun runtime', 'bun not found on PATH', { command: 'curl -fsSL https://bun.sh/install | bash', url: 'https://bun.sh' }));
+
+  // uv installs graphify and markitdown, and makes the deck pack's Python environment
+  const uv = which('uv');
+  checks.push(uv ? fine('uv', 'uv', uv) : warn('uv', 'uv', 'not installed — graphify (required) and markitdown install with it', fixOf('uv')));
+  // foundry in a terminal, for a compiled install (a checkout runs bun run cli)
+  if (embedded) {
+    const link = cliLinkState({ target: process.execPath, home: homedir() });
+    const hint = pathHint();
+    if (link.state === 'linked' || link.state === 'installer') checks.push(link.onPath ? fine('foundry-cli', 'foundry in the terminal', link.detail) : warn('foundry-cli', 'foundry in the terminal (optional)', `${link.detail}, but ~/.local/bin is not on your shell's PATH`, { command: `echo '${hint.line}' >> ${hint.file}` }));
+    else checks.push(warn('foundry-cli', 'foundry in the terminal (optional)', `${link.detail} — link it to run foundry ask, foundry usage and the rest from a terminal`, link.state === 'other' ? { command: `mv ${link.path} ${link.path}.old` } : { installId: 'foundry-cli', action: 'install-tool' }));
+  }
 
   // required catalog entries (graphify CLI is one of them)
   for (const s of ctx.statuses.filter((x) => x.entry.tier === 'required')) {
@@ -110,11 +130,15 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
 
   // GitHub CLI (optional: only delivery modes pr / pr-automerge need it)
   const gh = which('gh');
-  if (!gh) checks.push(warn('gh-bin', 'GitHub CLI (optional)', 'gh not installed — needed only for PR / auto-merge delivery', { command: 'brew install gh', url: 'https://cli.github.com' }));
+  if (!gh) checks.push(warn('gh-bin', 'GitHub CLI (optional)', 'gh not installed — needed only for PR / auto-merge delivery', fixOf('gh')));
   else {
     const a = await run([gh, 'auth', 'status', '-h', 'github.com'], process.cwd(), { timeoutMs: 20_000 }).catch(() => ({ code: 1, stdout: '', stderr: '' }));
     checks.push(a.code === 0 ? ok('gh-auth', 'GitHub CLI (optional)', `${gh}; logged in`) : warn('gh-auth', 'GitHub CLI (optional)', 'gh installed but not logged in — needed only for PR / auto-merge delivery', { command: 'gh auth login --web' }));
   }
+
+  // Node.js: autoskills runs through npx, and previews of JavaScript projects need it
+  const node = which('node');
+  checks.push(node ? fine('node', 'Node.js (optional)', node) : warn('node', 'Node.js (optional)', 'not installed — autoskills runs through npx, and previews of JavaScript projects need it', fixOf('node')));
 
   for (const c of ctx.extra ?? []) checks.push(c);
 
@@ -167,3 +191,5 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
 const ok = (id: string, label: string, detail: string): DoctorCheck => ({ id, label, ok: true, severity: 'error', detail, fix: null });
 const err = (id: string, label: string, detail: string, fix: DoctorCheck['fix']): DoctorCheck => ({ id, label, ok: false, severity: 'error', detail, fix });
 const warn = (id: string, label: string, detail: string, fix: DoctorCheck['fix']): DoctorCheck => ({ id, label, ok: false, severity: 'warn', detail, fix });
+/** an optional row that is in place */
+const fine = (id: string, label: string, detail: string): DoctorCheck => ({ id, label, ok: true, severity: 'warn', detail, fix: null });
