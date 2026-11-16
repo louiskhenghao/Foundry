@@ -233,9 +233,11 @@ export class ClaudeCliRunner implements ClaudeRunner {
       const durationMs = Date.now() - started;
       if (lastResult) {
         const r = lastResult as RunResult;
-        return { ...r, costStatus: r.costStatus ?? 'reported', sessionId: r.sessionId ?? sessionId, durationMs, exitCode, pid: proc!.pid, rateLimit, subtype: killReason ?? r.subtype, skillsUsed: [...skillsUsed], toolsUsed: { ...toolsUsed } };
+        return { ...r, costStatus: r.costStatus ?? 'reported', sessionId: r.sessionId ?? sessionId, durationMs, exitCode, pid: proc!.pid, rateLimit, subtype: killReason ?? r.subtype, skillsUsed: [...skillsUsed], toolsUsed: { ...toolsUsed }, context: tally.context() };
       }
       const subtype = killReason ?? (exitCode === 0 ? 'no_result' : 'error_during_execution');
+      // what this run's turns read, from its stream alone: the session's own record holds a resumed session's earlier runs too
+      const context = tally.context();
       // No result line, so the CLI never said what the session cost. Count what the stream and the session's own
       // record say (turns, tokens, models) and leave the dollars unknown: never book a cut session as free.
       if (sessionId) tally.addAll(readSessionRecord(spec.configHome ?? this.home, sessionId));
@@ -248,6 +250,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
         numTurns: tally.turns(),
         usage: measured ? tally.totals() : null,
         modelUsage: measured ? tally.byModel() : null,
+        context,
       };
     })();
 
