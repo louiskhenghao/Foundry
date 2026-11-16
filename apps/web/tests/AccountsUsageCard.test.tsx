@@ -29,8 +29,21 @@ describe('usage per account (ADR-0065, ADR-0090)', () => {
     expect(html.match(/role="meter"/g)).toHaveLength(6);
     // three cards for the current account, inside the Card's own section
     expect(html.match(/<section/g)).toHaveLength(4);
-    expect(html).toMatch(/usage as of \d+s ago/);
+    expect(html).toMatch(/Usage as of \d+s ago/);
+    expect(html).not.toContain('the last reading that could be taken');
     expect(html).toContain('$4.20 · 3 sessions');
+  });
+
+  test('a reading kept through a failed read (ADR-0099) keeps its bars and says when it was taken, when it was tried again and why, in the colour of its age', () => {
+    const kept: ClaudeUsage = { ...usage, checkedAt: new Date(Date.now() - 47 * 60_000).toISOString(), stale: { triedAt: new Date(Date.now() - 60_000).toISOString(), message: 'Claude’s usage service asked to wait before it is read again.' } };
+    const html = render('claude', [account({ claudeUsage: kept, current: true })]);
+    expect(html.match(/role="meter"/g)).toHaveLength(3);
+    expect(html).toContain('Usage as of 47m ago');
+    expect(html).toContain('the last reading that could be taken; tried again 1m ago');
+    expect(html).toContain('asked to wait before it is read again');
+    // under an hour old: amber
+    expect(html).toContain('text-you-ink');
+    expect(html).not.toContain('Usage unavailable');
   });
 
   test('an account whose usage was not read, or could not be, says so instead of showing a bar', () => {
