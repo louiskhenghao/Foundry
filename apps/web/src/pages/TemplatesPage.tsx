@@ -147,9 +147,11 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
         }
       />
 
-      {/* the kinds as a row of tabs (scrolling sideways on a phone), the language of the templates at its right */}
-      <div className="flex items-center gap-3">
-        <div role="tablist" aria-label="Kind of goal" className="-mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto whitespace-nowrap px-1 py-1">
+      {/* the kinds as a row of tabs with the language of the templates at its right, where the row is wide enough for
+          every kind; narrower (a phone, a tablet) the row has the whole width, scrolls sideways from edge to edge, and the
+          language switch takes a line of its own under it, so neither squeezes the other */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+        <div role="tablist" aria-label="Kind of goal" className="-mx-3 flex min-w-0 flex-1 gap-1 overflow-x-auto whitespace-nowrap px-3 py-1 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6 lg:-mx-1 lg:px-1">
           {(['all', ...kinds] as (TemplateNature | 'all')[]).map((k) => (
             <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setKind(k)} className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-semibold transition-colors', kind === k ? 'bg-panel text-ink shadow-[0_0_0_1px_var(--color-line)]' : 'text-ink-soft hover:text-ink')}>
               {/* the kind's colour as a small square before its name, as the Settings sections wear theirs */}
@@ -158,7 +160,9 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
             </button>
           ))}
         </div>
-        <TemplateLangSwitch value={lang} onChange={onLang} />
+        <div className="self-end lg:self-auto">
+          <TemplateLangSwitch value={lang} onChange={onLang} />
+        </div>
       </div>
 
       {note && <div className="rounded-md border border-line bg-sunken px-3 py-2.5 text-xs text-ink-soft">{note}</div>}
