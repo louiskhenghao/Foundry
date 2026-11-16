@@ -3,7 +3,7 @@
  * data folder (a Setting marked restart) or on another one. Nothing exits, so under `bun --watch`, launchd or Docker the
  * process keeps its port. A switch whose folder cannot boot comes back on the folder before, with a notice for Settings.
  */
-import { Engine, defaultConfig, prepareDataDir, readHomeConfig, rememberRecent, writeHomeConfig, type DataDirNotice, type EngineConfig } from '@foundry/engine';
+import { Engine, claimDataDir, defaultConfig, prepareDataDir, readHomeConfig, releaseDataDir, rememberRecent, writeHomeConfig, type DataDirNotice, type EngineConfig } from '@foundry/engine';
 import { startServer, type ServeOptions } from './index.ts';
 
 type Server = ReturnType<typeof startServer>;
@@ -45,8 +45,12 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
       let engine: Engine | undefined;
       let server: Server | undefined;
       let cfg: EngineConfig | undefined;
+      let claimed: string | null = null;
       try {
         cfg = defaultConfig(opts.root, opts.config);
+        // one Foundry per data folder (ADR-0102): a folder another live process holds is refused before anything opens it
+        claimDataDir(cfg.dataDir, { port: cfg.port });
+        claimed = cfg.dataDir;
         engine = make(cfg);
         server = startServer(engine, { webDist: opts.webDist });
         engine.restart.attached = true;
@@ -65,6 +69,7 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
         try {
           await engine?.stop();
         } catch {}
+        if (claimed) releaseDataDir(claimed);
         if (pending && cfg?.foundryHome) {
           log(`[data-dir] ${pending.to} could not be opened (${message(err)}); back on ${pending.from}`);
           const home = readHomeConfig(cfg.foundryHome, log);
@@ -82,6 +87,7 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
       log(req.kind === 'exit' ? '[engine] stopping' : req.kind === 'restart' ? `[engine] restarting: ${req.why}` : `[engine] restarting on ${req.to} (${req.mode})`);
       await engine.stop();
       server.stop(true);
+      releaseDataDir(cfg.dataDir);
       current = null;
       if (req.kind === 'exit') return;
       if (req.kind === 'data-dir') {

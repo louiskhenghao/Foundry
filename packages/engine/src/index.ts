@@ -1,6 +1,13 @@
 export * from './config.ts';
 export * from './data-dir.ts';
 export * from './install-root.ts';
+export * from './app-shell.ts';
+export * from './data-lock.ts';
+export * from './tools/installers.ts';
+export * from './tools/setup.ts';
+export * from './cli-link.ts';
+export * from './migrate.ts';
+export { playwrightInstallCommand } from './checks/selfcheck.ts';
 export * from './playwright-load.ts';
 export * from './engine.ts';
 export * from './types.ts';
