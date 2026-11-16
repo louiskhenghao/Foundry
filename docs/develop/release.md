@@ -1,9 +1,11 @@
 # Releasing
 
-A **Release** is one stable semver shared by every package: the `version` in the root `package.json`. Deployed instances learn about it from two public places ([ADR-0010](adr/0010-self-update-via-docker-hub-and-watchtower.md)):
+A **Release** is one stable semver shared by every package: the `version` in the root `package.json`. Deployed instances learn about it from the public repo **`louiskhenghao/foundry-releases`** ([ADR-0010](adr/0010-self-update-via-docker-hub-and-watchtower.md), [ADR-0101](adr/0101-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)):
 
-- the Docker Hub image **`imlouiskhenghao/foundry`**, which is the version source
-- the changelog in the public repo **`louiskhenghao/foundry-releases`**, which instances read without authentication because the main repo is private
+- its **GitHub Releases**, the version source: one release per version, carrying the release files — `foundry-<version>-darwin-universal.tar.gz`, `foundry-<version>-linux-x64.tar.gz`, `foundry-<version>-linux-arm64.tar.gz` (each a compiled `foundry` with its `resources/` folder) and `SHA256SUMS`
+- its `CHANGELOG.md`, the notes, which instances read without authentication because the main repo may be private
+
+The Docker Hub image **`imlouiskhenghao/foundry`** is still built and pushed until it is retired; nothing reads its tags any more.
 
 One command does the whole thing. It lives in `scripts/release.ts`:
 
@@ -19,6 +21,7 @@ bun run release patch|minor|major|x.y.z [--notes "..."] [--dry-run]
 
 - **The local engine is idle.** No goal should be running on your own instance. The bump rewrites `package.json`, which restarts a `bun --watch` dev server, and a restart mid-goal interrupts sessions (see [testing.md](testing.md#manual-qa-against-a-throwaway-server)). Check the Agents page, or `bun run cli status`.
 - **Clean tree, on `main`, and `main` carries everything on `origin/main`.** The script fetches and refuses to run when `main` is behind: a release built on a stale `main` cannot push it at the end (step 4). Merge first with `git pull --no-rebase origin main`. It also refuses `patch|minor|major` while the last release's own commit is tagged but not on `origin/main` yet, because that release has not finished (see [when something fails](#when-something-fails)).
+- **A Mac with Xcode's command line tools** (`lipo`, `codesign`): the macOS executable is universal, joined from the two architectures and signed ad-hoc. `bun scripts/build-release.ts --targets linux-x64` builds a Linux file alone anywhere.
 - **Docker Desktop is running and signed in to Docker Hub** with push rights to `imlouiskhenghao/foundry`. `docker buildx` must be available (the script checks). To confirm the credential is there:
 
   ```sh
@@ -26,7 +29,7 @@ bun run release patch|minor|major|x.y.z [--notes "..."] [--dry-run]
   ```
 
   This should print JSON with your `Username`. An error means you are not signed in: sign in through Docker Desktop and check again.
-- **`gh` is authenticated** (`gh auth status`) as an account that can create, clone and push `louiskhenghao/foundry-releases`.
+- **`gh` is authenticated** (`gh auth status`) as an account that can create, clone and push `louiskhenghao/foundry-releases`, and create releases on it.
 - `git push` to `origin` works.
 - **The guide's screenshots are current.** If a screen the user guide shows changed since the last release, run `bun scripts/screenshots.ts` and commit the new images first (see [testing.md](testing.md#the-seeded-demo-and-the-guides-screenshots)).
 - **The open-source credits are current.** After a dependency, Dockerfile or Extensions catalog change, run `bun install --frozen-lockfile` and then `bun scripts/gen-credits.ts`, and commit `THIRD-PARTY-NOTICES.txt` and `apps/web/src/pages/credits/credits.json`. A tool the Dockerfile newly installs is credited by hand in `scripts/credits/tools.ts`, with its license text in `scripts/credits/licenses/`. A new catalog project is credited, or excluded with the reason, in `scripts/credits/catalog.ts`. `apps/web/tests/credits.test.ts` fails until all of this is done.
@@ -54,26 +57,32 @@ sequenceDiagram
   participant S as scripts/release.ts
   participant G as local git (main)
   participant R as data/releases-repo<br/>(louiskhenghao/foundry-releases)
+  participant H as GitHub Releases<br/>(foundry-releases)
   participant D as Docker Hub<br/>(imlouiskhenghao/foundry)
   participant O as origin (main repo)
   S->>S: preconditions: clean tree, on main, not behind origin/main, docker buildx
   S->>G: bump package.json, commit "release: vX.Y.Z", tag vX.Y.Z
   S->>R: gh repo clone (created public on first release) or pull --ff-only
   S->>R: add the X.Y.Z section to CHANGELOG.md, commit, push
+  S->>S: bun scripts/build-release.ts → dist/release/X.Y.Z/*.tar.gz + SHA256SUMS
+  S->>H: gh release create vX.Y.Z --draft with the files (or upload --clobber when it exists)
   S->>D: docker buildx build --platform linux/amd64,linux/arm64 -t :X.Y.Z -t :latest --push .
+  S->>H: gh release edit vX.Y.Z --draft=false  (the release becomes real)
   S->>O: git push origin main --tags  (last)
 ```
 
 1. **Bump and tag.** Write the new version to `package.json`, commit `release: vX.Y.Z`, and tag `vX.Y.Z`. All of this is local.
-2. **Changelog.** Make sure `data/releases-repo` is a clone of `louiskhenghao/foundry-releases`. On the very first release, the repo is created public with `gh repo create`. Add the new section to the top of `CHANGELOG.md` with exactly one blank line around it, then commit and push. The notes go out before the image, so they are readable when the version appears. If the section already exists it is left alone.
-3. **Image.** Run `docker buildx build --platform linux/amd64,linux/arm64 -t imlouiskhenghao/foundry:X.Y.Z -t imlouiskhenghao/foundry:latest --push .`. **This is the moment the release becomes real**: instances find it on their next Update Check.
-4. **Main repo last.** Run `git push origin main --tags`. It goes last so that a failed image push never leaves a pushed tag without an image.
+2. **Changelog.** Make sure `data/releases-repo` is a clone of `louiskhenghao/foundry-releases`. On the very first release, the repo is created public with `gh repo create`. Add the new section to the top of `CHANGELOG.md` with exactly one blank line around it, then commit and push. The notes go out first, so they are readable when the version appears. If the section already exists it is left alone.
+3. **Release files.** `bun scripts/build-release.ts` builds the UI, stages the resources once (the checkout's layout plus Playwright installed flat), compiles the executables (the macOS one universal and ad-hoc signed), packs one tarball per target into `dist/release/X.Y.Z/`, writes `SHA256SUMS` and runs the host's own executable (`foundry version --json`) as a check. The files go up as a **draft** GitHub Release `vX.Y.Z` on `foundry-releases`, which no instance can see yet; a release that already exists gets the files uploaded again with `--clobber`.
+4. **Image.** Run `docker buildx build --platform linux/amd64,linux/arm64 -t imlouiskhenghao/foundry:X.Y.Z -t imlouiskhenghao/foundry:latest --push .`, so that a container updating to the version finds its image.
+5. **Publish.** `gh release edit vX.Y.Z --draft=false`. **This is the moment the release becomes real**: instances find it on their next Update Check.
+6. **Main repo last.** Run `git push origin main --tags`. It goes last so that a failed build or push never leaves a pushed tag without a release.
 
 ## When something fails
 
 The script stops at the first failing command and prints it.
 
-**The image push failed** (Docker not signed in, network, a builder problem). The version commit and tag exist locally, the changelog is published, and nothing has been pushed to `origin`. Fix the cause and run the release again with the **version you are already at**:
+**The build, the draft release or the image push failed** (a missing resources folder, `gh` without the scope, Docker not signed in, network, a builder problem). The version commit and tag exist locally, the changelog is published, the GitHub Release is a draft at most, and nothing has been pushed to `origin`. Fix the cause and run the release again with the **version you are already at**; the draft gets the files again and is published at the end:
 
 ```sh
 bun run release 0.4.1        # package.json already says 0.4.1 and tag v0.4.1 exists
