@@ -965,6 +965,50 @@ describe('MCP servers a catalog plugin ships', () => {
   });
 });
 
+describe('lean sessions (ADR-0102)', () => {
+  /** a Claude home with two user-scope servers, a claude.ai connector, a skill of the person's own and one named like a catalog entry */
+  function leanHome(): string {
+    const home = join(dataDir, 'lean-home');
+    mkdirSync(join(home, 'skills', 'mine'), { recursive: true });
+    writeFileSync(join(home, 'skills', 'mine', 'SKILL.md'), '---\nname: my-own\ndescription: d\n---\n');
+    mkdirSync(join(home, 'skills', 'tdd'), { recursive: true });
+    writeFileSync(join(home, 'skills', 'tdd', 'SKILL.md'), '---\nname: tdd\ndescription: d\n---\n');
+    writeFileSync(join(home, '.claude.json'), JSON.stringify({ mcpServers: { allowed: { command: '/bin/a' }, other: { command: '/bin/b' } }, claudeAiMcpEverConnected: ['claude.ai Gmail'] }));
+    return home;
+  }
+
+  test('a Claude session gets only the servers it may use, no connector and none of the person\'s own skills; its hooks stay', async () => {
+    const runner = new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok'));
+    const engine = track(new Engine(cfg({ claudeHome: leanHome(), leanSessions: true, mcpAllowed: ['mcp__allowed'] }), runner));
+    const goal = await engine.createGoal({ prompt: 'lean', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    const work = runner.calls.find((c) => c.label?.startsWith('attempt'))!;
+    expect(work.strictMcp).toBe(true);
+    expect(work.mcpConfig).toEqual({ mcpServers: { allowed: { command: '/bin/a' } } });
+    expect(work.settings).toMatchObject({ disableClaudeAiConnectors: true, skillOverrides: { 'my-own': 'off', mine: 'off' } });
+    expect(JSON.stringify((work.settings as { skillOverrides: object }).skillOverrides)).not.toContain('tdd');
+    expect((work.settings as { hooks?: unknown }).hooks).toBeDefined();
+    // a session whose servers cannot all be handed over keeps Claude Code's own, and an allowed connector keeps them
+    const spec = engine.leanSpec({ prompt: 'x', cwd: repo, meta: { goalId: goal.id }, allowedTools: ['Read', 'mcp__claude_ai_Gmail'] });
+    expect(spec.strictMcp).toBeUndefined();
+    expect(spec.settings).not.toHaveProperty('disableClaudeAiConnectors');
+    // a session strict already (Clarify) keeps its own MCP choice
+    expect(engine.leanSpec({ prompt: 'x', cwd: repo, strictMcp: true }).mcpConfig).toBeUndefined();
+  });
+
+  test('off, a session is started as it was', async () => {
+    const runner = new FakeRunner((spec) => writeFileSync(join(spec.cwd, 'done.txt'), 'ok'));
+    const engine = track(new Engine(cfg({ claudeHome: leanHome(), mcpAllowed: ['mcp__allowed'] }), runner));
+    const goal = await engine.createGoal({ prompt: 'plain', repoPath: repo, budgets: { attemptsPerTask: 1 }, autoBrief: { mustChecks: ['test -f done.txt'] } });
+    await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 20_000);
+    const work = runner.calls.find((c) => c.label?.startsWith('attempt'))!;
+    expect(work.strictMcp).toBeUndefined();
+    expect(work.mcpConfig).toBeUndefined();
+    expect(work.settings).not.toHaveProperty('disableClaudeAiConnectors');
+    expect(work.settings).not.toHaveProperty('skillOverrides');
+  });
+});
+
 describe('the audit at the end', () => {
   const { writeFileSync: write, mkdirSync: mkdir } = require('node:fs') as typeof import('node:fs');
   const findings = {

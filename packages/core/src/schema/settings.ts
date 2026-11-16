@@ -119,6 +119,8 @@ export const WorkflowSettings = z.object({
   codexMcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default([]),
   /** let sessions use the tools of allowed catalog servers that run or change things (REA: launching the target, debuggers, connected devices); off = static analysis only */
   mcpDynamicTools: z.boolean().default(false),
+  /** Claude Code sessions load only what Foundry gives them (ADR-0102): the allowed MCP servers, no claude.ai connector unless one is allowed, none of the person's own skills Foundry did not install */
+  leanSessions: z.boolean().default(false),
   /** cost cap of the session that investigates a goal's reference with REA before Clarify */
   investigationMaxCostUsd: z.number().min(0.5).max(50).default(3),
   /** time cap of that session, in minutes */
