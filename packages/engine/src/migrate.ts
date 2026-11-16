@@ -63,10 +63,34 @@ export interface MigrateItem {
   why: string;
 }
 
-export function planMigration(opts: { checkout: string; config: HomeConfig; targetFor: (p: AgentProvider) => string; isFoundry?: (p: string) => boolean }): MigrateItem[] {
+/** the provider a data folder was made for: its `provider` file, as data-dir.ts writes it */
+export function folderProvider(dir: string): AgentProvider | null {
+  try {
+    const p = readFileSync(join(dir, 'provider'), 'utf8').trim();
+    return p === 'claude' || p === 'codex' || p === 'agy' ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+export function planMigration(opts: {
+  checkout: string;
+  config: HomeConfig;
+  targetFor: (p: AgentProvider) => string;
+  isFoundry?: (p: string) => boolean;
+  /** the folder the engine that asked for the switch runs on (FOUNDRY_DATA_DIR, say), copied in place of its default (ADR-0103) */
+  current?: { provider: AgentProvider; dataDir: string };
+}): MigrateItem[] {
   const isFoundry = opts.isFoundry ?? isFoundryFolder;
   return PROVIDERS.map((provider): MigrateItem => {
     const chosen = opts.config.dataDirs[provider];
+    if (opts.current?.provider === provider && resolve(opts.current.dataDir) !== resolve(chosen ?? '')) {
+      const from = resolve(opts.current.dataDir);
+      if (!isFoundry(from)) return { provider, from, to: '', action: 'none', why: 'no data folder here' };
+      const to = opts.targetFor(provider);
+      if (isFoundry(to)) return { provider, from, to, action: 'done', why: `${to} already holds a data folder; left as it is` };
+      return { provider, from, to, action: 'copy', why: '' };
+    }
     if (chosen) {
       const inside = within(chosen, opts.checkout);
       return { provider, from: chosen, to: chosen, action: 'keep', why: inside ? `chosen in Settings and inside the checkout: keep ${opts.checkout} until you move it (Settings → Engine (install) → Data folder)` : 'chosen in Settings: the new install opens it where it is' };
@@ -90,11 +114,20 @@ const defaultRun: Run = async (argv) => {
   }
 };
 
+export interface StoppedService {
+  kind: 'launchd' | 'systemd' | 'process' | 'none';
+  /** start it again: the copy failed and the old Foundry comes back as it was */
+  restore(): Promise<void>;
+  /** the copy is made: the service never starts again (the new install's own replaces it) */
+  forget(): Promise<void>;
+}
+
 /**
  * Stop the checkout's service as the installer set it up: the launchd agent or the systemd unit, only when it runs this
  * checkout's entry point (a compiled install's own service has the same name), or the background process it recorded.
+ * Its file stays until `forget`, so `restore` can start it again.
  */
-export async function stopSourceService(opts: { checkout: string; home: string; env?: NodeJS.ProcessEnv; run?: Run; log: (m: string) => void; platform?: NodeJS.Platform; uid?: number }): Promise<'launchd' | 'systemd' | 'process' | 'none'> {
+export async function stopSourceService(opts: { checkout: string; home: string; env?: NodeJS.ProcessEnv; run?: Run; log: (m: string) => void; platform?: NodeJS.Platform; uid?: number }): Promise<StoppedService> {
   const run = opts.run ?? defaultRun;
   const env = opts.env ?? process.env;
   const ours = (file: string) => {
@@ -105,20 +138,31 @@ export async function stopSourceService(opts: { checkout: string; home: string; 
       return false;
     }
   };
+  const none: StoppedService = { kind: 'none', restore: async () => {}, forget: async () => {} };
+  const domain = `gui/${opts.uid ?? process.getuid?.() ?? 501}`;
   const plist = join(opts.home, 'Library', 'LaunchAgents', `${SOURCE_SERVICE_LABEL}.plist`);
   if ((opts.platform ?? process.platform) === 'darwin' && ours(plist)) {
     opts.log(`stopping the checkout's launchd agent (${SOURCE_SERVICE_LABEL})`);
-    await run(['launchctl', 'bootout', `gui/${opts.uid ?? process.getuid?.() ?? 501}/${SOURCE_SERVICE_LABEL}`]);
-    rmSync(plist, { force: true });
-    return 'launchd';
+    await run(['launchctl', 'bootout', `${domain}/${SOURCE_SERVICE_LABEL}`]);
+    return {
+      kind: 'launchd',
+      restore: async () => void (await run(['launchctl', 'bootstrap', domain, plist])),
+      forget: async () => rmSync(plist, { force: true }),
+    };
   }
   const unit = join(env.XDG_CONFIG_HOME || join(opts.home, '.config'), 'systemd', 'user', 'foundry.service');
   if (ours(unit)) {
     opts.log("stopping the checkout's systemd unit (foundry.service)");
-    await run(['systemctl', '--user', 'disable', '--now', 'foundry.service']);
-    rmSync(unit, { force: true });
-    await run(['systemctl', '--user', 'daemon-reload']);
-    return 'systemd';
+    await run(['systemctl', '--user', 'stop', 'foundry.service']);
+    return {
+      kind: 'systemd',
+      restore: async () => void (await run(['systemctl', '--user', 'start', 'foundry.service'])),
+      forget: async () => {
+        await run(['systemctl', '--user', 'disable', 'foundry.service']);
+        rmSync(unit, { force: true });
+        await run(['systemctl', '--user', 'daemon-reload']);
+      },
+    };
   }
   const pidFile = join(env.XDG_DATA_HOME || join(opts.home, '.local', 'share'), 'foundry', 'foundry.pid');
   if (existsSync(pidFile)) {
@@ -130,10 +174,39 @@ export async function stopSourceService(opts: { checkout: string; home: string; 
         process.kill(pid, 'SIGTERM');
       } catch {}
       rmSync(pidFile, { force: true });
-      return 'process';
+      // a background process was started by hand or by the installer's foundry start: it is started the same way again
+      return { kind: 'process', restore: async () => opts.log(`start the checkout again with: foundry start`), forget: async () => {} };
     }
   }
-  return 'none';
+  return none;
+}
+
+/** stop one process and wait for it: SIGTERM (Foundry shuts down cleanly), SIGKILL after the wait */
+export async function stopProcess(pid: number, opts: { timeoutMs?: number; sleep?: (ms: number) => Promise<void>; alive?: (pid: number) => boolean } = {}): Promise<'gone' | 'stopped' | 'killed'> {
+  const alive = opts.alive ?? ((p: number) => {
+    try {
+      process.kill(p, 0);
+      return true;
+    } catch (err) {
+      return (err as NodeJS.ErrnoException).code === 'EPERM';
+    }
+  });
+  const sleep = opts.sleep ?? ((ms: number) => Bun.sleep(ms));
+  if (!alive(pid)) return 'gone';
+  try {
+    process.kill(pid, 'SIGTERM');
+  } catch {}
+  const t0 = Date.now();
+  while (alive(pid)) {
+    if (Date.now() - t0 > (opts.timeoutMs ?? 60_000)) {
+      try {
+        process.kill(pid, 'SIGKILL');
+      } catch {}
+      return 'killed';
+    }
+    await sleep(250);
+  }
+  return 'stopped';
 }
 
 /** wait until no process has these files open; the holder's pid and command when one still does after the wait */

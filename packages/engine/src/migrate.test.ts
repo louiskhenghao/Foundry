@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { HomeConfig } from './data-dir.ts';
-import { SOURCE_SERVICE_LABEL, parseInstallEnv, planMigration, runMigration, stopSourceService, waitUntilClosed } from './migrate.ts';
+import { SOURCE_SERVICE_LABEL, folderProvider, parseInstallEnv, planMigration, runMigration, stopProcess, stopSourceService, waitUntilClosed } from './migrate.ts';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'foundry-migrate-'));
 
@@ -67,22 +67,58 @@ describe('moving a source install to the app or the binary (ADR-0102)', () => {
       const run = async (argv: string[]) => (ran.push(argv), { code: 0, stdout: '' });
       // a compiled install's agent of the same name is not the checkout's
       writeFileSync(plist, `<plist><string>${home}/.local/share/foundry/releases/current/foundry</string><string>serve</string></plist>`);
-      expect(await stopSourceService({ checkout, home, env: {}, run, log: () => {}, platform: 'darwin', uid: 501 })).toBe('none');
+      expect((await stopSourceService({ checkout, home, env: {}, run, log: () => {}, platform: 'darwin', uid: 501 })).kind).toBe('none');
       expect(existsSync(plist)).toBe(true);
       writeFileSync(plist, `<plist><string>/opt/bun</string><string>apps/cli/src/main.ts</string><string>serve</string><key>WorkingDirectory</key><string>${checkout}</string></plist>`);
-      expect(await stopSourceService({ checkout, home, env: {}, run, log: () => {}, platform: 'darwin', uid: 501 })).toBe('launchd');
+      const stopped = await stopSourceService({ checkout, home, env: {}, run, log: () => {}, platform: 'darwin', uid: 501 });
+      expect(stopped.kind).toBe('launchd');
       expect(ran).toEqual([['launchctl', 'bootout', `gui/501/${SOURCE_SERVICE_LABEL}`]]);
+      // the agent's file stays until the copy is made: a failed copy starts the old Foundry again
+      expect(existsSync(plist)).toBe(true);
+      await stopped.restore();
+      expect(ran[1]).toEqual(['launchctl', 'bootstrap', 'gui/501', plist]);
+      await stopped.forget();
       expect(existsSync(plist)).toBe(false);
       // systemd on Linux
       const unitDir = join(home, '.config', 'systemd', 'user');
       mkdirSync(unitDir, { recursive: true });
       writeFileSync(join(unitDir, 'foundry.service'), `[Service]\nWorkingDirectory=${checkout}\nExecStart=/usr/bin/bun apps/cli/src/main.ts serve\n`);
       ran.length = 0;
-      expect(await stopSourceService({ checkout, home, env: {}, run, log: () => {}, platform: 'linux' })).toBe('systemd');
-      expect(ran[0]).toEqual(['systemctl', '--user', 'disable', '--now', 'foundry.service']);
+      const unit = await stopSourceService({ checkout, home, env: {}, run, log: () => {}, platform: 'linux' });
+      expect(unit.kind).toBe('systemd');
+      expect(ran[0]).toEqual(['systemctl', '--user', 'stop', 'foundry.service']);
+      await unit.forget();
+      expect(ran.slice(1)).toEqual([['systemctl', '--user', 'disable', 'foundry.service'], ['systemctl', '--user', 'daemon-reload']]);
+      expect(existsSync(join(unitDir, 'foundry.service'))).toBe(false);
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
+  });
+
+  test('the folder the switching engine runs on is the one copied, unless Settings chose it', () => {
+    const has = new Set(['/elsewhere/data', '/Users/me/foundry/data']);
+    const base = { checkout: '/Users/me/foundry', targetFor: () => '/AS/Foundry/data', isFoundry: (p: string) => has.has(p) };
+    // FOUNDRY_DATA_DIR pointed elsewhere: that folder, not the checkout's own, is copied
+    const env = planMigration({ ...base, config: HomeConfig.parse({}), current: { provider: 'claude', dataDir: '/elsewhere/data' } });
+    expect(env[0]).toMatchObject({ provider: 'claude', from: '/elsewhere/data', to: '/AS/Foundry/data', action: 'copy' });
+    // the folder Settings chose: opened where it is
+    const chosen = planMigration({ ...base, config: HomeConfig.parse({ dataDirs: { claude: '/elsewhere/data' } }), current: { provider: 'claude', dataDir: '/elsewhere/data' } });
+    expect(chosen[0]!.action).toBe('keep');
+  });
+
+  test('a folder knows its provider; a process is stopped and waited for', async () => {
+    const dir = tmp();
+    try {
+      writeFileSync(join(dir, 'provider'), 'codex\n');
+      expect(folderProvider(dir)).toBe('codex');
+      expect(folderProvider(join(dir, 'none'))).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+    let calls = 0;
+    expect(await stopProcess(4242, { alive: () => false })).toBe('gone');
+    // a pid no process has: the signal is real, so never this test's own
+    expect(await stopProcess(2 ** 22 + 777, { alive: () => ++calls < 3, sleep: async () => {} })).toBe('stopped');
   });
 
   test('waiting for the database to be let go, and naming who holds it after the wait', async () => {
