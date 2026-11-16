@@ -186,12 +186,13 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 | **Attempt timeout (minutes)** | 45 | 运行超过这个时间的会话会被停止。它已提交的内容会保留；Foundry 会续接或重试。worker 会被告知这个上限。没有工具调用在进行、却 5 分钟没有输出的会话会更早被停止。 |
 | **Continuations per attempt** | 2 | 被停止的会话在开始新尝试之前最多续接几次（续接更便宜，会保留它读过的内容）。 |
 | **Turn cap per session** | 150 | Claude 的模型轮数；Codex 的工具调用次数；Antigravity 每轮允许三次工具调用，因为它每读一个文件就调用一次工具。设宽松一点。 |
-| **Concurrent agent sessions** | 3 | 两种编码智能体的所有 goal 加起来同时运行的会话总数。 |
+| **Concurrency** | Fixed | **Fixed** 最多同时跑 **Concurrent agent sessions** 个会话。**Auto** 根据这台电脑自己算，并且每 30 秒重算一次：核心数的一半，内存超过 4 GB 的部分每 2 GB 一个会话，最多 16 个；电脑忙到超出核心数能承受时减半。在 **Auto** 下，某个编码智能体的账号 5 小时窗口用到 90% 时，它一次只跑一个任务，直到窗口重置，这样上限只会切断一个会话而不是好几个；如果打开了 **Switch accounts when a usage limit stops a session** 且还有空闲账号，就照常运行。设置下面那行会说现在同时跑几个、为什么。 |
+| **Concurrent agent sessions** | 3 | **Concurrency** 为 **Fixed** 时，两种编码智能体的所有 goal 加起来同时运行的会话总数。每个 goal 还有自己的 **Parallel sessions**。 |
 | **Reference investigation: cost cap** | $3 | Clarify 之前用 REA 调查 goal 参考对象的会话到这个花费就停下，把已有的发现写成报告。 |
 | **Reference investigation: minutes** | 20 | 它的时间上限。 |
 | **Account switch on a usage limit** | 关 | 用量上限是否把新会话转到这个编码智能体的下一个账号。这里只显示，在 Accounts 页面打开：见 [多个账号](./costs-and-usage.zh.md#多个账号)。 |
 
-什么时候改：如果大任务总是被中途截断，调高超时或 Claude 费用上限；如果你经常碰到套餐的用量上限，调低 **Concurrent agent sessions**。
+什么时候改：如果大任务总是被中途截断，调高超时或 Claude 费用上限；如果你经常碰到套餐的用量上限，调低 **Concurrent agent sessions**，或者把 **Concurrency** 设成 **Auto**，让电脑和 5 小时窗口来决定。
 
 ## Skills
 
