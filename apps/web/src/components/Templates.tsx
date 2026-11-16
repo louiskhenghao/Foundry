@@ -113,17 +113,10 @@ export function TemplateGallery({ open, templates, lang, onLang, onClose, onChoo
  * A template read in a dialog (ADR-0079): its words with the blanks named, or filled in with each input's example, and
  * above them what can be done with it — a new goal from it, its editor (one of the person's own), a copy of a built-in one.
  */
-export function TemplatePreview({ entry, lang, onLang, onClose, onCopy, copying }: { entry: TemplateEntry | null; lang: TemplateLang; onLang: (l: TemplateLang) => void; onClose: () => void; onCopy: (t: TemplateEntry) => void; copying?: boolean }) {
-  const [filled, setFilled] = useState(false);
-  useEffect(() => {
-    if (entry) setFilled(false);
-  }, [entry?.id]);
-  if (!entry) return null;
-  const v = shownVersion(entry, lang);
-  const { Icon, ink } = NATURE_ICON[entry.nature];
-  const text = filled ? renderTemplate(v, sampleValues(v)).prompt : bodyWithBlanks(v);
+/** what a template brings to a goal besides its words, in short: the engine or style, the view, the pace, TDD, the budget, the interview depth, a skipped Clarify */
+export function templateBrings(entry: TemplateEntry): string[] {
   const s = entry.settings;
-  const brings = [
+  return [
     s.videoPack && `engine ${s.videoPack}`,
     s.figurePack && s.figurePack !== 'none' && `style ${s.figurePack}`,
     s.mode && `${s.mode === 'simple' ? 'Simple' : 'Expert'} view`,
@@ -133,6 +126,23 @@ export function TemplatePreview({ entry, lang, onLang, onClose, onCopy, copying 
     s.interviewDepth !== undefined && `interview depth ${s.interviewDepth}`,
     s.autoBrief && 'skips Clarify',
   ].filter((x): x is string => !!x);
+}
+
+/**
+ * A template read in a dialog (View): its words with the blanks named or filled in with examples, and what can be done
+ * with it. `onUse` given, Use hands the template back (the Templates page asks before it opens the New goal form); left
+ * out, Use is the link to the form.
+ */
+export function TemplatePreview({ entry, lang, onLang, onClose, onCopy, copying, onUse }: { entry: TemplateEntry | null; lang: TemplateLang; onLang: (l: TemplateLang) => void; onClose: () => void; onCopy: (t: TemplateEntry) => void; copying?: boolean; onUse?: (t: TemplateEntry) => void }) {
+  const [filled, setFilled] = useState(false);
+  useEffect(() => {
+    if (entry) setFilled(false);
+  }, [entry?.id]);
+  if (!entry) return null;
+  const v = shownVersion(entry, lang);
+  const { Icon, ink } = NATURE_ICON[entry.nature];
+  const text = filled ? renderTemplate(v, sampleValues(v)).prompt : bodyWithBlanks(v);
+  const brings = templateBrings(entry);
   return (
     <Modal
       open
@@ -147,9 +157,15 @@ export function TemplatePreview({ entry, lang, onLang, onClose, onCopy, copying 
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Link to={`/goals/new?template=${encodeURIComponent(entry.id)}`} className={buttonClass('primary', 'sm')} title="A new goal from this template">
-            Use on a new goal
-          </Link>
+          {onUse ? (
+            <Button size="sm" variant="primary" onClick={() => onUse(entry)} title="A new goal from this template">
+              Use on a new goal
+            </Button>
+          ) : (
+            <Link to={`/goals/new?template=${encodeURIComponent(entry.id)}`} className={buttonClass('primary', 'sm')} title="A new goal from this template">
+              Use on a new goal
+            </Link>
+          )}
           {!entry.builtIn && (
             <Link to={`/templates/${encodeURIComponent(entry.id)}${v.lang === 'zh' ? '?lang=zh' : ''}`} className={buttonClass('default', 'sm')}>
               <Pencil size={13} /> Edit
