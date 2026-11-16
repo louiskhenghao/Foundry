@@ -26,6 +26,19 @@ This page walks through the **New goal** form from top to bottom. Most fields ca
 
 ## Before you start
 
+### Foundry in the menu bar
+
+With the Foundry app on a Mac, Foundry lives in the menu bar: the **F** at the top right of the screen. The page itself opens in your browser, as before. The menu says whether Foundry is running and which version, and holds:
+
+- **Open Foundry**: the page in your browser.
+- **N things wait for you** and **N Briefs to approve**, when there are any: the Inbox, or the goals waiting for your approval. The count beside the **F** adds them up.
+- **Update to …**, when a newer version is out: the page opens on the update, which shows what changed. The app downloads it, checks it, and starts again on it.
+- **Start at Login**: ticked the first time you open the app, so Foundry is there after a restart. Untick it to start Foundry yourself.
+- **Show Log**: what Foundry printed, for when something does not start.
+- **Quit Foundry**: stops Foundry. Running goals pause and carry on the next time it starts.
+
+Open the app again from the Applications folder or Spotlight while it runs, and the page opens.
+
 ### Check the Setup page
 
 Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on ⚙ means something is still missing). Select **Claude Code** or **Codex** on Setup. The checks, sign-in, fixes and recommended skill installation all target that coding agent; **Create your first goal** preserves the selection. Foundry shows a green or red line for each:
@@ -34,10 +47,15 @@ Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on
 |---|---|---|
 | **Claude Code CLI** / **Codex CLI** | The selected coding agent’s program. | Press **Install**: Claude Code's own installer, or Codex through Homebrew, npm or its release download; no npm needed. Or copy the command shown. |
 | **Claude login** / **Codex login** | The selected coding agent’s account. | Press **Sign in**. |
-| **git** | Keeps every version of your files. | Copy the command shown. |
-| **Bun runtime** | What Foundry itself runs on. | Copy the command shown. |
+| **git** | Keeps every version of your files. | On a Mac, press **Install**: Apple's command line tools open their own installer; finish it and press **Re-run**. On Linux, copy the command shown. |
+| **Bun runtime** | What Foundry itself runs on. | Built into the app and the release download. From source, copy the command shown. |
+| **uv** | Installs graphify and markitdown. | Press **Install**. |
 | **Required: …** | Skills Foundry's sessions need. | Press **Install**. |
-| **GitHub CLI (optional)** | Only needed if Foundry should open pull requests for you. | Can stay yellow. When it says *not logged in*, **Sign in** opens a window with a one-time code: copy it, open GitHub's page, paste it and approve. |
+| **GitHub CLI (optional)** | Only needed if Foundry should open pull requests for you. | Can stay yellow. When it is not installed, **Install** adds it. When it says *not logged in*, **Sign in** opens a window with a one-time code: copy it, open GitHub's page, paste it and approve. |
+| **Node.js (optional)** | Some skills install through it, and previews of JavaScript projects need it. | Press **Install**. |
+| **foundry in the terminal (optional)** | With the app or the release download only: the `foundry` command for a terminal (`foundry ask`, `foundry usage`…). | Press **Install**. When it says your shell does not find `~/.local/bin`, add the line it shows to your shell's settings. |
+
+The **Install** buttons use Homebrew on a Mac when you have it, and otherwise put the tool in `~/.local`, so none of them asks for your password.
 
 When everything needed is in place the page says **Everything is in place** and offers **Create your first goal →**. **Re-run** checks again. If something is missing later, a red **Setup incomplete** banner appears with **Fix in Setup →**. It covers the default coding agent and any other agent an unfinished goal runs on, naming the agent when there are two. For Codex, Setup also checks that the CLI supports hooks, which Foundry's sessions need.
 

@@ -130,12 +130,20 @@ curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.
 # 跳过编码智能体的提问：  … | bash -s -- --agent codex   （或 agy 即 Antigravity、claude,agy、all）
 ```
 
-它会先问你怎么运行 Foundry，以及要用哪些编码智能体：Claude Code、Codex 或 Antigravity（Antigravity 只能从源码运行）。
+它会先问你怎么运行 Foundry，以及要用哪些编码智能体：Claude Code、Codex 或 Antigravity（Docker 里没有 Antigravity）。
+**The app**（macOS）把 `Foundry.app` 放进 Applications：Foundry 在菜单栏里运行，登录电脑时自动启动。**The binary**（Linux）
+把最新发布的编译版 `foundry` 作为后台服务运行。两者都是发布本身，按发布的 `SHA256SUMS` 校验过，再由 `foundry setup`
+装好缺少的东西（git、uv、graphify、各编码智能体的 CLI、GitHub CLI、Node.js 和你勾选的可选工具）。下面两种方式仍然可用：
 **From source** 在你的电脑上运行：装好缺少的东西（git、Bun、uv、graphify、各编码智能体的 CLI、GitHub CLI、Node.js，
 以及你勾选的可选工具），已装的编码智能体 CLI 有新版本时会帮你更新，构建 Foundry，并把它装成后台服务，登录电脑时自动启动。**Docker**
 在容器里运行：需要时帮你装 Docker，共用你的项目文件夹（你同意的话，也共用电脑上的 Docker 来跑预览要用的数据库），然后启动。
 两种方式都会问你要不要登录，打开 <http://127.0.0.1:4111>，并留下一个 `foundry` 命令：
-`foundry status | logs | stop | start | update | uninstall`。再跑一次这行命令，或者 `foundry update`，就能更新。
+`foundry status | logs | stop | start | update | uninstall`；用 app 或 binary 时，Foundry 自己的命令也走它（`foundry ask`、
+`foundry usage`……）。再跑一次这行命令，或者 `foundry update`，就能更新。
+
+**下载 app**（macOS）：从 [releases](https://github.com/louiskhenghao/foundry-releases/releases) 下载
+`Foundry-<version>-mac-universal.dmg`，把 Foundry 拖进 Applications。它没有经过 Apple 公证，所以第一次打开时要去
+**System Settings → Privacy & Security → Open Anyway**（[步骤](docs/operate/install.md#the-app-macos)，英文）。它的 Setup 页会装好需要的工具。
 
 **手动从源码安装** —— 也就是一行安装做的事：需要 [Bun](https://bun.sh)、已登录的 [Claude Code](https://code.claude.com/docs/en/setup)
 （`claude` 在 PATH 上）和 [graphify](https://github.com/safishamsi/graphify)。使用 ChatGPT 登录请看 [Codex 安装说明](docs/operate/codex.md)：

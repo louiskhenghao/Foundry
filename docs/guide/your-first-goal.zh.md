@@ -28,6 +28,19 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 
 ## 开始之前
 
+### 菜单栏里的 Foundry
+
+在 Mac 上用 Foundry app 时，Foundry 住在菜单栏里：屏幕右上角的 **F**。页面本身和以前一样在浏览器里打开。菜单写着 Foundry 是否在运行、是哪个版本，还有：
+
+- **Open Foundry**：在浏览器里打开页面。
+- **N things wait for you** 和 **N Briefs to approve**（有的时候才显示）：打开 Inbox，或者等你批准的 goal。**F** 旁边的数字是它们的总和。
+- **Update to …**（有新版本时）：页面打开在更新上，写着改了什么。app 下载新版本、校验它，然后在新版本上重新启动。
+- **Start at Login**：第一次打开 app 时就勾上了，这样重启电脑后 Foundry 还在。取消勾选，就要你自己启动 Foundry。
+- **Show Log**：Foundry 打印的内容，在有东西启动不了时看。
+- **Quit Foundry**：停止 Foundry。正在运行的 goal 会暂停，下次启动时接着进行。
+
+Foundry 运行时，从 Applications 文件夹或 Spotlight 再打开一次 app，就会打开页面。
+
 ### 检查 Setup 页面
 
 打开顶栏右侧的 ⚙ 菜单，选 **Setup**（⚙ 上有红点，表示还缺东西）。Foundry 会检查它在这台电脑上需要的东西，每一项显示一行绿色或红色：
@@ -36,10 +49,15 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 |---|---|---|
 | **Claude Code CLI** / **Codex CLI** | 当前所选编码智能体的程序。 | 按 **Install**：Claude Code 用它自己的安装器，Codex 用 Homebrew、npm 或官方下载，都不需要 npm。也可以复制显示的命令。 |
 | **Claude login** / **Codex login** | 当前所选编码智能体的账户。 | 按 **Sign in**。 |
-| **git** | 保存你文件的每一个版本。 | 复制显示的命令。 |
-| **Bun runtime** | Foundry 自己运行所需的环境。 | 复制显示的命令。 |
+| **git** | 保存你文件的每一个版本。 | 在 Mac 上按 **Install**：Apple 的命令行工具会打开它自己的安装程序，装完后按 **Re-run**。在 Linux 上复制显示的命令。 |
+| **Bun runtime** | Foundry 自己运行所需的环境。 | app 和发布包里已经自带。从源码运行时，复制显示的命令。 |
+| **uv** | 用来安装 graphify 和 markitdown。 | 按 **Install**。 |
 | **Required: …** | Foundry 的会话需要的技能（skills）。 | 按 **Install**。 |
-| **GitHub CLI (optional)** | 只有想让 Foundry 替你开 pull request 时才需要。 | 保持黄色也没关系。显示 *not logged in* 时，按 **Sign in** 会打开一个带一次性代码的窗口：复制代码，打开 GitHub 的页面，粘贴并批准。 |
+| **GitHub CLI (optional)** | 只有想让 Foundry 替你开 pull request 时才需要。 | 保持黄色也没关系。没装时按 **Install** 就会装上。显示 *not logged in* 时，按 **Sign in** 会打开一个带一次性代码的窗口：复制代码，打开 GitHub 的页面，粘贴并批准。 |
+| **Node.js (optional)** | 有些技能通过它安装，JavaScript 项目的预览也需要它。 | 按 **Install**。 |
+| **foundry in the terminal (optional)** | 只在用 app 或发布包时出现：终端里的 `foundry` 命令（`foundry ask`、`foundry usage`……）。 | 按 **Install**。如果它说你的 shell 找不到 `~/.local/bin`，把它显示的那一行加到 shell 的配置里。 |
+
+这些 **Install** 按钮在 Mac 上有 Homebrew 时用 Homebrew，否则把工具放进 `~/.local`，所以都不会要你的密码。
 
 需要的东西都齐了，页面会显示 **Everything is in place**，并提供 **Create your first goal →**。**Re-run** 会再检查一次。之后如果缺了什么，会出现红色横幅 **Setup incomplete**，上面有 **Fix in Setup →**。它会检查默认的编码智能体，以及还有未完成 goal 在用的另一个智能体；两个都检查时会写明是哪一个。对 Codex，Setup 还会确认 CLI 支持 hooks，Foundry 的会话需要它。
 

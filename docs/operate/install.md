@@ -1,16 +1,94 @@
 # Install Foundry
 
-Foundry drives Claude Code, Codex or the Antigravity CLI against git repositories you already have. Each goal keeps its chosen backend; all three can run in one instance. Codex uses ChatGPT sign-in only. See [Run Foundry with Codex](codex.md) for the native capability differences. You can run it in two ways:
+Foundry drives Claude Code, Codex or the Antigravity CLI against git repositories you already have. Each goal keeps its chosen backend; all three can run in one instance. Codex uses ChatGPT sign-in only. See [Run Foundry with Codex](codex.md) for the native capability differences. You can run it in four ways:
 
-| | Locally, from source | In Docker |
-|---|---|---|
-| Runs as | `bun run serve` or `bun run serve:codex` in a Foundry checkout | the `imlouiskhenghao/foundry` image |
-| Tools it needs | you install them | all in the image (`bun`, `git`, `claude`, `codex`, `gh`, `ripgrep`, `npx`, `uv`, `graphify`, `markitdown`) |
-| Native accounts | each CLI’s login on your machine | separate Claude and Codex homes; sign into each backend you use |
-| Your repositories | any path on the machine | only what you mount into the container |
-| Updates | one click (git-based) | one click with the shipped `docker-compose.yml` |
+| | The app (macOS) | The binary (Linux) | From source | In Docker |
+|---|---|---|---|---|
+| Runs as | `Foundry.app`, in the menu bar | `foundry serve` from a release, as a service | `bun run serve` in a Foundry checkout | the `imlouiskhenghao/foundry` image |
+| Tools it needs | the Setup page or `foundry setup` installs them | `foundry setup` installs them | you install them (the installer does) | all in the image |
+| Native accounts | each CLI's login on your machine | each CLI's login on your machine | each CLI's login on your machine | separate Claude and Codex homes |
+| Your repositories | any path on the machine | any path on the machine | any path on the machine | only what you mount into the container |
+| Data folder | `~/Library/Application Support/Foundry` | `~/.local/share/foundry` | `data/` in the checkout | Docker volumes |
+| Updates | one click: download, check, swap ([ADR-0101](../develop/adr/0101-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)) | one click: download, check, switch | one click (git-based) | one click with the shipped `docker-compose.yml` |
 
-Both serve the web UI on `http://127.0.0.1:4111`.
+The app and the binary are the release itself, compiled: no Bun, no checkout, no build. They serve the web UI on
+`http://127.0.0.1:4111`, or the next free port, which they keep. The Docker image is being retired; see
+[ADR-0102](../develop/adr/0102-the-foundry-app-and-the-release-installs.md).
+
+## The app (macOS)
+
+**Download** `Foundry-<version>-mac-universal.dmg` from the
+[releases](https://github.com/louiskhenghao/foundry-releases/releases), open it and drag **Foundry** onto
+**Applications**. The app is not notarized by Apple, so the first time you open it macOS says it *cannot verify*
+Foundry:
+
+1. Press **Done** (not **Move to Trash**).
+2. Open **System Settings → Privacy & Security**, scroll to *"Foundry" was blocked*, and press **Open Anyway**.
+3. Confirm with your password or Touch ID. macOS does not ask again for this copy.
+
+Or install it from a terminal, which downloads it the way macOS does not question:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
+```
+
+It puts **Foundry.app** in `/Applications` (or `~/Applications` when that is not writable), runs `foundry setup`,
+offers to sign in to the coding agents and GitHub, and opens the app. Either way, the app:
+
+- runs Foundry from the menu bar (the **F** at the top right): open the page, what waits for you, an update, start at
+  login, the log, quit. The [user guide](../guide/your-first-goal.md#foundry-in-the-menu-bar) shows the menu.
+- starts at login the first time it opens (untick **Start at Login** to stop that; `FOUNDRY_LOGIN_ITEM=off` in its
+  environment skips it).
+- starts the engine with the PATH your login shell has, so a Homebrew, nvm or `~/.local/bin` tool is found as in a
+  terminal.
+- keeps its data in `~/Library/Application Support/Foundry` and its log in `~/Library/Logs/Foundry/app.log`.
+- updates itself from the update dialog: it downloads the release's zip, checks it against the release's
+  `SHA256SUMS`, swaps `Foundry.app`, and starts the new one. The old app is kept in the data folder's
+  `updates/previous/`.
+
+The **Setup** page installs what is missing with one click: git (Apple's command line tools), uv, the coding agents'
+CLIs, graphify, the GitHub CLI and Node.js, with Homebrew when you have it and into `~/.local` when you do not, never
+asking for a password. Its last row links the `foundry` command into `~/.local/bin`, for `foundry ask`, `foundry usage`
+and the rest in a terminal (`foundry link` does the same).
+
+## The binary (Linux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
+```
+
+On Linux the installer downloads `foundry-<version>-linux-<x64|arm64>.tar.gz`, checks it against `SHA256SUMS`,
+unpacks it into `~/.local/share/foundry/releases/<version>/` with `current` pointing at it, runs `foundry setup`, and
+runs `current/foundry serve` as a `systemd --user` service (a background process where there is none). An update
+unpacks the next version beside it, points `current` at it and restarts. The binary needs glibc: on Alpine, run from
+source. macOS without the app can take the binary too: `--mode binary`.
+
+## foundry setup
+
+`foundry setup` installs what this computer lacks and leaves what it has: required are git, uv, the chosen coding
+agents' CLIs and graphify (with its skill for each agent), recommended the GitHub CLI and Node.js, and `--with`
+names the optional ones (`markitdown`, `chromium`, `ffmpeg`). What only you can install (git or ffmpeg through a Linux
+package manager, which needs `sudo`) it names with the command to run.
+
+```bash
+foundry setup --agent claude,codex --with "markitdown chromium"
+foundry setup --dry-run        # says what it would install
+```
+
+## Moving a source install
+
+A source install moves to the app or the binary with its goals, settings and history: run the installer in the new
+mode (it offers the move), or `foundry migrate` from the new install. It stops the checkout's service, copies each data
+folder (`data/`, `data-codex/`…) to the new install's data folder, makes the paths the copy wrote about itself point
+into it, and leaves the original with a `MOVED.md` as the backup. A data folder you chose in Settings stays where it is:
+the new install opens it there. The checkout is not touched; delete it once the app shows your goals.
+
+```bash
+foundry migrate --dry-run      # what it would move, and where
+foundry migrate                # asks, then moves (--from <checkout> when the installer did not set it up)
+```
+
+Only one Foundry opens a data folder at a time: a second one is refused with the process that has it.
 
 ---
 
@@ -75,13 +153,15 @@ launch profile. From source it:
 
 | Option | Environment | Default | |
 |---|---|---|---|
-| `--mode source\|docker` | `FOUNDRY_MODE` | asked | how to run Foundry |
+| `--mode app\|binary\|source\|docker` | `FOUNDRY_MODE` | asked (app on a Mac, binary on Linux) | how to run Foundry |
+| `--version X.Y.Z` | `FOUNDRY_VERSION` | the newest | app, binary: the release to install |
+| `--app-dir PATH` | `FOUNDRY_APP_DIR` | `/Applications`, or `~/Applications` | app: where `Foundry.app` goes |
 | `--agent claude,codex,agy` | `FOUNDRY_AGENT` | asked (`claude`) | the coding agents whose CLIs and skills to set up, one or more; `agy` is Antigravity (from source only), `both` is `claude,codex`, `all` the three |
 | `--dir PATH` | `FOUNDRY_DIR` | `~/foundry` | where Foundry goes |
 | `--repos PATH` | `FOUNDRY_REPOS` | `~/Projects` | Docker: your projects folder |
 | `--port N` | `FOUNDRY_PORT` | 4111 or the next free | the port to serve on |
 | `--ref BRANCH\|TAG` | `FOUNDRY_REF` | `main` | source: what to check out, for example a release tag |
-| `--with "markitdown chromium docker ffmpeg"` | `FOUNDRY_WITH` | the checklist | source: exactly these optional tools, without asking |
+| `--with "markitdown chromium docker ffmpeg"` | `FOUNDRY_WITH` | the checklist | app, binary, source: exactly these optional tools, without asking (`none` for none) |
 | `--with hindsight` | `FOUNDRY_WITH` | asked (no) | Docker: a Hindsight server beside Foundry for [Memory](../guide/memory.md), as a compose profile; its LLM provider, key and model are asked for, or taken from `HINDSIGHT_API_LLM_PROVIDER`, `HINDSIGHT_API_LLM_API_KEY` and `HINDSIGHT_API_LLM_MODEL`. Provider `openai-codex` takes no key: after the start the installer signs the server in to Codex by device code (through the Codex CLI in the Foundry container), into `hindsight-codex/` beside the compose file — a sign-in of its own, never your CLI's |
 | `--yes` | | | take every default, ask nothing (no sign-ins) |
 | `--no-start` | | | set up, but do not start |
@@ -90,9 +170,11 @@ launch profile. From source it:
 | `--dry-run` | | | say what would happen, change nothing |
 
 The `foundry` command: `foundry status`, `start`, `stop`, `restart`, `logs`, `open`, `update` (the newest installer,
-run the same way as last time: source pulls, rebuilds and restarts; Docker pulls the image and recreates the
-container) and `uninstall` (removes the service and the command; `--purge` also deletes Foundry's data after asking;
-the tools it installed stay). Running the one line again does the same as `foundry update`. Its choices are kept in
+run the same way as last time: the app and the binary download the newest release; source pulls, rebuilds and
+restarts; Docker pulls the image and recreates the container) and `uninstall` (removes the service and the command; the
+app goes to the Trash; `--purge` also deletes Foundry's data after asking; the tools it installed stay). With the app
+or the binary, every other command goes to Foundry's own CLI: `foundry ask`, `foundry usage`, `foundry doctor`,
+`foundry status <goal>`. Running the one line again does the same as `foundry update`. Its choices are kept in
 `~/.config/foundry/install.env`; to add a coding agent later, run the line again with all the agents you want, for
 example `… | bash -s -- --agent claude,agy`.
 
@@ -119,7 +201,7 @@ These numbered steps use the Claude launch profile. For Codex, use `codex login`
 3. Install the required tools and check the machine.
 
    ```bash
-   uv tool install graphifyy && graphify install --platform claude   # graphify, the one required tool
+   uv tool install --python 3.12 graphifyy && graphify install --platform claude   # graphify, the one required tool
    bun run cli doctor                            # claude installed? logged in? git, bun, graphify …
    ```
 
@@ -457,7 +539,7 @@ docker exec foundry bun apps/cli/src/main.ts doctor   # Docker
 | Codex login (Codex) | yes | **Sign in to Codex**, or `codex login` with ChatGPT |
 | git | yes | install git |
 | Bun runtime | yes | `curl -fsSL https://bun.sh/install \| bash` |
-| Required: graphify | yes | **Install** on the Setup page, or `uv tool install graphifyy && graphify install --platform claude` |
+| Required: graphify | yes | **Install** on the Setup page, or `uv tool install --python 3.12 graphifyy && graphify install --platform claude` |
 | Skills directory writable | yes | make the selected native home’s `skills/` directory writable |
 | GitHub CLI (optional) | no | only for push / PR / auto-merge delivery: install `gh`, then **Sign in** on the Setup page (or `gh auth login --web`) |
 | markitdown (optional) | no | **Install markitdown** on the Setup page |

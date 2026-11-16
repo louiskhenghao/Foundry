@@ -130,13 +130,20 @@ curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.
 # skip the coding-agent question:  … | bash -s -- --agent codex   (or agy for Antigravity, claude,agy, all)
 ```
 
-It asks how to run Foundry and which coding agents to use: Claude Code, Codex or Antigravity (from source only).
-**From source** runs it on your computer: it installs what is missing (git, Bun, uv, graphify, the coding agents'
-CLIs, the GitHub CLI, Node.js, and the optional tools you tick), updates a coding agent's CLI that has a newer
-release, builds Foundry and runs it as a background service that starts when you log in. **Docker** runs it in a
-container: it installs Docker if needed, shares your projects folder (and, if you agree, your computer's Docker for preview databases) and starts it. Either
-way it offers to sign in, opens <http://127.0.0.1:4111>, and leaves a `foundry` command:
-`foundry status | logs | stop | start | update | uninstall`. Run the line again, or `foundry update`, to update.
+It asks how to run Foundry and which coding agents to use: Claude Code, Codex or Antigravity (not in Docker).
+**The app** (macOS) puts `Foundry.app` in Applications: Foundry runs from the menu bar and starts when you log in.
+**The binary** (Linux) runs the compiled `foundry` from the newest release as a background service. Both are the
+release itself, checked against its `SHA256SUMS`, and `foundry setup` installs what is missing (git, uv, graphify, the
+coding agents' CLIs, the GitHub CLI, Node.js and the optional tools you tick). **From source** builds a git checkout,
+and **Docker** runs the container, which is being retired. It offers to sign in, opens <http://127.0.0.1:4111> (or
+the port it chose), and leaves a `foundry` command: `foundry status | logs | stop | start | update | uninstall`, and
+with the app or the binary Foundry's own commands too (`foundry ask`, `foundry usage`…). Run the line again, or
+`foundry update`, to update.
+
+**The app, downloaded** (macOS): `Foundry-<version>-mac-universal.dmg` from the
+[releases](https://github.com/louiskhenghao/foundry-releases/releases); drag Foundry onto Applications. It is not
+notarized, so the first open needs **System Settings → Privacy & Security → Open Anyway**
+([how](docs/operate/install.md#the-app-macos)). Its Setup page installs the tools.
 
 **From source, by hand** — the core of what the one-line install does: needs [Bun](https://bun.sh), [Claude Code](https://code.claude.com/docs/en/setup) signed in
 (`claude` on your PATH) and [graphify](https://github.com/safishamsi/graphify). For ChatGPT sign-in, see the [Codex setup](docs/operate/codex.md):
