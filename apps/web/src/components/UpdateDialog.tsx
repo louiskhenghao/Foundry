@@ -35,6 +35,21 @@ export function UpdatePill() {
   );
 }
 
+/** what a one-click update does, by how this Foundry is installed */
+const HOW: Record<string, string> = {
+  docker: 'The watchtower sidecar pulls the new image and restarts this container; the page reconnects by itself.',
+  local: 'Runs git pull, installs and rebuilds, then restarts the server; any failure rolls back and changes nothing.',
+  app: 'Downloads the release and checks it, then the menu bar app swaps the application and starts it again.',
+  binary: 'Downloads the release and checks it, switches the install folder to it, then restarts.',
+};
+/** why this install cannot update itself, above the commands that do it by hand */
+const GUIDED: Record<string, string> = {
+  docker: 'This container has no watchtower sidecar, so it cannot replace itself — run these on the host (the newest docker-compose.yml adds the sidecar for one-click updates):',
+  local: 'This install cannot update itself — run these in the Foundry directory, then restart:',
+  app: 'This Foundry was started without its menu bar app, which is what swaps the application — download the release and replace Foundry.app by hand:',
+  binary: 'This install is not in a release folder Foundry can switch — download the release and replace the install by hand:',
+};
+
 /**
  * The one-click update: changelog, then self-update with live progress — or the guided
  * commands when this install cannot replace itself (ADR-0010's degradation, never an error).
@@ -93,9 +108,7 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
           phase === 'idle' ? (
             <div className="space-y-2">
               <p className="text-xs text-ink-faint">
-                {cap.mode === 'docker'
-                  ? 'The watchtower sidecar pulls the new image and restarts this container; the page reconnects by itself.'
-                  : 'Runs git pull, installs and rebuilds, then restarts the server; any failure rolls back and changes nothing.'}{' '}
+                {HOW[cap.mode] ?? HOW.local}{' '}
                 New sessions stop first and active agents finish before the restart.
               </p>
               <label className="flex items-center gap-2 text-xs text-ink-soft cursor-pointer">
@@ -131,9 +144,7 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
         ) : (
           <div className="space-y-2">
             <p className="text-xs text-ink-faint">
-              {cap.mode === 'docker'
-                ? 'This container has no watchtower sidecar, so it cannot replace itself — run these on the host (the newest docker-compose.yml adds the sidecar for one-click updates):'
-                : 'This install cannot update itself — run these in the Foundry directory, then restart:'}
+              {GUIDED[cap.mode] ?? GUIDED.local}
             </p>
             <div className="rounded-md border border-line bg-sunken p-3 space-y-1">
               {cap.guided.map((cmd) => (
