@@ -96,15 +96,33 @@ export function Menu({ trigger, children, width = 'w-56', align = 'right', class
 }
 
 /** Labelled form field: label + optional help line, with room for a trailing badge/action next to the label. */
-export function Field({ label, help, aside, children, className }: { label: ReactNode; help?: ReactNode; aside?: ReactNode; children: ReactNode; className?: string }) {
+export function Field({ label, help, aside, children, className, setting }: { label: ReactNode; help?: ReactNode; aside?: ReactNode; children: ReactNode; className?: string; /** the path of the setting it edits, as data-setting: what the Settings search scrolls to */ setting?: string }) {
   return (
-    <label className={cn('block min-w-0', className)}>
+    <label className={cn('block min-w-0', className)} data-setting={setting}>
       <span className="flex items-center gap-2 mb-1">
         <span className="text-xs font-semibold text-ink-soft">{label}</span>
         {aside && <span className="ml-auto flex items-center gap-1.5">{aside}</span>}
       </span>
       {children}
       {help && <span className="block text-[11px] text-ink-faint mt-1 leading-snug">{help}</span>}
+    </label>
+  );
+}
+
+/**
+ * A checkbox with its words: the box in a column of its own, level with the first line of the label (not with the
+ * middle of a label that wraps), and the help under the label, never under the box. `setting` is the path of the
+ * setting it edits, as data-setting, for the Settings search to scroll to.
+ */
+export function CheckRow({ checked, onChange, label, help, aside, disabled, setting, className }: { checked: boolean; onChange: (checked: boolean) => void; label: ReactNode; help?: ReactNode; aside?: ReactNode; disabled?: boolean; setting?: string; className?: string }) {
+  return (
+    <label className={cn('grid grid-cols-[1rem_minmax(0,1fr)] gap-x-2', className)} data-setting={setting}>
+      <input type="checkbox" className="m-0 size-4 self-start" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+      <span className="flex items-center gap-2">
+        <span className="text-xs font-semibold text-ink">{label}</span>
+        {aside && <span className="ml-auto flex items-center gap-1.5">{aside}</span>}
+      </span>
+      {help && <span className="col-start-2 mt-0.5 block text-[11px] leading-snug text-ink-faint">{help}</span>}
     </label>
   );
 }
