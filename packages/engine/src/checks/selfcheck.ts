@@ -1,26 +1,30 @@
 import { existsSync, mkdirSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import type { Check, CheckResult, Goal } from '@foundry/core';
 import { IdPrefix, listChecks, newId } from '@foundry/core';
 import type { Engine } from '../engine.ts';
 import { screenshotsDir } from '../workspace.ts';
+import { loadPlaywright, locatePlaywright } from '../playwright-load.ts';
+import { installRoot, type InstallRoot } from '../install-root.ts';
 
 export const SELF_CHECK_NAME = 'self-check: the preview loads without errors';
 
 /**
  * The command that downloads Chromium for the Playwright Foundry ships. It runs that package's own CLI: `bunx playwright`
  * finds no bin at the repo root (bun links it under packages/engine) and would fetch playwright@latest, whose browser
- * revision stops matching the installed package as soon as Playwright releases a new version.
+ * revision stops matching the installed package as soon as Playwright releases a new version. A checkout runs the CLI
+ * with Bun; a compiled foundry carries no runtime for it and runs the CLI inside itself (`foundry playwright`, ADR-0101).
  */
-export function playwrightInstallCommand(): string[] {
-  const cli = join(dirname(Bun.resolveSync('playwright/package.json', import.meta.dir)), 'cli.js');
-  return [process.execPath, cli, 'install', 'chromium'];
+export function playwrightInstallCommand(install: InstallRoot = installRoot()): string[] {
+  const loc = locatePlaywright(install);
+  if (!loc) throw new Error('Playwright is not installed with Foundry');
+  return install.kind === 'checkout' ? [process.execPath, loc.cli, 'install', 'chromium'] : [process.execPath, 'playwright', 'install', 'chromium'];
 }
 
 /** Is Playwright usable here: the package resolves and Chromium is installed. */
 export async function playwrightStatus(): Promise<{ installed: boolean; browser: boolean; detail: string }> {
   try {
-    const pw = await import('playwright');
+    const pw = await loadPlaywright();
     const exe = pw.chromium.executablePath();
     const browser = !!exe && existsSync(exe);
     return { installed: true, browser, detail: browser ? `Chromium at ${exe}` : 'Chromium is not downloaded yet — run the install' };
@@ -58,7 +62,7 @@ export async function runSelfCheck(engine: Engine, goal: Goal, opts: { taskId: s
     const preview = await engine.preview.start(goal, 'integration');
     url = preview.url;
     if (!preview.ready) throw new Error(`the preview at ${preview.url} did not answer`);
-    const pw = await import('playwright').catch((err) => {
+    const pw = await loadPlaywright().catch((err) => {
       throw new Error(`Playwright is not installed (Settings → Tools → Install Playwright): ${String((err as Error).message ?? err).slice(0, 100)}`);
     });
     const browser = await pw.chromium.launch().catch((err) => {

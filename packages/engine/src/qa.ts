@@ -22,6 +22,7 @@ import { WORKER_BASE_TOOLS, boundaryEnv, boundarySettings } from './guards/bound
 import { metaFor, modelFor } from './models/roles.ts';
 import { excludeFromGit } from './skills/autoskills.ts';
 import { goalWorkspacePath, screenshotsDir } from './workspace.ts';
+import { locatePlaywright } from './playwright-load.ts';
 
 /** at most this many failed must checks become fix tasks: more is a result the person should look at whole */
 export const QA_MAX_FIX_TASKS = 6;
@@ -57,13 +58,7 @@ export interface QaDeps {
 export const defaultQaDeps: QaDeps = {
   playwright: playwrightStatus,
   startPreview: (engine, goal) => engine.preview.start(goal, 'qa'),
-  playwrightPath: () => {
-    try {
-      return Bun.resolveSync('playwright', import.meta.dir);
-    } catch {
-      return null;
-    }
-  },
+  playwrightPath: () => locatePlaywright()?.main ?? null,
 };
 
 /** the files under the screenshots folder a result named, that exist and carry this run's prefix */

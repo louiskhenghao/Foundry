@@ -10,6 +10,7 @@ import { accessSync, constants, cpSync, existsSync, mkdirSync, readFileSync, rea
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { z } from 'zod';
+import { installRoot, type InstallKind } from './install-root.ts';
 
 export const HOME_CONFIG_FILE = 'config.json';
 /** written at every start: which Foundry last opened the folder */
@@ -56,8 +57,19 @@ export function rememberRecent(recent: string[], left: string, now: string): str
 
 export type DataDirSource = 'env' | 'config' | 'default';
 
-export function defaultDataDir(root: string, provider: AgentProvider): string {
-  return resolve(root, provider === 'claude' ? 'data' : `data-${provider}`);
+/**
+ * The data folder a launch profile opens when nothing chose one: `data/` (`data-<provider>/`) in a checkout; a release install
+ * (the macOS app, a tarball, ADR-0101) has no tree to keep data in, so it uses the platform's place for an application's
+ * data — `~/Library/Application Support/Foundry` on macOS, `$XDG_DATA_HOME/foundry` (`~/.local/share/foundry`) elsewhere.
+ */
+export function defaultDataDir(root: string, provider: AgentProvider, opts: { kind?: InstallKind; platform?: NodeJS.Platform; home?: string; env?: NodeJS.ProcessEnv } = {}): string {
+  const leaf = provider === 'claude' ? 'data' : `data-${provider}`;
+  const kind = opts.kind ?? installRoot().kind;
+  if (kind === 'checkout') return resolve(root, leaf);
+  const home = opts.home ?? homedir();
+  const env = opts.env ?? process.env;
+  const base = (opts.platform ?? process.platform) === 'darwin' ? join(home, 'Library', 'Application Support', 'Foundry') : join(env.XDG_DATA_HOME || join(home, '.local', 'share'), 'foundry');
+  return join(base, leaf);
 }
 
 /**

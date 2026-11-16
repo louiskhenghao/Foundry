@@ -12,7 +12,9 @@
     "./skills-types": "./src/skills/types.ts",
     "./usage-types": "./src/usage/types.ts",
     "./quota-windows": "./src/usage/quota-windows.ts",
-    "./account-meters": "./src/usage/account-meters.ts"
+    "./account-meters": "./src/usage/account-meters.ts",
+    "./install-root": "./src/install-root.ts",
+    "./playwright-load": "./src/playwright-load.ts"
   },
   "dependencies": {
     "@foundry/core": "workspace:*",

@@ -7,6 +7,7 @@ import { SATISFIED, type WhichFn, defaultWhich, envLabel } from './catalog.ts';
 import { packAllows } from './packs.ts';
 import type { SkillsPaths } from './paths.ts';
 import { agentCliInstall } from '../agent-cli.ts';
+import { installRoot } from '../install-root.ts';
 import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, SkillsUpdateReport } from './types.ts';
 
 export interface DoctorContext {
@@ -79,13 +80,15 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
 
   const git = which('git');
   checks.push(git ? ok('git', 'git', git) : err('git', 'git', 'git not found on PATH', { command: 'xcode-select --install', url: 'https://git-scm.com/downloads' }));
-  const bun = which('bun');
+  // a compiled foundry carries its runtime (ADR-0101): nothing to find on PATH
+  const embedded = installRoot().kind !== 'checkout';
+  const bun = embedded ? process.execPath : which('bun');
   const runtime = ctx.runtimeVersion ?? (typeof Bun !== 'undefined' ? Bun.version : null);
   // a browser Foundry opened for a self-check or a walkthrough can be ended by the runtime itself on Bun 1.3: when the
   // collector finalizes an earlier, closed browser's subprocess it closes that one's pipe descriptors a second time,
   // and by then the numbers belong to the running browser (oven-sh/bun#33828, fixed in 1.4)
   const old = runtime !== null && typeof Bun !== 'undefined' && Bun.semver.satisfies(runtime, `<${BUN_MIN_VERSION}`);
-  checks.push(bun && old ? warn('bun', 'Bun runtime', `${bun} (${runtime}): Bun ${BUN_MIN_VERSION} or newer is needed for reliable previews; 1.3 can end a browser Foundry opened for a self-check or a milestone walkthrough (oven-sh/bun#33828)`, { command: 'bun upgrade', url: 'https://github.com/oven-sh/bun/issues/33828' }) : bun ? ok('bun', 'Bun runtime', `${bun} (${runtime ?? '?'})`) : err('bun', 'Bun runtime', 'bun not found on PATH', { command: 'curl -fsSL https://bun.sh/install | bash', url: 'https://bun.sh' }));
+  checks.push(embedded ? ok('bun', 'Bun runtime', `built into foundry (Bun ${runtime ?? '?'})`) : bun && old ? warn('bun', 'Bun runtime', `${bun} (${runtime}): Bun ${BUN_MIN_VERSION} or newer is needed for reliable previews; 1.3 can end a browser Foundry opened for a self-check or a milestone walkthrough (oven-sh/bun#33828)`, { command: 'bun upgrade', url: 'https://github.com/oven-sh/bun/issues/33828' }) : bun ? ok('bun', 'Bun runtime', `${bun} (${runtime ?? '?'})`) : err('bun', 'Bun runtime', 'bun not found on PATH', { command: 'curl -fsSL https://bun.sh/install | bash', url: 'https://bun.sh' }));
 
   // required catalog entries (graphify CLI is one of them)
   for (const s of ctx.statuses.filter((x) => x.entry.tier === 'required')) {

@@ -7,6 +7,7 @@ import type { Engine } from '../engine.ts';
 import type { EventStore } from '@foundry/core';
 import { ARTIFACTS_DIR, screenshotsDir } from '../workspace.ts';
 import { readDeck } from './zip.ts';
+import { loadPlaywright } from '../playwright-load.ts';
 
 /** the PNGs the deck check last rendered of a task's decks' previews, as a milestone's evidence lists them */
 export function deckShots(store: Pick<EventStore, 'listByGoalOfTypes'>, goalId: string, taskId: string): { file: string; caption: string }[] {
@@ -170,7 +171,7 @@ export async function runDeckCheck(engine: Engine, goal: Goal, task: Task, attem
       const svgs = deckPreviews(abs).slice(0, MAX_PREVIEWS);
       if (svgs.length) {
         if (!browser) {
-          const pw = await import('playwright').catch(() => null);
+          const pw = await loadPlaywright().catch(() => null);
           browser = pw ? await pw.chromium.launch().catch(() => null) : null;
           if (!browser) notes.push('the previews were not rendered: Chromium is not installed (Settings → Preview & self-check → Install Chromium)');
         }
