@@ -16,7 +16,7 @@ export type { InstallContext };
 type GitSource = Extract<CatalogEntry['source'], { type: 'git' }>;
 const cloneUrl = (src: GitSource) => src.url ?? `https://github.com/${src.repo}.git`;
 /** a `ref` naming one commit (40 hex characters): a repository without releases is pinned to it instead of following a branch */
-const isCommitRef = (ref: string | undefined): ref is string => !!ref && /^[0-9a-f]{40}$/i.test(ref);
+export const isCommitRef = (ref: string | undefined): ref is string => !!ref && /^[0-9a-f]{40}$/i.test(ref);
 
 /** Default history depth of a cache clone: enough for per-skill "last changed" dates and old-copy matching. */
 export const CACHE_DEPTH = 100;

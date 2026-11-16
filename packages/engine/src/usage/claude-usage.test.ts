@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
 import { homedir, tmpdir } from 'node:os';
-import { ClaudeUsageReader, claudeKeychainService, fetchClaudeUsage, parseClaudeUsage } from './claude-usage.ts';
+import { ClaudeUsageReader, claudeKeychainService, fetchClaudeUsage, parseClaudeUsage, retryAfterMs } from './claude-usage.ts';
 
 // what Claude's usage service answered on a real account (2026-11-11), ids removed; the experiment fields it also carries are left out
 const REPORT = {
@@ -122,7 +122,8 @@ describe('reading one account’s usage', () => {
     expect(fetches).toBe(1);
     now = 61_000;
     status = 503;
-    expect(await r.read()).toMatchObject({ state: 'error', message: 'Claude’s usage service answered 503.' });
+    // the failure keeps the reading of a minute ago on the page, saying why nothing newer could be read (ADR-0099)
+    expect(await r.read()).toMatchObject({ state: 'available', checkedAt: new Date(0).toISOString(), stale: { triedAt: new Date(61_000).toISOString(), message: 'Claude’s usage service answered 503.' } });
     expect(fetches).toBe(2);
     now = 70_000;
     await r.read();
@@ -132,9 +133,58 @@ describe('reading one account’s usage', () => {
     expect(fetches).toBe(3);
     r.invalidate();
     expect(r.current()).toBeUndefined();
-    status = 200;
-    expect((await r.read()).state).toBe('available');
+    // a changed sign-in has no reading to fall back to: the failure itself is said
+    expect(await r.read()).toMatchObject({ state: 'error', message: 'Claude’s usage service answered 503.' });
     expect(fetches).toBe(4);
+    status = 200;
+    await r.read(true);
+    expect((await r.read()).state).toBe('available');
+    expect(fetches).toBe(5);
+  });
+
+  test('a wait the service asked for (429): the reading stays, and the service is not asked again for five minutes, or for its Retry-After', async () => {
+    let now = 0;
+    let fetches = 0;
+    let answer: () => Response = () => Response.json(REPORT);
+    const r = new ClaudeUsageReader({ bin: () => null, configDir: null, now: () => now, credentials: async () => ({ accessToken: 't', expiresAt: null }), fetch: (async () => { fetches++; return answer(); }) as unknown as typeof fetch });
+    expect((await r.read()).state).toBe('available');
+    now = 61_000;
+    answer = () => new Response('', { status: 429 });
+    const kept = await r.read();
+    expect(kept).toMatchObject({ state: 'available', checkedAt: new Date(0).toISOString(), stale: { triedAt: new Date(61_000).toISOString(), message: 'Claude’s usage service asked to wait before it is read again.' } });
+    expect(fetches).toBe(2);
+    // the page's minute-by-minute reads are served from the kept reading…
+    now = 61_000 + 4 * 60_000;
+    expect(await r.read()).toBe(kept);
+    expect(fetches).toBe(2);
+    // …Refresh status asks at once all the same (and that refusal starts the five minutes over)
+    await r.read(true);
+    expect(fetches).toBe(3);
+    // after the five minutes the service is asked again; a Retry-After of its own (90 s) is honoured instead
+    now += 5 * 60_000 + 1;
+    answer = () => new Response('', { status: 429, headers: { 'retry-after': '90' } });
+    const again = await r.read();
+    expect(again.state === 'available' && again.stale?.triedAt).toBe(new Date(now).toISOString());
+    expect(fetches).toBe(4);
+    now += 89_000;
+    await r.read();
+    expect(fetches).toBe(4);
+    now += 2_000;
+    answer = () => Response.json(REPORT);
+    const fresh = await r.read();
+    expect(fetches).toBe(5);
+    expect(fresh).toMatchObject({ state: 'available', checkedAt: new Date(now).toISOString() });
+    expect('stale' in fresh).toBe(false);
+  });
+
+  test('a Retry-After is read as seconds or as a date; anything else is no wait', () => {
+    expect(retryAfterMs('90')).toBe(90_000);
+    expect(retryAfterMs(' 0 ')).toBe(0);
+    const now = Date.parse('2026-11-16T10:00:00Z');
+    expect(retryAfterMs('Mon, 16 Nov 2026 10:00:30 GMT', now)).toBe(30_000);
+    expect(retryAfterMs('Mon, 16 Nov 2026 09:00:00 GMT', now)).toBe(0);
+    expect(retryAfterMs(null)).toBeNull();
+    expect(retryAfterMs('soon')).toBeNull();
   });
 
   test('the service out of reach is an error with its reason, never a report of zero usage', async () => {

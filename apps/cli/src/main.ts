@@ -617,6 +617,8 @@ switch (cmd) {
       if (!m.meters.length) console.log(`${indent}no usage window reported`);
       for (const x of m.meters) console.log(`${indent}${x.title} (${x.window}): ${x.usedPercent == null ? 'usage unknown' : `${Math.round(x.usedPercent * 10) / 10}% used`}${x.resetsAt ? ` · resets ${new Date(x.resetsAt).toLocaleString()}` : ''}${x.note ? ` · ${x.note}` : ''}`);
       if (m.note) console.log(`${indent}${m.note}`);
+      // a reading kept through failed reads (ADR-0099): when it was taken, and why nothing newer could be read
+      if (m.stale) console.log(`${indent}as of ${new Date(m.checkedAt).toLocaleString()}, the last reading that could be taken; tried again ${new Date(m.stale.triedAt).toLocaleTimeString()}: ${m.stale.message}`);
     };
     const accounts: any[] = u.accounts ?? [];
     const perAccount = (meters: (a: any) => AccountMeters) => {

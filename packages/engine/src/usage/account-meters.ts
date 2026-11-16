@@ -28,11 +28,29 @@ export const METER_BAD_PERCENT = 85;
 export const meterLevel = (usedPercent: number | null): MeterLevel => (usedPercent == null ? 'unknown' : usedPercent >= METER_BAD_PERCENT ? 'bad' : usedPercent >= METER_WARN_PERCENT ? 'warn' : 'ok');
 
 export type AccountMeters =
-  | { state: 'available'; checkedAt: string; meters: AccountMeter[]; /** a word about the whole account: Codex reporting ordinary usage as blocked */ note: string | null }
+  | {
+      state: 'available';
+      /** when the reading was taken */
+      checkedAt: string;
+      meters: AccountMeter[];
+      /** a word about the whole account: Codex reporting ordinary usage as blocked */
+      note: string | null;
+      /** the reading is the last one that succeeded: when the account was last asked, and why that failed (ADR-0099) */
+      stale: { triedAt: string; message: string } | null;
+    }
   | { state: 'unread'; checkedAt: null }
   | { state: 'unavailable' | 'error'; checkedAt: string; message: string };
 
 const UNREAD: AccountMeters = { state: 'unread', checkedAt: null };
+
+export type ReadingAge = 'fresh' | 'aging' | 'old';
+/** a reading kept through failed reads is coloured by its age: plain under ten minutes, amber under an hour, red after */
+export const READING_AGING_MS = 10 * 60_000;
+export const READING_OLD_MS = 60 * 60_000;
+export function readingAge(checkedAt: string, now = Date.now()): ReadingAge {
+  const age = now - Date.parse(checkedAt);
+  return !Number.isFinite(age) || age >= READING_OLD_MS ? 'old' : age >= READING_AGING_MS ? 'aging' : 'fresh';
+}
 const clamp = (n: number) => Math.max(0, Math.min(100, n));
 const fmtMoney = (n: number, currency: string | null) => `${currency === 'USD' || !currency ? '$' : `${currency} `}${n.toFixed(2)}`;
 
@@ -46,7 +64,7 @@ export function claudeMeters(u?: ClaudeUsage | null): AccountMeters {
     ...u.models.map((m, i) => ({ id: `model_${i}`, title: m.name, window: 'Weekly', usedPercent: clamp(m.usedPercent), resetsAt: m.resetsAt, note: null })),
     ...(u.extraUsage ? [{ id: 'extra_usage', title: 'Extra usage', window: 'Monthly', usedPercent: u.extraUsage.usedPercent == null ? null : clamp(u.extraUsage.usedPercent), resetsAt: null, note: u.extraUsage.limit != null ? `${fmtMoney(u.extraUsage.used ?? 0, u.extraUsage.currency)} of ${fmtMoney(u.extraUsage.limit, u.extraUsage.currency)}` : null }] : []),
   ];
-  return { state: 'available', checkedAt: u.checkedAt, meters, note: null };
+  return { state: 'available', checkedAt: u.checkedAt, meters, note: null, stale: u.stale ?? null };
 }
 
 /** Codex's windows, named by their length as the quota card names them (5-hour → Session, weekly → All models) */
@@ -68,7 +86,7 @@ export function codexMeters(q?: CodexQuota | null): AccountMeters {
       };
     }),
   );
-  return { state: 'available', checkedAt: q.checkedAt, meters, note: q.ordinaryUsageAllowed === false ? 'Codex reports ordinary usage as blocked.' : null };
+  return { state: 'available', checkedAt: q.checkedAt, meters, note: q.ordinaryUsageAllowed === false ? 'Codex reports ordinary usage as blocked.' : null, stale: null };
 }
 
 /** Antigravity's groups: agy reports what is left, the bar shows what is used */
@@ -76,7 +94,7 @@ export function agyMeters(q?: AgyQuota | null): AccountMeters {
   if (!q) return UNREAD;
   if (q.state !== 'available') return { state: 'unavailable', checkedAt: q.checkedAt, message: q.error ?? 'agy reported no quota.' };
   const meters = q.groups.flatMap((g) => g.buckets.map((b) => ({ id: `${g.name}:${b.id || b.name}`, title: g.name, window: b.window === 'weekly' || !b.window ? 'Weekly' : b.window, usedPercent: b.remainingFraction == null ? null : clamp(Math.round((1 - b.remainingFraction) * 1000) / 10), resetsAt: b.resetTime, note: null })));
-  return { state: 'available', checkedAt: q.checkedAt, meters, note: null };
+  return { state: 'available', checkedAt: q.checkedAt, meters, note: null, stale: null };
 }
 
 /** one line for a tooltip or a terminal: "Session 0% · All models 53% · Fable 11%" */

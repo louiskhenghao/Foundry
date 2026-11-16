@@ -71,8 +71,14 @@ export function gitBlobSha1(buf: Uint8Array): string {
 }
 
 const IGNORED = new Set([MARKER_FILE, LEGACY_MARKER_FILE, '.git', '.DS_Store', 'manifest.json', '.trash.json']);
-/** a skill's installed dependencies: never part of its upstream bytes (git ignores them), and most of the files on disk */
-const IGNORED_DIRS = new Set(['node_modules']);
+/**
+ * A skill's installed dependencies and what its scripts leave behind when they run (Python's bytecode caches, a virtual
+ * environment, a test runner's cache): never part of its upstream bytes (git ignores them), and most of the files on disk.
+ * Counting them made a skill whose scripts had run "outdated" against the very commit it was installed from.
+ */
+const IGNORED_DIRS = new Set(['node_modules', '__pycache__', '.venv', 'venv', '.pytest_cache', '.mypy_cache', '.ruff_cache', '.tox']);
+/** a path inside a skill folder that the fingerprints leave out, said of a repository tree's path the same way */
+export const ignoredPath = (rel: string): boolean => rel.split('/').some((s) => IGNORED.has(s) || IGNORED_DIRS.has(s));
 
 /**
  * What each folder held when it was last hashed: its files' paths, sizes and times, and their hashes. A folder whose

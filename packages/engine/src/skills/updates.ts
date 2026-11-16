@@ -7,11 +7,11 @@ import type { AgentProvider } from '@foundry/core';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { exec as defaultExec } from '../git/git.ts';
-import { CACHE_DEPTH, ensureCache } from './installer.ts';
+import { CACHE_DEPTH, ensureCache, isCommitRef } from './installer.ts';
 import type { SkillsPaths } from './paths.ts';
 import { readMarketplaces, type MarketplaceInfo } from './scanner.ts';
-import { SkillDirIndex, candidatesFor, dirFiles, dirFingerprint, localDirOf, pathInRepoOf, skillMdBlob, sourceOf, type Candidate, type SourceKey } from './sources.ts';
-import type { Catalog, InstalledSkill, ScanResult, SkillSource, SkillSourceRow, SkillsUpdateReport, UpdaterKind } from './types.ts';
+import { SkillDirIndex, candidatesFor, dirFiles, dirFingerprint, ignoredPath, localDirOf, pathInRepoOf, skillMdBlob, sourceOf, type Candidate, type SourceKey } from './sources.ts';
+import type { Catalog, InstalledSkill, ScanResult, SkillPin, SkillSource, SkillSourceRow, SkillsUpdateReport, UpdaterKind } from './types.ts';
 
 interface PathFact {
   commit: string;
@@ -162,6 +162,16 @@ export class SkillsUpdateChecker {
       const local = this.localOf(g.key, g.rows.map((x) => x.row));
       const updater = updaterFor(g.key, rows, this.paths.provider);
       const determinable = rows.filter((r) => r.status !== 'unknown' && r.status !== 'broken');
+      const outdated = rows.some((r) => r.status === 'outdated');
+      // the pin the source's skills sit at (ADR-0100); upstream moving on since is said here, not offered as an update
+      const pinned = rows.find((r) => r.pinned)?.pinned ?? null;
+      const hint =
+        g.key.manager === 'plugin' && rows.some((r) => r.status === 'unreleased') && !outdated
+          ? // unreleased upstream changes: say why the Update button is gone instead of offering one that changes nothing
+            `Upstream has changes that are not released yet: the plugin is still${local.version ? ` v${local.version}` : ' at the same version'}, and the CLI only updates a plugin when its version number goes up.`
+          : pinned?.behind && !outdated
+            ? `Pinned to ${pinned.commit.slice(0, 7)} by Foundry's catalog: upstream has changed these skills since, and Foundry moves the pin in a release of its own. Update re-syncs the copies to the pin.`
+            : null;
       sources.push({
         id: g.key.id,
         kind: g.key.kind,
@@ -171,11 +181,11 @@ export class SkillsUpdateChecker {
         homepage: g.key.homepage,
         local,
         upstream: facts?.head ? { commit: facts.head, committedAt: facts.headAt, checkedAt: facts.checkedAt } : null,
-        updateAvailable: determinable.length ? rows.some((r) => r.status === 'outdated') : null,
-        // unreleased upstream changes: say why the Update button is gone instead of offering one that changes nothing
-        updater: g.key.manager === 'plugin' && rows.some((r) => r.status === 'unreleased') && !rows.some((r) => r.status === 'outdated') ? { ...updater, hint: `Upstream has changes that are not released yet: the plugin is still${local.version ? ` v${local.version}` : ' at the same version'}, and the CLI only updates a plugin when its version number goes up.` } : updater,
+        updateAvailable: determinable.length ? outdated : null,
+        updater: hint ? { ...updater, hint } : updater,
         error: facts?.error ?? null,
         skills: rows.sort((a, b) => a.name.localeCompare(b.name)),
+        pinned,
       });
     }
     sources.sort((a, b) => Number(b.updateAvailable === true) - Number(a.updateAvailable === true) || b.skills.length - a.skills.length || a.label.localeCompare(b.label));
@@ -213,6 +223,37 @@ export class SkillsUpdateChecker {
     const fact: PathFact = { commit, at, exact: forPath < total };
     facts.paths[pathInRepo] = fact;
     return fact;
+  }
+
+  /**
+   * The files of a skill folder as the pinned commit or tag has them (the blob id of each, as `dirFiles` hashes the local
+   * copy), and whether upstream's head changed the folder since the pin. The installer fetched the pin into the cache
+   * clone (a commit by id, a tag by name); a branch name is a moving target, not a pin, and gives null, as does a pin the
+   * clone does not hold.
+   */
+  private async pinnedTree(repo: string, ref: string, pathInRepo: string, upstreamHead: string | null): Promise<{ ref: string; commit: string; files: [string, string][]; behind: boolean } | null> {
+    const dir = this.cacheDir(repo);
+    const target = isCommitRef(ref) ? ref : `refs/tags/${ref}`;
+    const resolved = await this.exec(['git', 'rev-parse', '-q', '--verify', `${target}^{commit}`], dir, { timeoutMs: 10_000 }).catch(() => null);
+    const commit = resolved?.code === 0 ? resolved.stdout.trim() : '';
+    if (!commit) return null;
+    const folder = pathInRepo.replace(/\/+$/, '');
+    const tree = await this.exec(['git', 'ls-tree', '-r', '-z', commit, '--', folder], dir, { timeoutMs: 30_000 });
+    if (tree.code !== 0) return null;
+    const files: [string, string][] = [];
+    for (const line of tree.stdout.split('\0')) {
+      // "<mode> <type> <sha>\t<path>"
+      const tab = line.indexOf('\t');
+      if (tab < 0) continue;
+      const [, type, sha] = line.slice(0, tab).split(' ');
+      const path = line.slice(tab + 1);
+      if (type !== 'blob' || !sha || !path.startsWith(`${folder}/`)) continue;
+      const rel = path.slice(folder.length + 1);
+      if (!ignoredPath(rel)) files.push([rel, sha]);
+    }
+    if (!files.length) return null;
+    const since = upstreamHead ? await this.exec(['git', 'rev-list', '--count', `${commit}..${upstreamHead}`, '--', folder], dir, { timeoutMs: 30_000 }).catch(() => null) : null;
+    return { ref, commit, files, behind: !!since && since.code === 0 && Number(since.stdout.trim()) > 0 };
   }
 
   /** A commit of the cached clone (it may be missing from a shallow clone). */
@@ -283,7 +324,24 @@ export class SkillsUpdateChecker {
     // upstream): Foundry's copy is outdated whatever its bytes say, and Update reinstalls it from the catalog's source
     const entry = key.manager === 'foundry' && catalogId ? catalog.entries.find((e) => e.id === catalogId) : undefined;
     const movedTo = entry?.source.type === 'git' && row.marker && !row.marker.repo.startsWith('bundled:') && row.marker.repo !== entry.source.repo ? entry.source.repo : null;
-    if (movedTo) {
+    // the catalog pins the entry to a commit or a release tag (ADR-0100): Update installs the pin, so the copy is compared
+    // with the pin's tree, not with upstream's newest commit, which would say "update available" of an Update that changes nothing
+    const pin = !movedTo && entry?.source.type === 'git' && entry.source.ref && key.repo && rel && gitOk && localFp ? await this.pinnedTree(key.repo, entry.source.ref, rel, facts?.head ?? null).catch(() => null) : null;
+    if (pin) {
+      out.pinned = { ref: pin.ref, commit: pin.commit, behind: pin.behind };
+      if (sameFiles(dirFiles(localDir), pin.files)) {
+        out.status = 'up-to-date';
+        if (candidate) out.match = { relation: 'identical', olderCommit: null, olderAt: null };
+      } else if (local.commit === pin.commit) {
+        // installed from the pin and changed on this computer since
+        out.status = 'modified';
+        out.match = { relation: 'differs', olderCommit: null, olderAt: null };
+      } else {
+        // another commit than the pin (the pin moved with a Foundry release, or an older install): Update moves the copy to it
+        out.status = 'outdated';
+        out.match = { relation: 'differs', olderCommit: null, olderAt: null };
+      }
+    } else if (movedTo) {
       out.status = 'outdated';
       out.match = { relation: 'differs', olderCommit: null, olderAt: null };
     } else if (localFp && upFp && localFp === upFp) {
@@ -348,6 +406,13 @@ export class SkillsUpdateChecker {
       updatedAt: updated.at(-1) ?? null,
     };
   }
+}
+
+/** the same files with the same contents, whatever their order */
+function sameFiles(a: [string, string][], b: [string, string][]): boolean {
+  if (a.length !== b.length) return false;
+  const m = new Map(a);
+  return b.every(([p, h]) => m.get(p) === h);
 }
 
 /** Files a skill carries only for people (README, changelog, licence): a difference in them alone is not an update. */
