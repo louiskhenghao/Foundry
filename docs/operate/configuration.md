@@ -205,7 +205,8 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `FOUNDRY_UPDATE_CHECK` | off = no daily release check. |
 | `FOUNDRY_RELEASES_URL` | The GitHub Releases API address the update check reads (default: the public foundry-releases repository). |
 | `FOUNDRY_ROOT` | The folder with Foundry's own files (roles, catalog, templates, the built UI) when they are not beside the executable or in the checkout (ADR-0101). |
-| `FOUNDRY_APP_SHELL` | Set to 1 by the macOS menu bar app: a self-update then hands the downloaded release to it to install. |
+| `FOUNDRY_APP_SHELL` | Set to 1 by the macOS menu bar app (ADR-0102): the engine writes where it listens to ~/.foundry/app.json, stops when the app does, and a self-update hands the downloaded release to the app to install. |
+| `FOUNDRY_LOGIN_ITEM` | off = the macOS app does not make itself a login item on its first launch. |
 | `FOUNDRY_ALLOWED_HOSTS` | More names Foundry answers to, comma-separated (a tunnel or proxy domain); * = any. IP addresses, localhost, names without a dot or ending in .local, *.ts.net and the Link base URL's host always work; other names are refused against DNS rebinding. |
 | `FOUNDRY_WATCHTOWER_URL / FOUNDRY_WATCHTOWER_TOKEN` | Docker: the watchtower sidecar that applies one-click updates. |
 | `FOUNDRY_HOST_REPOS` | Docker: the projects folder shared at the same path as on the host; the folder picker starts there (set by the installer). |

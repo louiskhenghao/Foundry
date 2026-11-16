@@ -49,6 +49,13 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
   replay --verify                         rebuild read models from the event log and compare
   doctor [--provider claude|codex|agy] [--json]                         environment check: selected agent, login, git, bun, required skills
   version [--json]                        the version, how this Foundry is installed (checkout, app, binary) and where
+  setup [--agent claude,codex,agy] [--with "markitdown chromium ffmpeg"] [--dry-run]
+                                          install what this computer lacks: git, uv, the coding agents' CLIs, graphify (required),
+                                          the GitHub CLI and Node.js (recommended) and the tools named with --with
+  migrate [--from <checkout>] [--yes] [--dry-run]
+                                          move a source install's goals into this app or release install: stops the checkout's
+                                          service, copies its data folders, leaves the originals as the backup
+  link                                    put this foundry on the terminal's PATH (~/.local/bin/foundry)
   hook <name> [args]                      run one of Foundry's session hooks (what a coding agent's hook settings call)
   playwright <args>                       Playwright's own CLI inside foundry, e.g. playwright install chromium
   skills list [--scope user|plugin|project|all] [--repo <path>] [--json]
