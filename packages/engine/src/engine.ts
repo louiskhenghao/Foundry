@@ -544,8 +544,8 @@ export class Engine {
     };
     this.runner = new ProviderRunner({
       claude: wrap(supplied('claude') ?? new ClaudeCliRunner({ claudeBin: config.claudeBin, claudeHome: config.claudeHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'claude'),
-      codex: wrap(supplied('codex') ?? new CodexCliRunner({ codexBin: config.codexBin, codexHome: config.codexHome, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'codex'),
-      agy: wrap(supplied('agy') ?? new AgyCliRunner({ agyBin: config.agyBin, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'agy'),
+      codex: wrap(supplied('codex') ?? new CodexCliRunner({ codexBin: config.codexBin, codexHome: config.codexHome, hooksDir: config.hooksDir, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'codex'),
+      agy: wrap(supplied('agy') ?? new AgyCliRunner({ agyBin: config.agyBin, hooksDir: config.hooksDir, maxConcurrent: config.maxConcurrent, env, log: config.log }), 'agy'),
     }, (spec) => {
       if (spec.meta?.goalId) return this.mustGoal(spec.meta.goalId).provider ?? config.provider;
       const named = AgentProvider.safeParse(spec.meta?.provider);

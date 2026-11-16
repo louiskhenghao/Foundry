@@ -1,3 +1,4 @@
+import { tsHookCommand } from './hook-command.ts';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
@@ -22,6 +23,8 @@ export type AgyEffort = (typeof AGY_EFFORTS)[number];
 
 export interface AgyCliRunnerOptions {
   agyBin?: string;
+  /** the folder with Foundry's hooks (packages/runner/hooks); the package's own when not given */
+  hooksDir?: string;
   maxConcurrent?: number;
   env?: Record<string, string | undefined> | (() => Record<string, string | undefined>);
   log?: (message: string) => void;
@@ -61,7 +64,7 @@ export function agyHooksEntry(files: { canary: string; guard: string; policy: st
   return {
     SessionStart: canary,
     PreInvocation: canary,
-    PreToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: `${shellQuote(process.execPath)} ${shellQuote(files.guard)} ${shellQuote(files.policy)}`, timeout: 15 }] }],
+    PreToolUse: [{ matcher: '*', hooks: [{ type: 'command', command: tsHookCommand(dirname(files.guard), 'agy-guard', [files.policy]), timeout: 15 }] }],
   };
 }
 
@@ -187,7 +190,7 @@ export class AgyCliRunner implements AgentRunner {
       const canary = join(dir, 'canary.json');
       const policy = join(dir, 'policy.json');
       const capped = join(dir, 'capped');
-      const hooksDir = fileURLToPath(new URL('../hooks/', import.meta.url));
+      const hooksDir = this.opts.hooksDir ?? fileURLToPath(new URL('../hooks/', import.meta.url));
       writeFileSync(policy, JSON.stringify({ canary, counter: join(dir, 'calls'), capped, boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), readOnlyShell: !!spec.readOnlyShell, noTools: spec.allowedTools?.length === 0, maxToolCalls: spec.maxTurns ? spec.maxTurns * AGY_CALLS_PER_TURN : spec.maxTurns }));
       const schema = spec.jsonSchema ? join(dir, 'schema.json') : undefined;
       if (schema) writeFileSync(schema, JSON.stringify(spec.jsonSchema));

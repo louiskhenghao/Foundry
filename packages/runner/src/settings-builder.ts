@@ -4,6 +4,9 @@
  * settings object is silently ignored by claude in -p mode (fail-open), so the runner
  * additionally verifies that the hook fired (see ClaudeCliRunner.verifyHooks).
  */
+import { dirname } from 'node:path';
+import { tsHookCommand } from './hook-command.ts';
+
 export interface HookSpec {
   event: 'PreToolUse' | 'PostToolUse' | 'Stop' | 'SessionStart' | 'SubagentStop';
   matcher?: string;
@@ -35,18 +38,18 @@ export function canaryHook(scriptPath: string): HookSpec {
 
 /**
  * Auto-approves rm commands confined to the workspace/temp dirs, which `dontAsk` would
- * otherwise deny (built-in destructive-command ask). Runs under bun; a deny from the
+ * otherwise deny (built-in destructive-command ask). Runs with Foundry's own runtime (hook-command.ts); a deny from the
  * boundary hook always wins over this hook's allow.
  */
 export function rmGuardHook(scriptPath: string): HookSpec {
-  return { event: 'PreToolUse', matcher: 'Bash', command: `bun ${JSON.stringify(scriptPath)}`, timeout: 10 };
+  return { event: 'PreToolUse', matcher: 'Bash', command: tsHookCommand(dirname(scriptPath), 'rm-guard'), timeout: 10 };
 }
 
 /**
  * The read-only shell guard (ADR-0073): the Explainer's Bash may only read — git's read-only subcommands, rg, grep, cat
- * and the like, no redirection into a file, no substitution. Runs under bun; its deny (exit 2) stands whatever the
- * other hooks say.
+ * and the like, no redirection into a file, no substitution. Runs with Foundry's own runtime (hook-command.ts); its deny
+ * (exit 2) stands whatever the other hooks say.
  */
 export function readOnlyShellHook(scriptPath: string): HookSpec {
-  return { event: 'PreToolUse', matcher: 'Bash', command: `bun ${JSON.stringify(scriptPath)}`, timeout: 10 };
+  return { event: 'PreToolUse', matcher: 'Bash', command: tsHookCommand(dirname(scriptPath), 'readonly-bash'), timeout: 10 };
 }

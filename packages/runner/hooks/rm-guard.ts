@@ -40,7 +40,8 @@ export function judge(command: string, cwd: string): Verdict {
   return { allow: true, reason: 'destructive file op confined to the workspace / temp dirs' };
 }
 
-if (import.meta.main) {
+/** the hook: read the event, answer, exit (`foundry hook rm-guard` from a compiled binary, the file itself under Bun) */
+export async function run(): Promise<void> {
   const input = await new Response(Bun.stdin.stream()).text();
   let j: { tool_input?: { command?: string }; cwd?: string } = {};
   try {
@@ -54,3 +55,4 @@ if (import.meta.main) {
   }
   process.exit(0);
 }
+if (import.meta.main) await run();

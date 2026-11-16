@@ -6,9 +6,9 @@ const deny = (reason: string): never => {
   console.log(JSON.stringify({ decision: 'deny', reason }));
   process.exit(0);
 };
-async function main() {
+export async function main(policyPath: string = process.argv[2]!): Promise<void> {
   const payload = JSON.parse((await Bun.stdin.text()) || '{}');
-  const policy = JSON.parse(readFileSync(process.argv[2]!, 'utf8'));
+  const policy = JSON.parse(readFileSync(policyPath, 'utf8'));
   if (!existsSync(policy.canary)) deny('Foundry session guard did not initialize. Stop this session.');
   // agy 1.4 hands the call as toolCall { name, args }; the other spellings keep this working should it change
   const name = String(payload.toolCall?.name ?? payload.toolName ?? payload.tool_name ?? payload.name ?? '');
@@ -47,4 +47,6 @@ async function main() {
     }
   }
 }
-main().catch(() => deny('Foundry could not verify this tool call; stop the session.'));
+/** the hook as `foundry hook agy-guard <policy>` runs it (ADR-0101); the file itself is run by Bun from a checkout */
+export const run = (args: string[] = process.argv.slice(2)): Promise<void> => main(args[0]!).catch(() => deny('Foundry could not verify this tool call; stop the session.'));
+if (import.meta.main) void run();
