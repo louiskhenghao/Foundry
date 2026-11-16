@@ -42,6 +42,12 @@
 #   --no-modify-path            leave your shell's configuration alone
 #   --dry-run                   say what would happen, change nothing
 #
+# What a running Foundry passes when it switches a checkout to the app or the binary (ADR-0103):
+#   --from-file PATH            app, binary: install this release file (already downloaded and checked), not GitHub's
+#   --migrate-from DIR          the source install whose goals move here (else the one install.env names)
+#   --migrate-data PATH         the data folder it runs on, when not the checkout's own
+#   --migrate-stop PID          the Foundry to stop before its data is copied
+#
 # Safe to run again: it finds the earlier install and updates it the same way.
 set -Eeuo pipefail
 # never stop without saying where: a failing command outside a condition names itself
@@ -66,6 +72,8 @@ MODE="" AGENT="" DIR="" REPOS="" PORT="" REF="" REPO="" HOST_DOCKER="" SERVICE="
 BIN="" REL_JSON="" REL_VERSION=""
 # what was installed before this run, for moving a source install's goals
 PREV_MODE="" PREV_DIR=""
+# a switch from a running Foundry (ADR-0103): the release file it checked, and what foundry migrate moves and stops
+FROM_FILE="" MIGRATE_FROM="" MIGRATE_DATA="" MIGRATE_STOP=""
 # docker: a Hindsight server for Memory (ADR-0072); its key lives in hindsight.env beside the compose file, never here
 MEMORY="" HINDSIGHT_PROVIDER="" HINDSIGHT_MODEL="" HINDSIGHT_KEY=""
 # Memory on the person's Codex sign-in instead of a key (provider openai-codex): the sign-in is Hindsight's own, in a folder
@@ -113,6 +121,10 @@ parse_flags() {
       --ref) REF="$2"; shift 2 ;;
       --version) VERSION="${2#v}"; shift 2 ;;
       --app-dir) APP_DIR="$2"; shift 2 ;;
+      --from-file) FROM_FILE="$2"; shift 2 ;;
+      --migrate-from) MIGRATE_FROM="$2"; shift 2 ;;
+      --migrate-data) MIGRATE_DATA="$2"; shift 2 ;;
+      --migrate-stop) MIGRATE_STOP="$2"; shift 2 ;;
       --yes|-y) YES=1; shift ;;
       --no-start) START=0; shift ;;
       --no-open) OPEN=0; shift ;;
@@ -290,6 +302,14 @@ sha256_of() { if have sha256sum; then sha256sum "$1" | awk '{print $1}'; else sh
 # the release's JSON from GitHub: the one --version names, else the newest published one
 resolve_release() {
   [ -n "$REL_JSON" ] && return 0
+  # a file a running Foundry downloaded and checked: its name says the version
+  if [ -n "$FROM_FILE" ]; then
+    [ -f "$FROM_FILE" ] || fail "no such file: $FROM_FILE"
+    REL_VERSION="$(basename "$FROM_FILE" | sed -n 's/^[Ff]oundry-\([0-9][0-9.]*[0-9]\)-.*/\1/p')"
+    [ -n "$REL_VERSION" ] || fail "$FROM_FILE is not a Foundry release file"
+    REL_JSON="(local file)"
+    return 0
+  fi
   local url="$RELEASES_API/latest"
   [ -n "$VERSION" ] && url="$RELEASES_API/tags/v$VERSION"
   REL_JSON="$(curl -fsSL --retry 3 -H 'Accept: application/vnd.github+json' "$url" 2>/dev/null)" || fail "could not read the release from $url"
@@ -301,6 +321,12 @@ asset_url() { { printf '%s' "$REL_JSON" | grep -o '"browser_download_url": *"[^"
 # download one file of the release into a folder, checked against the release's SHA256SUMS
 fetch_release() { # fetch_release name dir
   local name="$1" dir="$2" url sums want got
+  if [ -n "$FROM_FILE" ]; then
+    [ "$(basename "$FROM_FILE")" = "$name" ] || fail "$FROM_FILE is not $name, the file for this computer"
+    cp "$FROM_FILE" "$dir/$name"
+    ok "$name, checked by the Foundry that switches"
+    return 0
+  fi
   url="$(asset_url "$name")"
   [ -n "$url" ] || fail "release $REL_VERSION has no $name"
   sums="$(asset_url SHA256SUMS)"
@@ -329,13 +355,24 @@ run_setup() {
 
 # an earlier source install's goals move to this one: its service stops, its data folders are copied, it stays as the backup
 migrate_source() {
-  [ "$PREV_MODE" = source ] && [ -n "$PREV_DIR" ] && [ -f "$PREV_DIR/apps/cli/src/main.ts" ] || return 0
-  if [ "$DRY" = 1 ]; then plan "move the goals of the source install in $PREV_DIR (foundry migrate)"; return 0; fi
-  step "Your source install in $PREV_DIR"
+  local from="$MIGRATE_FROM"
+  [ -z "$from" ] && [ "$PREV_MODE" = source ] && from="$PREV_DIR"
+  [ -n "$from" ] && [ -f "$from/apps/cli/src/main.ts" ] || return 0
+  if [ "$DRY" = 1 ]; then plan "move the goals of the source install in $from (foundry migrate)"; return 0; fi
+  step "Your source install in $from"
+  # an array, empty or not: bash 3.2 with nounset refuses "${extra[@]}" when it is empty, hence the + form
+  local -a extra=()
+  [ -n "$MIGRATE_DATA" ] && extra+=(--data "$MIGRATE_DATA")
+  [ -n "$MIGRATE_STOP" ] && extra+=(--stop-pid "$MIGRATE_STOP")
+  [ -n "$PORT" ] && extra+=(--keep-port "$PORT")
   if [ "$YES" = 1 ] || yesno "Move its goals, settings and history here? It is stopped; its folder stays as the backup." y; then
-    "$BIN" migrate --from "$PREV_DIR" --yes || warn "the goals did not move; try again later with: foundry migrate --from $PREV_DIR"
+    if ! "$BIN" migrate --from "$from" ${extra[@]+"${extra[@]}"} --yes; then
+      # a switch whose data did not move does not start the new install: the old one is back, or says how to start it
+      [ -n "$MIGRATE_STOP" ] && fail "the goals did not move, so the new install is not started; see the lines above"
+      warn "the goals did not move; try again later with: foundry migrate --from $from"
+    fi
   else
-    note "left as it is; later: foundry migrate --from $PREV_DIR"
+    note "left as it is; later: foundry migrate --from $from"
   fi
   return 0
 }
@@ -399,7 +436,8 @@ install_app() {
 start_app() {
   if [ "$DRY" = 1 ]; then plan "open Foundry.app"; return 0; fi
   step "Starting Foundry (the menu bar app)"
-  open "$APP" || { warn "Foundry.app did not open"; return 0; }
+  # --no-open: a page is open already (a switch) and reconnects by itself, so the app opens no new one
+  if [ "$OPEN" = 1 ]; then open "$APP"; else open "$APP" --args --after-update; fi || { warn "Foundry.app did not open"; return 0; }
   local i
   for i in $(seq 1 90); do PORT="$(app_port)"; [ -n "$PORT" ] && healthy "$PORT" && { ok "Foundry is running: http://127.0.0.1:$PORT (its menu bar item has the rest)"; return 0; }; sleep 1; done
   warn "Foundry did not answer yet; its log: ~/Library/Logs/Foundry/app.log"
@@ -1252,6 +1290,8 @@ control() {
 # the newest installer, run the same way as last time
 update() {
   [ -n "$MODE" ] || { install; return; }
+  # 3.0 and later ship only as the app and the binary (ADR-0103): a source or Docker install asks before it switches
+  if { [ "$MODE" = source ] || [ "$MODE" = docker ]; } && switch_offer; then return 0; fi
   local tmp
   tmp="$(mktemp)"
   if curl -fsSL "$RAW_URL" -o "$tmp"; then
@@ -1259,6 +1299,39 @@ update() {
   fi
   warn "could not fetch the newest installer; updating with this one"
   YES=1 install
+}
+
+# the version this source or Docker install runs, from its own package.json
+installed_version() {
+  case "$MODE" in
+    source) { sed -n 's/.*"version": *"\([0-9][0-9.]*\)".*/\1/p' "$DIR/package.json" 2>/dev/null | head -1; } || true ;;
+    docker) { $DOCKER exec foundry cat /app/package.json 2>/dev/null | sed -n 's/.*"version": *"\([0-9][0-9.]*\)".*/\1/p' | head -1; } || true ;;
+  esac
+}
+
+# a newer major than this install runs: the notice the in-app dialog shows, then the switch (source) or its steps (Docker).
+# 0 when it was offered (switched or declined), 1 when there is nothing to switch to
+switch_offer() {
+  local cur latest to=binary json
+  cur="$(installed_version)"
+  [ -n "$cur" ] || return 1
+  json="$(curl -fsSL --retry 2 --max-time 15 -H 'Accept: application/vnd.github+json' "$RELEASES_API/latest" 2>/dev/null)" || return 1
+  latest="$({ printf '%s' "$json" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"v\{0,1\}\([^"]*\)"$/\1/'; } || true)"
+  [ -n "$latest" ] && [ "${latest%%.*}" -gt "${cur%%.*}" ] 2>/dev/null || return 1
+  is_mac && to=app
+  printf '\n\033[1mFoundry %s ships only as the %s.\033[0m This %s install (%s) gets no more updates.\n' "$latest" "$( [ "$to" = app ] && echo 'macOS app' || echo 'foundry binary')" "$MODE" "$cur"
+  printf '  Switching installs Foundry %s, stops this one, copies its data folder (every goal, setting and transcript)\n' "$latest"
+  printf '  to the new install and starts it on the same port. The original stays as it is: it is the backup.\n'
+  printf '  Your repositories are not touched. The way back: quit the new Foundry and start this one again.\n'
+  if [ "$MODE" = docker ]; then
+    printf '  Nothing in a container can install on its host; the steps: https://github.com/louiskhenghao/Foundry/blob/main/docs/operate/updates-and-backup.md#moving-to-30\n'
+    return 0
+  fi
+  if [ "$YES" = 1 ] || yesno "Switch this install to Foundry $latest now?" n; then
+    exec bash "${BASH_SOURCE[0]:-$0}" install --mode "$to" --migrate-from "$DIR" ${PORT:+--port "$PORT"} --yes
+  fi
+  note "staying on $cur; switch later with: foundry update"
+  return 0
 }
 
 uninstall() {

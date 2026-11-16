@@ -24,8 +24,8 @@ import { join, resolve } from 'node:path';
 const ROOT = resolve(import.meta.dir, '..');
 const ALL_TARGETS = ['darwin-universal', 'linux-x64', 'linux-arm64'] as const;
 type Target = (typeof ALL_TARGETS)[number];
-/** what travels beside the executable, at the checkout's own relative paths */
-const RESOURCES = ['apps/web/dist', 'roles', 'catalog', 'templates', 'packages/runner/hooks', 'packages/engine/recipes', 'docs/guide', 'THIRD-PARTY-NOTICES.txt'];
+/** what travels beside the executable, at the checkout's own relative paths; install.sh is what a checkout switches with (ADR-0103) */
+const RESOURCES = ['apps/web/dist', 'roles', 'catalog', 'templates', 'packages/runner/hooks', 'packages/engine/recipes', 'docs/guide', 'THIRD-PARTY-NOTICES.txt', 'install.sh'];
 
 const args = process.argv.slice(2);
 const flag = (name: string) => {
