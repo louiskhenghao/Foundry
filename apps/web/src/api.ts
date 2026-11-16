@@ -596,8 +596,18 @@ export interface UpdateReportView {
   changelog: { version: string; notes: string }[];
   error: string | null;
 }
+/** 3.0 and later ship only as the app and the binary (ADR-0103): what switching a checkout or a container means */
+export interface SwitchView {
+  to: string;
+  install: 'app' | 'binary';
+  from: 'local' | 'docker';
+  dataDir: string;
+  target: string;
+  port: number;
+  log: string;
+}
 export interface UpdateStatusView extends UpdateReportView {
-  capability: { mode: 'docker' | 'local' | 'app' | 'binary' | 'unknown'; canSelfUpdate: boolean; method: 'watchtower' | 'git' | 'release' | null; guided: string[] };
+  capability: { mode: 'docker' | 'local' | 'app' | 'binary' | 'unknown'; canSelfUpdate: boolean; method: 'watchtower' | 'git' | 'release' | 'switch' | null; guided: string[]; switch: SwitchView | null };
   checking: boolean;
   applying: boolean;
 }
@@ -992,7 +1002,7 @@ export function apiForProvider(provider?: AgentProvider) {
   health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; pausedUntilByProvider: Record<AgentProvider, string | null>; switchToByProvider?: Partial<Record<AgentProvider, string | null>>; currentAccountByProvider?: Partial<Record<AgentProvider, string | null>>; restartNeeded: string[]; version: string; webBuild?: string | null; updateAvailable: boolean; updating: boolean }>('/api/health'),
   updateStatus: () => req<UpdateStatusView>('/api/update'),
   updateCheck: () => req<UpdateReportView>('/api/update/check', { method: 'POST' }),
-  updateApply: (force = false) => req<{ started: true; channel: string }>('/api/update/apply', { method: 'POST', body: JSON.stringify({ force }) }),
+  updateApply: (force = false, acknowledge = false) => req<{ started: true; channel: string }>('/api/update/apply', { method: 'POST', body: JSON.stringify({ force, acknowledge }) }),
   // the data folder (ADR-0082)
   dataDir: () => req<DataDirStatus>('/api/data-dir'),
   dataDirTest: (path: string) => req<DataDirTest>('/api/data-dir/test', { method: 'POST', body: JSON.stringify({ path }) }),

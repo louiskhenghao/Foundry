@@ -2107,13 +2107,15 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   app.get('/api/update', (c) => c.json({ ...engine.updater.reportOrKick(), capability: engine.updater.capability(), checking: engine.updater.isChecking(), applying: engine.updater.isApplying() }));
   app.post('/api/update/check', async (c) => c.json(await engine.updater.check()));
   app.post('/api/update/apply', async (c) => {
-    const { force } = z.object({ force: z.boolean().optional() }).parse(await c.req.json().catch(() => ({})));
+    const { force, acknowledge } = z.object({ force: z.boolean().optional(), acknowledge: z.boolean().optional() }).parse(await c.req.json().catch(() => ({})));
     const cap = engine.updater.capability();
     if (engine.updater.isApplying()) throw new HttpError(409, { error: 'an update is already running' });
     if (!cap.canSelfUpdate) throw new HttpError(422, { error: 'this install cannot self-update', guided: cap.guided, mode: cap.mode });
+    // a switch to the app or the binary (ADR-0103) happens only on the risk dialog's ticked box
+    if (cap.method === 'switch' && !acknowledge) throw new HttpError(422, { error: `switching to ${cap.switch!.to} changes how Foundry is installed: confirm it in the dialog`, switch: cap.switch });
     if (!engine.updater.cachedReport()?.updateAvailable) throw new HttpError(409, { error: 'no newer version known — check for updates first' });
     // background; failures are streamed to the channel and recorded as an update.run event
-    void engine.updater.apply({ force, onLine: stream('self-update') }).catch(() => {});
+    void engine.updater.apply({ force, acknowledge, onLine: stream('self-update') }).catch(() => {});
     return c.json({ started: true, channel: 'self-update' }, 202);
   });
 
