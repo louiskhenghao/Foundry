@@ -90,6 +90,11 @@ export type ClaudeUsage =
       models: (ClaudeUsageWindow & { name: string })[];
       /** extra usage (overage) past the plan, only while it is turned on: what it spent of its monthly cap */
       extraUsage: { usedPercent: number | null; used: number | null; limit: number | null; currency: string | null } | null;
+      /**
+       * set when a later read failed: this is the last reading that succeeded (`checkedAt` says when), kept so the figures
+       * stay on the page instead of a blank; when the service was last asked, and why that read failed (ADR-0099)
+       */
+      stale?: { triedAt: string; message: string } | null;
     }
   | { state: 'unavailable' | 'error'; checkedAt: string; message: string };
 

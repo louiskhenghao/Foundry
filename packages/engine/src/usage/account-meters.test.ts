@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { agyMeters, claudeMeters, codexMeters, fmtReset, meterLevel, metersSummary, resetIn } from './account-meters.ts';
+import { agyMeters, claudeMeters, codexMeters, fmtReset, meterLevel, metersSummary, readingAge, resetIn } from './account-meters.ts';
 import type { ClaudeUsage } from './types.ts';
 
 const claude = (over: Partial<Extract<ClaudeUsage, { state: 'available' }>> = {}): ClaudeUsage => ({ state: 'available', checkedAt: '2026-11-11T10:00:00Z', fiveHour: null, sevenDay: { usedPercent: 53, resetsAt: '2026-11-14T02:00:00Z' }, models: [{ name: 'Fable', usedPercent: 11, resetsAt: '2026-11-14T02:00:00Z' }], extraUsage: null, ...over });
@@ -64,5 +64,25 @@ describe('account meters (ADR-0090)', () => {
     expect(resetIn(new Date(now.getTime() + 20 * 60_000).toISOString(), now.getTime())).toBe('in 20m');
     expect(resetIn(new Date(now.getTime() + 3 * 86_400_000).toISOString(), now.getTime())).toBe('in 3d 0h');
     expect(resetIn(new Date(now.getTime() - 1).toISOString(), now.getTime())).toBeNull();
+  });
+});
+
+describe('a reading kept through a failed read (ADR-0099)', () => {
+  test('the meters say the reading is the last one that succeeded, with when it was tried again and why that failed', () => {
+    const kept = claudeMeters(claude({ stale: { triedAt: '2026-11-11T10:05:00Z', message: 'Claude’s usage service asked to wait before it is read again.' } }));
+    expect(kept).toMatchObject({ state: 'available', checkedAt: '2026-11-11T10:00:00Z', stale: { triedAt: '2026-11-11T10:05:00Z', message: 'Claude’s usage service asked to wait before it is read again.' } });
+    expect(kept.state === 'available' && kept.meters.length).toBe(3);
+    expect(claudeMeters(claude())).toMatchObject({ state: 'available', stale: null });
+    expect(codexMeters({ state: 'available', checkedAt: 'c', ordinaryUsageAllowed: null, buckets: [] })).toMatchObject({ stale: null });
+  });
+
+  test('a reading is coloured by its age: plain under ten minutes, amber under an hour, red after (or when its time cannot be read)', () => {
+    const now = Date.parse('2026-11-16T12:00:00Z');
+    expect(readingAge('2026-11-16T11:59:00Z', now)).toBe('fresh');
+    expect(readingAge('2026-11-16T11:50:01Z', now)).toBe('fresh');
+    expect(readingAge('2026-11-16T11:50:00Z', now)).toBe('aging');
+    expect(readingAge('2026-11-16T11:00:01Z', now)).toBe('aging');
+    expect(readingAge('2026-11-16T11:00:00Z', now)).toBe('old');
+    expect(readingAge('garbage', now)).toBe('old');
   });
 });

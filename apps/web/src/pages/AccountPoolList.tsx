@@ -3,10 +3,10 @@ import { claudeMeters, codexMeters } from '@foundry/engine/account-meters';
 import { ArrowDown, ArrowUp, Check, Clock, Laptop, Plus, Repeat, Users } from 'lucide-react';
 import { useState } from 'react';
 import { api, type AccountPoolInfo, type AgentProvider, type PoolAccount } from '../api.ts';
-import { AccountMeterBars } from '../components/AccountMeters.tsx';
+import { AccountMeterBars, ReadingNote } from '../components/AccountMeters.tsx';
 import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
-import { Button, ConfirmDialog, ago, choiceClass, cn } from '../ui.tsx';
+import { Button, ConfirmDialog, choiceClass, cn } from '../ui.tsx';
 
 /**
  * What the provider's terms say about going on past a usage limit with another account, quoted where Auto switch is
@@ -113,10 +113,11 @@ export function AccountPoolList({ provider, pool, installed, onChange }: { provi
                   {!native && <Button size="sm" variant="ghost" className="hover:text-bad-ink" disabled={busy} onClick={() => setRemoving(a)}>Remove</Button>}
                 </span>
               )}
-              {/* bars on every row; the account sessions run on gets the cards, with when its reading was taken */}
+              {/* bars on every row; the account sessions run on gets the cards, with when its reading was taken; a reading
+                  kept through failed reads says so on every row, in the colour of its age (ADR-0099) */}
               <div className="basis-full pl-11">
                 <AccountMeterBars meters={usage} expanded={a.current} />
-                {a.current && usage.state !== 'unread' && <p className="mt-1.5 text-[11px] text-ink-faint">Usage as of {ago(usage.checkedAt)} · Refresh status reads it again</p>}
+                <ReadingNote meters={usage} onlyStale={!a.current} action={a.current ? 'Refresh status reads it again' : undefined} className="mt-1.5" />
               </div>
             </li>
           );

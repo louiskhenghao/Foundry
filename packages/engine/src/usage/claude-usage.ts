@@ -13,6 +13,14 @@ export const CLAUDE_USAGE_URL = 'https://api.anthropic.com/api/oauth/usage';
 const OAUTH_BETA = 'oauth-2025-04-20';
 /** after Claude Code could not renew a token (the sign-in needs the person), no new attempt for this long */
 const REFRESH_BACKOFF_MS = 15 * 60_000;
+/** how long a reading is served before the service is asked again */
+export const READING_KEEP_MS = 60_000;
+/** a sign-in that cannot be read changes only when the person acts */
+const UNAVAILABLE_KEEP_MS = 5 * 60_000;
+/** a failed read is tried again soon */
+const FAILURE_KEEP_MS = 15_000;
+/** the service asked to wait and did not say how long */
+export const RATE_LIMITED_KEEP_MS = 5 * 60_000;
 
 /** the sign-in Claude Code keeps for a config dir: the bearer its usage is read with, and when it lapses */
 export interface ClaudeCredentials {
@@ -64,9 +72,20 @@ export class ClaudeUsageReadError extends Error {
   constructor(
     message: string,
     readonly kind: 'auth' | 'rate-limited' | 'http' | 'network' | 'protocol',
+    /** how long the service asked to wait (its Retry-After), when it said */
+    readonly retryAfterMs: number | null = null,
   ) {
     super(message);
   }
+}
+
+/** a Retry-After header as milliseconds: seconds, or an HTTP date; null when absent or unreadable */
+export function retryAfterMs(header: string | null, now = Date.now()): number | null {
+  if (!header) return null;
+  const s = Number(header.trim());
+  if (Number.isFinite(s) && s >= 0) return Math.round(s * 1000);
+  const t = Date.parse(header);
+  return Number.isFinite(t) ? Math.max(0, t - now) : null;
 }
 
 /** one read of the usage service with the account's bearer; the answer is whatever JSON it sent, checked by `parseClaudeUsage` */
@@ -82,7 +101,7 @@ export async function fetchClaudeUsage(token: string, opts: { fetch?: typeof fet
     clearTimeout(timer);
   }
   if (res.status === 401 || res.status === 403) throw new ClaudeUsageReadError('Claude did not accept the sign-in.', 'auth');
-  if (res.status === 429) throw new ClaudeUsageReadError('Claude’s usage service asked to wait before it is read again.', 'rate-limited');
+  if (res.status === 429) throw new ClaudeUsageReadError('Claude’s usage service asked to wait before it is read again.', 'rate-limited', retryAfterMs(res.headers.get('retry-after')));
   if (!res.ok) throw new ClaudeUsageReadError(`Claude’s usage service answered ${res.status}.`, 'http');
   try {
     return await res.json();
@@ -158,7 +177,10 @@ export interface ClaudeUsageReaderDeps {
  * cost) and reads the token again; it never refreshes a token itself.
  */
 export class ClaudeUsageReader {
-  private cached: { at: number; value: ClaudeUsage } | null = null;
+  /** what the last read gave, served until `until` */
+  private cached: { until: number; value: ClaudeUsage } | null = null;
+  /** the last reading that succeeded: what a failed read falls back to, marked stale (ADR-0099) */
+  private lastGood: Extract<ClaudeUsage, { state: 'available' }> | null = null;
   private pending: Promise<ClaudeUsage> | null = null;
   private generation = 0;
   /** when Claude Code last failed to renew the token: the sign-in needs the person, so no new attempt for a while */
@@ -172,20 +194,22 @@ export class ClaudeUsageReader {
     this.generation++;
     this.pending = null;
     this.cached = null;
+    this.lastGood = null;
     this.refreshFailedAt = null;
   }
   read(force = false): Promise<ClaudeUsage> {
     const now = this.d.now?.() ?? Date.now();
     if (this.pending) return this.pending;
-    // a reading is kept a minute; a sign-in that cannot be read five (it changes only when the person acts); a failure a quarter of a minute
-    const ttl = this.cached?.value.state === 'available' ? 60_000 : this.cached?.value.state === 'unavailable' ? 300_000 : 15_000;
-    if (!force && this.cached && now - this.cached.at < ttl) return Promise.resolve(this.cached.value);
+    if (!force && this.cached && now < this.cached.until) return Promise.resolve(this.cached.value);
     const generation = this.generation;
     this.pending = this.readOnce(now)
-      .then((value) => {
+      .then(({ value, keepMs }) => {
         if (generation !== this.generation) return { state: 'unavailable' as const, checkedAt: new Date(now).toISOString(), message: 'The sign-in changed. Refresh to read its usage.' };
-        this.cached = { at: now, value };
-        return value;
+        if (value.state === 'available') this.lastGood = value;
+        // a failed read keeps the last reading on the page, saying when it was taken and why nothing newer could be read
+        const kept: ClaudeUsage = value.state === 'available' || !this.lastGood ? value : { ...this.lastGood, stale: { triedAt: value.checkedAt, message: value.message } };
+        this.cached = { until: now + keepMs, value: kept };
+        return kept;
       })
       .finally(() => {
         if (generation === this.generation) this.pending = null;
@@ -212,12 +236,17 @@ export class ClaudeUsageReader {
     this.refreshFailedAt = renewed ? null : now;
     return renewed ? after : null;
   }
-  private async readOnce(now: number): Promise<ClaudeUsage> {
+  /**
+   * One read, with how long its answer is kept: a reading a minute; a sign-in that cannot be read five (it changes only
+   * when the person acts); a failure a quarter of a minute, except a wait the service asked for (429), which is honoured
+   * for what its Retry-After says, five minutes when it says nothing: asking again sooner only earns another refusal.
+   */
+  private async readOnce(now: number): Promise<{ value: ClaudeUsage; keepMs: number }> {
     const checkedAt = new Date(now).toISOString();
     const credentials = this.d.credentials ?? ((dir: string | null) => readClaudeCredentials(dir, { run: this.d.run, envToken: this.d.envToken }));
     let c = await credentials(this.d.configDir);
-    if (!c) return { state: 'unavailable', checkedAt, message: 'Sign in to Claude Code to read its usage.' };
-    const lapsed: ClaudeUsage = { state: 'unavailable', checkedAt, message: 'Claude Code’s sign-in has lapsed: run claude once on this account, or sign in again.' };
+    if (!c) return { value: { state: 'unavailable', checkedAt, message: 'Sign in to Claude Code to read its usage.' }, keepMs: UNAVAILABLE_KEEP_MS };
+    const lapsed = { value: { state: 'unavailable', checkedAt, message: 'Claude Code’s sign-in has lapsed: run claude once on this account, or sign in again.' } as ClaudeUsage, keepMs: UNAVAILABLE_KEEP_MS };
     let refreshed = false;
     if (c.expiresAt !== null && c.expiresAt <= now) {
       // an expired token is never sent: Claude Code renews it, or the sign-in needs the person
@@ -228,7 +257,8 @@ export class ClaudeUsageReader {
     }
     for (;;) {
       try {
-        return parseClaudeUsage(await fetchClaudeUsage(c.accessToken, { fetch: this.d.fetch }), new Date(now));
+        const value = parseClaudeUsage(await fetchClaudeUsage(c.accessToken, { fetch: this.d.fetch }), new Date(now));
+        return { value, keepMs: value.state === 'available' ? READING_KEEP_MS : value.state === 'unavailable' ? UNAVAILABLE_KEEP_MS : FAILURE_KEEP_MS };
       } catch (e) {
         const err = e instanceof ClaudeUsageReadError ? e : new ClaudeUsageReadError('Claude’s usage could not be read.', 'network');
         if (err.kind === 'auth' && !refreshed) {
@@ -240,7 +270,9 @@ export class ClaudeUsageReader {
           }
         }
         this.d.log?.(`[usage] Claude usage not read (${err.kind}): ${err.message}`);
-        return err.kind === 'auth' ? lapsed : { state: 'error', checkedAt, message: err.message };
+        if (err.kind === 'auth') return lapsed;
+        const keepMs = err.kind === 'rate-limited' ? Math.max(FAILURE_KEEP_MS, Math.min(err.retryAfterMs ?? RATE_LIMITED_KEEP_MS, 60 * 60_000)) : FAILURE_KEEP_MS;
+        return { value: { state: 'error', checkedAt, message: err.message }, keepMs };
       }
     }
   }

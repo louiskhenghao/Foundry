@@ -1,10 +1,34 @@
-import { fmtReset, meterLevel, resetIn, type AccountMeter, type AccountMeters } from '@foundry/engine/account-meters';
-import { cn } from '../ui.tsx';
+import { fmtReset, meterLevel, readingAge, resetIn, type AccountMeter, type AccountMeters, type ReadingAge } from '@foundry/engine/account-meters';
+import { ago, cn } from '../ui.tsx';
 
 /** the bar by how far the window is used: the work blue (information from the account), amber from half, red near the end; the same for every coding agent */
 const BAR: Record<string, string> = { ok: 'bg-work', warn: 'bg-you', bad: 'bg-bad', unknown: 'bg-line' };
 const FIGURE: Record<string, string> = { ok: 'text-ink', warn: 'text-you-ink', bad: 'text-bad-ink', unknown: 'text-ink-faint' };
 const pct = (n: number | null) => (n == null ? '—' : `${n.toLocaleString(undefined, { maximumFractionDigits: n < 10 && n > 0 ? 1 : 0 })}%`);
+/** a reading kept through failed reads, coloured by its age (ADR-0099): plain under ten minutes, amber under an hour, red after */
+const AGE: Record<ReadingAge, string> = { fresh: 'text-ink-faint', aging: 'text-you-ink', old: 'text-bad-ink' };
+
+/**
+ * When the reading was taken. When the account could not be read since, the bars show the last reading that succeeded
+ * (ADR-0099), and this line says so in the colour of the reading's age: when it was tried again and why that failed.
+ * `onlyStale` keeps the line off a row whose reading is current; `action` says how to read again (Refresh status).
+ */
+export function ReadingNote({ meters, action, onlyStale = false, className }: { meters: AccountMeters; action?: string; onlyStale?: boolean; className?: string }) {
+  if (meters.state !== 'available' || (onlyStale && !meters.stale)) return null;
+  const age = meters.stale ? readingAge(meters.checkedAt) : 'fresh';
+  return (
+    <p className={cn('text-[11px]', AGE[age], className)}>
+      <span className={cn(meters.stale && 'font-semibold')}>Usage as of {ago(meters.checkedAt)}</span>
+      {meters.stale && (
+        <>
+          {' '}
+          · the last reading that could be taken; tried again {ago(meters.stale.triedAt)}: <span className="[overflow-wrap:anywhere]">{meters.stale.message}</span>
+        </>
+      )}
+      {action && <span className="text-ink-faint"> · {action}</span>}
+    </p>
+  );
+}
 
 /**
  * One account's usage windows as bars (ADR-0090): compact on a row (a thin bar per window with its figure), or expanded
