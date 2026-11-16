@@ -8,17 +8,19 @@ import { Markdown } from './Markdown.tsx';
 import { Button, ButtonGroup, Input, Modal, Select, Textarea, buttonClass, choiceClass, cn, code } from '../ui.tsx';
 import { NATURE_WORD, byNature, matchesSearch, shownVersion } from '../pages/new-goal-template.ts';
 
-/** each kind's icon and category colour, as the New goal form's Kind of goal card draws them (ADR-0067) */
-export const NATURE_ICON: Record<TemplateNature, { Icon: LucideIcon; ink: string }> = {
-  code: { Icon: CodeXml, ink: code(0).ink },
-  docs: { Icon: FileText, ink: code(1).ink },
-  research: { Icon: Telescope, ink: code(2).ink },
-  image: { Icon: ImageIcon, ink: code(6).ink },
-  video: { Icon: Clapperboard, ink: code(4).ink },
-  figure: { Icon: Lamp, ink: code(3).ink },
-  diagram: { Icon: Workflow, ink: code(7).ink },
-  deck: { Icon: Presentation, ink: code(1).ink },
-  cad: { Icon: Box, ink: code(5).ink },
+/** a kind's icon with its category colour (ADR-0067): the icon's ink, the square before its name, a tinted tile for the icon */
+const kind = (Icon: LucideIcon, i: number) => ({ Icon, ink: code(i).ink, dot: code(i).dot, chip: code(i).chip });
+/** each kind's icon and category colour, as the New goal form's Kind of goal card and the Templates page draw them */
+export const NATURE_ICON: Record<TemplateNature, { Icon: LucideIcon; ink: string; dot: string; chip: string }> = {
+  code: kind(CodeXml, 0),
+  docs: kind(FileText, 1),
+  research: kind(Telescope, 2),
+  image: kind(ImageIcon, 6),
+  video: kind(Clapperboard, 4),
+  figure: kind(Lamp, 3),
+  diagram: kind(Workflow, 7),
+  deck: kind(Presentation, 1),
+  cad: kind(Box, 5),
 };
 
 /** English or 中文, for this browser: the templates' names, inputs and words follow */
@@ -113,17 +115,10 @@ export function TemplateGallery({ open, templates, lang, onLang, onClose, onChoo
  * A template read in a dialog (ADR-0079): its words with the blanks named, or filled in with each input's example, and
  * above them what can be done with it — a new goal from it, its editor (one of the person's own), a copy of a built-in one.
  */
-export function TemplatePreview({ entry, lang, onLang, onClose, onCopy, copying }: { entry: TemplateEntry | null; lang: TemplateLang; onLang: (l: TemplateLang) => void; onClose: () => void; onCopy: (t: TemplateEntry) => void; copying?: boolean }) {
-  const [filled, setFilled] = useState(false);
-  useEffect(() => {
-    if (entry) setFilled(false);
-  }, [entry?.id]);
-  if (!entry) return null;
-  const v = shownVersion(entry, lang);
-  const { Icon, ink } = NATURE_ICON[entry.nature];
-  const text = filled ? renderTemplate(v, sampleValues(v)).prompt : bodyWithBlanks(v);
+/** what a template brings to a goal besides its words, in short: the engine or style, the view, the pace, TDD, the budget, the interview depth, a skipped Clarify */
+export function templateBrings(entry: TemplateEntry): string[] {
   const s = entry.settings;
-  const brings = [
+  return [
     s.videoPack && `engine ${s.videoPack}`,
     s.figurePack && s.figurePack !== 'none' && `style ${s.figurePack}`,
     s.mode && `${s.mode === 'simple' ? 'Simple' : 'Expert'} view`,
@@ -133,6 +128,23 @@ export function TemplatePreview({ entry, lang, onLang, onClose, onCopy, copying 
     s.interviewDepth !== undefined && `interview depth ${s.interviewDepth}`,
     s.autoBrief && 'skips Clarify',
   ].filter((x): x is string => !!x);
+}
+
+/**
+ * A template read in a dialog (View): its words with the blanks named or filled in with examples, and what can be done
+ * with it. `onUse` given, Use hands the template back (the Templates page asks before it opens the New goal form); left
+ * out, Use is the link to the form.
+ */
+export function TemplatePreview({ entry, lang, onLang, onClose, onCopy, copying, onUse }: { entry: TemplateEntry | null; lang: TemplateLang; onLang: (l: TemplateLang) => void; onClose: () => void; onCopy: (t: TemplateEntry) => void; copying?: boolean; onUse?: (t: TemplateEntry) => void }) {
+  const [filled, setFilled] = useState(false);
+  useEffect(() => {
+    if (entry) setFilled(false);
+  }, [entry?.id]);
+  if (!entry) return null;
+  const v = shownVersion(entry, lang);
+  const { Icon, ink } = NATURE_ICON[entry.nature];
+  const text = filled ? renderTemplate(v, sampleValues(v)).prompt : bodyWithBlanks(v);
+  const brings = templateBrings(entry);
   return (
     <Modal
       open
@@ -147,9 +159,15 @@ export function TemplatePreview({ entry, lang, onLang, onClose, onCopy, copying 
     >
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <Link to={`/goals/new?template=${encodeURIComponent(entry.id)}`} className={buttonClass('primary', 'sm')} title="A new goal from this template">
-            Use on a new goal
-          </Link>
+          {onUse ? (
+            <Button size="sm" variant="primary" onClick={() => onUse(entry)} title="A new goal from this template">
+              Use on a new goal
+            </Button>
+          ) : (
+            <Link to={`/goals/new?template=${encodeURIComponent(entry.id)}`} className={buttonClass('primary', 'sm')} title="A new goal from this template">
+              Use on a new goal
+            </Link>
+          )}
           {!entry.builtIn && (
             <Link to={`/templates/${encodeURIComponent(entry.id)}${v.lang === 'zh' ? '?lang=zh' : ''}`} className={buttonClass('default', 'sm')}>
               <Pencil size={13} /> Edit

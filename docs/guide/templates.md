@@ -30,13 +30,13 @@ Both are one short call on the housekeeping model, a few cents. Tick **Also read
 
 ## Making your own
 
-Open **Templates** in the top bar. The page lists yours and Foundry's; **Use** on any of them opens a new goal from it, and **View** reads it in a dialog: its words with each blank named, or **Filled in** with an example in every blank, with **Edit** (one of yours) and **Make a copy** above them.
+Open **Templates** in the top bar. The page is a gallery: a row of kinds along the top (**All**, **Code**, **Documents**…) with the language switch at its right, then a shelf of cards for yours and one for each kind of Foundry's, eight at a time with arrows and dots when a shelf has more. A card shows the template's name, whose it is, its summary and how many blanks it asks for, and its buttons: **Use** asks first — which template, what it asks for, what it brings — then opens a new goal from it; **View** reads it in a dialog: its words with each blank named, or **Filled in** with an example in every blank, with **Edit** (one of yours) and **Make a copy** above them; **Make a copy** (Foundry's) or **Edit** (yours); and the **⋯** menu (rename, copy, open in an editor, export, delete).
 
-![The Templates page: your own templates, then Foundry's by kind, and the templates folder](images/templates.png)
+![The Templates page: the kinds as tabs, your own templates, then Foundry's by kind, and the templates folder](images/templates.png)
 
 - **New template** opens the editor with an empty template.
 - **Import a file** brings in a template file from elsewhere: one exported from another Foundry, or written by hand. Foundry checks it first.
-- Under **Foundry's**, **Make a copy** writes one of the built-in templates to your folder, in both its languages, under a name of its own; the copy is yours to edit.
+- **Make a copy** on one of Foundry's asks first, then writes it to your folder, in both its languages, under a name of its own; the copy is yours to edit.
 
 On a goal's page, the **⋯** menu has **Save as template…**: the editor opens with the goal's description as the template's words and the settings the goal was made with. Write `{{a_key}}` over the parts that should become inputs, and the template is ready for the next goal of that kind.
 

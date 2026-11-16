@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router-dom';
 import type { TemplateEntry, TemplateVersionView } from '@foundry/core/browser';
 import { TemplateCard, TemplateGallery, TemplateInputField, TemplatePreview } from '../src/components/Templates.tsx';
-import { Templates } from '../src/pages/TemplatesPage.tsx';
+import { Templates, UseTemplateDialog } from '../src/pages/TemplatesPage.tsx';
 
 const version = (over: Partial<TemplateVersionView> = {}): TemplateVersionView => ({ lang: 'en', name: 'Product reel', summary: 'A short film that shows a product off.', nature: 'video', settings: {}, inputs: [{ key: 'product', type: 'text', other: false }, { key: 'duration', type: 'choice', other: false, options: ['30 s', '60 s'], default: '30 s' }], body: 'A {{duration}} reel for {{product}}.', file: null, warnings: [], ...over });
 const reel: TemplateEntry = { id: 'video-product-reel', builtIn: true, nature: 'video', settings: { videoPack: 'motion-studio' }, en: version(), zh: version({ lang: 'zh', name: '产品 reel' }) };
@@ -66,32 +66,60 @@ test('a template read in the dialog shows its words with the blanks named, offer
   expect(built).toContain('With blanks');
   expect(built).toContain('Filled in');
   expect(built).toContain('brings: engine motion-studio');
+  // asked to hand Use back (the Templates page confirms first), the dialog's Use is a button, not the form's link
+  const handed = route(<TemplatePreview entry={reel} lang="en" onLang={() => {}} onClose={() => {}} onCopy={() => {}} onUse={() => {}} />);
+  expect(handed).toContain('Use on a new goal');
+  expect(handed).not.toContain('/goals/new?template=');
   const own = route(<TemplatePreview entry={mine} lang="en" onLang={() => {}} onClose={() => {}} onCopy={() => {}} />);
   expect(own).toContain('Edit');
   expect(own).toContain('/templates/weekly-digest');
   expect(route(<TemplatePreview entry={null} lang="en" onLang={() => {}} onClose={() => {}} onCopy={() => {}} />)).toBe('');
 });
 
-test('the Templates page lists yours and Foundry\'s with what each can have done, the folder and the files that cannot be used', () => {
+test('the Templates page is a gallery: the kinds as tabs, your shelf, then Foundry\'s by kind, each card with what can be done, and the folder', () => {
   const html = route(<Templates templates={[reel, mine]} problems={[{ file: 'broken.md', error: 'frontmatter line 2: indent with spaces, not tabs' }]} dir="/data/templates" editors={[{ id: 'vscode', label: 'VS Code', kind: 'editor', available: true, via: 'vscode' } as never]} lang="en" onLang={() => {}} error={null} onError={() => {}} onChanged={() => {}} />);
-  expect(html).toContain('Yours');
+  // the tabs: All, then every kind a template exists for, in the kinds' order
+  expect(html.match(/role="tab"/g)).toHaveLength(3);
+  expect(html).toMatch(/role="tab" aria-selected="true"[^>]*>All</);
+  expect(html.indexOf('>Documents<')).toBeLessThan(html.indexOf('>Video<'));
+  // the shelves: Yours first, then one per kind of Foundry's
+  expect(html.indexOf('>Yours<')).toBeLessThan(html.indexOf('Foundry&#x27;s — Films'));
   expect(html).toContain('Weekly digest');
-  expect(html).toContain('Open in VS Code');
-  expect(html).toContain('Edit');
+  expect(html).toContain('Product reel');
+  expect(html).toContain('A short film that shows a product off.');
   expect(html).toContain('New template');
   expect(html).toContain('Import a file');
-  expect(html).toContain('Product reel');
-  expect(html).toContain('Make a copy');
-  // every template can be read in the dialog; only yours has an editor
+  // every card: Use (asks first, so no link yet) and View; Make a copy on Foundry's, Edit on yours; the ⋯ menu
+  expect(html.match(/>Use</g)).toHaveLength(2);
   expect(html.match(/>View</g)).toHaveLength(2);
-  expect(html).toContain('/goals/new?template=video-product-reel');
+  expect(html).not.toContain('/goals/new?template=');
+  expect(html.match(/Make a copy/g)).toHaveLength(1);
   expect(html).toContain('/templates/weekly-digest');
+  expect(html).toContain('aria-label="More for Weekly digest"');
+  // a shelf of two or fewer pages has no arrows
+  expect(html).not.toContain('aria-label="Next page"');
   expect(html).toContain('/data/templates');
   expect(html).toContain('broken.md');
   expect(html).toContain('indent with spaces, not tabs');
   expect(html).toContain('href="/help/templates"');
-  // a built-in template is viewed and copied, never opened as a file
-  expect(html.match(/Open in VS Code/g)).toHaveLength(1);
+});
+
+test('a shelf with more than eight templates pages them, with arrows and a dot per page', () => {
+  const many = Array.from({ length: 9 }, (_, i) => ({ ...reel, id: `reel-${i}`, en: version({ name: `Reel ${i}` }), zh: null }));
+  const html = route(<Templates templates={many} problems={[]} dir={null} editors={[]} lang="en" onLang={() => {}} error={null} onError={() => {}} onChanged={() => {}} />);
+  expect(html).toContain('Reel 7');
+  expect(html).not.toContain('Reel 8');
+  expect(html).toContain('aria-label="Next page"');
+  expect(html).toContain('page 1 of 2');
+});
+
+test('Use asks first: the dialog names the template, what it asks for and what it brings', () => {
+  const html = route(<UseTemplateDialog entry={reel} lang="en" onClose={() => {}} onConfirm={() => {}} />);
+  expect(html).toContain('Use “Product reel” for a new goal?');
+  expect(html).toContain('2 blanks to fill (1 required)');
+  expect(html).toContain('brings engine motion-studio');
+  expect(html).toContain('Nothing starts until you submit the form.');
+  expect(route(<UseTemplateDialog entry={null} lang="en" onClose={() => {}} onConfirm={() => {}} />)).toBe('');
 });
 
 test('the AI\'s values are listed in the template\'s order under its labels, then any key it does not know', async () => {

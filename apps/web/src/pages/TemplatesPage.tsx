@@ -1,17 +1,18 @@
-import type { TemplateEntry, TemplateLang, TemplateProblem } from '@foundry/core/browser';
-import { ChevronDown, Copy, Download, FilePenLine, FolderOpen, LayoutTemplate, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, Upload, XCircle } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import type { TemplateEntry, TemplateLang, TemplateNature, TemplateProblem } from '@foundry/core/browser';
+import { inputRequired } from '@foundry/core/browser';
+import { ChevronDown, ChevronLeft, ChevronRight, Copy, Download, FilePenLine, FolderOpen, LayoutTemplate, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, Upload, XCircle } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, type OpenTarget } from '../api.ts';
-import { NATURE_ICON, TemplateLangSwitch, TemplatePreview } from '../components/Templates.tsx';
+import { NATURE_ICON, TemplateLangSwitch, TemplatePreview, templateBrings } from '../components/Templates.tsx';
 import { Button, ConfirmDialog, CopyButton, Card, Input, Menu, MenuItem, PageHeader, buttonClass, cn } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
-import { NATURE_WORD, byNature, loadTemplateLang, saveTemplateLang, shownVersion } from './new-goal-template.ts';
+import { NATURE_WORD, TEMPLATE_NATURES, byNature, loadTemplateLang, saveTemplateLang, shownVersion } from './new-goal-template.ts';
 
 /**
  * The Templates page (ADR-0079): the templates Foundry ships and the person's own, each to use on a new goal, copy,
  * edit, rename, export or delete; a template file from elsewhere comes in; the folder opens in an editor; a file with a
- * mistake is listed with what to fix.
+ * mistake is listed with what to fix. A gallery: a row of kinds at the top, then a shelf of cards per kind.
  */
 export function TemplatesPage() {
   const [templates, setTemplates] = useState<TemplateEntry[] | null>(null);
@@ -47,10 +48,32 @@ export function TemplatesPage() {
   return <Templates templates={templates ?? []} problems={problems} dir={dir} editors={editors} lang={lang} onLang={setLang} error={err} onError={setErr} onChanged={load} />;
 }
 
+/** one line on what each kind of goal makes, under its shelf's title */
+const NATURE_LINE: Record<TemplateNature, string> = {
+  code: 'Features, fixes, sites and apps, in a repository.',
+  docs: 'Documents written for people: a README, an RFC, a report.',
+  research: 'A question answered from sources, with the evidence kept.',
+  image: 'Pictures made by an image skill.',
+  video: 'Films cut and rendered from code.',
+  figure: 'Interactive isometric figures of objects and machines.',
+  diagram: 'Editorial diagrams: architecture, flows, timelines.',
+  deck: 'Slide decks as editable PPTX files.',
+  cad: 'Parts and assemblies as CAD models.',
+};
+/** how many cards a shelf shows at a time: two rows of four on a wide screen */
+const SHELF_PAGE = 8;
+
 /** the page's content for a given set of templates (the server's, or a test's) */
 export function Templates({ templates, problems, dir, editors, lang, onLang, error, onError, onChanged }: { templates: TemplateEntry[]; problems: TemplateProblem[]; dir: string | null; editors: OpenTarget[]; lang: TemplateLang; onLang: (l: TemplateLang) => void; error: string | null; onError: (e: string | null) => void; onChanged: () => void | Promise<void> }) {
+  const navigate = useNavigate();
+  /** the kind the row of tabs narrows the page to; all = every kind */
+  const [kind, setKind] = useState<TemplateNature | 'all'>('all');
   const [renaming, setRenaming] = useState<{ entry: TemplateEntry; name: string } | null>(null);
   const [deleting, setDeleting] = useState<TemplateEntry | null>(null);
+  /** the template Use asks about before the New goal form opens */
+  const [using, setUsing] = useState<TemplateEntry | null>(null);
+  /** the template Make a copy asks about before the copy is written */
+  const [copying, setCopying] = useState<TemplateEntry | null>(null);
   /** the template read in the dialog (View) */
   const [viewing, setViewing] = useState<TemplateEntry | null>(null);
   const [busy, setBusy] = useState(false);
@@ -68,6 +91,7 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
       setBusy(false);
       setRenaming(null);
       setDeleting(null);
+      setCopying(null);
     }
   };
   const copy = (t: TemplateEntry) =>
@@ -92,8 +116,16 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
   };
   const own = templates.filter((t) => !t.builtIn);
   const shipped = templates.filter((t) => t.builtIn);
+  // the tabs: every kind a template exists for, in the kinds' order
+  const kinds = TEMPLATE_NATURES.filter((n) => templates.some((t) => t.nature === n));
+  const inKind = (ts: TemplateEntry[]) => (kind === 'all' ? ts : ts.filter((t) => t.nature === kind));
+  const shelves = byNature(inKind(shipped));
+  const tile = (t: TemplateEntry) => <TemplateTile key={t.id} entry={t} lang={lang} editors={t.builtIn ? [] : editors} onError={onError} onUse={() => setUsing(t)} onView={() => setViewing(t)} onCopy={() => setCopying(t)} onRename={t.builtIn ? undefined : () => setRenaming({ entry: t, name: shownVersion(t, lang).name })} onExport={(l) => exportFile(t, l)} onDelete={t.builtIn ? undefined : () => setDeleting(t)} />;
+  const usingName = using ? shownVersion(using, lang) : null;
+  const copyingName = copying ? shownVersion(copying, lang).name : '';
   return (
-    <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-24 space-y-4">
+    // wider than the other pages: four cards across, each with room for its row of buttons
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-24 space-y-6">
       <PageHeader
         title={
           <span className="inline-flex items-center gap-2">
@@ -104,7 +136,6 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
         summary="A template is a pattern the New goal form starts from: a description with blanks to fill and the settings that suit it. Foundry's own come in English and 中文 and update with Foundry; yours are files in the templates folder."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <TemplateLangSwitch value={lang} onChange={onLang} />
             <Link to="/templates/new" className={buttonClass('primary', 'md')}>
               <Plus size={14} /> New template
             </Link>
@@ -116,6 +147,24 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
         }
       />
 
+      {/* the kinds as a row of tabs with the language of the templates at its right, where the row is wide enough for
+          every kind; narrower (a phone, a tablet) the row has the whole width, scrolls sideways from edge to edge, and the
+          language switch takes a line of its own under it, so neither squeezes the other */}
+      <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:gap-3">
+        <div role="tablist" aria-label="Kind of goal" className="-mx-3 flex min-w-0 flex-1 gap-1 overflow-x-auto whitespace-nowrap px-3 py-1 sm:-mx-4 sm:px-4 md:-mx-6 md:px-6 lg:-mx-1 lg:px-1">
+          {(['all', ...kinds] as (TemplateNature | 'all')[]).map((k) => (
+            <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setKind(k)} className={cn('inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm font-semibold transition-colors', kind === k ? 'bg-panel text-ink shadow-[0_0_0_1px_var(--color-line)]' : 'text-ink-soft hover:text-ink')}>
+              {/* the kind's colour as a small square before its name, as the Settings sections wear theirs */}
+              {k !== 'all' && <span className={cn('h-2 w-2 shrink-0 rounded-[2px]', NATURE_ICON[k].dot)} aria-hidden="true" />}
+              {k === 'all' ? 'All' : NATURE_WORD[k]}
+            </button>
+          ))}
+        </div>
+        <div className="self-end lg:self-auto">
+          <TemplateLangSwitch value={lang} onChange={onLang} />
+        </div>
+      </div>
+
       {note && <div className="rounded-md border border-line bg-sunken px-3 py-2.5 text-xs text-ink-soft">{note}</div>}
       {error && (
         <div className="flex items-start gap-2 rounded-md border border-line bg-sunken px-3 py-2 text-xs text-bad-ink">
@@ -124,53 +173,31 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
         </div>
       )}
 
-      <Card
-        id="own-templates"
-        title={
-          <span className="inline-flex items-center gap-2">
-            Yours <span className="font-normal text-ink-faint">({own.length})</span>
-          </span>
-        }
-      >
-        {own.length === 0 ? (
-          <p className="text-xs text-ink-faint">
-            None yet. Make a copy of one of Foundry's below, press <b className="text-ink">New template</b>, or save a goal you liked as one (its page's ⋯ menu → <b className="text-ink">Save as template…</b>).
-          </p>
-        ) : (
-          <ul className="divide-y divide-line rounded-lg border border-line" aria-label="Your templates">
-            {own.map((t) => (
-              <TemplateRow key={t.id} entry={t} lang={lang} editors={editors} onError={onError} onView={() => setViewing(t)} onCopy={() => void copy(t)} onRename={() => setRenaming({ entry: t, name: shownVersion(t, lang).name })} onExport={(l) => exportFile(t, l)} onDelete={() => setDeleting(t)} />
-            ))}
-          </ul>
-        )}
-      </Card>
+      <Shelf id="own-templates" title="Yours" subtitle="Templates you made, copied or saved from a goal: files in your templates folder, to edit as you like." items={inKind(own).map(tile)} empty={
+        <>
+          None yet{kind === 'all' ? '' : ` for ${NATURE_WORD[kind]}`}. Make a copy of one of Foundry's below, press <b className="text-ink">New template</b>, or save a goal you liked as one (its page's ⋯ menu → <b className="text-ink">Save as template…</b>).
+        </>
+      } />
 
-      <Card
-        id="shipped-templates"
-        title={
-          <span className="inline-flex items-center gap-2">
-            Foundry's <span className="font-normal text-ink-faint">({shipped.length})</span>
-          </span>
-        }
-      >
-        <div className="space-y-4">
-          {byNature(shipped).map((g) => {
-            const { Icon, ink } = NATURE_ICON[g.nature];
-            return (
-              <div key={g.nature}>
-                <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-ink-faint">
-                  <Icon size={13} strokeWidth={2.25} className={ink} aria-hidden="true" /> {NATURE_WORD[g.nature]}
-                </div>
-                <ul className="divide-y divide-line rounded-lg border border-line">
-                  {g.templates.map((t) => (
-                    <TemplateRow key={t.id} entry={t} lang={lang} editors={[]} onError={onError} onView={() => setViewing(t)} onCopy={() => void copy(t)} onExport={(l) => exportFile(t, l)} />
-                  ))}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+      {shelves.map((g) => {
+        const { Icon, chip } = NATURE_ICON[g.nature];
+        return (
+          <Shelf
+            key={g.nature}
+            id={`shipped-${g.nature}`}
+            title={
+              <span className="inline-flex items-center gap-2">
+                <span className={cn('grid size-7 shrink-0 place-items-center rounded-md', chip)} aria-hidden="true">
+                  <Icon size={15} strokeWidth={2.25} />
+                </span>
+                {NATURE_WORD[g.nature]}
+              </span>
+            }
+            subtitle={`Foundry's — ${NATURE_LINE[g.nature]}`}
+            items={g.templates.map(tile)}
+          />
+        );
+      })}
 
       <Card id="templates-folder" title="The templates folder">
         <div className="space-y-3">
@@ -211,7 +238,13 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
         </div>
       </Card>
 
-      <TemplatePreview entry={viewing} lang={lang} onLang={onLang} onClose={() => setViewing(null)} onCopy={(t) => void copy(t)} copying={busy} />
+      <TemplatePreview entry={viewing} lang={lang} onLang={onLang} onClose={() => setViewing(null)} onUse={(t) => setUsing(t)} onCopy={(t) => setCopying(t)} copying={busy} />
+      <UseTemplateDialog entry={using} lang={lang} onClose={() => setUsing(null)} onConfirm={() => using && navigate(`/goals/new?template=${encodeURIComponent(using.id)}`)} />
+      <ConfirmDialog open={!!copying} title={`Make a copy of “${copyingName}”?`} confirmLabel="Make a copy" busy={busy} onConfirm={() => copying && void copy(copying)} onClose={() => setCopying(null)}>
+        <p>
+          A copy goes into your templates folder{copying?.en && copying.zh ? ', in both its languages,' : ''} under a name of its own; {copying?.builtIn ? "Foundry's" : 'the original'} stays as it is. The copy is yours to edit here or in an editor.
+        </p>
+      </ConfirmDialog>
       <ConfirmDialog open={!!renaming} title="Rename the template" confirmLabel="Rename" busy={busy} confirmDisabled={!renaming?.name.trim()} onConfirm={() => renaming && void act(async () => void (await api.renameTemplate(renaming.entry.id, renaming.name)))} onClose={() => setRenaming(null)}>
         <p>Its files take the new name too, in every language it has.</p>
         <Input autoFocus aria-label="New name" maxLength={80} value={renaming?.name ?? ''} onChange={(e) => setRenaming((r) => (r ? { ...r, name: e.target.value } : r))} onKeyDown={(e) => e.key === 'Enter' && renaming?.name.trim() && void act(async () => void (await api.renameTemplate(renaming.entry.id, renaming.name)))} />
@@ -225,47 +258,146 @@ export function Templates({ templates, problems, dir, editors, lang, onLang, err
   );
 }
 
-/** one template in the lists: its kind, name, summary and languages; what can be done with it */
-function TemplateRow({ entry, lang, editors, onError, onView, onCopy, onRename, onExport, onDelete }: { entry: TemplateEntry; lang: TemplateLang; editors: OpenTarget[]; onError: (e: string | null) => void; onView: () => void; onCopy: () => void; onRename?: () => void; onExport: (l: TemplateLang) => void; onDelete?: () => void }) {
+/**
+ * Use asks before the New goal form opens: which template, what it asks for and what it brings, so a card's button
+ * pressed by mistake costs nothing. Nothing is made until the form itself is submitted.
+ */
+export function UseTemplateDialog({ entry, lang, onClose, onConfirm }: { entry: TemplateEntry | null; lang: TemplateLang; onClose: () => void; onConfirm: () => void }) {
+  if (!entry) return null;
   const v = shownVersion(entry, lang);
   const { Icon, ink } = NATURE_ICON[entry.nature];
-  const langs = (['en', 'zh'] as TemplateLang[]).filter((l) => entry[l]);
+  const required = v.inputs.filter(inputRequired).length;
+  const brings = templateBrings(entry);
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2.5">
-      <Icon size={14} strokeWidth={2.25} className={cn('shrink-0', ink)} aria-hidden="true" />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-baseline gap-x-2">
-          <span className="text-sm font-semibold text-ink">{v.name}</span>
-          <span className="mono text-[11px] text-ink-faint">{entry.id}</span>
-          {langs.length === 2 && <span className="text-[11px] text-ink-faint">EN · 中文</span>}
-        </div>
-        {v.summary && <div className="text-xs text-ink-faint">{v.summary}</div>}
+    <ConfirmDialog
+      open
+      title={
+        <span className="inline-flex items-center gap-2">
+          <Icon size={15} strokeWidth={2.25} className={cn('shrink-0', ink)} aria-hidden="true" /> Use “{v.name}” for a new goal?
+        </span>
+      }
+      confirmLabel="Use"
+      onConfirm={onConfirm}
+      onClose={onClose}
+    >
+      <div className="space-y-2">
+        {v.summary && <p className="text-ink-soft">{v.summary}</p>}
+        <p>
+          The New goal form opens with it: {v.inputs.length === 0 ? 'no blanks to fill' : `${v.inputs.length} blank${v.inputs.length === 1 ? '' : 's'} to fill${required ? ` (${required} required)` : ''}`}
+          {brings.length > 0 && <>, and it brings {brings.join(', ')}</>}. Nothing starts until you submit the form.
+        </p>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">
-        <Link to={`/goals/new?template=${encodeURIComponent(entry.id)}`} className={buttonClass('default', 'sm')} title="A new goal from this template">
+    </ConfirmDialog>
+  );
+}
+
+/**
+ * A shelf of cards under a title: at most SHELF_PAGE at a time, two rows of four on a wide screen, with arrows and dots
+ * for the pages when there are more — as a gallery lays its collections out.
+ */
+function Shelf({ id, title, subtitle, items, empty }: { id: string; title: ReactNode; subtitle: ReactNode; items: ReactNode[]; /** shown in place of the cards when there are none */ empty?: ReactNode }) {
+  const [page, setPage] = useState(0);
+  const pages = Math.max(1, Math.ceil(items.length / SHELF_PAGE));
+  // fewer items than before (a tab narrowed them): stay on a page that exists
+  const at = Math.min(page, pages - 1);
+  return (
+    <section id={id} aria-labelledby={`${id}-title`}>
+      <div className="mb-3 flex items-end justify-between gap-4">
+        <div className="min-w-0">
+          <h2 id={`${id}-title`} className="text-lg font-bold leading-tight text-ink">
+            {title}
+          </h2>
+          <p className="mt-0.5 text-xs text-ink-faint">{subtitle}</p>
+        </div>
+        {pages > 1 && (
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="flex items-center gap-1" aria-hidden="true">
+              {Array.from({ length: pages }, (_, i) => (
+                <span key={i} className={cn('h-1.5 rounded-full transition-all', i === at ? 'w-4 bg-accent' : 'w-1.5 bg-line-strong')} />
+              ))}
+            </span>
+            <span className="sr-only" aria-live="polite">
+              page {at + 1} of {pages}
+            </span>
+            <button type="button" aria-label="Previous page" disabled={at === 0} onClick={() => setPage(at - 1)} className="grid size-8 place-items-center rounded-full border border-line-strong text-ink-soft transition-colors hover:text-ink disabled:opacity-40">
+              <ChevronLeft size={14} />
+            </button>
+            <button type="button" aria-label="Next page" disabled={at >= pages - 1} onClick={() => setPage(at + 1)} className="grid size-8 place-items-center rounded-full border border-line-strong text-ink-soft transition-colors hover:text-ink disabled:opacity-40">
+              <ChevronRight size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+      {items.length === 0 ? <p className="text-xs text-ink-faint">{empty}</p> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">{items.slice(at * SHELF_PAGE, at * SHELF_PAGE + SHELF_PAGE)}</div>}
+    </section>
+  );
+}
+
+/** one template as a card on a shelf: its kind's mark on a tile, its name, whose it is, its summary, what it asks, and what can be done with it */
+function TemplateTile({ entry, lang, editors, onError, onUse, onView, onCopy, onRename, onExport, onDelete }: { entry: TemplateEntry; lang: TemplateLang; editors: OpenTarget[]; onError: (e: string | null) => void; onUse: () => void; onView: () => void; onCopy: () => void; onRename?: () => void; onExport: (l: TemplateLang) => void; onDelete?: () => void }) {
+  const v = shownVersion(entry, lang);
+  const { Icon, ink, chip } = NATURE_ICON[entry.nature];
+  const langs = (['en', 'zh'] as TemplateLang[]).filter((l) => entry[l]);
+  const required = v.inputs.filter(inputRequired).length;
+  const openIn = (t: OpenTarget) => {
+    onError(null);
+    api.openTemplates(t.id, entry.id, v.lang).catch((e) => onError((e as Error).message));
+  };
+  return (
+    <article className="flex flex-col rounded-xl border border-line bg-panel p-4 shadow-[var(--surface-shadow)]" aria-label={v.name}>
+      <div className="flex items-start gap-3">
+        {/* the kind's mark on a tile of the kind's colour (ADR-0067), as a brand's logo sits on its tile in Settings */}
+        <span className={cn('grid size-10 shrink-0 place-items-center rounded-lg', chip)} aria-hidden="true">
+          <Icon size={18} strokeWidth={2} />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-[15px] font-bold leading-tight text-ink" title={v.name}>
+            {v.name}
+          </h3>
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-xs text-ink-faint">
+            <span className={cn(!entry.builtIn && 'font-semibold text-ink-soft')}>{entry.builtIn ? 'Foundry' : 'yours'}</span>
+            <span aria-hidden="true">·</span>
+            <span className={cn('font-semibold', ink)}>{NATURE_WORD[entry.nature]}</span>
+            {langs.length === 2 && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span title="In English and 中文">EN · 中文</span>
+              </>
+            )}
+          </p>
+        </div>
+      </div>
+      <p className="mt-3 line-clamp-2 text-[13px] leading-snug text-ink-soft" title={v.summary}>
+        {v.summary || v.body.split('\n')[0]}
+      </p>
+      {/* what it asks on a line of its own, then the buttons on one row: four of them fit a card of a four-column shelf */}
+      <p className="mt-3 text-[11px] text-ink-faint">
+        {v.inputs.length} input{v.inputs.length === 1 ? '' : 's'}
+        {required ? ` · ${required} required` : ''}
+      </p>
+      <div className="mt-auto flex flex-wrap items-center gap-1 pt-2">
+        <Button size="sm" onClick={onUse} title="A new goal from this template (asks first)">
           Use
-        </Link>
+        </Button>
         <Button size="sm" variant="ghost" onClick={onView} title="Read it: its words with the blanks named, or filled in with examples">
           View
         </Button>
         {entry.builtIn ? (
-          <Button size="sm" variant="ghost" onClick={onCopy} title="Writes a copy in your templates folder, to edit">
+          <Button size="sm" variant="ghost" onClick={onCopy} title="Writes a copy in your templates folder, to edit (asks first)">
             <Copy size={13} /> Make a copy
           </Button>
         ) : (
-          <>
-            <Link to={`/templates/${encodeURIComponent(entry.id)}`} className={buttonClass('ghost', 'sm')}>
-              <Pencil size={13} /> Edit
-            </Link>
-            <OpenInEditor template={entry.id} lang={v.lang} editors={editors} onError={onError} />
-          </>
+          <Link to={`/templates/${encodeURIComponent(entry.id)}`} className={buttonClass('ghost', 'sm')}>
+            <Pencil size={13} /> Edit
+          </Link>
         )}
         <Menu
           align="right"
           trigger={({ open, toggle }) => (
-            <Button size="sm" variant="ghost" onClick={toggle} aria-expanded={open} aria-label={`More for ${v.name}`}>
+            // a square the height of the buttons beside it: narrower than a padded button, so the row stays one row
+            <button type="button" onClick={toggle} aria-expanded={open} aria-label={`More for ${v.name}`} className="grid size-7 shrink-0 place-items-center rounded-md text-ink-soft transition hover:bg-line hover:text-ink">
               <MoreHorizontal size={14} />
-            </Button>
+            </button>
           )}
         >
           {(close) => (
@@ -277,9 +409,14 @@ function TemplateRow({ entry, lang, editors, onError, onView, onCopy, onRename, 
               )}
               {!entry.builtIn && (
                 <MenuItem icon={<Copy size={13} />} onClick={() => (close(), onCopy())}>
-                  Make a copy
+                  Make a copy…
                 </MenuItem>
               )}
+              {editors.map((t) => (
+                <MenuItem key={t.id} icon={<FilePenLine size={13} />} onClick={() => (close(), openIn(t))}>
+                  Open in {t.label}
+                </MenuItem>
+              ))}
               {langs.map((l) => (
                 <MenuItem key={l} icon={<Download size={13} />} onClick={() => (close(), onExport(l))}>
                   Export {l === 'zh' ? 'the 中文 file' : 'the English file'}
@@ -294,40 +431,7 @@ function TemplateRow({ entry, lang, editors, onError, onView, onCopy, onRename, 
           )}
         </Menu>
       </div>
-    </li>
-  );
-}
-
-/** opens a template of the person's own as its file in an editor found on this computer */
-function OpenInEditor({ template, lang, editors, onError }: { template: string; lang: TemplateLang; editors: OpenTarget[]; onError: (e: string | null) => void }) {
-  const open = (t: OpenTarget) => {
-    onError(null);
-    api.openTemplates(t.id, template, lang).catch((e) => onError((e as Error).message));
-  };
-  if (!editors.length) return null;
-  if (editors.length === 1)
-    return (
-      <Button size="sm" variant="ghost" onClick={() => open(editors[0]!)} title="Opens the template's file; save it there and this page shows the change">
-        <FilePenLine size={13} /> Open in {editors[0]!.label}
-      </Button>
-    );
-  return (
-    <Menu
-      align="right"
-      trigger={({ open: shown, toggle }) => (
-        <Button size="sm" variant="ghost" onClick={toggle} aria-expanded={shown}>
-          <FilePenLine size={13} /> Open in an editor <ChevronDown size={12} />
-        </Button>
-      )}
-    >
-      {(close) =>
-        editors.map((t) => (
-          <MenuItem key={t.id} onClick={() => (close(), open(t))}>
-            {t.label}
-          </MenuItem>
-        ))
-      }
-    </Menu>
+    </article>
   );
 }
 
