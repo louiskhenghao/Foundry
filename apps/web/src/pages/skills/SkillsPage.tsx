@@ -1,7 +1,7 @@
 import type { EngineEvent } from '@foundry/core/browser';
 import { PROVIDER_LABEL } from '@foundry/core/browser';
 import type { InstalledSkill, SkillScope, SkillSource, SkillSourceRow, SkillTier, SkillUsage, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from '@foundry/engine/skills-types';
-import { Blocks, FolderGit2, PackageCheck, Plug, RefreshCw, Search, SearchX, SquareTerminal, Trash2, Wrench, type LucideIcon } from 'lucide-react';
+import { ArrowUpCircle, Blocks, FolderGit2, PackageCheck, Plug, RefreshCw, Search, SearchX, SquareTerminal, Trash2, Wrench, type LucideIcon } from 'lucide-react';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { apiForProvider, type AgentProvider } from '../../api.ts';
 import { SkillMdView } from '../../components/SkillMd.tsx';
@@ -170,6 +170,21 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
         return r;
       },
     });
+  // Update all: every source with an update waiting that has an updater, in one operation (the server runs them one after another)
+  const updateAll = () => {
+    const ids = updatable.map((s) => s.id);
+    return startProviderOp({
+      kind: 'update',
+      label: `Update ${ids.length} source${ids.length === 1 ? '' : 's'}`,
+      targets: ids,
+      call: async (opId) => {
+        const r = await api.updateAllSources(ids, opId);
+        setReport((x) => (x ? { ...x, updating: ids[0] ?? null } : x));
+        watch();
+        return r;
+      },
+    });
+  };
   // a workflow suite to another release: its own operation, after the forecast the row showed
   const moveRelease = (v: SuiteReleaseView, to: string) => startProviderOp({ kind: 'update', label: to === v.ref ? `Re-sync ${v.label} at ${to}` : `Move ${v.label} to ${to}`, targets: [`release:${v.id}`], call: (opId) => api.moveRelease(v.id, to, opId) });
   const adopt = (names: string[]) => startProviderOp({ kind: 'adopt', label: `Adopt ${names.length === 1 ? names[0] : `${names.length} skills`}`, targets: names, call: (opId) => api.adoptSkills(names, opId) });
@@ -212,6 +227,8 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
   const note = usageNote(overview.installed, overview.usageWindow);
   const total = overview.installed.length;
   const updates = report.sources.filter((s) => s.updateAvailable === true).length;
+  /** the sources Update all runs: an update waiting and an updater to run (a hint alone is not one) */
+  const updatable = report.sources.filter((s) => s.updateAvailable === true && (s.updater.kind === 'foundry' || s.updater.kind === 'agents-cli' || s.updater.kind === 'plugin' || s.updater.kind === 'suite'));
   /** sources of one kind with an update waiting: said on its board's heading, which stays in view when the board is closed */
   const updatesIn = (m: SkillSource['manager']) => report.sources.filter((s) => s.manager === m && s.updateAvailable === true).length;
   const outdatedSkills = report.sources.flatMap((s) => s.skills).filter((r) => r.status === 'outdated').length;
@@ -248,6 +265,12 @@ export function SkillsPage({ provider = 'claude' }: { provider?: AgentProvider }
           <Button size="sm" disabled={pending.has('refresh') || report.refreshing} onClick={checkUpdates}>
             <RefreshCw size={13} className={cn(report.refreshing && 'animate-spin')} /> Check for updates
           </Button>
+          {/* every source with an update, one after another, as one operation: the primary action while updates wait */}
+          {updatable.length > 0 && (
+            <Button size="sm" variant="primary" disabled={!!report.updating || updatable.some((s) => runningOp(s.id))} onClick={updateAll} title={updatable.map((s) => s.label).join('\n')}>
+              <ArrowUpCircle size={13} /> Update all ({updatable.length})
+            </Button>
+          )}
         </div>
       </div>
       <p className="text-[13px] leading-relaxed text-ink-faint max-w-[80ch] -mt-1">

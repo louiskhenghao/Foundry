@@ -1539,6 +1539,20 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const op = ops.start('update', `Update ${id}${names?.length ? ` (${names.join(', ')})` : ''}`, { id: opId }, (say) => skillsFor(c).updateSource(id, { names, onLine: say }), (run) => ({ ok: !run.error, summary: run.error ?? `${id}: ${run.changed.length ? `${run.changed.length} changed (${run.changed.map((x) => x.name).join(', ')})` : 'no change'}` }));
     return c.json({ started: true, channel: op.channel, op }, 202);
   });
+  // Update all: every source with an update waiting (or the ones named), one after another in one operation; each
+  // source's run is still recorded on its own in History
+  app.post('/api/skills/sources/update-all', async (c) => {
+    const { ids, opId } = z.object({ ids: z.array(z.string()).optional(), opId: OpId }).parse(await c.req.json().catch(() => ({})));
+    if (skillsFor(c).updatingSource()) throw new HttpError(409, { error: `update of ${skillsFor(c).updatingSource()} is still running` });
+    const op = ops.start('update', ids?.length ? `Update ${ids.length} source${ids.length === 1 ? '' : 's'}` : 'Update every source with an update', { id: opId }, (say) => skillsFor(c).updateAll({ ids, onLine: say }), ({ runs, skipped }) => {
+      const changed = runs.filter((r) => r.changed.length > 0).length;
+      const failed = runs.filter((r) => r.error).length;
+      const same = runs.length - changed - failed;
+      const parts = [`${changed} source${changed === 1 ? '' : 's'} updated`, same ? `${same} already current` : null, failed ? `${failed} failed` : null, skipped.length ? `${skipped.length} without an updater` : null].filter(Boolean);
+      return { ok: failed === 0, summary: runs.length || skipped.length ? parts.join(', ') : 'nothing to update' };
+    });
+    return c.json({ started: true, channel: op.channel, op }, 202);
+  });
   // workflow suite releases (ADR-0068): the release each suite sits at, a forecast of the newest, and a Move as an operation
   const ReleaseTag = z.string().regex(/^v?\d+(\.\d+)*$/);
   app.get('/api/skills/releases', async (c) => c.json({ releases: await skillsFor(c).releases({ refresh: c.req.query('refresh') === '1' }) }));

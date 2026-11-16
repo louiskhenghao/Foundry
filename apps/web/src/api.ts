@@ -945,6 +945,8 @@ export function apiForProvider(provider?: AgentProvider) {
   trash: () => req<TrashEntry[]>('/api/skills/trash'),
   skillsUpdates: (refresh = false, repo?: string) => req<SkillsUpdateReport & { updating: string | null; refreshing: boolean }>(`/api/skills/updates?${new URLSearchParams({ ...(refresh ? { refresh: '1' } : {}), ...(repo ? { repo } : {}) })}`),
   updateSource: (id: string, names?: string[], opId?: string) => req<{ started: true; channel: string; op: SkillOp }>(`/api/skills/sources/${encodeURIComponent(id)}/update`, { method: 'POST', body: JSON.stringify({ names, opId }) }),
+  /** every source with an update waiting, one after another, as one operation (Update all) */
+  updateAllSources: (ids: string[], opId?: string) => req<{ started: true; channel: string; op: SkillOp }>('/api/skills/sources/update-all', { method: 'POST', body: JSON.stringify({ ids, opId }) }),
   // workflow suite releases (ADR-0068)
   suiteReleases: (refresh = false) => req<{ releases: SuiteReleaseView[] }>(`/api/skills/releases${refresh ? '?refresh=1' : ''}`),
   releaseForecast: (id: string, to: string) => req<ReleaseForecast>(`/api/skills/releases/${encodeURIComponent(id)}/forecast?to=${encodeURIComponent(to)}`),

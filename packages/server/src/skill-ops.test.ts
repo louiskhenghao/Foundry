@@ -108,6 +108,14 @@ function fakeEngine() {
           };
         });
       },
+      updateAll: async (opts: { ids?: string[]; onLine?: (l: string) => void }) => {
+        const ids = opts.ids ?? ['owner/repo', 'other', 'linked'];
+        for (const id of ids) opts.onLine?.(`▶ ${id}`);
+        return {
+          runs: ids.filter((id) => id !== 'linked').map((id) => ({ sourceId: id, changed: id === 'owner/repo' ? [{ name: 'x', from: 'a', to: 'b' }] : [], error: id === 'bad' ? 'boom' : null })),
+          skipped: ids.includes('linked') ? [{ id: 'linked', reason: 'kept where it links to' }] : [],
+        };
+      },
     },
   };
   Object.assign(engine, { skillsForProvider: () => engine.skills });
@@ -173,6 +181,25 @@ describe('Skills routes stream each operation to its own channel', () => {
     expect(await (await app.request('/api/skills/ops/upd-op')).json()).toMatchObject({ status: 'ok', summary: 'owner/repo: 1 changed (x)' });
     expect(texts(events, 'skills-op:upd-op')).toEqual(['▶ Update owner/repo', 'git pull owner/repo', '✔ owner/repo: 1 changed (x)']);
     expect((await (await app.request('/api/skills/ops')).json()).ops.map((o: { id: string }) => o.id)).toEqual(['upd-op']);
+  });
+
+  test('Update all runs every source with an update as one operation and sums them up; a running update refuses it', async () => {
+    const { app, post, events } = fakeEngine();
+    const res = await post('/api/skills/sources/update-all', { opId: 'all-op' });
+    expect(res.status).toBe(202);
+    expect(await res.json()).toMatchObject({ channel: 'skills-op:all-op', op: { status: 'running', kind: 'update', label: 'Update every source with an update' } });
+    await settle();
+    expect(await (await app.request('/api/skills/ops/all-op')).json()).toMatchObject({ status: 'ok', summary: '1 source updated, 1 already current, 1 without an updater' });
+    expect(texts(events, 'skills-op:all-op')).toEqual(['▶ Update every source with an update', '▶ owner/repo', '▶ other', '▶ linked', '✔ 1 source updated, 1 already current, 1 without an updater']);
+    // the page names the sources it saw with updates; a failed run fails the operation
+    const some = await post('/api/skills/sources/update-all', { ids: ['bad', 'other'], opId: 'some-op' });
+    expect((await some.json()).op.label).toBe('Update 2 sources');
+    await settle();
+    expect(await (await app.request('/api/skills/ops/some-op')).json()).toMatchObject({ status: 'failed', summary: '0 sources updated, 1 already current, 1 failed' });
+    // while a source update runs, Update all is refused like a second source update
+    void post('/api/skills/sources/owner%2Frepo/update', { opId: 'upd-op-3' });
+    await settle();
+    expect((await post('/api/skills/sources/update-all', { opId: 'all-op-2' })).status).toBe(409);
   });
 
   test('tool installs: the page follows its own channel, other pages keep the shared tool-install log', async () => {

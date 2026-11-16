@@ -16,7 +16,7 @@ import { installSuite } from './suites.ts';
 import { TrashError, listTrash, restoreSkill, trashSkill } from './trash.ts';
 import { SkillsUpdateChecker, type UpdateCheckerOptions } from './updates.ts';
 import { runSourceUpdate, spawnStreaming, type UpdaterContext } from './updaters.ts';
-import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, InstallResult, InstalledSkill, InstalledSuite, ReleaseForecast, ScanResult, SessionView, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry } from './types.ts';
+import type { Catalog, CatalogEntryStatus, DoctorCheck, DoctorReport, InstallResult, InstalledSkill, InstalledSuite, ReleaseForecast, ScanResult, SessionView, SkillTier, SkillUpdateRun, SkillsOverview, SkillsUpdateReport, SuiteReleaseView, TrashEntry, UpdaterKind } from './types.ts';
 
 export interface BundleResult {
   id: string;
@@ -70,6 +70,9 @@ export interface SkillsManagerOptions {
   /** the rows annotated with how many of the last `limit` goals invoked them; the engine supplies it from its own store (absent on Codex) */
   usage?: (installed: InstalledSkill[], limit: number) => { installed: InstalledSkill[]; window: { goals: number; limit: number } };
 }
+
+/** the updaters Update all runs: the others only carry a hint */
+const UPDATERS = new Set<UpdaterKind>(['foundry', 'agents-cli', 'plugin', 'suite']);
 
 export class UpdateBusy extends Error {
   constructor() {
@@ -215,6 +218,41 @@ export class SkillsManager {
         // re-check this source's facts so the page reflects the new state
         await this.checker.report(this.scan(), this.catalog(), { refresh: run.changed.length > 0 }).catch(() => {});
         return run;
+      } finally {
+        this.updating = null;
+      }
+    });
+  }
+
+  /**
+   * Update all: every source with an update waiting (or the ones named by `ids`), one after another in one run, each
+   * through its own updater and recorded as its own run. A source without an updater (a hint, a linked folder) is skipped
+   * and said so; an npx run names the source's outdated skills, so one source's run does not redo another's.
+   */
+  updateAll(opts: { ids?: string[]; onLine?: (l: string) => void } = {}): Promise<{ runs: SkillUpdateRun[]; skipped: { id: string; reason: string }[] }> {
+    if (this.updating) return Promise.reject(new UpdateBusy());
+    this.updating = 'every source';
+    return this.serial(async () => {
+      try {
+        const report = this.checker.cached() ?? (await this.checker.report(this.scan(), this.catalog(), { offline: true }));
+        const wanted = opts.ids ? report.sources.filter((s) => opts.ids!.includes(s.id)) : report.sources.filter((s) => s.updateAvailable === true);
+        const runs: SkillUpdateRun[] = [];
+        const skipped: { id: string; reason: string }[] = [];
+        for (const source of wanted) {
+          if (!UPDATERS.has(source.updater.kind)) {
+            skipped.push({ id: source.id, reason: source.updater.hint ?? 'no updater' });
+            opts.onLine?.(`· ${source.label}: ${source.updater.hint ?? 'no updater'}`);
+            continue;
+          }
+          this.updating = source.id;
+          opts.onLine?.(`▶ ${source.label}`);
+          const names = source.updater.kind === 'agents-cli' ? source.skills.filter((r) => r.status === 'outdated').map((r) => r.name) : undefined;
+          const run = await runSourceUpdate(source, names, { paths: this.paths, catalog: this.catalog(), claudeBin: this.opts.claudeBin, onLine: opts.onLine, log: this.opts.log, ...(this.opts.updater ?? {}) });
+          this.opts.onRun?.(run);
+          runs.push(run);
+        }
+        await this.checker.report(this.scan(), this.catalog(), { refresh: runs.some((r) => r.changed.length > 0) }).catch(() => {});
+        return { runs, skipped };
       } finally {
         this.updating = null;
       }
