@@ -4,7 +4,7 @@ import { detectInstallRoot, installRoot, isCompiledBinary } from './install-root
 
 const ROOT = resolve(import.meta.dir, '../../..');
 
-describe('where a Foundry finds its files (ADR-0101)', () => {
+describe('where a Foundry finds its files (ADR-0104)', () => {
   test('a checkout runs from its own tree', () => {
     expect(isCompiledBinary()).toBe(false);
     expect(detectInstallRoot({ env: {} })).toEqual({ kind: 'checkout', root: ROOT, execDir: null });

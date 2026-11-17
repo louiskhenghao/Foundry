@@ -6,7 +6,7 @@ import { SwitchNotice } from '../src/components/UpdateDialog.tsx';
 const sw = { to: '3.0.0', install: 'app' as const, from: 'local' as const, dataDir: '/Users/me/foundry/data', target: '/Users/me/Library/Application Support/Foundry/data', port: 4111, log: '/Users/me/.foundry/switch.log' };
 const none = () => {};
 
-test('before 3.0 a checkout reads what the switch does, the risks and the way back, and switches on a ticked box (ADR-0103)', () => {
+test('before 3.0 a checkout reads what the switch does, the risks and the way back, and switches on a ticked box (ADR-0106)', () => {
   const h = renderToStaticMarkup(<SwitchNotice sw={sw} steps={[]} canSwitch force={false} onForce={none} err={null} onSwitch={none} onClose={none} />);
   expect(h).toContain('Foundry 3.0.0 ships only as the Foundry app.');
   expect(h).toContain('This source install gets no updates from 3.0.0 on.');

@@ -34,11 +34,11 @@ function goal(over: Partial<Goal> & { daysAgo?: number; estUsd?: number; estMin?
   return g;
 }
 /** a session in the ledger, dated by hand (the store stamps appended events with now) */
-function usage(g: Goal | null, kind: string, costUsd: number, opts: { daysAgo?: number; minutes?: number; unavailable?: boolean } = {}) {
-  const { daysAgo = 2, minutes = 10, unavailable = false } = opts;
+function usage(g: Goal | null, kind: string, costUsd: number, opts: { daysAgo?: number; minutes?: number; unavailable?: boolean; subtype?: string; context?: { turns: number; tokens: number; first: number } } = {}) {
+  const { daysAgo = 2, minutes = 10, unavailable = false, subtype = 'success', context = null } = opts;
   engine.store.db.run(
-    'INSERT INTO usage_ledger (event_id, ts, goal_id, kind, model, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, cost_usd, duration_ms, subtype, cost_status) VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?, ?, ?)',
-    [newId(IdPrefix.event), at(daysAgo), g?.id ?? null, kind, 'opus', costUsd, minutes * 60_000, 'success', unavailable ? 'unavailable' : 'reported'],
+    'INSERT INTO usage_ledger (event_id, ts, goal_id, kind, model, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, cost_usd, duration_ms, subtype, cost_status, turns, context_tokens, start_context) VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?)',
+    [newId(IdPrefix.event), at(daysAgo), g?.id ?? null, kind, 'opus', costUsd, minutes * 60_000, subtype, unavailable ? 'unavailable' : 'reported', context?.turns ?? null, context?.tokens ?? null, context?.first ?? null],
   );
 }
 /** a done task of `g` with `attempts` work attempts, the last one passed */
@@ -54,6 +54,23 @@ function task(g: Goal, origin: Task['origin'], attempts: number, kind: Attempt['
 }
 
 describe('reports (ADR-0060)', () => {
+  test('the session time cut short by a limit, by limit, and what a turn of a Claude Code session read', () => {
+    const g = goal({ daysAgo: 3 });
+    usage(g, 'attempt', 1, { minutes: 20, subtype: 'killed_timeout' });
+    usage(g, 'attempt', 1, { minutes: 5, subtype: 'killed_idle' });
+    usage(g, 'attempt', 1, { minutes: 15, subtype: 'error_max_budget_usd' });
+    usage(g, 'review-task', 0.2, { minutes: 60, context: { turns: 4, tokens: 200_000, first: 40_000 } });
+    usage(g, 'attempt', 2, { minutes: 0, context: { turns: 6, tokens: 600_000, first: 50_000 } });
+    // a row from before turns were recorded counts for neither the turns nor the start
+    usage(g, 'attempt', 2, { minutes: 0 });
+    const t = buildReport(engine, { days: 30, now: NOW }).totals;
+    expect(t.cuts).toEqual({ sessions: 3, durationMs: 40 * 60_000, share: 0.4, byLimit: { time: 1, idle: 1, turns: 0, cost: 1 } });
+    expect(t.context).toEqual({ perTurn: 80_000, atStart: 45_000, sessions: 2, turns: 10 });
+    // a window without sessions says nothing rather than 0
+    const empty = buildReport(engine, { days: 1, now: NOW - 30 * DAY }).totals;
+    expect(empty.cuts.share).toBeNull();
+    expect(empty.context.perTurn).toBeNull();
+  });
   test('the window takes goals by creation and sessions by time; spend, goals, hours and retries are told by project and spend by session kind', () => {
     const g1 = goal({ daysAgo: 3, costUsd: 4 });
     const g2 = goal({ daysAgo: 10, state: 'failed', activeMin: 30 });

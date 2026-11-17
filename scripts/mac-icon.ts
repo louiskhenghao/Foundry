@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * The macOS app's icon (ADR-0102): apps/web/public/favicon.svg drawn at 1024 px with the inset and shadow a macOS icon
+ * The macOS app's icon (ADR-0105): apps/web/public/favicon.svg drawn at 1024 px with the inset and shadow a macOS icon
  * has (an 824 px body on a 1024 canvas), scaled to every size an .icns holds with sips, packed with iconutil into
  * apps/mac/Foundry.icns. Run it again when the logo changes; the build only copies the file.
  *

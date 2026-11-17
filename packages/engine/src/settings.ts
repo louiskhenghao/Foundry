@@ -25,6 +25,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'engine.port': { name: 'FOUNDRY_PORT', parse: num },
   'engine.host': { name: 'FOUNDRY_HOST', parse: str },
   'engine.maxConcurrent': { name: 'FOUNDRY_MAX_CONCURRENT', parse: num },
+  'engine.concurrency': { name: 'FOUNDRY_CONCURRENCY', parse: str },
   'engine.claudeHome': { name: 'FOUNDRY_CLAUDE_HOME', alt: 'CLAUDE_CONFIG_DIR', parse: str },
   'engine.workspacesRoot': { name: 'FOUNDRY_WORKSPACES_ROOT', parse: str },
   'preview.portFrom': { name: 'FOUNDRY_PREVIEW_PORT_FROM', parse: num },
@@ -42,6 +43,7 @@ const ENV: Record<string, { name: string; alt?: string; parse: (v: string) => un
   'workflow.audit': { name: 'FOUNDRY_AUDIT', parse: bool },
   'workflow.qa': { name: 'FOUNDRY_QA', parse: bool },
   'workflow.mcpDynamicTools': { name: 'FOUNDRY_MCP_DYNAMIC_TOOLS', parse: bool },
+  'workflow.leanSessions': { name: 'FOUNDRY_LEAN_SESSIONS', parse: bool },
   'safety.desktopApps': { name: 'FOUNDRY_DESKTOP_APPS', parse: bool },
   'workflow.investigationMaxCostUsd': { name: 'FOUNDRY_INVESTIGATION_MAX_COST', parse: num },
   'workflow.investigationMaxMinutes': { name: 'FOUNDRY_INVESTIGATION_MAX_MINUTES', parse: num },
@@ -317,6 +319,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('engine.port')) config.port = s.engine.port;
   if (on('engine.host')) config.host = s.engine.host;
   if (on('engine.maxConcurrent')) config.maxConcurrent = s.engine.maxConcurrent;
+  if (on('engine.concurrency')) config.concurrency = s.engine.concurrency;
   if (on('engine.claudeBin')) config.claudeBin = s.engine.claudeBin ?? undefined;
   if (on('engine.claudeHome') && s.engine.claudeHome) config.claudeHome = s.engine.claudeHome;
   if (on('engine.workspacesRoot')) config.workspacesRoot = s.engine.workspacesRoot;
@@ -350,6 +353,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('workflow.qa')) config.workflowQa = s.workflow.qa;
   if (on('workflow.designCheck')) config.designCheck = s.workflow.designCheck;
   if (on('workflow.mcpDynamicTools')) config.mcpDynamicTools = s.workflow.mcpDynamicTools;
+  if (on('workflow.leanSessions')) config.leanSessions = s.workflow.leanSessions;
   if (on('workflow.investigationMaxCostUsd')) config.investigationMaxCostUsd = s.workflow.investigationMaxCostUsd;
   if (on('workflow.investigationMaxMinutes')) config.investigationMaxMinutes = s.workflow.investigationMaxMinutes;
   if (on('workflow.defaultMode')) config.defaultGoalMode = s.workflow.defaultMode;

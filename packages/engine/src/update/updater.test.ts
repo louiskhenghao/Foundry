@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { compareVersions, parseChangelog, parseSha256Sums, pickLatestRelease, releaseAssetName, releaseLayout } from './updater.ts';
 
-describe('the version source: GitHub Releases of the public releases repo (ADR-0101)', () => {
+describe('the version source: GitHub Releases of the public releases repo (ADR-0104)', () => {
   test('the newest stable, published release wins; drafts, pre-releases and odd tags are invisible', () => {
     const picked = pickLatestRelease([
       { tag_name: 'v2.35.0', assets: [{ name: 'SHA256SUMS', browser_download_url: 'https://x/sums', size: 300 }] },
@@ -47,7 +47,7 @@ describe('the version source: GitHub Releases of the public releases repo (ADR-0
   });
 });
 
-describe('the switch to 3.0 (ADR-0103)', () => {
+describe('the switch to 3.0 (ADR-0106)', () => {
   const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = require('node:fs') as typeof import('node:fs');
   const { tmpdir } = require('node:os') as typeof import('node:os');
   const { join } = require('node:path') as typeof import('node:path');

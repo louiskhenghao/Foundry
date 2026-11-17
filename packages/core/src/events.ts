@@ -373,6 +373,8 @@ export const EngineEvent = z.discriminatedUnion('type', [
     skillsUsed: z.array(z.string()).default([]),
     /** which of the coding agent's accounts ran the session (ADR-0065); absent = the native login, or written before accounts */
     accountId: z.string().optional(),
+    /** what the session's turns read: their number, the tokens they read together, and the first turn's (Claude Code only; absent before it was recorded) */
+    context: z.object({ turns: z.number(), tokens: z.number(), first: z.number().nullable() }).nullable().optional(),
   }),
   /** sets the policy and (unless one runs) starts a delivery; `resume` carries on with open PRs, `start-over` follows closing them */
   /** `review` = a run the engine started itself to address review comments on an open pull request (ADR-0053) */

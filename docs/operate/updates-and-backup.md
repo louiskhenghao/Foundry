@@ -179,7 +179,7 @@ If trying an unreleased branch, retain the previous image tag or commit. A succe
 ## Moving to 3.0
 
 From 3.0 Foundry ships only as the macOS app and the Linux binary
-([ADR-0103](../develop/adr/0103-before-3-0-a-switch-not-an-update.md)). A source install or a Docker container on the
+([ADR-0106](../develop/adr/0106-before-3-0-a-switch-not-an-update.md)). A source install or a Docker container on the
 last 2.x sees 3.0 in **About & updates** as a switch, not an update: the dialog says what switching does, the risks and
 the way back before anything happens.
 

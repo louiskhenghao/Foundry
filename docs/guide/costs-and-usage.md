@@ -94,16 +94,18 @@ Before the switch turns on, Foundry shows what the provider's terms say. Anthrop
 
 ## Reports
 
-![Reports: spend over time, by project and by session kind, with the retry rate and the estimate error — demonstration data](images/reports.png)
+![Reports: spend over time, by project and by session kind, with the retry rate, the estimate error, the time cut short and the context per turn — demonstration data](images/reports.png)
 
-**⚙ → Reports** looks further back than the Usage page, from Foundry's own session records: the last 30 days, 90 days, 12 months or all time. Six numbers at the top — the spend, the sessions, goals finished of those started, the hours Foundry worked, the retry rate and the estimate error — and four parts:
+**⚙ → Reports** looks further back than the Usage page, from Foundry's own session records: the last 30 days, 90 days, 12 months or all time. Eight numbers at the top — the spend, the sessions, goals finished of those started, the hours Foundry worked, the retry rate, the estimate error, the time cut short and the context per turn — and four parts:
 
 - **Spend over time**: Claude Code dollars per day, week or month (the step follows the window), with how many goals finished in each.
 - **By project**: for every folder goals ran in — how many finished, failed or were cancelled, what they cost and what a finished goal cost on average, the hours Foundry worked, the retry rate and how far the Brief's estimates ran from what the goals came to.
 - **Where the budget goes**: each kind of session — the workers on tasks, task reviews, Clarify, planning, goal reviews, merge attempts, audits, browser QA, docs, probes — with its share of the dollars and of the time.
 - **Estimate misses**: the goals whose cost or time ran furthest from their Brief's estimate, too much or too little. The factors are the ones [calibration](./approving-the-brief.md#estimate-and-budget) corrects new estimates with: actual ÷ estimate, the median over the goals that had an estimate.
 
-Goals count by when they were created, sessions by when they ran. The retry rate is the share of attempted tasks that needed more than one attempt; fix tasks (a review's, an audit's, CI's, the browser QA's or a review comment's) are counted beside it. Dollars are Claude Code's estimates, as everywhere in Foundry: Codex reports none, and a session cut before it reported a cost is left out and counted as unknown. From the command line: `foundry report --days 90` (`--all`, `--json`).
+Goals count by when they were created, sessions by when they ran. The retry rate is the share of attempted tasks that needed more than one attempt; fix tasks (a review's, an audit's, CI's, the browser QA's or a review comment's) are counted beside it.
+
+Two numbers say where time and tokens go. **cut short** is the share of the session time spent in sessions a limit stopped before they finished: the attempt timeout, five minutes with nothing on the stream while no tool call ran, the turn cap or the cost cap (see [Limits](./settings.md#limits)). A stopped session is resumed, but it reads its whole context again and repeats what it was doing, so a high share costs both; hover it to see which limit stopped how many. **context per turn** is what one model turn of a Claude Code session read on average: every turn reads the whole conversation again, starting with what the session loaded before its prompt (Claude Code's own instructions and tools, your MCP servers, claude.ai connectors and skills, Foundry's prompt). Hover it for what sessions started with; [Lean sessions](./settings.md#skills) lowers that start. It counts sessions recorded from this version on. Dollars are Claude Code's estimates, as everywhere in Foundry: Codex reports none, and a session cut before it reported a cost is left out and counted as unknown. From the command line: `foundry report --days 90` (`--all`, `--json`).
 
 ## Image goals need an image key
 

@@ -12,7 +12,7 @@ import { agyMeters, claudeMeters, codexMeters, type AccountMeters } from '@found
 import { installRoot } from '@foundry/engine/install-root';
 import { existsSync, readFileSync } from 'node:fs';
 
-// a checkout runs from its tree; a compiled foundry finds its files beside the executable (ADR-0101)
+// a checkout runs from its tree; a compiled foundry finds its files beside the executable (ADR-0104)
 const INSTALL = installRoot();
 const ROOT = INSTALL.root;
 const argv = process.argv.slice(2);
@@ -154,7 +154,7 @@ switch (cmd) {
   case 'serve': {
     const { adoptLocalBin, choosePort, foundryHome, keepPort, watchParentPipe, writeAppState } = await import('@foundry/engine');
     const { serveLoop } = await import('@foundry/server');
-    // under the menu bar app (ADR-0102): it reads where the engine listens from ~/.foundry/app.json
+    // under the menu bar app (ADR-0105): it reads where the engine listens from ~/.foundry/app.json
     const shell = !!process.env.FOUNDRY_APP_SHELL;
     // a natively installed claude lives in ~/.local/bin, which launchd/systemd PATHs often lack
     adoptLocalBin();
@@ -188,7 +188,7 @@ switch (cmd) {
     await loop.done;
     break;
   }
-  // everything Foundry needs on this computer, installed where it is missing (ADR-0102): what the installer runs, and the Setup page's buttons
+  // everything Foundry needs on this computer, installed where it is missing (ADR-0105): what the installer runs, and the Setup page's buttons
   case 'setup': {
     const { runSetup, playwrightInstallCommand } = await import('@foundry/engine');
     const list = (v: string | undefined) => (v ?? '').split(/[\s,]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
@@ -210,7 +210,7 @@ switch (cmd) {
     console.log(r.ok ? '\n✔ ready: sign in to the coding agents if you have not (foundry auth login), then open Foundry' : `\n✘ still missing: ${missing.map((s) => s.name).join(', ')} — see above`);
     process.exit(r.ok ? 0 : 1);
   }
-  // a source install's goals, moved into this app or binary (ADR-0102)
+  // a source install's goals, moved into this app or binary (ADR-0105)
   case 'migrate': {
     const { defaultDataDir, folderProvider, foundryHome, isCheckout, keepPort, planMigration, readHomeConfig, readInstallEnv, runMigration, stopProcess, stopSourceService, waitUntilClosed } = await import('@foundry/engine');
     if (INSTALL.kind === 'checkout') return usage("foundry migrate moves a source install into the app or a release install: run the compiled foundry's (foundry link puts it on PATH)");
@@ -220,7 +220,7 @@ switch (cmd) {
     const expand = (p: string) => resolve(p.replace(/^~(?=\/|$)/, homedir()));
     const checkout = expand(named);
     if (!isCheckout(checkout)) return usage(`${checkout} is not a Foundry checkout (it has no apps/cli/src/main.ts)`);
-    // --data: the folder the Foundry that asked for the switch runs on (ADR-0103), copied in place of the checkout's default
+    // --data: the folder the Foundry that asked for the switch runs on (ADR-0106), copied in place of the checkout's default
     const data = opt('--data') ? expand(opt('--data')!) : null;
     const current = data ? { provider: folderProvider(data) ?? 'claude', dataDir: data } : undefined;
     const plan = planMigration({ checkout, config: readHomeConfig(foundryHome()), targetFor: (p) => defaultDataDir(ROOT, p), current });
@@ -263,7 +263,7 @@ switch (cmd) {
     console.log(copied.length ? `\n✔ moved: ${copied.map((i) => i.provider).join(', ')}. The checkout ${checkout} is not used any more: once the app shows your goals, delete it (each data folder in it is the backup, with a MOVED.md).` : '\nnothing was moved.');
     break;
   }
-  // a data folder's paths, rewritten: what a container saw as /app/data or /repos is a folder of this computer (ADR-0103)
+  // a data folder's paths, rewritten: what a container saw as /app/data or /repos is a folder of this computer (ADR-0106)
   case 'repath': {
     const { defaultConfig, processAlive, readDataLock, rewriteDataDirPaths } = await import('@foundry/engine');
     const [from, to] = positional();
@@ -277,7 +277,7 @@ switch (cmd) {
     console.log(`✔ ${from} → ${target} in ${dir}: ${r.events} event(s) and ${r.files} file(s)`);
     break;
   }
-  // foundry in a terminal: ~/.local/bin/foundry linked to this compiled foundry (ADR-0102)
+  // foundry in a terminal: ~/.local/bin/foundry linked to this compiled foundry (ADR-0105)
   case 'link': {
     const { linkCli, pathHint } = await import('@foundry/engine');
     if (INSTALL.kind === 'checkout') return usage('a checkout runs its CLI with bun run cli; foundry link is for the app and release installs');
@@ -736,6 +736,11 @@ switch (cmd) {
     console.log(`${r.window.days == null ? 'All time' : `Last ${r.window.days} days`}: ${usd(t.costUsd)} (Claude Code)  ${t.sessions} sessions  ${t.goals.finished}/${t.goals.total} goals finished (${t.goals.failed} failed, ${t.goals.cancelled} cancelled)  ${hours(t.activeMin)} worked`);
     console.log(`retries: ${pct(t.retries.rate)} of ${t.retries.tasks} tasks needed more than one attempt; ${t.retries.fixTasks} fix tasks`);
     console.log(`estimates: cost ${factor(t.estimate.cost)}, time ${factor(t.estimate.time)} (actual ÷ estimate over ${t.estimate.samples} goal${t.estimate.samples === 1 ? '' : 's'} with one)`);
+    // a server from before these were reported sends neither
+    const c = t.cuts;
+    if (c) console.log(`cut short: ${pct(c.share)} of session time (${c.sessions} session${c.sessions === 1 ? '' : 's'} stopped by a limit: ${c.byLimit.time} time, ${c.byLimit.idle} idle, ${c.byLimit.turns} turn cap, ${c.byLimit.cost} cost cap)`);
+    const x = t.context;
+    if (x) console.log(x.perTurn == null ? 'context per turn: — (recorded for Claude Code sessions from this version on)' : `context per turn: ${fmtK(x.perTurn)} tokens (Claude Code, ${x.turns} turns of ${x.sessions} sessions${x.atStart != null ? `; started with ${fmtK(x.atStart)}` : ''})`);
     if (r.repos.length) {
       console.log('by project:');
       for (const p of r.repos) console.log(`  ${p.name}: ${usd(p.costUsd)}  ${p.goals.finished}/${p.goals.total} finished  ${hours(p.activeMin)}  retries ${pct(p.retries.rate)}  estimate ${factor(p.estimate.cost)}/${factor(p.estimate.time)}`);
@@ -894,7 +899,7 @@ switch (cmd) {
     else console.log(`foundry ${version} (${INSTALL.kind} install: ${ROOT})`);
     break;
   }
-  // the hooks a compiled foundry carries, run by the coding agents' hook settings (ADR-0101); a checkout runs the files with Bun
+  // the hooks a compiled foundry carries, run by the coding agents' hook settings (ADR-0104); a checkout runs the files with Bun
   case 'hook': {
     const { hookRuns } = await import('@foundry/runner/hooks');
     const run = hookRuns[rest[0] as keyof typeof hookRuns];

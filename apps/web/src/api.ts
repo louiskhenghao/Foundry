@@ -596,7 +596,7 @@ export interface UpdateReportView {
   changelog: { version: string; notes: string }[];
   error: string | null;
 }
-/** 3.0 and later ship only as the app and the binary (ADR-0103): what switching a checkout or a container means */
+/** 3.0 and later ship only as the app and the binary (ADR-0106): what switching a checkout or a container means */
 export interface SwitchView {
   to: string;
   install: 'app' | 'binary';

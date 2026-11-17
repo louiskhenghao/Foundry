@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DataFolderInUse, LOCK_FILE, claimDataDir, processAlive, readDataLock, releaseDataDir } from './data-lock.ts';
 
-describe('one Foundry per data folder (ADR-0102)', () => {
+describe('one Foundry per data folder (ADR-0105)', () => {
   test('a claim by a live process refuses, a dead one is taken over, the holder lets go', () => {
     const dir = mkdtempSync(join(tmpdir(), 'foundry-lock-'));
     try {

@@ -1,5 +1,5 @@
 /**
- * Where this Foundry's own files are (ADR-0101): the roles, the catalog, the templates, the hooks, the guide, the built UI,
+ * Where this Foundry's own files are (ADR-0104): the roles, the catalog, the templates, the hooks, the guide, the built UI,
  * the root package.json that carries the version.
  *
  * A git checkout runs from its own tree (`bun apps/cli/src/main.ts serve`). A compiled binary (`bun build --compile`) has no
@@ -16,7 +16,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 export type InstallKind = 'checkout' | 'app' | 'binary';
 
 /**
- * The macOS app's two executables in Contents/MacOS (ADR-0102): the menu bar shell is the bundle's own executable, and the
+ * The macOS app's two executables in Contents/MacOS (ADR-0105): the menu bar shell is the bundle's own executable, and the
  * compiled foundry beside it cannot be called `foundry` — on the case-insensitive disk most Macs have, that is the shell's
  * `Foundry`.
  */

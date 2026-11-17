@@ -1,10 +1,10 @@
-# ADR-0103: Before 3.0, a checkout or a container switches instead of updating
+# ADR-0106: Before 3.0, a checkout or a container switches instead of updating
 
-**Status:** accepted · 2026-11-16 · builds on ADR-0101 and ADR-0102 · amends ADR-0010
+**Status:** accepted · 2026-11-16 · builds on ADR-0104 and ADR-0105 · amends ADR-0010
 
 ## Context
 
-From 3.0 Foundry ships only as the macOS app and the Linux binary (ADR-0101, ADR-0102): no Docker image, no source
+From 3.0 Foundry ships only as the macOS app and the Linux binary (ADR-0104, ADR-0105): no Docker image, no source
 install. Everyone who runs a checkout or the container today must change how Foundry is installed to keep getting
 releases. An update that silently changed that would surprise them; one that never came would strand them on the last
 2.x. The person who owns the project asked for a dialog that says what happens before anything does, and a CLI that says

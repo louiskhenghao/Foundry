@@ -13,7 +13,7 @@ export const SELF_CHECK_NAME = 'self-check: the preview loads without errors';
  * The command that downloads Chromium for the Playwright Foundry ships. It runs that package's own CLI: `bunx playwright`
  * finds no bin at the repo root (bun links it under packages/engine) and would fetch playwright@latest, whose browser
  * revision stops matching the installed package as soon as Playwright releases a new version. A checkout runs the CLI
- * with Bun; a compiled foundry carries no runtime for it and runs the CLI inside itself (`foundry playwright`, ADR-0101).
+ * with Bun; a compiled foundry carries no runtime for it and runs the CLI inside itself (`foundry playwright`, ADR-0104).
  */
 export function playwrightInstallCommand(install: InstallRoot = installRoot()): string[] {
   const loc = locatePlaywright(install);

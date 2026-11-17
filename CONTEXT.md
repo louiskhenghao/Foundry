@@ -227,7 +227,7 @@ The limits a Goal runs within: working time (Clarify, the run and the review, wi
 How a Goal's Budget was chosen: *Auto* (no cap while clarifying; the Brief's estimate proposes the budget and the user confirms or edits it when approving), *Quick*, *Thorough*, *Unlimited*, or *Custom*. Auto proposes limits at approval. Claude can estimate USD cost; Codex proposes non-dollar limits because its inference cost is unreported.
 
 **Unmeasured session**
-A session that ended before its Coding agent reported what it cost — killed at the time or idle limit or by hand, or crashed; Claude Code reports cost, turns and usage on its final result line only. Its turns and tokens are counted from the stream and from the session's own record (Claude Code's transcript); its dollar cost is *unknown*: left out of every total, never written down as $0. The Goal's cost meter (an amber dot), the task total and the Usage page say how many sessions they leave out. Unknown is not zero. Where the session's model has run here with a reported cost, the Goal page shows an *estimate*, marked ≈: its tokens at the rate that model cost in the sessions that reported it (no price table is kept). An estimate is never added to a total or counted against a budget.
+A session that ended before its Coding agent reported what it cost — killed at the time limit, at the idle limit (five minutes with nothing on its stream while no tool call is under way: with Claude Code and Codex a build, a test run or a sub-agent running is never silence) or by hand, or crashed; Claude Code reports cost, turns and usage on its final result line only. Its turns and tokens are counted from the stream and from the session's own record (Claude Code's transcript); its dollar cost is *unknown*: left out of every total, never written down as $0. The Goal's cost meter (an amber dot), the task total and the Usage page say how many sessions they leave out. Unknown is not zero. Where the session's model has run here with a reported cost, the Goal page shows an *estimate*, marked ≈: its tokens at the rate that model cost in the sessions that reported it (no price table is kept). An estimate is never added to a total or counted against a budget.
 
 **Attachment**
 Something the user hands to a Goal that cannot be said in the prompt: a file (screenshot, PDF, document) kept by the system, or a link. Every session of the Goal receives the Attachments as read-only references; they are never part of the repository.
@@ -421,6 +421,10 @@ _Avoid_: skin, style; Appearance is the Settings section that picks a Theme, not
 **MCP Server**
 A program that gives a coding agent extra tools (library docs, a browser, web search). Each coding agent owns its native configuration and independent Allowed in goals policy. Foundry manages Claude servers/connectors and Codex user-configured stdio/HTTP servers through their respective native clients. Only work-performing sessions receive the selected coding agent's allowed prefixes. A catalog server may carry a disclaimer, confirmed once before it installs, and the names of its tools that run or change things; those are denied in sessions until Settings opens them.
 
+**Lean session**
+A Claude Code session started with only what Foundry gives it (a setting, off by default): the MCP Servers it may use, handed over explicitly so no other starts; no claude.ai connector unless one is allowed; none of the user's own Skills that Foundry did not install and no catalog entry names. The user's settings, sign-in, CLAUDE.md, plugins and hooks stay, and so do the Project Skills of the Goal's folder. Every turn reads the whole starting context again, so what a session never loads it never pays for.
+_Avoid_: bare session (Claude Code's `--bare` mode skips the sign-in and the hooks, and Foundry never uses it)
+
 ## Goal natures
 
 **Nature**
@@ -550,18 +554,18 @@ One published version of the whole product — a single stable semver shared by 
 _Avoid_: build, deploy
 
 **Deployment Mode**
-How this instance runs: *docker* (the published image), *local* (a git checkout served directly), *app* (the macOS application, a compiled foundry inside a bundle with its files in Contents/Resources) or *binary* (a compiled foundry with a `resources/` folder beside it, from a release tarball). Detected by the instance itself, never configured ([ADR-0101](docs/develop/adr/0101-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)); it decides what Self-Update does and what a Guided Update shows. The two compiled modes keep their data under the platform's place for application data, not in a tree.
+How this instance runs: *docker* (the published image), *local* (a git checkout served directly), *app* (the macOS application, a compiled foundry inside a bundle with its files in Contents/Resources) or *binary* (a compiled foundry with a `resources/` folder beside it, from a release tarball). Detected by the instance itself, never configured ([ADR-0104](docs/develop/adr/0104-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)); it decides what Self-Update does and what a Guided Update shows. The two compiled modes keep their data under the platform's place for application data, not in a tree.
 
 **Update Check**
 The instance asking GitHub Releases, on a schedule or on demand, whether a Release newer than itself exists. Only stable semver counts — pre-release and floating tags are invisible to it. The result is remembered, shown in the UI, and announced through Notifications once per new Release.
 _Avoid_: version poll, upgrade check
 
 **Menu Bar App**
-The macOS app's own part ([ADR-0102](docs/develop/adr/0102-the-foundry-app-and-the-release-installs.md)): a status item that starts the engine with the PATH a terminal has, says whether it runs and what waits for the person, opens the page in their browser, starts Foundry at login, and installs a release the engine downloaded by swapping the app. The page is the engine's, in the browser, as with every other install; the menu bar app holds no screen of its own.
+The macOS app's own part ([ADR-0105](docs/develop/adr/0105-the-foundry-app-and-the-release-installs.md)): a status item that starts the engine with the PATH a terminal has, says whether it runs and what waits for the person, opens the page in their browser, starts Foundry at login, and installs a release the engine downloaded by swapping the app. The page is the engine's, in the browser, as with every other install; the menu bar app holds no screen of its own.
 _Avoid_: tray, desktop app (the UI is not in it)
 
 **Switch**
-What a checkout or a container does when the newest Release is a new major that ships only as the app and the binary ([ADR-0103](docs/develop/adr/0103-before-3-0-a-switch-not-an-update.md)): not an update but a change of how Foundry is installed, shown first in a risk dialog (what it does, the risks, the way back) and done only on a ticked box. A checkout's Foundry hands over to the new release's installer, which stops it, copies its data folder and starts the new install on the same port; a container gets the steps to run on its host.
+What a checkout or a container does when the newest Release is a new major that ships only as the app and the binary ([ADR-0106](docs/develop/adr/0106-before-3-0-a-switch-not-an-update.md)): not an update but a change of how Foundry is installed, shown first in a risk dialog (what it does, the risks, the way back) and done only on a ticked box. A checkout's Foundry hands over to the new release's installer, which stops it, copies its data folder and starts the new install on the same port; a container gets the steps to run on its host.
 _Avoid_: upgrade, migration (the data copy is one step of it)
 
 **Self-Update**

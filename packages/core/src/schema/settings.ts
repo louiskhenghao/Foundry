@@ -24,6 +24,8 @@ export const EngineSettings = z.object({
   port: z.number().int().min(1).max(65535).default(4111),
   host: z.string().min(1).default('127.0.0.1'),
   maxConcurrent: z.number().int().min(1).max(16).default(3),
+  /** `fixed`: at most maxConcurrent sessions at once; `auto`: as many as this machine carries, read from it (ADR-0103) */
+  concurrency: z.enum(['fixed', 'auto']).default('fixed'),
   /** path to the claude binary; null = first on PATH */
   claudeBin: z.string().nullable().default(null),
   /** Claude Code home; null = ~/.claude (or CLAUDE_CONFIG_DIR) */
@@ -61,7 +63,7 @@ export const SessionSettings = z.object({
   maxContinuations: z.number().int().min(0).max(5).default(2),
   attemptMaxTurns: z.number().int().min(10).max(2000).default(150),
   attemptMaxCostUsd: z.number().min(0.5).max(500).default(10),
-  attemptTimeoutMin: z.number().int().min(5).max(240).default(20),
+  attemptTimeoutMin: z.number().int().min(5).max(240).default(45),
 });
 /** media-pipeline is the image packs' MCP server (claude-image-gen): allowed unless switched off */
 export const DEFAULT_MCP_ALLOWED = ['mcp__plugin_media-pipeline_media-pipeline'] as const;
@@ -119,6 +121,8 @@ export const WorkflowSettings = z.object({
   codexMcpAllowed: z.array(z.string().regex(/^mcp__[A-Za-z0-9_-]+$/)).default([]),
   /** let sessions use the tools of allowed catalog servers that run or change things (REA: launching the target, debuggers, connected devices); off = static analysis only */
   mcpDynamicTools: z.boolean().default(false),
+  /** Claude Code sessions load only what Foundry gives them (ADR-0102): the allowed MCP servers, no claude.ai connector unless one is allowed, none of the person's own skills Foundry did not install */
+  leanSessions: z.boolean().default(false),
   /** cost cap of the session that investigates a goal's reference with REA before Clarify */
   investigationMaxCostUsd: z.number().min(0.5).max(50).default(3),
   /** time cap of that session, in minutes */
@@ -473,6 +477,16 @@ export interface SettingMeta {
   env: string | null;
   default: unknown;
 }
+/** what Settings → Concurrency runs at now (ADR-0103) */
+export interface ConcurrencyView {
+  mode: 'fixed' | 'auto';
+  /** the sessions that may run at once now */
+  limit: number;
+  /** Auto: what this machine carries and why the limit is what it is */
+  auto?: { cap: number; busy: boolean; cpus: number; memGB: number; load1: number };
+  /** coding agents running one task at a time near the end of their 5-hour window */
+  held: { provider: string; utilization: number; resetsAt: string }[];
+}
 export interface SettingsView {
   /** every value, except SECRET_SETTINGS, which are null here */
   values: Settings;
@@ -483,4 +497,6 @@ export interface SettingsView {
   restartNeeded: string[];
   file: string;
   fileExists: boolean;
+  /** what Concurrency runs at now: the engine adds it, the settings file has nothing to say about it */
+  concurrency?: ConcurrencyView;
 }

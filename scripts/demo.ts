@@ -393,7 +393,8 @@ class DemoRunner implements ClaudeRunner {
       }
       if (!applyEdits(spec.cwd, title)) writeFileSync(join(spec.cwd, `${label.replace(/\W+/g, '-')}.txt`), 'demo');
     }
-    const result: RunResult = { sessionId, subtype: 'success', isError: false, costUsd: 0.42, numTurns: 7, durationMs: 90_000, usage: null, modelUsage: null, permissionDenials: [], finalText: title ? `Done: ${title}. The change is in place with its tests; bun test passes (14 tests) and the build is clean.` : 'done', structuredOutput, exitCode: 0, pid: null, rateLimit: null, errorMessage: null, skillsUsed: [], toolsUsed: {} };
+    // what its seven turns read, for the Reports page's context per turn
+    const result: RunResult = { sessionId, subtype: 'success', isError: false, costUsd: 0.42, numTurns: 7, durationMs: 90_000, usage: null, modelUsage: null, permissionDenials: [], finalText: title ? `Done: ${title}. The change is in place with its tests; bun test passes (14 tests) and the build is clean.` : 'done', structuredOutput, exitCode: 0, pid: null, rateLimit: null, errorMessage: null, skillsUsed: [], toolsUsed: {}, context: { turns: 7, tokens: 406_000, first: 41_000 } };
     const events: RunnerEvent[] = title ? workerEvents(title, result.sessionId!, result, spec.cwd) : [
       { kind: 'hook', name: 'SessionStart:startup', outcome: 'success' },
       { kind: 'init', sessionId: result.sessionId!, model: spec.model ?? null, tools: [], raw: {} },

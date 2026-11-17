@@ -44,6 +44,18 @@ async function collect(runner: CodexCliRunner, dir: string, extra: any = {}) {
 }
 
 describe('Codex CLI adapter', () => {
+  const started = [{ type: 'thread.started', thread_id: 's1' }, { type: 'turn.started' }];
+  test('a command under way is not idleness: it runs until the wall clock', async () => {
+    const { dir, bin } = fixture();
+    const running = new CodexCliRunner({ codexBin: bin, defaultIdleTimeoutMs: 1200, env: { HANG: '1', EVENTS: JSON.stringify([...started, { type: 'item.started', item: { id: 'cmd', type: 'command_execution', command: 'bun test' } }]) } });
+    expect((await collect(running, dir, { timeoutMs: 3500 })).result.subtype).toBe('killed_timeout');
+  }, 20_000);
+  test('a step reported only once done (a web search) does not stop the idle clock', async () => {
+    const { dir, bin } = fixture();
+    // no result line follows it to close it: opened, it would hold the clock until the wall clock
+    const searched = new CodexCliRunner({ codexBin: bin, defaultIdleTimeoutMs: 1200, env: { HANG: '1', EVENTS: JSON.stringify([...started, { type: 'item.completed', item: { id: 'ws', type: 'web_search', query: 'x' } }]) } });
+    expect((await collect(searched, dir, { timeoutMs: 15_000 })).result.subtype).toBe('killed_idle');
+  }, 20_000);
   test('native MCP denial reaches recovery metadata without storing tool arguments', async () => {
     const {dir,bin}=fixture();
     const runner=new CodexCliRunner({codexBin:bin,env:{TEST_GUARD:join(import.meta.dir,'../hooks/codex-guard.ts'),EVENTS:JSON.stringify(stream)}});

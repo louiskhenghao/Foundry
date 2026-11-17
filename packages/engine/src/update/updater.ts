@@ -1,5 +1,5 @@
 /**
- * Version self-knowledge and the self-update pipeline (ADR-0010, ADR-0101).
+ * Version self-knowledge and the self-update pipeline (ADR-0010, ADR-0104).
  * The version source is the public releases repository's GitHub Releases, for every deployment mode (the main repo may be
  * private; the releases repo is not), and the changelog comes from the same repo. Docker self-update goes through the
  * watchtower sidecar; a git checkout pulls, installs and builds with automatic rollback; a release install — the macOS
@@ -43,7 +43,7 @@ export interface UpdateCapability {
   method: 'watchtower' | 'git' | 'release' | 'switch' | null;
   /** commands for a guided update in this mode, shown when canSelfUpdate is false */
   guided: string[];
-  /** a newer major version this kind of install does not get (ADR-0103): what switching to it means, for the risk dialog */
+  /** a newer major version this kind of install does not get (ADR-0106): what switching to it means, for the risk dialog */
   switch: SwitchInfo | null;
 }
 
@@ -74,7 +74,7 @@ export const INSTALLER_URL = 'https://raw.githubusercontent.com/louiskhenghao/Fo
 
 /**
  * What only the old install's own environment names: its data folder, its port, its supervisor, its layout. The switch's
- * installer and the new install it starts choose their own (ADR-0103); the old folder handed on would have the new
+ * installer and the new install it starts choose their own (ADR-0106); the old folder handed on would have the new
  * install open it instead of its copy. macOS hands a launched app the environment of whoever opened it, so this matters
  * all the way down.
  */
@@ -85,7 +85,7 @@ export function switchEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   return out;
 }
 
-/** a container's way to the binary (ADR-0103): what the dialog lists, since nothing in a container can do it */
+/** a container's way to the binary (ADR-0106): what the dialog lists, since nothing in a container can do it */
 export function dockerSwitchSteps(install: 'app' | 'binary'): string[] {
   const data = install === 'app' ? '"$HOME/Library/Application Support/Foundry/data"' : '"$HOME/.local/share/foundry/data"';
   return [
@@ -127,7 +127,7 @@ const FETCH_TIMEOUT_MS = 10_000;
 const DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
 const USER_AGENT = 'foundry-updater';
 export const RELEASES_PAGE = 'https://github.com/louiskhenghao/foundry-releases/releases';
-/** the engine's exit code when a downloaded release waits in updates/ready.json for the menu bar app to install (ADR-0101) */
+/** the engine's exit code when a downloaded release waits in updates/ready.json for the menu bar app to install (ADR-0104) */
 export const UPDATE_READY_EXIT = 75;
 export const SHA256SUMS = 'SHA256SUMS';
 
@@ -256,7 +256,7 @@ export class UpdateManager {
 
   capability(): UpdateCapability {
     const mode = this.mode();
-    // 3.0 and later ship only as the app and the binary (ADR-0103): a checkout or a container switches, never updates, to them
+    // 3.0 and later ship only as the app and the binary (ADR-0106): a checkout or a container switches, never updates, to them
     const latest = this.cached?.latest ?? null;
     if ((mode === 'local' || mode === 'docker') && majorJump(this.current(), latest)) return this.switchCapability(mode, latest!);
     if (mode === 'docker') {
@@ -463,7 +463,7 @@ export class UpdateManager {
   }
 
   /**
-   * A release install (ADR-0101): download this computer's file, check it against SHA256SUMS, unpack it under the data
+   * A release install (ADR-0104): download this computer's file, check it against SHA256SUMS, unpack it under the data
    * folder's updates/. The app writes updates/ready.json and exits 75 so the menu bar app swaps the bundle and starts it
    * again; a tarball install moves the new version beside the old one, repoints `current` and restarts.
    */
@@ -538,7 +538,7 @@ export class UpdateManager {
   }
 
   /**
-   * A checkout switches to the app or the binary (ADR-0103): the release file is downloaded and checked here, then the
+   * A checkout switches to the app or the binary (ADR-0106): the release file is downloaded and checked here, then the
    * installer it carries takes over, detached, so it outlives this process. It places the new install, has
    * `foundry migrate` stop this Foundry (its service, then this pid) and copy the data folder once the database is let
    * go, and starts the new install on this port, where the page reconnects. An installer that ends before stopping this

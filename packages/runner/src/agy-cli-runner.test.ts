@@ -57,6 +57,12 @@ async function collect(runner: AgyCliRunner, dir: string, extra: any = {}) {
 }
 
 describe('Antigravity stream decoder', () => {
+  test("a helper agent's step reported once done does not stop the idle clock: the stream never shows a tool under way", async () => {
+    const { dir, bin } = fixture();
+    const agent = { event: 'step_update', step_update: { conversation_id: 'c1', step_index: 1, state: 'DONE', step_type: 'subagent', subagent_info: { name: 'explore' } } };
+    const runner = new AgyCliRunner({ agyBin: bin, defaultIdleTimeoutMs: 1200, env: { HANG: '1', EVENTS: JSON.stringify([stream[0], agent]) } });
+    expect((await collect(runner, dir, { timeoutMs: 15_000 })).result.subtype).toBe('killed_idle');
+  }, 20_000);
   test('joins the fragments of an answer, pairs a tool step with its output, passes the rest through', () => {
     const d = new AgyStreamDecoder();
     const out = stream.flatMap((m) => d.decode(m));

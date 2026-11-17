@@ -9,11 +9,11 @@ Foundry drives Claude Code, Codex or the Antigravity CLI against git repositorie
 | Native accounts | each CLI's login on your machine | each CLI's login on your machine | each CLI's login on your machine | separate Claude and Codex homes |
 | Your repositories | any path on the machine | any path on the machine | any path on the machine | only what you mount into the container |
 | Data folder | `~/Library/Application Support/Foundry` | `~/.local/share/foundry` | `data/` in the checkout | Docker volumes |
-| Updates | one click: download, check, swap ([ADR-0101](../develop/adr/0101-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)) | one click: download, check, switch | one click (git-based) | one click with the shipped `docker-compose.yml` |
+| Updates | one click: download, check, swap ([ADR-0104](../develop/adr/0104-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)) | one click: download, check, switch | one click (git-based) | one click with the shipped `docker-compose.yml` |
 
 The app and the binary are the release itself, compiled: no Bun, no checkout, no build. They serve the web UI on
 `http://127.0.0.1:4111`, or the next free port, which they keep. The Docker image is being retired; see
-[ADR-0102](../develop/adr/0102-the-foundry-app-and-the-release-installs.md).
+[ADR-0105](../develop/adr/0105-the-foundry-app-and-the-release-installs.md).
 
 ## The app (macOS)
 

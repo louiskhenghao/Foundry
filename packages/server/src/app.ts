@@ -2096,7 +2096,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
     return c.json(await detectTelegramChatId(t));
   });
-  // ---------- the macOS menu bar app (ADR-0102): one small answer for its menu, asked every few seconds ----------
+  // ---------- the macOS menu bar app (ADR-0105): one small answer for its menu, asked every few seconds ----------
   app.get('/api/app/status', (c) => {
     const report = engine.updater.reportOrKick();
     const inbox = listEscalations(db, { openOnly: true }).filter((e) => !historyRefused(e.goalId)).length;
@@ -2111,7 +2111,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const cap = engine.updater.capability();
     if (engine.updater.isApplying()) throw new HttpError(409, { error: 'an update is already running' });
     if (!cap.canSelfUpdate) throw new HttpError(422, { error: 'this install cannot self-update', guided: cap.guided, mode: cap.mode });
-    // a switch to the app or the binary (ADR-0103) happens only on the risk dialog's ticked box
+    // a switch to the app or the binary (ADR-0106) happens only on the risk dialog's ticked box
     if (cap.method === 'switch' && !acknowledge) throw new HttpError(422, { error: `switching to ${cap.switch!.to} changes how Foundry is installed: confirm it in the dialog`, switch: cap.switch });
     if (!engine.updater.cachedReport()?.updateAvailable) throw new HttpError(409, { error: 'no newer version known — check for updates first' });
     // background; failures are streamed to the channel and recorded as an update.run event

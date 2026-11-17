@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Build the release files (ADR-0101): one `foundry` executable per platform with its `resources/` folder beside it, packed
+ * Build the release files (ADR-0104): one `foundry` executable per platform with its `resources/` folder beside it, packed
  * as a tarball, plus SHA256SUMS. The macOS executable is universal (arm64 + x86_64 through lipo); each thin slice is signed
  * ad-hoc first, because Bun's cross-compiled output carries the stale signature of the Bun it was made from, which the
  * kernel refuses to map. Run from the repository root; the macOS target needs a Mac with Xcode's command line tools
@@ -10,7 +10,7 @@
  *
  * Writes <out>/<version>/foundry-<version>-<target>.tar.gz for each target and SHA256SUMS beside them, and leaves each
  * target's unpacked folder at <out>/<version>/<target>/foundry-<version>/. With the macOS target it also builds the app
- * (ADR-0102): the Swift menu bar shell (apps/mac/Foundry/main.swift, universal through swiftc and lipo) as
+ * (ADR-0105): the Swift menu bar shell (apps/mac/Foundry/main.swift, universal through swiftc and lipo) as
  * Foundry.app/Contents/MacOS/Foundry, the universal foundry beside it as foundry-engine, the resources in
  * Contents/Resources, signed ad-hoc, packed as Foundry-<version>-mac-universal.zip (what an installed app updates from)
  * and Foundry-<version>-mac-universal.dmg (what a person downloads), both in SHA256SUMS.
@@ -24,7 +24,7 @@ import { join, resolve } from 'node:path';
 const ROOT = resolve(import.meta.dir, '..');
 const ALL_TARGETS = ['darwin-universal', 'linux-x64', 'linux-arm64'] as const;
 type Target = (typeof ALL_TARGETS)[number];
-/** what travels beside the executable, at the checkout's own relative paths; install.sh is what a checkout switches with (ADR-0103) */
+/** what travels beside the executable, at the checkout's own relative paths; install.sh is what a checkout switches with (ADR-0106) */
 const RESOURCES = ['apps/web/dist', 'roles', 'catalog', 'templates', 'packages/runner/hooks', 'packages/engine/recipes', 'docs/guide', 'THIRD-PARTY-NOTICES.txt', 'install.sh'];
 
 const args = process.argv.slice(2);
@@ -131,7 +131,7 @@ for (const t of targets) {
   sums.push(`${await sha256(tarball)}  foundry-${version}-${t}.tar.gz`);
   console.log(`✔ ${t}: ${mb(statSync(tarball).size)} tarball, executable ${mb(statSync(join(pkg, 'foundry')).size)}`);
 }
-// ---------- the macOS app (ADR-0102): the menu bar shell around the universal foundry, as a zip and a .dmg ----------
+// ---------- the macOS app (ADR-0105): the menu bar shell around the universal foundry, as a zip and a .dmg ----------
 const appFiles: string[] = [];
 if (targets.includes('darwin-universal')) {
   const appDir = join(dist, 'app');

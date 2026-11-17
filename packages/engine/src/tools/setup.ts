@@ -1,5 +1,5 @@
 /**
- * `foundry setup` (ADR-0102): everything Foundry needs on this computer, installed where it is missing — what install.sh
+ * `foundry setup` (ADR-0105): everything Foundry needs on this computer, installed where it is missing — what install.sh
  * did in bash for a source install, done by the compiled foundry itself so the app's Setup page, a terminal and the
  * installer run one implementation. Required: git, uv, the chosen coding agents' CLIs and graphify (with its skill for
  * each agent). Recommended: the GitHub CLI and Node.js. Chosen: markitdown, Chromium for the self-check, ffmpeg. A tool

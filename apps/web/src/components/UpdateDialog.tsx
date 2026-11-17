@@ -12,7 +12,7 @@ import { Button, CopyButton, Modal, cn } from '../ui.tsx';
 export function UpdatePill() {
   const [status, setStatus] = useState<UpdateStatusView | null>(null);
   const [open, setOpen] = useState(false);
-  // the menu bar app's "Update to …" opens the page with ?update (ADR-0102): the dialog opens once the report has the version
+  // the menu bar app's "Update to …" opens the page with ?update (ADR-0105): the dialog opens once the report has the version
   const asked = useRef(new URLSearchParams(window.location.search).has('update'));
   useEffect(() => {
     if (!asked.current || !status?.updateAvailable) return;
@@ -188,7 +188,7 @@ const list = 'list-disc space-y-1 pl-5 text-xs text-ink-soft';
 const mono = 'mono text-ink [overflow-wrap:anywhere]';
 
 /**
- * Before a checkout or a container meets 3.0 (ADR-0103): what the switch to the app or the binary does, what can go
+ * Before a checkout or a container meets 3.0 (ADR-0106): what the switch to the app or the binary does, what can go
  * wrong, and the way back. A checkout switches on a ticked box; a container gets the steps to run on its host.
  */
 export function SwitchNotice({ sw, steps, canSwitch, force, onForce, err, onSwitch, onClose }: {

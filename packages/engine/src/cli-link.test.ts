@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { INSTALLER_COMMAND_MARK, cliLinkState, linkCli, pathHint } from './cli-link.ts';
 
-describe('foundry in a terminal (ADR-0102)', () => {
+describe('foundry in a terminal (ADR-0105)', () => {
   test('links ~/.local/bin/foundry to the binary, replaces an old link, leaves the installer and strangers alone', () => {
     const home = mkdtempSync(join(tmpdir(), 'foundry-link-'));
     try {
