@@ -4,7 +4,7 @@
  * ~/.foundry/config.json, then the checkout's data/ (data-<provider>/) — and so are the checks a folder passes before
  * Foundry switches to it, the copy a switch may make, and the gate the serve loop waits at for a restart.
  */
-import { EventStore, knownMigrationIds, openDatabase, type AgentProvider } from '@foundry/core';
+import { AgentProvider, EventStore, knownMigrationIds, openDatabase } from '@foundry/core';
 import { Database } from 'bun:sqlite';
 import { accessSync, constants, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, statfsSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -29,6 +29,8 @@ export const HomeConfig = z
     recent: z.array(z.string()).default([]),
     /** the port a release install (the app, a tarball) serves on when nothing names one (ADR-0105) */
     port: z.number().int().min(1).max(65535).optional(),
+    /** the launch profile a release install starts with when FOUNDRY_PROVIDER names none: the one its goals were moved into (ADR-0107) */
+    provider: AgentProvider.optional(),
   })
   .passthrough();
 export type HomeConfig = z.infer<typeof HomeConfig>;
@@ -49,6 +51,24 @@ export function readHomeConfig(home: string, log?: (m: string) => void): HomeCon
 export function writeHomeConfig(home: string, config: HomeConfig): void {
   mkdirSync(home, { recursive: true });
   writeFileSync(join(home, HOME_CONFIG_FILE), JSON.stringify(config, null, 2) + '\n');
+}
+
+/**
+ * The launch profile a start opens (ADR-0107): FOUNDRY_PROVIDER, else for a release install the one its goals were moved
+ * into, kept in ~/.foundry/config.json, else Claude Code's. A checkout never reads the kept one: it shares ~/.foundry with
+ * the app, and a dev server does not follow a move the app made.
+ */
+export function launchProfile(o: { env?: NodeJS.ProcessEnv; home: string | null; kind: InstallKind; log?: (m: string) => void }): AgentProvider {
+  const named = AgentProvider.safeParse((o.env ?? process.env).FOUNDRY_PROVIDER);
+  if (named.success) return named.data;
+  if (o.kind !== 'checkout' && o.home) return readHomeConfig(o.home, o.log).provider ?? 'claude';
+  return 'claude';
+}
+
+/** the launch profile a release install opens from now on: a move brought goals made with that coding agent (ADR-0107) */
+export function keepProvider(home: string, provider: AgentProvider, log?: (m: string) => void): void {
+  const config = readHomeConfig(home, log);
+  if (config.provider !== provider) writeHomeConfig(home, { ...config, provider });
 }
 
 const RECENT_MAX = 8;
@@ -393,8 +413,11 @@ export async function prepareDataDir(from: string, to: string, mode: DataDirMode
 export type RestartRequest =
   | { kind: 'restart'; why: string }
   | { kind: 'data-dir'; to: string; mode: DataDirMode }
-  /** a move's copies, staged beside this install's folders, swapped in while the engine is stopped (ADR-0107); `port`: the old one's, taken over */
-  | { kind: 'move'; staged: { provider: AgentProvider; staging: string; target: string }[]; port: number | null }
+  /**
+   * a move's copies, staged beside this install's folders, swapped in while the engine is stopped (ADR-0107); `port`: the
+   * old one's, taken over; `profile`: the launch profile to start with, when the goals were made with another coding agent
+   */
+  | { kind: 'move'; staged: { provider: AgentProvider; staging: string; target: string }[]; port: number | null; profile?: AgentProvider | null }
   | { kind: 'exit' };
 
 /** what the serve loop leaves for the engine that comes after a switch, for the Settings page to show */

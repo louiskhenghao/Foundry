@@ -82,6 +82,13 @@ the project asked for the move to be one a person cannot get wrong: no commands 
 - **A folder chosen in Settings is opened, not copied.** When the app first starts and another Foundry holds the
   folder chosen in Settings, it starts on its default folder instead and offers the move. The move then stops the other
   Foundry and restarts this one on the chosen folder.
+- **Goals made with another coding agent bring its launch profile.** A data folder belongs to one coding agent's launch
+  profile, and an engine opens only its own profile's folder, so a Codex install's goals land where this install keeps
+  Codex's data and show only on Codex's profile. When this install has no goals of its own in the profile it runs, the
+  move starts it on the moved goals' profile and keeps that choice in `~/.foundry/config.json` (`provider`), which a
+  release install reads when `FOUNDRY_PROVIDER` names none; the installer's service runs it too. Goals of its own there
+  are never hidden unasked: the move is refused before anything stops, unless the person sets them aside (they stay in
+  their folder). A checkout never reads the kept profile: it shares `~/.foundry` with the app.
 - **The switch keeps its flags.** `foundry migrate --from <checkout> --data <folder> --stop-pid <pid> --keep-port <port>`
   is what a 2.x switch asks of the 3.0 installer, and it runs the same move.
 - **Docker's way to 3.0 is one command.** The switch shows a container `curl … | bash` to run on the computer Docker

@@ -3,14 +3,14 @@
  * are made while this engine still serves (the page shows each step), then the serve loop swaps them in while the engine
  * is stopped, on the old install's port when it is free.
  */
-import type { AgentProvider } from '@foundry/core';
+import { type AgentProvider, PROVIDER_LABEL } from '@foundry/core';
 import { isPortFree } from '../app-shell.ts';
 import type { RestartRequest } from '../data-dir.ts';
 import type { InstallKind } from '../install-root.ts';
 import { readMovedFrom, type MovedFrom } from './finish.ts';
 import { rmSync } from 'node:fs';
 import { CHECKOUT_ENTRY, commandOf, findEarlierInstalls, sourceInstallAt, type EarlierInstall, type Found } from './find.ts';
-import { MoveError, type MoveItem, MOVING_SUFFIX, openers, planMove, restoreOld, runMove } from './move.ts';
+import { MoveError, type MoveItem, MOVING_SUFFIX, openers, planMove, profileAfterMove, restoreOld, runMove } from './move.ts';
 import { localProbe, type Probe } from './probe.ts';
 
 export interface MoveJob {
@@ -27,7 +27,8 @@ export interface MoveJob {
 
 export interface MoveStatus {
   kind: InstallKind;
-  here: { goals: number; dataDir: string };
+  /** this install: its goals and folder, and the launch profile it runs (the coding agent its folder belongs to) */
+  here: { goals: number; dataDir: string; provider: AgentProvider };
   /** an app or binary install with no goals yet, and an earlier install with some: the Goals page offers the move */
   offer: boolean;
   installs: (EarlierInstall & { plan: MoveItem[] })[];
@@ -44,6 +45,8 @@ export interface MoverDeps {
   dataDir: () => string;
   /** where this install keeps a provider's data */
   targetFor: (p: AgentProvider) => string;
+  /** the launch profile this install runs */
+  provider: () => AgentProvider;
   /** this install's goals */
   goals: () => number;
   port: () => number;
@@ -69,7 +72,7 @@ export class Mover {
   constructor(private readonly d: MoverDeps) {}
 
   async status(opts: { fresh?: boolean } = {}): Promise<MoveStatus> {
-    const here = { goals: this.d.goals(), dataDir: this.d.dataDir() };
+    const here = { goals: this.d.goals(), dataDir: this.d.dataDir(), provider: this.d.provider() };
     const found = this.d.kind === 'checkout' ? { installs: [], notes: [] } : await this.find(opts.fresh);
     const installs = found.installs.map((i) => ({ ...i, plan: planMove(i, { targetFor: this.d.targetFor, replace: here.goals > 0 }) }));
     return {
@@ -109,13 +112,17 @@ export class Mover {
       try {
         const found = await this.find(true);
         const seen = found.installs.find((i) => i.id === opts.id);
-        // a checkout named by path (foundry migrate --from, --data) is moved as named, found or not
-        const install = opts.from ? sourceInstallAt(opts.from, { data: opts.data, found: seen }) : seen;
+        // a checkout named by path (foundry migrate --from, --data): one the search found moves with every folder it
+        // found (each launch profile's), as foundry migrate does; one not found, or a folder named, is moved as named
+        const install = opts.from && (opts.data || !seen) ? sourceInstallAt(opts.from, { data: opts.data, found: seen }) : seen;
         if (!install) throw new MoveError(`${job.where} is not on this computer any more`);
         // where Foundry will answer once the move is in place: told before anything stops, so a page that loses this
         // server mid-move knows where to look (the old one's port, when it has one)
         job.nextUrl = `http://127.0.0.1:${install.port && install.port !== this.d.port() ? install.port : this.d.port()}`;
         const items = planMove(install, { targetFor: this.d.targetFor, replace: opts.replace });
+        // goals made with another coding agent: this install starts on its launch profile, never over goals of its own
+        const profile = profileAfterMove({ install, items, running: this.d.provider(), ownGoals: this.d.goals(), replace: opts.replace });
+        if (profile.refuse) throw new MoveError(profile.refuse);
         const done = await runMove({ install, items, swap: false, now: () => this.skipWait, log, probe: this.d.probe });
         // a goal made here while the move waited would be set aside with this install's folder: put the old one back instead
         const mine = this.d.goals();
@@ -133,8 +140,10 @@ export class Mover {
         job.state = 'restarting';
         this.found = null;
         log(done.staged.length ? `starting again on the moved data${port ? `, at ${job.nextUrl}` : ''}` : 'starting again on the folder chosen in Settings');
+        if (profile.switchTo) log(`Foundry runs ${PROVIDER_LABEL[profile.switchTo]}'s launch profile from now on: the goals were made with it`);
         await Bun.sleep(this.d.restartAfterMs ?? 1500);
-        this.d.restart(done.staged.length ? { kind: 'move', staged: done.staged.map((s) => ({ provider: s.provider, staging: s.staging, target: s.target })), port } : { kind: 'restart', why: 'the move: the folder chosen in Settings is free now' });
+        const staged = done.staged.map((s) => ({ provider: s.provider, staging: s.staging, target: s.target }));
+        this.d.restart(staged.length || profile.switchTo ? { kind: 'move', staged, port, profile: profile.switchTo } : { kind: 'restart', why: 'the move: the folder chosen in Settings is free now' });
       } catch (err) {
         job.state = 'failed';
         job.error = (err as Error).message;

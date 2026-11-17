@@ -1,8 +1,9 @@
-import { AgentProvider } from '@foundry/core';
+import type { AgentProvider } from '@foundry/core';
 import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { foundryHome, resolveDataDir, type DataDirSource } from './data-dir.ts';
+import { foundryHome, launchProfile, resolveDataDir, type DataDirSource } from './data-dir.ts';
+import { installRoot } from './install-root.ts';
 import type { Machine } from './concurrency.ts';
 
 export interface EngineConfig {
@@ -201,9 +202,9 @@ export function claudeConfigEnv(claudeHome: string | null | undefined): { CLAUDE
 }
 
 export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {}): EngineConfig {
-  const provider = overrides.provider ?? (AgentProvider.safeParse(process.env.FOUNDRY_PROVIDER).success ? (process.env.FOUNDRY_PROVIDER as AgentProvider) : 'claude');
   // a test run never reads the person's own ~/.foundry
   const home = overrides.foundryHome !== undefined ? overrides.foundryHome : process.env.NODE_ENV === 'test' ? null : foundryHome();
+  const provider = overrides.provider ?? launchProfile({ env: process.env, home, kind: installRoot().kind, log: overrides.log });
   const data = resolveDataDir({ root: resolve(root), provider, home, log: overrides.log });
   return {
     rootDir: resolve(root),

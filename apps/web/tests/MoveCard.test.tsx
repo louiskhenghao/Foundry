@@ -6,7 +6,7 @@ import { MoveView, type MoveViewProps } from '../src/components/MoveCard.tsx';
 
 const none = () => {};
 const install = (over: Partial<EarlierInstall> = {}): EarlierInstall => ({ id: 'source:/Users/me/Projects/foundry', kind: 'source', where: '/Users/me/Projects/foundry', version: '2.35.0', recorded: false, running: { pid: 42, how: 'process' }, port: 4111, url: 'http://127.0.0.1:4111', goals: 50, last: '2026-11-17T01:00:00.000Z', plan: [], ...over });
-const status = (over: Partial<MoveStatus> = {}): MoveStatus => ({ kind: 'app', here: { goals: 0, dataDir: '/Users/me/Library/Application Support/Foundry/data' }, offer: true, installs: [install()], notes: [], job: null, last: null, failed: null, ...over });
+const status = (over: Partial<MoveStatus> = {}): MoveStatus => ({ kind: 'app', here: { goals: 0, dataDir: '/Users/me/Library/Application Support/Foundry/data', provider: 'claude' }, offer: true, installs: [install()], notes: [], job: null, last: null, failed: null, ...over });
 const view = (over: Partial<MoveViewProps> = {}) => renderToStaticMarkup(<MoveView variant="offer" status={status()} chosen={null} onChoose={none} replace={false} onReplace={none} busy={false} err={null} onMove={none} onMoveNow={none} {...over} />);
 
 test('an app with no goals offers the earlier Foundry it found, with one button (ADR-0107)', () => {
@@ -29,11 +29,11 @@ test('nothing to offer, or a checkout: nothing shows on the Goals page', () => {
 });
 
 test("with goals of its own, this install's are set aside only on a ticked box", () => {
-  const h = view({ variant: 'settings', status: status({ here: { goals: 2, dataDir: '/x' }, offer: false }) });
+  const h = view({ variant: 'settings', status: status({ here: { goals: 2, dataDir: '/x', provider: 'claude' }, offer: false }) });
   expect(h).toContain('Move from another Foundry');
   expect(h).toContain('this Foundry’s own 2 goals are set aside as a backup, not merged');
   expect(h).toMatch(/<button[^>]*disabled=""[^>]*>Move 50 goals here<\/button>/);
-  expect(view({ variant: 'settings', replace: true, status: status({ here: { goals: 2, dataDir: '/x' }, offer: false }) })).toMatch(/<button(?![^>]*disabled="")[^>]*>Move 50 goals here<\/button>/);
+  expect(view({ variant: 'settings', replace: true, status: status({ here: { goals: 2, dataDir: '/x', provider: 'claude' }, offer: false }) })).toMatch(/<button(?![^>]*disabled="")[^>]*>Move 50 goals here<\/button>/);
 });
 
 test('a move under way can stop waiting; one that stopped says why and can be tried again', () => {

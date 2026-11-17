@@ -564,8 +564,14 @@ xml() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
 # systemd expands %-specifiers in unit values
 unit_value() { printf '%s' "$1" | sed 's/%/%%/g'; }
 
-# the launch profile: the first chosen agent, in the order Claude Code, Codex, Antigravity
-provider() { if uses codex && ! uses claude; then echo codex; elif [ "$AGENT" = agy ]; then echo agy; else echo claude; fi; }
+# the launch profile: the one a move kept, for the goals were made with that coding agent (ADR-0107), else the first chosen
+# agent, in the order Claude Code, Codex, Antigravity
+provider() {
+  local kept
+  kept="$({ sed -n 's/.*"provider": *"\([a-z]*\)".*/\1/p' "${FOUNDRY_HOME:-$HOME/.foundry}/config.json" 2>/dev/null | head -1; } || true)"
+  case "$kept" in claude|codex|agy) echo "$kept"; return 0 ;; esac
+  if uses codex && ! uses claude; then echo codex; elif [ "$AGENT" = agy ]; then echo agy; else echo claude; fi
+}
 
 start_service() {
   if [ "$DRY" = 1 ]; then plan "run Foundry as a background service on port ${PORT:-4111} and open it"; return; fi

@@ -5,7 +5,7 @@
  * folders open, else by the serve loop while this engine is stopped. Until the swap nothing of this install changes,
  * and a failure puts the old one back as it was.
  */
-import { type AgentProvider, knownMigrationIds } from '@foundry/core';
+import { type AgentProvider, knownMigrationIds, PROVIDER_LABEL } from '@foundry/core';
 import { Database } from 'bun:sqlite';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statfsSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -128,6 +128,33 @@ export function planMove(install: EarlierInstall, opts: { targetFor: (p: AgentPr
     else items.push({ provider: f.provider, from: f.path, to, action: 'conflict', why: `this install already has ${mine.goals} goal${mine.goals === 1 ? '' : 's'}`, counts: f.counts });
   }
   return items;
+}
+
+/**
+ * The launch profile the goals of a move were made with (ADR-0107): the old install's own while its folder has goals, else
+ * the profile whose folder has the most. A data folder belongs to one coding agent's profile, and an engine opens only its
+ * own profile's folder, so goals made with another agent show only once this install runs that agent's profile.
+ */
+export function movedProfile(install: EarlierInstall, items: MoveItem[]): AgentProvider | null {
+  const goals = (i: MoveItem) => i.counts?.goals ?? 0;
+  const moving = items.filter((i) => i.action !== 'conflict' && goals(i) > 0);
+  const own = moving.find((i) => i.provider === (install.env.FOUNDRY_PROVIDER ?? 'claude'));
+  return (own ?? [...moving].sort((a, b) => goals(b) - goals(a))[0])?.provider ?? null;
+}
+
+/**
+ * Which launch profile this install runs once the move is in: the moved goals' when this install has none of its own in
+ * the profile it runs, or when the person chose to set them aside. Goals of its own there are never hidden unasked: the
+ * move is refused before anything stops.
+ */
+export function profileAfterMove(o: { install: EarlierInstall; items: MoveItem[]; running: AgentProvider; ownGoals: number; replace?: boolean }): { switchTo: AgentProvider | null; refuse: string | null } {
+  const moved = movedProfile(o.install, o.items);
+  if (!moved || moved === o.running) return { switchTo: null, refuse: null };
+  if (o.ownGoals > 0 && !o.replace) {
+    const n = `${o.ownGoals} goal${o.ownGoals === 1 ? '' : 's'}`;
+    return { switchTo: null, refuse: `its goals were made with ${PROVIDER_LABEL[moved]}'s launch profile, and this Foundry runs ${PROVIDER_LABEL[o.running]}'s with ${n} of its own: choose to set them aside (they stay in their folder), and it runs ${PROVIDER_LABEL[moved]}'s from then on` };
+  }
+  return { switchTo: moved, refuse: null };
 }
 
 /** old path → new path: each copied folder, and for a container each bind mount back to its source; longest first */
