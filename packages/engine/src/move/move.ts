@@ -447,7 +447,7 @@ export function movedNoteFor(install: EarlierInstall, from: string, to: string, 
   const back =
     install.kind === 'docker'
       ? `quit the app, then start the container again:\n\n    docker update --restart=${install.docker?.restart ?? 'unless-stopped'} ${install.where} && docker start ${install.where}`
-      : `quit the app, then start this checkout again (\`bun run serve\` in ${install.where}).`;
+      : `quit the app, delete this note (a Foundry does not open a folder that moved, so the same goals never run twice), then start this checkout again (\`bun run serve\` in ${install.where}).`;
   return `# This data folder moved\n\nFoundry copied it to\n\n    ${to}\n\non ${at.toISOString().slice(0, 10)}, and the Foundry app (or the foundry binary) opens that copy. This folder is the\nbackup of that day: nothing here changes any more.\n\nTo go back, ${back}\n\nIts goals are as they were on the day of the move. Once the app shows your goals, you can delete this.\n`;
 }
 

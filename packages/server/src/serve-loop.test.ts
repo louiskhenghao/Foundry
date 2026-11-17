@@ -198,3 +198,27 @@ test("a release install whose chosen folder another Foundry holds starts on its 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a folder that moved is not opened again: its goals run in the copy now (ADR-0107)', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'foundry-serve-moved-'));
+  const home = join(dir, 'home');
+  const moved = join(dir, 'data');
+  const own = join(dir, 'own');
+  mkdirSync(moved);
+  writeFileSync(join(moved, 'MOVED.md'), '# This data folder moved\n');
+  writeHomeConfig(home, { dataDirs: { claude: moved }, recent: [] });
+  const config = { foundryHome: home, provider: 'claude' as const, claudeHome: join(dir, 'claude'), codexHome: join(dir, 'codex'), host: '127.0.0.1', port: 0, log: () => {} };
+  // a checkout started again on the folder it moved from: refused, with the way back
+  const checkout = serveLoop({ root: ROOT, config, makeEngine: (cfg) => new Engine(cfg, new FakeRunner(() => {})), log: () => {}, graceMs: 50 });
+  await expect(checkout.done).rejects.toThrow(/this data folder moved/);
+  // a release install whose chosen folder moved: its own folder, with a notice
+  const app = serveLoop({ root: ROOT, config, makeEngine: (cfg) => new Engine(cfg, new FakeRunner(() => {})), fallbackDataDir: () => own, log: () => {}, graceMs: 50 });
+  try {
+    const cur = await until(() => app.current());
+    expect(cur.engine.config.dataDir).toBe(own);
+    expect(cur.engine.dataDirNotice).toMatchObject({ kind: 'in-use', chosen: moved, holder: 'it moved (its MOVED.md says where)' });
+  } finally {
+    await app.shutdown();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

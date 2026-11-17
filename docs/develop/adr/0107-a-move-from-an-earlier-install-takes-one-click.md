@@ -67,6 +67,10 @@ the project asked for the move to be one a person cannot get wrong: no commands 
      says where its goals came from.
 - **An unattended move never chooses.** With more than one earlier install with goals, the installer and `--yes` move
   none of them and say how to choose: the page lists them, and `foundry migrate --from` names one.
+- **A folder that moved is not opened again.** Its goals run in the copy now: a Foundry that finds a `MOVED.md` in its
+  data folder refuses it, so a checkout started again by habit cannot run the same goals beside the app (two
+  deliveries, two watchers of each pull request, two readers of one bot). A release install whose chosen folder moved
+  starts on its own folder with a notice. Going back means deleting that `MOVED.md`, which the note says.
 - **A failed move puts everything back.** Until the swap, the staging folders are deleted, the old Foundry is started
   again its own way, and the goals paused for the move are resumed there. This install never changes. After the swap, a
   copy that cannot boot is swapped back.

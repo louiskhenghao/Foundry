@@ -4,7 +4,9 @@
  * process keeps its port. A switch whose folder cannot boot comes back on the folder before, with a notice for Settings.
  */
 import type { AgentProvider } from '@foundry/core';
-import { DataFolderInUse, Engine, claimDataDir, defaultConfig, finishMove, keepPort, prepareDataDir, readHomeConfig, releaseDataDir, rememberRecent, swapIn, swapOut, writeHomeConfig, type DataDirNotice, type EngineConfig } from '@foundry/engine';
+import { DataFolderInUse, Engine, FolderMoved, MOVED_NOTE, claimDataDir, defaultConfig, finishMove, keepPort, prepareDataDir, readHomeConfig, releaseDataDir, rememberRecent, swapIn, swapOut, writeHomeConfig, type DataDirNotice, type EngineConfig } from '@foundry/engine';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { startServer, type ServeOptions } from './index.ts';
 
 type Server = ReturnType<typeof startServer>;
@@ -62,6 +64,8 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
         cfg = defaultConfig(opts.root, bootDir ? { ...opts.config, dataDir: bootDir } : opts.config);
         bootDir = null;
         try {
+          // a folder that moved (ADR-0107): its goals run in the copy now, and opening it would run them twice
+          if (existsSync(join(cfg.dataDir, MOVED_NOTE))) throw new FolderMoved(cfg.dataDir);
           // one Foundry per data folder (ADR-0105): a folder another live process holds is refused before anything opens it
           claimDataDir(cfg.dataDir, { port: cfg.port });
           const other = await opts.openedBy?.(cfg.dataDir);
@@ -70,10 +74,11 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
             throw new DataFolderInUse(cfg.dataDir, { pid: Number(/pid (\d+)/.exec(other)?.[1] ?? 0), port: null, startedAt: '' });
           }
         } catch (err) {
-          if (err instanceof DataFolderInUse && cfg.dataDirSource === 'config' && opts.fallbackDataDir) {
+          if ((err instanceof DataFolderInUse || err instanceof FolderMoved) && cfg.dataDirSource === 'config' && opts.fallbackDataDir) {
             const fallback = opts.fallbackDataDir(cfg.provider);
-            log(`[data-dir] another Foundry has ${cfg.dataDir} open (pid ${err.holder.pid}); starting on ${fallback} until it stops`);
-            notice = { kind: 'in-use', chosen: cfg.dataDir, holder: `pid ${err.holder.pid}`, at: new Date().toISOString() };
+            const holder = err instanceof DataFolderInUse ? `pid ${err.holder.pid}` : 'it moved (its MOVED.md says where)';
+            log(`[data-dir] ${cfg.dataDir} cannot be opened here (${holder}); starting on ${fallback}`);
+            notice = { kind: 'in-use', chosen: cfg.dataDir, holder, at: new Date().toISOString() };
             bootDir = fallback;
             continue;
           }

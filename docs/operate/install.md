@@ -101,7 +101,9 @@ before the new install starts. A move:
    install from then on.
 
 Nothing of the old install is deleted: its folder, or its container and volumes, is the backup, with a `MOVED.md` that
-says how to go back. A move that fails before the copy is in place starts the old one again and changes nothing here.
+says how to go back. A Foundry does not open a folder that moved, so a checkout started again by habit says so instead of
+running the same goals beside the app; deleting the `MOVED.md` is the way back. A move that fails before the copy is in
+place starts the old one again and changes nothing here.
 
 ```bash
 foundry migrate --dry-run      # what it finds, and what a move would do

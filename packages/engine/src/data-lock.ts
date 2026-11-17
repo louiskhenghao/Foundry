@@ -60,3 +60,16 @@ export function claimDataDir(dataDir: string, opts: { pid?: number; port?: numbe
 export function releaseDataDir(dataDir: string, pid: number = process.pid): void {
   if (readDataLock(dataDir)?.pid === pid) rmSync(join(dataDir, LOCK_FILE), { force: true });
 }
+
+/**
+ * A data folder a move copied elsewhere (ADR-0107): its MOVED.md says where its goals run now, and opening it again would
+ * run them twice (two Foundries delivering, watching the same pull requests, reading the same bot).
+ */
+export class FolderMoved extends Error {
+  constructor(readonly dataDir: string) {
+    super(`this data folder moved: ${dataDir}/MOVED.md says where its goals run now, and opening it here would run them twice. To go back to it, quit the Foundry that has the copy and delete that MOVED.md; to run another Foundry from here, give it a folder of its own (FOUNDRY_DATA_DIR)`);
+  }
+}
+
+export const MOVED_NOTE = 'MOVED.md';
+
