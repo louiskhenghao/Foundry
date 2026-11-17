@@ -26,7 +26,7 @@ test('after a move the installer record and the foundry command name the app the
     const probe = localProbe({ HOME: home, PATH: process.env.PATH });
     const said: string[] = [];
     expect(await adoptInstall({ root: join(app, 'Contents', 'Resources'), kind: 'app', execPath: engine, log: (m) => said.push(m), probe })).toBe(true);
-    expect(parseInstallEnv(readFileSync(join(home, '.config', 'foundry', 'install.env'), 'utf8'))).toMatchObject({ MODE: 'app', APP: app, SERVICE: 'app', AGENT: 'claude', PORT: '4111', REPOS: '/x/Projects' });
+    expect(parseInstallEnv(readFileSync(join(home, '.config', 'foundry', 'install.env'), 'utf8'))).toMatchObject({ MODE: 'app', APP: app, SERVICE: 'app', AGENT: 'claude', PORT: '4111' });
     const command = readFileSync(join(home, '.local', 'bin', 'foundry'), 'utf8');
     expect(command).toContain(INSTALLER_COMMAND_MARK);
     expect(command).toContain(`exec "${engine}" "$@"`);
