@@ -84,7 +84,7 @@ export async function runSetup(opts: SetupOptions): Promise<{ ok: boolean; steps
     const install = agentCliInstall(a, env.which, env.platform as NodeJS.Platform, env.arch);
     await ensure(AGENT_LABEL[a], AGENT_BIN[a], install?.command ?? null, a === 'claude' ? 'curl -fsSL https://claude.ai/install.sh | bash' : a === 'codex' ? 'npm install -g @openai/codex' : 'curl -fsSL https://antigravity.google/cli/install.sh | bash', true);
   }
-  // Python 3.12, as the Docker image had: uv's newest Python may be one tree-sitter has no wheel for, which then needs a compiler
+  // Python 3.12: uv's newest Python may be one tree-sitter has no wheel for, which then needs a compiler
   await ensure('graphify', 'graphify', env.which('uv') || opts.dryRun ? 'uv tool install --python 3.12 graphifyy' : null, 'uv tool install --python 3.12 graphifyy (uv first: https://docs.astral.sh/uv/)', true);
   // its skill for each coding agent, every time: an agent added since gets it too
   if (!opts.dryRun && env.which('graphify')) {

@@ -55,7 +55,7 @@ describe('user guide (docs/guide)', () => {
     const missing: string[] = [];
     for (const page of pages) for (const src of images(read(join(GUIDE, page)))) if (!existsSync(resolve(GUIDE, src))) missing.push(`${page}: ${src}`);
     expect(missing).toEqual([]);
-    // the Docker image and the Help page serve only these; keep them flat PNGs
+    // the release and the Help page serve only these; keep them flat PNGs
     for (const src of pages.flatMap((p) => images(read(join(GUIDE, p))))) expect(src).toMatch(/^(\.\/)?images\/[\w-]+\.png$/);
   });
 

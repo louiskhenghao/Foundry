@@ -15,7 +15,7 @@ export interface GuidePage {
   zh: string | null;
 }
 
-/** The pages of docs/guide/ shipped with this install (the Docker image carries them too). */
+/** The pages of docs/guide/ shipped with this install (the app and the binary carry them in their resources). */
 export function listGuide(dir: string): GuidePage[] {
   if (!existsSync(dir)) return [];
   const slugs = readdirSync(dir)
