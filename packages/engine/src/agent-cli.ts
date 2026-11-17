@@ -32,13 +32,15 @@ export function agentCliInstall(provider: AgentProvider, which: (bin: string) =>
 }
 
 /**
- * Claude Code's native installer (and Codex's release binary) go to ~/.local/bin, which a server started by launchd,
- * systemd or an older shell may not have on its PATH. When that folder holds either CLI and PATH lacks it, add it.
+ * Claude Code's native installer, Codex's release binary and the tools Setup installs (uv, gh, Node.js, graphify…) go to
+ * ~/.local/bin, which a server started by launchd, systemd or an older shell may not have on its PATH. When that folder
+ * holds one of them and PATH lacks it, add it.
  */
+const LOCAL_BIN_TOOLS = ['claude', 'codex', 'agy', 'uv', 'gh', 'node', 'graphify', 'markitdown'];
 export function adoptLocalBin(env: Record<string, string | undefined> = process.env, home = homedir()): boolean {
   const dir = join(home, '.local', 'bin');
   const path = env.PATH ?? '';
-  if (path.split(delimiter).includes(dir) || !['claude', 'codex'].some((bin) => existsSync(join(dir, bin)))) return false;
+  if (path.split(delimiter).includes(dir) || !LOCAL_BIN_TOOLS.some((bin) => existsSync(join(dir, bin)))) return false;
   env.PATH = path ? `${dir}${delimiter}${path}` : dir;
   return true;
 }

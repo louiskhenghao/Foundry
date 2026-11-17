@@ -151,6 +151,8 @@ import { BaselineChecks } from './checks/baseline.ts';
 import { homedir } from 'node:os';
 import { relative, resolve } from 'node:path';
 import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
+import { defaultToolEnv, isToolId, toolRecipe } from './tools/installers.ts';
+import { linkCli, pathHint } from './cli-link.ts';
 import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
 import { autoApproveDelegated, delegatingTasks, isDelegationTask, settleDelegations } from './delegation.ts';
 import { startDueSearches, subjectSearchesFor, trashSubjects } from './subjects.ts';
@@ -2955,6 +2957,30 @@ export class Engine {
       onLine(ok ? `■ installed at ${this.codeServer.binary()}` : `■ failed (exit ${r.code})`);
       this.store.append({ type: 'engine.note', goalId: null, payload: { level: ok ? 'info' : 'warn', message: `code-server install exited ${r.code}` } });
       return { ok, command: CODE_SERVER_INSTALL, exitCode: r.code };
+    }
+    // the tools beside the coding agents (ADR-0105): git, uv, the GitHub CLI, Node.js, ffmpeg
+    if (isToolId(id)) {
+      const recipe = toolRecipe(id, defaultToolEnv());
+      if (!recipe.command) throw new Error(`${recipe.label} cannot be installed from here — in a terminal: ${recipe.manual}`);
+      onLine(recipe.command.includes('\n') ? `$ (${recipe.label}: the newest release for this computer, into ~/.local)` : `$ ${recipe.command}`);
+      const t0 = Date.now();
+      const r = await spawnStreaming(['bash', '-c', recipe.command], homedir(), onLine, { timeoutMs: 20 * 60_000 });
+      if (adoptLocalBin()) onLine("added ~/.local/bin to this server's PATH");
+      if (id === 'node') this.nodeVersionMemo = undefined;
+      const at = Bun.which(recipe.bin);
+      const ok = r.code === 0 && (recipe.finishesLater || !!at);
+      onLine(!ok ? `■ failed (exit ${r.code})${r.code === 0 ? ` — ${recipe.bin} is not on PATH yet; in a terminal: ${recipe.manual}` : ''}` : recipe.finishesLater ? "■ finish the installer Apple opened; this check turns green once it is done" : `■ ${recipe.label} at ${at} in ${Math.round((Date.now() - t0) / 1000)}s`);
+      Object.values(this.providerSkills).forEach((skills) => skills.hints.invalidate());
+      this.store.append({ type: 'engine.note', goalId: null, payload: { level: ok ? 'info' : 'warn', message: `tool install ${id} (${recipe.via}) exited ${r.code}` } });
+      return { ok, command: recipe.command, exitCode: r.code };
+    }
+    // foundry in a terminal: ~/.local/bin/foundry linked to this compiled foundry
+    if (id === 'foundry-cli') {
+      const r = linkCli({ target: process.execPath, home: homedir() });
+      onLine(r.changed ? `$ ln -s ${r.target} ${r.path}` : `■ ${r.detail}`);
+      const hint = pathHint();
+      onLine(r.onPath ? '■ foundry runs from a new terminal' : `■ ~/.local/bin is not on your shell's PATH: add \`${hint.line}\` to ${hint.file}, then open a new terminal`);
+      return { ok: true, command: `ln -s ${r.target} ${r.path}`, exitCode: 0 };
     }
     // a coding agent's own CLI (Setup's Claude Code / Codex check), else a CLI tool from the skills catalog
     const agentCli = AGENT_CLI_IDS.includes(id as AgentCliId) ? agentCliInstall(id === 'codex-cli' ? 'codex' : id === 'antigravity-cli' ? 'agy' : 'claude') : null;

@@ -12,6 +12,16 @@ import { Button, CopyButton, Modal, cn } from '../ui.tsx';
 export function UpdatePill() {
   const [status, setStatus] = useState<UpdateStatusView | null>(null);
   const [open, setOpen] = useState(false);
+  // the menu bar app's "Update to …" opens the page with ?update (ADR-0105): the dialog opens once the report has the version
+  const asked = useRef(new URLSearchParams(window.location.search).has('update'));
+  useEffect(() => {
+    if (!asked.current || !status?.updateAvailable) return;
+    asked.current = false;
+    setOpen(true);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('update');
+    window.history.replaceState(window.history.state, '', url.toString());
+  }, [status?.updateAvailable]);
   useEffect(() => {
     const load = () => api.updateStatus().then(setStatus).catch(() => {});
     const t = setTimeout(load, 1000);

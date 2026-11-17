@@ -5,23 +5,34 @@
 #
 # It asks how to run Foundry and which coding agents to use, then sets up everything that way:
 #
-#   source   on this computer: installs what is missing (git, Bun, uv, graphify, the coding agents' CLIs, GitHub CLI,
-#            Node.js, and the optional tools you pick), brings a coding agent's CLI that is already there up to its
-#            newest release, builds Foundry, and runs it as a background service
+#   app      macOS (ADR-0105): Foundry.app from the newest release, checked against its SHA256SUMS, in /Applications (or
+#            ~/Applications); its menu bar item runs Foundry and starts it at login. `foundry setup` installs what is
+#            missing (git, uv, the coding agents' CLIs, graphify, GitHub CLI, Node.js, the optional tools you pick)
+#   binary   Linux (and macOS without the app): the compiled foundry from the newest release, checked, unpacked into
+#            ~/.local/share/foundry/releases/<version> with a `current` link, `foundry setup`, and a background service
+#   source   on this computer from a git checkout: installs what is missing (git, Bun, uv, graphify, the coding agents'
+#            CLIs, GitHub CLI, Node.js, and the optional tools you pick), brings a coding agent's CLI that is already there
+#            up to its newest release, builds Foundry, and runs it as a background service
 #   docker   in a container: installs Docker if needed, writes the compose files to the folder and starts it
+#
+# Switching an earlier source install to the app or the binary offers to move its goals (foundry migrate): the
+# checkout's service stops, its data folders are copied, and the checkout stays as the backup.
 #
 # Then it offers to sign in to the coding agents and GitHub, opens Foundry in the browser, and leaves a `foundry`
 # command behind: foundry start | stop | restart | status | logs | open | update | uninstall [--purge]
 #
 # Options (or the environment variables in brackets):
-#   --mode source|docker        how to run Foundry (asked when not given)       [FOUNDRY_MODE]
-#   --agent claude,codex,agy    the coding agents to set up, one or more; agy is Antigravity (source only),
+#   --mode app|binary|source|docker   how to run Foundry (asked when not given) [FOUNDRY_MODE]
+#   --version X.Y.Z             app, binary: the release to install            [FOUNDRY_VERSION, default the newest]
+#   --app-dir PATH              app: where Foundry.app goes                     [FOUNDRY_APP_DIR, default /Applications,
+#                               or ~/Applications when that is not writable]
+#   --agent claude,codex,agy    the coding agents to set up, one or more; agy is Antigravity (not in Docker),
 #                               both is claude,codex and all is the three (asked when not given)   [FOUNDRY_AGENT]
 #   --dir PATH                  where Foundry goes                              [FOUNDRY_DIR, default ~/foundry]
 #   --repos PATH                docker: your projects folder                    [FOUNDRY_REPOS, default ~/Projects]
 #   --port N                    the port to serve on (default: 4111, or the next free one)    [FOUNDRY_PORT]
 #   --ref BRANCH|TAG            source: what to check out                       [FOUNDRY_REF, default main]
-#   --with "markitdown chromium docker ffmpeg"   source: exactly these optional tools   [FOUNDRY_WITH]
+#   --with "markitdown chromium docker ffmpeg"   app, binary, source: exactly these optional tools   [FOUNDRY_WITH]
 #   --with hindsight            docker: a Hindsight server beside Foundry for Memory (ADR-0072), with an LLM key
 #                               of yours (asked, or HINDSIGHT_API_LLM_PROVIDER / _API_KEY / _MODEL), or with your
 #                               Codex sign-in (provider openai-codex: no key; a device-code sign-in after the start)
@@ -38,6 +49,9 @@ trap 'printf "\n\033[31m✘ stopped: \"%s\" failed (install.sh line %s)\033[0m\n
 
 RAW_URL="${FOUNDRY_INSTALL_URL:-https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh}"
 IMAGE="${FOUNDRY_IMAGE:-imlouiskhenghao/foundry}"
+# app, binary: the releases on GitHub (ADR-0104); FOUNDRY_RELEASES_API points a test at a server of its own
+RELEASES_API="${FOUNDRY_RELEASES_API:-https://api.github.com/repos/louiskhenghao/foundry-releases/releases}"
+APP_ID="com.louiskhenghao.foundry"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/foundry"
 STATE="$STATE_DIR/install.env"
 SHARE_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/foundry"
@@ -47,7 +61,11 @@ LABEL="dev.foundry.server"
 ORIG_PATH="$PATH"
 
 # settings: flags › environment › the earlier install › defaults
-MODE="" AGENT="" DIR="" REPOS="" PORT="" REF="" REPO="" HOST_DOCKER="" SERVICE=""
+MODE="" AGENT="" DIR="" REPOS="" PORT="" REF="" REPO="" HOST_DOCKER="" SERVICE="" APP="" VERSION="" APP_DIR=""
+# app, binary: the compiled foundry (the app's engine, or releases/current/foundry), and the release being installed
+BIN="" REL_JSON="" REL_VERSION=""
+# what was installed before this run, for moving a source install's goals
+PREV_MODE="" PREV_DIR=""
 # docker: a Hindsight server for Memory (ADR-0072); its key lives in hindsight.env beside the compose file, never here
 MEMORY="" HINDSIGHT_PROVIDER="" HINDSIGHT_MODEL="" HINDSIGHT_KEY=""
 # Memory on the person's Codex sign-in instead of a key (provider openai-codex): the sign-in is Hindsight's own, in a folder
@@ -60,6 +78,7 @@ main() {
   local cmd=install
   case "${1:-}" in install|start|stop|restart|status|logs|open|update|uninstall) cmd="$1"; shift ;; esac
   load_state
+  PREV_MODE="$MODE" PREV_DIR="$DIR"
   parse_flags "$@"
   case "$(uname -s)" in Darwin|Linux) ;; *) fail "Foundry runs on macOS and Linux; on Windows use WSL" ;; esac
   setup_tty
@@ -83,6 +102,7 @@ parse_flags() {
   MODE="${FOUNDRY_MODE:-$MODE}" AGENT="${FOUNDRY_AGENT:-$AGENT}" DIR="${FOUNDRY_DIR:-${DIR:-$HOME/foundry}}"
   REPOS="${FOUNDRY_REPOS:-${REPOS:-$HOME/Projects}}" PORT="${FOUNDRY_PORT:-$PORT}" REF="${FOUNDRY_REF:-${REF:-main}}"
   REPO="${FOUNDRY_REPO:-${REPO:-https://github.com/louiskhenghao/Foundry.git}}"
+  VERSION="${FOUNDRY_VERSION:-}" APP_DIR="${FOUNDRY_APP_DIR:-}"
   while [ $# -gt 0 ]; do
     case "$1" in
       --mode) MODE="$2"; shift 2 ;;
@@ -91,6 +111,8 @@ parse_flags() {
       --repos) REPOS="$2"; shift 2 ;;
       --port) PORT="$2"; shift 2 ;;
       --ref) REF="$2"; shift 2 ;;
+      --version) VERSION="${2#v}"; shift 2 ;;
+      --app-dir) APP_DIR="$2"; shift 2 ;;
       --yes|-y) YES=1; shift ;;
       --no-start) START=0; shift ;;
       --no-open) OPEN=0; shift ;;
@@ -103,7 +125,9 @@ parse_flags() {
     esac
   done
   if [ -n "$AGENT" ]; then AGENT="$(agents_from "$AGENT")" || fail "--agent takes claude, codex, agy, both or all, or several of them: claude,agy"; fi
-  case "$MODE" in ""|source|docker) ;; *) fail "--mode must be source or docker" ;; esac
+  case "$MODE" in ""|app|binary|source|docker) ;; *) fail "--mode must be app, binary, source or docker" ;; esac
+  case "$VERSION" in ""|[0-9]*.[0-9]*.[0-9]*) ;; *) fail "--version takes a release number, like 2.35.0" ;; esac
+  if [ "$MODE" = app ] && ! is_mac; then fail "the app is for macOS; on Linux use --mode binary"; fi
   case "$PORT" in ""|[0-9]*) ;; *) fail "--port must be a number" ;; esac
 }
 
@@ -112,7 +136,7 @@ save_state() {
   mkdir -p "$STATE_DIR"
   {
     printf '# written by the Foundry installer; `foundry` reads it\n'
-    for k in MODE AGENT DIR REPOS PORT REF REPO HOST_DOCKER SERVICE MEMORY HINDSIGHT_PROVIDER HINDSIGHT_MODEL; do printf '%s=%q\n' "$k" "${!k}"; done
+    for k in MODE AGENT DIR REPOS PORT REF REPO HOST_DOCKER SERVICE APP MEMORY HINDSIGHT_PROVIDER HINDSIGHT_MODEL; do printf '%s=%q\n' "$k" "${!k}"; done
   } > "$STATE"
 }
 
@@ -203,6 +227,8 @@ install() {
   [ -n "$AGENT" ] || choose_agents
   if [ "$DRY" = 1 ]; then step "Dry run: nothing is installed, written or started"; fi
   case "$MODE" in
+    app) install_app ;;
+    binary) install_binary ;;
     source) install_source ;;
     docker) install_docker ;;
   esac
@@ -213,15 +239,16 @@ install() {
 }
 
 choose_mode() {
-  local suggested=2
-  # a desktop (macOS, or Linux with a display) uses its own logins and tools; a headless server gets the container
-  if is_mac || [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then suggested=1; fi
+  # the release itself, compiled (ADR-0104/0102): the app on a Mac, the binary on Linux
+  local first="binary" label="The binary   foundry from the newest release, run as a background service"
+  is_mac && first="app" label="The app      Foundry.app from the newest release, in the menu bar"
   if [ -n "$TTY" ]; then
     printf '\n\033[1mHow do you want to run Foundry?\033[0m\n' >"$TTY"
-    printf '  1) From source  runs on this computer and uses its logins and tools%s\n' "$([ $suggested = 1 ] && echo '  (recommended here)')" >"$TTY"
-    printf '  2) Docker       everything in a container%s\n\n' "$([ $suggested = 2 ] && echo '  (recommended here)')" >"$TTY"
+    printf '  1) %s  (recommended)\n' "$label" >"$TTY"
+    printf '  2) From source  a git checkout built on this computer\n' >"$TTY"
+    printf '  3) Docker       everything in a container\n\n' >"$TTY"
   fi
-  case "$(ask "Choice [$suggested]: " "$suggested")" in 2|d*|D*) MODE=docker ;; *) MODE=source ;; esac
+  case "$(ask "Choice [1]: " 1)" in 2|s*|S*) MODE=source ;; 3|d*|D*) MODE=docker ;; *) MODE="$first" ;; esac
 }
 
 # Claude Code unless other agents are ticked; the Docker image has no Antigravity CLI, so it is not offered there
@@ -255,6 +282,166 @@ agent_label() {
     codex) echo "Codex         OpenAI, signs in with ChatGPT$(have codex && echo ' — installed')" ;;
     agy) echo "Antigravity   Google's agy, signs in with a Google account$(have agy && echo ' — installed')" ;;
   esac
+}
+
+# ---------- the release: app and binary modes (ADR-0104, ADR-0105) ----------
+
+sha256_of() { if have sha256sum; then sha256sum "$1" | awk '{print $1}'; else shasum -a 256 "$1" | awk '{print $1}'; fi; }
+# the release's JSON from GitHub: the one --version names, else the newest published one
+resolve_release() {
+  [ -n "$REL_JSON" ] && return 0
+  local url="$RELEASES_API/latest"
+  [ -n "$VERSION" ] && url="$RELEASES_API/tags/v$VERSION"
+  REL_JSON="$(curl -fsSL --retry 3 -H 'Accept: application/vnd.github+json' "$url" 2>/dev/null)" || fail "could not read the release from $url"
+  REL_VERSION="$({ printf '%s' "$REL_JSON" | grep -o '"tag_name": *"[^"]*"' | head -1 | sed 's/.*"v\{0,1\}\([^"]*\)"$/\1/'; } || true)"
+  [ -n "$REL_VERSION" ] || fail "no release found at $url"
+}
+# a file of the release by name: its download address
+asset_url() { { printf '%s' "$REL_JSON" | grep -o '"browser_download_url": *"[^"]*"' | sed 's/.*"\(http[^"]*\)"$/\1/' | awk -v n="$1" '{ k = split($0, p, "/"); if (p[k] == n) { print; exit } }'; } || true; }
+# download one file of the release into a folder, checked against the release's SHA256SUMS
+fetch_release() { # fetch_release name dir
+  local name="$1" dir="$2" url sums want got
+  url="$(asset_url "$name")"
+  [ -n "$url" ] || fail "release $REL_VERSION has no $name"
+  sums="$(asset_url SHA256SUMS)"
+  [ -n "$sums" ] || fail "release $REL_VERSION has no SHA256SUMS"
+  step "Downloading $name"
+  curl -fSL --retry 3 --progress-bar -o "$dir/$name" "$url" || fail "could not download $name"
+  want="$({ curl -fsSL --retry 3 "$sums" | awk -v n="$name" '$2 == n || $2 == "*" n {print $1; exit}'; } || true)"
+  [ -n "$want" ] || fail "SHA256SUMS has no line for $name"
+  got="$(sha256_of "$dir/$name")"
+  [ "$got" = "$want" ] || fail "$name does not match SHA256SUMS (expected ${want:0:12}…, got ${got:0:12}…): nothing was installed"
+  ok "checked against SHA256SUMS"
+}
+
+# what Foundry needs on this computer, by the compiled foundry itself (the Setup page's buttons run the same)
+run_setup() {
+  local with="" n
+  for n in markitdown chromium ffmpeg; do [ "$(opt_get "$n")" = y ] && with="$with $n"; done
+  if [ "$DRY" = 1 ]; then plan "run: foundry setup --agent $AGENT${with:+ --with \"${with# }\"}"; return 0; fi
+  step "Installing what Foundry needs (foundry setup)"
+  "$BIN" setup --agent "$AGENT" --with "${with# }" || warn "the list above says what is still missing; the Setup page installs most of it"
+  # Linux: Chromium's system libraries, which only root can add
+  if [ "$OPT_CHROMIUM" = y ] && ! is_mac; then sudo_cmd "$BIN" playwright install-deps chromium >/dev/null 2>&1 || warn "could not add Chromium's system libraries (needs sudo): sudo $BIN playwright install-deps chromium"; fi
+  [ "$OPT_DOCKER" = y ] && { ensure_docker optional || true; }
+  return 0
+}
+
+# an earlier source install's goals move to this one: its service stops, its data folders are copied, it stays as the backup
+migrate_source() {
+  [ "$PREV_MODE" = source ] && [ -n "$PREV_DIR" ] && [ -f "$PREV_DIR/apps/cli/src/main.ts" ] || return 0
+  if [ "$DRY" = 1 ]; then plan "move the goals of the source install in $PREV_DIR (foundry migrate)"; return 0; fi
+  step "Your source install in $PREV_DIR"
+  if [ "$YES" = 1 ] || yesno "Move its goals, settings and history here? It is stopped; its folder stays as the backup." y; then
+    "$BIN" migrate --from "$PREV_DIR" --yes || warn "the goals did not move; try again later with: foundry migrate --from $PREV_DIR"
+  else
+    note "left as it is; later: foundry migrate --from $PREV_DIR"
+  fi
+  return 0
+}
+
+app_dir() { if [ -n "$APP_DIR" ]; then echo "$APP_DIR"; elif [ -w /Applications ]; then echo /Applications; else echo "$HOME/Applications"; fi; }
+app_running() { pgrep -f "Foundry.app/Contents/MacOS/Foundry" >/dev/null 2>&1; }
+quit_app() {
+  app_running || return 0
+  osascript -e "tell application id \"$APP_ID\" to quit" >/dev/null 2>&1 || true
+  local i
+  for i in $(seq 1 30); do app_running || return 0; sleep 1; done
+  warn "Foundry.app did not quit within 30 seconds"
+}
+# where this install is: the app, the binary's releases, or the checkout (a function: bash 3.2 cannot parse a case in $( ))
+install_location() {
+  case "$MODE" in
+    app) echo "$APP" ;;
+    binary) echo "$SHARE_DIR/releases/current" ;;
+    *) echo "$DIR" ;;
+  esac
+}
+# the port the app's engine listens on, from what it wrote when it started
+app_port() { { sed -n 's/.*"port": *\([0-9][0-9]*\).*/\1/p' "${FOUNDRY_HOME:-$HOME/.foundry}/app.json" 2>/dev/null | head -1; } || true; }
+
+install_app() {
+  have curl || fail "curl is needed"
+  resolve_release
+  local name="Foundry-$REL_VERSION-mac-universal.zip" tmp
+  APP="$(app_dir)/Foundry.app"
+  step "Foundry.app $REL_VERSION — coding agents: ${AGENT//,/, }, into $(app_dir)"
+  choose_optional
+  if [ "$DRY" = 1 ]; then
+    plan "download $name, check it against SHA256SUMS and put Foundry.app in $(app_dir)"
+    BIN="$APP/Contents/MacOS/foundry-engine"; run_setup; migrate_source
+    plan "open Foundry.app: it runs Foundry from the menu bar and starts it at login"
+    return 0
+  fi
+  tmp="$(mktemp -d)"
+  fetch_release "$name" "$tmp"
+  ditto -x -k "$tmp/$name" "$tmp/unpacked" || fail "could not unpack $name"
+  [ -x "$tmp/unpacked/Foundry.app/Contents/MacOS/foundry-engine" ] || fail "$name holds no Foundry.app"
+  quit_app
+  mkdir -p "$(dirname "$APP")"
+  # the app it replaces is kept until the new one is in place
+  [ -e "$APP" ] && mv "$APP" "$tmp/Foundry.app.old"
+  if ! mv "$tmp/unpacked/Foundry.app" "$APP"; then
+    [ -e "$tmp/Foundry.app.old" ] && mv "$tmp/Foundry.app.old" "$APP"
+    fail "could not put Foundry.app in $(dirname "$APP")"
+  fi
+  rm -rf "$tmp"
+  BIN="$APP/Contents/MacOS/foundry-engine"
+  SERVICE=app
+  ok "Foundry.app $("$BIN" version 2>/dev/null | awk '{print $2}') in $(dirname "$APP")"
+  run_setup
+  migrate_source
+  sign_in_source
+  [ "$START" = 1 ] && start_app
+  return 0
+}
+
+start_app() {
+  if [ "$DRY" = 1 ]; then plan "open Foundry.app"; return 0; fi
+  step "Starting Foundry (the menu bar app)"
+  open "$APP" || { warn "Foundry.app did not open"; return 0; }
+  local i
+  for i in $(seq 1 90); do PORT="$(app_port)"; [ -n "$PORT" ] && healthy "$PORT" && { ok "Foundry is running: http://127.0.0.1:$PORT (its menu bar item has the rest)"; return 0; }; sleep 1; done
+  warn "Foundry did not answer yet; its log: ~/Library/Logs/Foundry/app.log"
+}
+
+install_binary() {
+  have curl || fail "curl is needed"
+  have tar || fail "tar is needed"
+  local target name tmp releases="$SHARE_DIR/releases"
+  if is_mac; then target=darwin-universal
+  else
+    case "$(arch)" in x64|arm64) target="linux-$(arch)" ;; *) fail "there is no foundry build for $(uname -m); run from source (--mode source)" ;; esac
+    if ldd --version 2>&1 | grep -qi musl; then fail "the foundry binary needs glibc; on Alpine run from source (--mode source)"; fi
+  fi
+  resolve_release
+  name="foundry-$REL_VERSION-$target.tar.gz"
+  BIN="$releases/current/foundry"
+  step "foundry $REL_VERSION ($target) — coding agents: ${AGENT//,/, }, into $releases"
+  choose_optional
+  if [ "$DRY" = 1 ]; then
+    plan "download $name, check it against SHA256SUMS, unpack it into $releases/$REL_VERSION and point $releases/current at it"
+    run_setup; migrate_source; pick_port
+    [ "$START" = 1 ] && start_service
+    return 0
+  fi
+  tmp="$(mktemp -d)"
+  fetch_release "$name" "$tmp"
+  tar -xzf "$tmp/$name" -C "$tmp" || fail "could not unpack $name"
+  [ -x "$tmp/foundry-$REL_VERSION/foundry" ] || fail "$name holds no foundry"
+  mkdir -p "$releases"
+  rm -rf "${releases:?}/$REL_VERSION"
+  mv "$tmp/foundry-$REL_VERSION" "$releases/$REL_VERSION"
+  rm -rf "$tmp"
+  # `current` is what the service runs and what a self-update repoints: a relative link, beside the versions
+  ln -sfn "$REL_VERSION" "$releases/current"
+  ok "foundry $("$BIN" version 2>/dev/null | awk '{print $2}') in $releases/$REL_VERSION"
+  run_setup
+  migrate_source
+  sign_in_source
+  pick_port
+  [ "$START" = 1 ] && start_service
+  return 0
 }
 
 # ---------- source mode ----------
@@ -442,7 +629,7 @@ need_graphify() {
   if ! have graphify; then
     if [ "$DRY" = 1 ]; then plan "install graphify (uv tool)"; return; fi
     step "Installing graphify (Foundry's code-graph tool)"
-    uv tool install graphifyy >/dev/null 2>&1 || uv tool install graphifyy
+    uv tool install --python 3.12 graphifyy >/dev/null 2>&1 || uv tool install --python 3.12 graphifyy
     have graphify || fail "graphify did not install; see https://github.com/safishamsi/graphify"
   fi
   [ "$DRY" = 1 ] && { ok "graphify"; return; }
@@ -626,8 +813,13 @@ provider() { if uses codex && ! uses claude; then echo codex; elif [ "$AGENT" = 
 
 start_service() {
   if [ "$DRY" = 1 ]; then plan "run Foundry as a background service on port ${PORT:-4111} and open it"; return; fi
-  local bun_bin log_dir
-  bun_bin="$(command -v bun)"
+  local bun_bin log_dir workdir
+  # what foundry setup installs lands in ~/.local/bin: the service starts with it on its PATH (Bun keeps the PATH it started with)
+  path_add "$BIN_DIR"
+  # what the service runs: the checkout under Bun, or the release's current foundry (a self-update repoints `current`)
+  local -a run_argv
+  if [ "$MODE" = binary ]; then run_argv=("$SHARE_DIR/releases/current/foundry" serve); workdir="$HOME"
+  else bun_bin="$(command -v bun)"; run_argv=("$bun_bin" apps/cli/src/main.ts serve); workdir="$DIR"; fi
   log_dir="$([ "$(uname -s)" = Darwin ] && echo "$HOME/Library/Logs/Foundry" || echo "$SHARE_DIR/logs")"
   mkdir -p "$log_dir"
   step "Starting Foundry on port $PORT"
@@ -640,8 +832,8 @@ start_service() {
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
   <key>Label</key><string>$LABEL</string>
-  <key>ProgramArguments</key><array><string>$(xml "$bun_bin")</string><string>apps/cli/src/main.ts</string><string>serve</string></array>
-  <key>WorkingDirectory</key><string>$(xml "$DIR")</string>
+  <key>ProgramArguments</key><array>$(for a in "${run_argv[@]}"; do printf '<string>%s</string>' "$(xml "$a")"; done)</array>
+  <key>WorkingDirectory</key><string>$(xml "$workdir")</string>
   <key>EnvironmentVariables</key><dict>
     <key>PATH</key><string>$(xml "$PATH")</string>
     <key>HOME</key><string>$(xml "$HOME")</string>
@@ -667,8 +859,8 @@ Description=Foundry
 After=network-online.target
 
 [Service]
-WorkingDirectory=$(unit_value "$DIR")
-ExecStart=$(unit_value "$bun_bin") apps/cli/src/main.ts serve
+WorkingDirectory=$(unit_value "$workdir")
+ExecStart=$(for a in "${run_argv[@]}"; do printf '%s ' "$(unit_value "$a")"; done)
 Environment="PATH=$(unit_value "$PATH")" "FOUNDRY_PORT=$PORT" "FOUNDRY_PROVIDER=$(provider)" "FOUNDRY_SUPERVISED=1"
 Restart=always
 RestartSec=3
@@ -687,7 +879,7 @@ EOF
     process_stop
     mkdir -p "$SHARE_DIR"
     # exec: the background job is Foundry itself, so its pid is the one recorded, and it holds none of this terminal
-    (cd "$DIR" && FOUNDRY_PORT="$PORT" FOUNDRY_PROVIDER="$(provider)" exec nohup "$bun_bin" apps/cli/src/main.ts serve </dev/null >>"$log_dir/foundry.log" 2>&1) &
+    (cd "$workdir" && FOUNDRY_PORT="$PORT" FOUNDRY_PROVIDER="$(provider)" exec nohup "${run_argv[@]}" </dev/null >>"$log_dir/foundry.log" 2>&1) &
     echo $! >"$SHARE_DIR/foundry.pid"
     warn "no service manager here: Foundry runs in the background but does not start again after a reboot (foundry start)"
   fi
@@ -955,11 +1147,25 @@ install_command() {
   # run through `curl | bash` there is no file: fetch the same script for the command to use
   if [ -n "$self" ] && [ -f "$self" ]; then cp "$self" "$SHARE_DIR/install.sh.new"; else curl -fsSL "$RAW_URL" -o "$SHARE_DIR/install.sh.new"; fi
   mv "$SHARE_DIR/install.sh.new" "$SHARE_DIR/install.sh"
-  cat >"$BIN_DIR/foundry" <<EOF
+  if [ "$MODE" = app ] || [ "$MODE" = binary ]; then
+    # the installer's verbs run the installer; every other command is the compiled foundry's (foundry ask, usage, doctor…)
+    cat >"$BIN_DIR/foundry" <<EOF
+#!/usr/bin/env bash
+# Foundry's own command (written by its installer): foundry start | stop | restart | status | logs | open | update | uninstall
+# run the installer; anything else is Foundry's CLI (foundry ask, foundry usage, foundry doctor…), and foundry status <goal>
+case "\${1:-status}" in
+  start|stop|restart|logs|open|update|uninstall) exec bash "$SHARE_DIR/install.sh" "\$@" ;;
+  status) [ \$# -le 1 ] && exec bash "$SHARE_DIR/install.sh" status ;;
+esac
+exec "$BIN" "\$@"
+EOF
+  else
+    cat >"$BIN_DIR/foundry" <<EOF
 #!/usr/bin/env bash
 # Foundry's own command (written by its installer): foundry start | stop | restart | status | logs | open | update | uninstall
 exec bash "$SHARE_DIR/install.sh" "\${@:-status}"
 EOF
+  fi
   chmod +x "$BIN_DIR/foundry"
 }
 
@@ -1000,13 +1206,16 @@ open_browser() {
 finish() {
   [ "$DRY" = 1 ] && { printf '\n'; return 0; }
   printf '\n\033[1mFoundry is set up (%s).\033[0m\n' "$MODE"
+  [ "$MODE" = app ] && PORT="$(app_port)"
   if [ "$START" = 1 ] && healthy "$PORT"; then
     printf '  Open:     http://127.0.0.1:%s\n' "$PORT"
     open_browser
   else
     printf '  Start it: foundry start\n'
   fi
-  printf '  Manage:   foundry status | logs | stop | start | update | uninstall\n\n'
+  printf '  Manage:   foundry status | logs | stop | start | update | uninstall\n'
+  [ "$MODE" = app ] && printf '            and the Foundry item in the menu bar\n'
+  printf '\n'
 }
 
 # ---------- foundry <command> ----------
@@ -1015,22 +1224,27 @@ control() {
   case "$1" in
     start)
       if [ "$MODE" = docker ]; then compose up -d; PORT="${PORT:-4111}"; wait_healthy
+      elif [ "$MODE" = app ]; then start_app
       else pick_port; start_service; save_state; fi ;;
     stop)
       if [ "$MODE" = docker ]; then compose stop foundry
+      elif [ "$MODE" = app ]; then quit_app
       elif [ "$SERVICE" = launchd ]; then launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
       elif [ "$SERVICE" = systemd ]; then systemctl --user stop foundry.service
       else process_stop; fi
       ok "Foundry stopped" ;;
     restart) control stop; control start ;;
     status)
-      printf 'Foundry (%s) in %s, port %s: ' "$MODE" "$DIR" "${PORT:-4111}"
+      # the app's port only while the app runs: otherwise whatever answers on 4111 is not this install
+      if [ "$MODE" = app ]; then if app_running; then PORT="$(app_port)"; else printf 'Foundry (app) in %s: \033[33mnot running\033[0m (foundry start, or open Foundry.app)\n' "$APP"; return 0; fi; fi
+      printf 'Foundry (%s) in %s, port %s: ' "$MODE" "$(install_location)" "${PORT:-4111}"
       healthy "${PORT:-4111}" && printf '\033[32mrunning\033[0m — http://127.0.0.1:%s\n' "${PORT:-4111}" || printf '\033[33mnot answering\033[0m (foundry start, foundry logs)\n' ;;
     logs)
       if [ "$MODE" = docker ]; then compose logs -f --tail 200 foundry
+      elif [ "$MODE" = app ]; then tail -n 200 -f "$HOME/Library/Logs/Foundry/app.log"
       elif [ "$SERVICE" = systemd ]; then journalctl --user -u foundry.service -f -n 200
       else tail -n 200 -f "$([ "$(uname -s)" = Darwin ] && echo "$HOME/Library/Logs/Foundry" || echo "$SHARE_DIR/logs")/foundry.log"; fi ;;
-    open) PORT="${PORT:-4111}"; open_browser; printf 'http://127.0.0.1:%s\n' "$PORT" ;;
+    open) [ "$MODE" = app ] && PORT="$(app_port)"; PORT="${PORT:-4111}"; open_browser; printf 'http://127.0.0.1:%s\n' "$PORT" ;;
     uninstall) uninstall ;;
   esac
 }
@@ -1051,6 +1265,18 @@ uninstall() {
   step "Removing Foundry's service and command"
   if [ "$MODE" = docker ]; then
     if [ "$PURGE" = 1 ] && yesno "Delete Foundry's data too (goal history, settings, sign-ins in the container)? This cannot be undone." n; then compose down -v; rm -rf "$DIR"; else compose down; fi
+  elif [ "$MODE" = app ]; then
+    quit_app
+    # the app goes to the Trash, where it can still be taken back
+    [ -d "$APP" ] && { mkdir -p "$HOME/.Trash"; mv "$APP" "$HOME/.Trash/Foundry-$(date +%Y%m%d%H%M%S).app"; ok "Foundry.app moved to the Trash"; }
+    local data="$HOME/Library/Application Support/Foundry"
+    if [ "$PURGE" = 1 ] && [ -d "$data" ] && yesno "Delete $data, with Foundry's data (goal history, settings)? Your repositories are not touched." n; then rm -rf "$data"; fi
+  elif [ "$MODE" = binary ]; then
+    control stop >/dev/null 2>&1 || true
+    rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
+    if [ "$SERVICE" = systemd ]; then systemctl --user disable foundry.service >/dev/null 2>&1 || true; rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/foundry.service"; systemctl --user daemon-reload || true; fi
+    rm -rf "${SHARE_DIR:?}/releases"
+    if [ "$PURGE" = 1 ] && [ -d "$SHARE_DIR/data" ] && yesno "Delete $SHARE_DIR/data, with Foundry's data (goal history, settings)? Your repositories are not touched." n; then rm -rf "$SHARE_DIR/data" "$SHARE_DIR"/data-*; fi
   else
     control stop >/dev/null 2>&1 || true
     rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
@@ -1066,6 +1292,8 @@ uninstall() {
   rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/fish/conf.d/foundry.fish"
   local kept="in $DIR"
   [ "$MODE" = docker ] && kept="in its Docker volumes"
+  [ "$MODE" = app ] && kept="in ~/Library/Application Support/Foundry"
+  [ "$MODE" = binary ] && kept="in $SHARE_DIR/data"
   ok "Foundry is removed$([ "$PURGE" = 1 ] || echo "; its data stays $kept (foundry uninstall --purge deletes it)"). Bun, gh, Docker and the other tools stay installed."
 }
 

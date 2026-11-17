@@ -11,7 +11,7 @@ import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import type { Engine } from '../engine.ts';
 import { exec, git } from '../git/git.ts';
-import { installRoot, type InstallRoot } from '../install-root.ts';
+import { APP_ENGINE_EXECUTABLE, APP_SHELL_EXECUTABLE, installRoot, type InstallRoot } from '../install-root.ts';
 
 export type DeploymentMode = 'docker' | 'local' | 'app' | 'binary' | 'unknown';
 
@@ -421,7 +421,7 @@ export class UpdateManager {
     rmSync(file, { force: true });
     if (mode === 'app') {
       const bundle = join(unpacked, 'Foundry.app');
-      if (!existsSync(join(bundle, 'Contents', 'MacOS', 'foundry'))) throw new Error(`${asset.name} holds no Foundry.app`);
+      if (![APP_SHELL_EXECUTABLE, APP_ENGINE_EXECUTABLE].every((x) => existsSync(join(bundle, 'Contents', 'MacOS', x)))) throw new Error(`${asset.name} holds no Foundry.app`);
       writeFileSync(join(this.engine.config.dataDir, 'updates', 'ready.json'), JSON.stringify({ version: to, bundle, at: new Date().toISOString() }, null, 2) + '\n');
       done(true, null);
       line(`✔ ${to} is ready — exiting so the menu bar app installs it and starts it again`);

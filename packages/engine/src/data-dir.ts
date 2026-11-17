@@ -27,6 +27,8 @@ export const HomeConfig = z
     dataDirs: z.record(z.string(), z.string()).default({}),
     /** data folders this Foundry had before, newest first: offered again in Settings */
     recent: z.array(z.string()).default([]),
+    /** the port a release install (the app, a tarball) serves on when nothing names one (ADR-0105) */
+    port: z.number().int().min(1).max(65535).optional(),
   })
   .passthrough();
 export type HomeConfig = z.infer<typeof HomeConfig>;

@@ -46,7 +46,7 @@ buttons.
 | git | `git` is on the `PATH` | install git (`xcode-select --install` on macOS) |
 | REA native engines (optional) | with the `rea` MCP server installed: Hopper, Ghidra (`GHIDRA_INSTALL_DIR`) or IDA was found, so native apps and binaries can be analysed; websites, JavaScript/Electron, .NET and Android packages need none | install one of them; Ghidra is free |
 | Bun runtime | `bun` is on the `PATH` | `curl -fsSL https://bun.sh/install \| bash` |
-| Required: graphify | the graphify CLI is installed | **Install** on the Setup page, or `uv tool install graphifyy && graphify install --platform claude` |
+| Required: graphify | the graphify CLI is installed | **Install** on the Setup page, or `uv tool install --python 3.12 graphifyy && graphify install --platform claude` |
 | `<skill> backend` (⚠) | an installed image skill has the API key it needs | see [Image-generation keys](#image-generation-keys) |
 | GitHub CLI (optional) (⚠) | `gh` is installed and logged in to github.com | **Sign in** on the Setup page, or `gh auth login --web`; only needed for push / PR / auto-merge delivery |
 | markitdown (optional) (⚠) | the document converter is installed | **Install markitdown** on the Setup page, or `uv tool install --python 3.12 'markitdown[all]'` |

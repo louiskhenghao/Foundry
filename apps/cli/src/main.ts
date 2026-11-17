@@ -40,15 +40,32 @@ function opts(name: string): string[] {
 const has = (name: string) => rest.includes(name);
 const positional = () => rest.filter((a, i) => !a.startsWith('--') && !(i > 0 && rest[i - 1]!.startsWith('--') && !FLAGS.has(rest[i - 1]!)));
 const FLAGS = new Set(['--auto-approve', '--approve', '--verify', '--json', '--follow', '--force', '--self-check', '--no-attachments', '--no-style', '--settings', '--secrets', '--transcripts', '--templates', '--dry-run', '--password-stdin', '--all', '--new', '--now']);
-const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? 4111}`;
+// the server this command talks to: FOUNDRY_URL, FOUNDRY_PORT, else for the app and a release install the port it keeps
+// in ~/.foundry/config.json, else 4111. A release install that never served has no server of its own: it never borrows
+// whatever answers on 4111 (a checkout's, another Foundry's)
+const KEPT_PORT = process.env.FOUNDRY_URL || process.env.FOUNDRY_PORT || INSTALL.kind === 'checkout' ? null : keptPort();
+const NEVER_SERVED = !process.env.FOUNDRY_URL && !process.env.FOUNDRY_PORT && INSTALL.kind !== 'checkout' && KEPT_PORT === null;
+const BASE = process.env.FOUNDRY_URL ?? `http://127.0.0.1:${process.env.FOUNDRY_PORT ?? KEPT_PORT ?? 4111}`;
+function keptPort(): number | null {
+  try {
+    const port = JSON.parse(readFileSync(join(process.env.FOUNDRY_HOME || join(homedir(), '.foundry'), 'config.json'), 'utf8')).port;
+    return typeof port === 'number' ? port : null;
+  } catch {
+    return null;
+  }
+}
 
 async function api(path: string, init?: RequestInit): Promise<any> {
+  if (NEVER_SERVED) {
+    console.error('This Foundry has not been started yet: open Foundry.app, or foundry start');
+    process.exit(2);
+  }
   let res: Response;
   try {
     // Access (ADR-0061): the person's token travels as a bearer header
     res = await fetch(BASE + path, { ...init, headers: { 'content-type': 'application/json', ...(process.env.FOUNDRY_TOKEN ? { authorization: `Bearer ${process.env.FOUNDRY_TOKEN}` } : {}), ...(init?.headers ?? {}) } });
   } catch {
-    console.error(`Cannot reach foundry at ${BASE}. Start it with: bun run serve`);
+    console.error(INSTALL.kind === 'checkout' ? `Cannot reach foundry at ${BASE}. Start it with: bun run serve` : `Cannot reach foundry at ${BASE}. Start it: open Foundry.app, or foundry start`);
     process.exit(2);
   }
   const text = await res.text();
@@ -116,6 +133,7 @@ function printApplied(r: any): void {
 }
 
 async function serverUp(): Promise<boolean> {
+  if (NEVER_SERVED) return false;
   try {
     const r = await fetch(BASE + '/api/health', { signal: AbortSignal.timeout(800) });
     return r.ok;
@@ -134,20 +152,106 @@ const scoped = (path: string) => provider ? `${path}${path.includes('?') ? '&' :
 const providerApi = (path: string, init?: RequestInit) => api(scoped(path), init);
 switch (cmd) {
   case 'serve': {
-    const { adoptLocalBin } = await import('@foundry/engine');
+    const { adoptLocalBin, choosePort, foundryHome, keepPort, watchParentPipe, writeAppState } = await import('@foundry/engine');
     const { serveLoop } = await import('@foundry/server');
+    // under the menu bar app (ADR-0105): it reads where the engine listens from ~/.foundry/app.json
+    const shell = !!process.env.FOUNDRY_APP_SHELL;
     // a natively installed claude lives in ~/.local/bin, which launchd/systemd PATHs often lack
     adoptLocalBin();
+    // a release install keeps one port across starts: 4111 or the next free one, written to ~/.foundry/config.json
+    // the one the service was given (the installer's pick) is kept the same way, for the CLI to find
+    if (INSTALL.kind !== 'checkout') {
+      if (!process.env.FOUNDRY_PORT) process.env.FOUNDRY_PORT = String(choosePort({ home: foundryHome(), log: (m) => console.log(m) }));
+      else keepPort(foundryHome(), Number(process.env.FOUNDRY_PORT));
+    }
     // the engine and the server start again in this process when Settings asks: a restart, or another data folder (ADR-0082)
-    const loop = serveLoop({ root: ROOT, webDist: resolve(ROOT, 'apps/web/dist'), onListening: (engine) => engine.updater.startSchedule() });
+    const loop = serveLoop({
+      root: ROOT,
+      webDist: resolve(ROOT, 'apps/web/dist'),
+      onListening: (engine, server) => {
+        engine.updater.startSchedule();
+        if (shell) writeAppState(foundryHome(), { pid: process.pid, port: server.port!, url: `http://127.0.0.1:${server.port}`, dataDir: engine.config.dataDir, version: engine.updater.current(), startedAt: new Date().toISOString() });
+      },
+    });
+    let stopping = false;
     const shutdown = async () => {
+      if (stopping) return;
+      stopping = true;
       console.log('\nshutting down…');
       await loop.shutdown();
       process.exit(0);
     };
     process.on('SIGINT', shutdown);
     process.on('SIGTERM', shutdown);
+    // the app's end, however it ended: stdin is a pipe only the app holds
+    if (shell) watchParentPipe(() => void shutdown());
     await loop.done;
+    break;
+  }
+  // everything Foundry needs on this computer, installed where it is missing (ADR-0105): what the installer runs, and the Setup page's buttons
+  case 'setup': {
+    const { runSetup, playwrightInstallCommand } = await import('@foundry/engine');
+    const list = (v: string | undefined) => (v ?? '').split(/[\s,]+/).map((s) => s.trim().toLowerCase()).filter(Boolean);
+    const agents = list(opt('--agent') ?? process.env.FOUNDRY_PROVIDER ?? 'claude').flatMap((a) => (a === 'both' ? ['claude', 'codex'] : a === 'all' ? ['claude', 'codex', 'agy'] : a === 'antigravity' ? ['agy'] : [a]));
+    const bad = agents.filter((a) => !(AGENT_PROVIDERS as readonly string[]).includes(a));
+    if (bad.length) return usage(`unknown coding agent ${bad.join(', ')} (claude, codex, agy)`);
+    console.log(`Setting up this computer for Foundry${has('--dry-run') ? ' (dry run: nothing is installed)' : ''}`);
+    const r = await runSetup({
+      agents: [...new Set(agents)] as AgentProvider[],
+      with: list(opt('--with')),
+      dryRun: has('--dry-run'),
+      installChromium: async () => {
+        const cmd = playwrightInstallCommand();
+        const p = Bun.spawn(cmd, { stdout: 'inherit', stderr: 'inherit' });
+        return (await p.exited) === 0;
+      },
+    });
+    const missing = r.steps.filter((s) => s.required && !['ok', 'installed', 'planned'].includes(s.status));
+    console.log(r.ok ? '\n✔ ready: sign in to the coding agents if you have not (foundry auth login), then open Foundry' : `\n✘ still missing: ${missing.map((s) => s.name).join(', ')} — see above`);
+    process.exit(r.ok ? 0 : 1);
+  }
+  // a source install's goals, moved into this app or binary (ADR-0105)
+  case 'migrate': {
+    const { defaultDataDir, foundryHome, isCheckout, planMigration, readHomeConfig, readInstallEnv, runMigration, stopSourceService, waitUntilClosed } = await import('@foundry/engine');
+    if (INSTALL.kind === 'checkout') return usage("foundry migrate moves a source install into the app or a release install: run the compiled foundry's (foundry link puts it on PATH)");
+    const recorded = readInstallEnv(process.env, homedir());
+    const named = opt('--from') ?? (recorded?.MODE === 'source' ? recorded.DIR : undefined);
+    if (!named) return usage('no source install was found (~/.config/foundry/install.env): name its folder with --from <checkout>');
+    const checkout = resolve(named.replace(/^~(?=\/|$)/, homedir()));
+    if (!isCheckout(checkout)) return usage(`${checkout} is not a Foundry checkout (it has no apps/cli/src/main.ts)`);
+    const plan = planMigration({ checkout, config: readHomeConfig(foundryHome()), targetFor: (p) => defaultDataDir(ROOT, p) });
+    console.log(`Moving the source install in ${checkout} to this ${INSTALL.kind} install`);
+    for (const i of plan) console.log(`  ${{ copy: '→', keep: '=', done: '=', none: '·' }[i.action]} ${pad(i.provider, 7)} ${i.action === 'copy' ? `${i.from}  →  ${i.to}` : i.action === 'none' ? i.why : `${i.from}: ${i.why}`}`);
+    const copies = plan.filter((i) => i.action === 'copy');
+    if (has('--dry-run')) break;
+    if (!copies.length) console.log('nothing to copy.');
+    if (copies.length && !has('--yes')) {
+      const answer = prompt("Stop the checkout's Foundry and copy its data? [Y/n]") ?? '';
+      if (/^n/i.test(answer.trim())) break;
+    }
+    const stopped = await stopSourceService({ checkout, home: homedir(), log: (m) => console.log(`  ${m}`) });
+    if (stopped === 'none' && copies.length) console.log("  no service of the checkout's was running");
+    const holder = await waitUntilClosed(copies.map((i) => join(i.from, 'engine.db')));
+    if (holder) {
+      console.error(`✘ ${copies[0]!.from}/engine.db is still open by ${holder}: stop that Foundry, then run foundry migrate again. Nothing was copied.`);
+      process.exit(1);
+    }
+    const copied = await runMigration(plan, { log: (m) => console.log(`  ${m}`) });
+    console.log(copied.length ? `\n✔ moved: ${copied.map((i) => i.provider).join(', ')}. The checkout ${checkout} is not used any more: once the app shows your goals, delete it (each data folder in it is the backup, with a MOVED.md).` : '\nnothing was moved.');
+    break;
+  }
+  // foundry in a terminal: ~/.local/bin/foundry linked to this compiled foundry (ADR-0105)
+  case 'link': {
+    const { linkCli, pathHint } = await import('@foundry/engine');
+    if (INSTALL.kind === 'checkout') return usage('a checkout runs its CLI with bun run cli; foundry link is for the app and release installs');
+    try {
+      const r = linkCli({ target: process.execPath, home: homedir() });
+      console.log(r.changed ? `✔ ${r.path} → ${r.target}` : `✔ ${r.detail}`);
+      if (!r.onPath) console.log(`~/.local/bin is not on this shell's PATH: add this line to ${pathHint().file}, then open a new terminal:\n  ${pathHint().line}`);
+    } catch (err) {
+      console.error(`✘ ${(err as Error).message}`);
+      process.exit(1);
+    }
     break;
   }
   case 'goal': {

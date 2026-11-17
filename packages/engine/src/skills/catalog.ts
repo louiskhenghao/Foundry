@@ -36,7 +36,8 @@ export function preferredInvoke(entry: CatalogEntry, scan: ScanResult): string |
 }
 
 export type WhichFn = (bin: string) => string | null;
-export const defaultWhich: WhichFn = (bin) => Bun.which(bin);
+/** PATH passed in: Bun.which alone keeps the PATH the process started with, which adoptLocalBin cannot add to */
+export const defaultWhich: WhichFn = (bin) => Bun.which(bin, { PATH: process.env.PATH ?? '' });
 
 /** does a session spawned by this engine see this env var? (the engine may add settings-sourced vars on top of process.env) */
 export type EnvProbe = (name: string) => boolean;

@@ -2096,6 +2096,13 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
     return c.json(await detectTelegramChatId(t));
   });
+  // ---------- the macOS menu bar app (ADR-0105): one small answer for its menu, asked every few seconds ----------
+  app.get('/api/app/status', (c) => {
+    const report = engine.updater.reportOrKick();
+    const inbox = listEscalations(db, { openOnly: true }).filter((e) => !historyRefused(e.goalId)).length;
+    const briefs = listGoals(db).filter((g) => g.state === 'awaiting_brief_approval' && !isHistory(g)).length;
+    return c.json({ version: report.current, inbox, briefs, update: { available: report.updateAvailable, latest: report.latest } });
+  });
   // ---------- version & self-update (ADR-0010): cached report like /api/skills/updates; apply streams to `self-update` ----------
   app.get('/api/update', (c) => c.json({ ...engine.updater.reportOrKick(), capability: engine.updater.capability(), checking: engine.updater.isChecking(), applying: engine.updater.isApplying() }));
   app.post('/api/update/check', async (c) => c.json(await engine.updater.check()));

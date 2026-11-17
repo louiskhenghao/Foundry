@@ -560,6 +560,10 @@ How this instance runs: *docker* (the published image), *local* (a git checkout 
 The instance asking GitHub Releases, on a schedule or on demand, whether a Release newer than itself exists. Only stable semver counts — pre-release and floating tags are invisible to it. The result is remembered, shown in the UI, and announced through Notifications once per new Release.
 _Avoid_: version poll, upgrade check
 
+**Menu Bar App**
+The macOS app's own part ([ADR-0105](docs/develop/adr/0105-the-foundry-app-and-the-release-installs.md)): a status item that starts the engine with the PATH a terminal has, says whether it runs and what waits for the person, opens the page in their browser, starts Foundry at login, and installs a release the engine downloaded by swapping the app. The page is the engine's, in the browser, as with every other install; the menu bar app holds no screen of its own.
+_Avoid_: tray, desktop app (the UI is not in it)
+
 **Self-Update**
 The one-click path from a noticed Release to running it: the instance drains active work, replaces itself, and comes back on the new version — rolling back and staying put if any step fails. An instance that lacks the means to replace itself falls back to a Guided Update instead of failing.
 _Avoid_: auto-update, hot update
