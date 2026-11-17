@@ -7,6 +7,7 @@ export * from './tools/installers.ts';
 export * from './tools/setup.ts';
 export * from './cli-link.ts';
 export * from './migrate.ts';
+export * from './move/adopt.ts';
 export * from './move/find.ts';
 export * from './move/finish.ts';
 export * from './move/move.ts';

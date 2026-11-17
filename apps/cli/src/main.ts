@@ -216,7 +216,7 @@ switch (cmd) {
   // an earlier install's goals moved here (ADR-0105, ADR-0107): found rather than named, and handed to this install's
   // running Foundry when there is one, so the swap happens while its engine is stopped
   case 'migrate': {
-    const { countFolder, defaultDataDir, findEarlierInstalls, folderProvider, foundryHome, isCheckout, keepPort, planMove, readInstallEnv, runMove } = await import('@foundry/engine');
+    const { adoptInstall, countFolder, defaultDataDir, findEarlierInstalls, folderProvider, foundryHome, isCheckout, keepPort, planMove, readInstallEnv, runMove } = await import('@foundry/engine');
     if (INSTALL.kind === 'checkout') return usage("foundry migrate moves an earlier install into the app or a release install: run the compiled foundry's (foundry link puts it on PATH)");
     type Install = Awaited<ReturnType<typeof findEarlierInstalls>>['installs'][number];
     const expand = (p: string) => resolve(p.replace(/^~(?=\/|$)/, homedir()));
@@ -260,12 +260,17 @@ switch (cmd) {
     } else {
       const candidates = found.installs.filter((i) => i.goals > 0);
       if (!candidates.length) {
-        if (!offer) say(`Nothing to move: no earlier Foundry with goals on this computer.${found.notes.length ? `\n  ${found.notes.join('\n  ')}` : ''}`);
-        for (const i of found.installs) if (!offer) say(`  · ${i.kind} ${i.where}: no goals`);
+        if (!offer) {
+          say(`Nothing to move: no earlier Foundry with goals on this computer.${found.notes.length ? `\n  ${found.notes.join('\n  ')}` : ''}`);
+          for (const i of found.installs) say(`  · ${i.kind} ${i.where}: no goals`);
+        }
+        // the installer asks only when there is something to move
+        if (offer) process.exit(3);
         break;
       }
       install = candidates[0];
-      if (candidates.length > 1 && !has('--yes')) {
+      if (candidates.length > 1 && offer) say(`Foundry found more than one earlier install with goals; the most recent moves (foundry migrate --from <it> moves another): ${candidates.map((i) => i.where).join(', ')}`);
+      if (candidates.length > 1 && !has('--yes') && !offer) {
         say('Foundry found more than one earlier install with goals:');
         candidates.forEach((i, n) => say(`  ${n + 1}. ${i.kind === 'docker' ? `the Docker container ${i.where}` : i.where}: ${i.goals} goals${i.last ? `, last active ${i.last.slice(0, 10)}` : ''}${i.running ? ', running' : ''}`));
         const pick = Number((prompt(`Which one moves here? [1-${candidates.length}, Enter for 1]`) ?? '').trim() || '1');
@@ -323,6 +328,8 @@ switch (cmd) {
     const port = Number(opt('--keep-port') ?? 0) || done.port;
     // the address stays: this install serves on the port the old one had
     if (port) keepPort(foundryHome(), port);
+    // the installer writes its own record and command; a person running this gets them pointed here
+    if (!has('--no-adopt')) await adoptInstall({ root: ROOT, kind: INSTALL.kind, execPath: process.execPath, log: (m) => say(`  ${m}`) });
     say(`\n✔ moved ${done.goals} goal${done.goals === 1 ? '' : 's'} from ${label}. ${install.kind === 'docker' ? `The container is stopped and kept, with its volumes, as the backup.` : `It is stopped and kept as the backup; each folder it had has a MOVED.md saying how to go back.`}`);
     break;
   }

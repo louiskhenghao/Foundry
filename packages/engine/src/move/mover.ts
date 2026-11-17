@@ -46,6 +46,8 @@ export interface MoverDeps {
   port: () => number;
   restart: (req: RestartRequest) => void;
   log: (m: string) => void;
+  /** a release install: the installer's record and the foundry command follow the goals here */
+  adopt?: (log: (m: string) => void) => Promise<unknown>;
   probe?: Probe;
 }
 
@@ -99,6 +101,7 @@ export class Mover {
         if (!install) throw new MoveError(`${job.where} is not on this computer any more`);
         const items = planMove(install, { targetFor: this.d.targetFor, replace: opts.replace });
         const done = await runMove({ install, items, swap: false, now: () => this.skipWait, log, probe: this.d.probe });
+        await this.d.adopt?.(log).catch((err) => log(`the foundry command still names the old install: ${(err as Error).message}`));
         // the old one's address, when it is free now: bookmarks and the CLI keep working
         const port = done.port && done.port !== this.d.port() && isPortFree(done.port) ? done.port : null;
         job.nextUrl = `http://127.0.0.1:${port ?? this.d.port()}`;

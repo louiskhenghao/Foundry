@@ -7,7 +7,7 @@ import { CodexEffort, Brief, EscalationAnswer, isHistory, listFollowUps, getAtte
 import { AttachmentError, BrowseError, DECK_PACK_OPTIONS, DESIGN_PACK_OPTIONS, DIAGRAM_PACK_OPTIONS, FIGURE_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openFile, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
-import { MoveError, Mover, defaultDataDir, delegationNeedsHuman, readHomeConfig, writeHomeConfig } from '@foundry/engine';
+import { MoveError, Mover, adoptInstall, defaultDataDir, delegationNeedsHuman, readHomeConfig, writeHomeConfig } from '@foundry/engine';
 import { installRoot } from '@foundry/engine/install-root';
 import { AdjustError, ConversationError, EditorError, motionFilms } from '@foundry/engine';
 import { SEEK_LISTENER, filmFileType, filmPage } from './film-page.ts';
@@ -1918,6 +1918,10 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     port: () => engine.config.port,
     restart: (r) => engine.restart.request(r),
     log: engine.config.log,
+    adopt: (log) => {
+      const kind = installRoot().kind;
+      return kind === 'checkout' ? Promise.resolve(false) : adoptInstall({ root: engine.config.rootDir, kind, execPath: process.execPath, log });
+    },
   });
   app.get('/api/move', async (c) => c.json(await mover.status({ fresh: c.req.query('fresh') === '1' })));
   app.post('/api/move', async (c) => {
