@@ -297,8 +297,11 @@ switch (cmd) {
     if (!install) return usage(`${from} was not found on this computer`);
     const items = planMove(install, { targetFor, replace: has('--replace') });
     const label = install.kind === 'docker' ? `the Docker container ${install.where}` : install.where;
-    say(`${offer ? 'Your earlier Foundry' : 'Moving'} ${label}${install.version ? ` (${install.version})` : ''}: ${install.goals} goal${install.goals === 1 ? '' : 's'}${install.running ? ', running now' : ''}`);
-    for (const i of items) say(`  ${{ copy: '→', replace: '→', keep: '=', conflict: '✘' }[i.action]} ${pad(i.provider, 7)} ${i.action === 'keep' ? `${i.from}: ${i.why}` : `${i.from}  →  ${i.to}${i.why ? `  (${i.why})` : ''}`}`);
+    // the installer showed the plan with its dry run and asked: its move says only what it does
+    if (!(offer && has('--yes'))) {
+      say(`${offer ? 'Your earlier Foundry' : 'Moving'} ${label}${install.version ? ` (${install.version})` : ''}: ${install.goals} goal${install.goals === 1 ? '' : 's'}${install.running ? ', running now' : ''}`);
+      for (const i of items) say(`  ${{ copy: '→', replace: '→', keep: '=', conflict: '✘' }[i.action]} ${pad(i.provider, 7)} ${i.action === 'keep' ? `${i.from}: ${i.why}` : `${i.from}  →  ${i.to}${i.why ? `  (${i.why})` : ''}`}`);
+    }
     if (has('--dry-run')) break;
     const conflict = items.find((i) => i.action === 'conflict');
     if (conflict) return usage(`this install already has goals in ${conflict.to}: add --replace to set them aside as a backup, or move nothing`);
