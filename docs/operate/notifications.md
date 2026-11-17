@@ -200,8 +200,9 @@ webhook's channel, with the same buttons. The other messages still come from the
 
 ## Setting it from the environment
 
-You can seed the channel fields from environment variables, for example with `-e` in Docker. A value saved in the UI
-wins over the variable.
+You can seed the channel fields from environment variables, for example in a drop-in for the binary's service:
+`systemctl --user edit foundry`, then `foundry restart`. A drop-in stays when `foundry update` writes the service
+again. A value saved in the UI wins over the variable.
 
 | Variable | Settings field |
 |---|---|

@@ -9,9 +9,8 @@ signed in to *your* tailnet can reach it — no port forwarding, no public expos
 Briefs, push branches with your `gh` login and use either signed-in backend’s quota. So the rule is simple: Foundry
 stays on loopback, and Tailscale is the only door. Never publish it to the internet, never use `tailscale funnel`.
 
-You need: a machine that stays on (a Mac mini, a desktop, a home server, a VPS) with Foundry already working
-locally — either from source with `bun run serve` or with the Docker image (both in [install.md](./install.md)) —
-plus a free Tailscale account.
+You need a machine that stays on (a Mac mini, a desktop, a home server, a VPS) with Foundry already working on it,
+the app on a Mac or the binary on Linux (both in [install.md](./install.md)), and a free Tailscale account.
 
 ---
 
@@ -42,15 +41,15 @@ tailscale serve --bg 4111
 tailscale serve status     # → https://mac-mini.<tailnet>.ts.net  proxy http://127.0.0.1:4111
 ```
 
-That is the whole exposure step. `--bg` makes it persist across reboots. It works identically whether Foundry
-runs from source or in Docker (the compose file and the `docker run` recipes already publish on
-`127.0.0.1:4111`, which is what `serve` forwards to). The live WebSocket goes through it too.
+That is the whole exposure step. `--bg` makes it persist across reboots. The app and the binary listen on
+`127.0.0.1:4111`, which is what `serve` forwards to; when Foundry chose another port because 4111 was taken, use that
+one (**Settings → Engine (install) → Port** shows it). The live WebSocket goes through it too.
 
 Open `https://mac-mini.<tailnet>.ts.net` on your phone (Wi-Fi off, to prove the point). The header's live dot
 should be green.
 
 > **Alternative without `serve`** — bind Foundry to the tailnet address directly: Settings → Engine (install)
-> → Host = `100.x.y.z` (takes effect after a restart), or `-p 100.x.y.z:4111:4111` for Docker. You get plain
+> → Host = `100.x.y.z` (takes effect after a restart). You get plain
 > `http://100.x.y.z:4111` without a certificate, and the engine no longer listens on loopback: on that machine
 > open the same address in the browser and give the CLI `FOUNDRY_URL=http://100.x.y.z:4111`. Only do this if
 > `serve` is unavailable on your Tailscale plan; never use `0.0.0.0`.
@@ -74,82 +73,34 @@ Remote access is only useful if the machine keeps running goals after you close 
 
 ### The engine as a service
 
-**macOS — a LaunchAgent** (starts at login, restarts if it dies, runs in your user session so the `claude`
-login in the Keychain is available). Save as `~/Library/LaunchAgents/com.foundry.serve.plist`, adjusting the
-three paths:
+The installer already runs Foundry this way ([install.md](./install.md)):
 
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>com.foundry.serve</string>
-  <key>ProgramArguments</key><array>
-    <string>/Users/you/.bun/bin/bun</string><string>run</string><string>serve</string>
-  </array>
-  <key>WorkingDirectory</key><string>/Users/you/Projects/foundry</string>
-  <key>EnvironmentVariables</key><dict>
-    <key>PATH</key><string>/Users/you/.bun/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
-    <key>FOUNDRY_SUPERVISED</key><string>1</string>
-  </dict>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>StandardOutPath</key><string>/Users/you/Projects/foundry/data/serve.log</string>
-  <key>StandardErrorPath</key><string>/Users/you/Projects/foundry/data/serve.log</string>
-</dict></plist>
-```
+- **The app (macOS)** starts at login (**Start at Login** in its menu, ticked the first time it opens) and starts the
+  engine again if it stops. It runs in your user session, so the `claude` login in the Keychain is available.
+- **The binary (Linux)** runs as a `systemd --user` service, `~/.config/systemd/user/foundry.service`, which restarts it
+  if it stops. The installer turns on lingering, so the service keeps running after you log out; when it could not, it
+  says so, and `sudo loginctl enable-linger "$USER"` does it. Its log: `foundry logs`, or
+  `journalctl --user -u foundry -f`.
+- **The binary on macOS** (`--mode binary`) runs as a LaunchAgent, `~/Library/LaunchAgents/dev.foundry.server.plist`,
+  which starts at login and restarts it if it stops.
 
-```bash
-mkdir -p ~/Projects/foundry/data                                                    # launchd does not create the log dir
-launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.foundry.serve.plist   # start now + at every login
-launchctl kickstart -k gui/$(id -u)/com.foundry.serve                              # restart it
-tail -f ~/Projects/foundry/data/serve.log
-```
+The app starts the engine with the `PATH` your login shell has. The binary's service keeps the `PATH` of the terminal
+that installed it: after installing a coding agent's CLI somewhere new, run `foundry restart` from a terminal that finds
+it, which writes the service again with that `PATH`. The binary's service, systemd or launchd, sets
+`FOUNDRY_SUPERVISED=1`, so a one-click update simply exits when it is done and the service manager brings the new
+version up; the app swaps itself (see [updates-and-backup.md](./updates-and-backup.md#self-update)).
 
-`PATH` must contain wherever `bun`, the selected CLI (`claude` or `codex`), `git`, `gh` and `graphify` live; a
-LaunchAgent does not read your shell profile. Use plain `bun run serve`, not `bun --watch`.
-`FOUNDRY_SUPERVISED=1` tells a one-click update to simply exit when it is done, so the service manager
-brings the new version up — without it the engine restarts itself and the two would fight over the port
-(see [updates-and-backup.md](./updates-and-backup.md#local-install-git)). systemd services are also detected by
-their `INVOCATION_ID` variable, but setting the variable does no harm.
-
-**Linux — a systemd user service.** Save as `~/.config/systemd/user/foundry.service`:
-
-```ini
-[Unit]
-Description=Foundry
-After=network-online.target
-
-[Service]
-WorkingDirectory=%h/Projects/foundry
-Environment=PATH=%h/.bun/bin:%h/.local/bin:/usr/local/bin:/usr/bin:/bin
-Environment=FOUNDRY_SUPERVISED=1
-ExecStart=%h/.bun/bin/bun run serve
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=default.target
-```
-
-```bash
-systemctl --user enable --now foundry
-sudo loginctl enable-linger "$USER"     # keep user services running when you are not logged in
-journalctl --user -u foundry -f
-```
-
-**Docker.** The compose file already says `restart: unless-stopped`, so the container comes back after a
-reboot on its own. On a Mac, also turn on Docker Desktop → Settings → General → *Start Docker Desktop when you
-sign in*.
-
-For a Codex launch profile, add `FOUNDRY_PROVIDER=codex` to the service’s environment and use `data-codex/` for the example log directory. Set `FOUNDRY_DATA_DIR` and `FOUNDRY_CODEX_HOME` explicitly if needed. To add Codex goals to an existing Claude-profile service, keep its profile and data path; sign into Codex in **Accounts** instead. Services do not inherit your interactive shell’s variables.
+The binary's service starts with `FOUNDRY_PROVIDER` set to the first coding agent you chose at install, which picks its
+data folder (`data-codex/` for Codex). To add Codex goals to an existing Claude-profile install, keep its profile and
+data folder; sign into Codex in **Accounts** instead. Services do not inherit your interactive shell’s variables.
 
 ### The machine itself must not sleep
 
 - **macOS**: System Settings → Energy (or Battery → Options) → *Prevent automatic sleeping when the display is
   off* — on; keep the machine on power. For a laptop that must work with the lid closed:
   `sudo pmset -a disablesleep 1` (`0` to undo). Turn on *Wake for network access* while you are there.
-  If the machine may reboot on its own (updates, power), enable automatic login so the LaunchAgent starts
-  without you — with the usual FileVault trade-off.
+  If the machine may reboot on its own (updates, power), enable automatic login so the app starts without you,
+  with the usual FileVault trade-off.
 - **Linux**: on a desktop session, `sudo systemctl mask sleep.target suspend.target hibernate.target`; on a
   server there is nothing to do.
 
@@ -181,24 +132,20 @@ watch live logs, stop sessions from the Agents page, deliver PRs (the machine's 
 update Foundry itself from the header pill when a new version appears. The UI is responsive; the header
 collapses into a menu on a phone.
 
-The repositories a goal works on must be on that machine (or mounted into the container at `/repos`), and
-delivery pushes with that machine's `gh` login — set it up once while you are at the keyboard:
-`gh auth login` (or `docker exec -it foundry gh auth login`).
+The repositories a goal works on must be on that machine, and delivery pushes with that machine's `gh` login. Set it
+up once while you are at the keyboard: `gh auth login`, or **Sign in** under *GitHub CLI* on the Setup page.
 
 ## 6. Security checklist
 
-- Foundry is reachable only on `127.0.0.1` (or the `100.x.y.z` tailnet address). A local install binds there; the
-  Docker image binds `0.0.0.0` inside the container, so publish its port on the host as `127.0.0.1:4111:4111`, never
-  `0.0.0.0`. No router port-forward or `tailscale funnel` points at it. `tailscale serve status` must show the listener as
-  *tailnet only* — never *Funnel on*.
+- Foundry is reachable only on `127.0.0.1` (or the `100.x.y.z` tailnet address): the app and the binary bind there;
+  never set **Host** to `0.0.0.0`. No router port-forward or `tailscale funnel` points at it. `tailscale serve status`
+  must show the listener as *tailnet only*, never *Funnel on*.
 - The Foundry machine holds your native backend logins, your repositories and a `gh` login that can push and open PRs.
   Treat it like your laptop: disk encryption on, screen lock on, only your own devices on the tailnet.
 - Sharing the tailnet with other people (family, colleagues)? Restrict who can reach port 4111 with a
   Tailscale ACL (<https://login.tailscale.com/admin/acls>), e.g. only devices tagged as yours. Sharing the Foundry
   itself with two or three of them? Give each a token ([above](#give-each-person-a-token)): what each does is then
   recorded under their name, and a lost phone is one revoked token.
-- Keep the `docker-compose.yml` watchtower sidecar's API unpublished (the shipped file does); it is reachable
-  only from inside the compose network.
 
 ## Alternatives
 
@@ -217,8 +164,8 @@ delivery pushes with that machine's `gh` login — set it up once while you are 
 | The header's live dot is red (*reconnecting…* on a wider screen) and nothing loads | the machine is asleep, or the engine stopped | `tailscale ping mac-mini` from another device; `curl …/api/health`; check the sleep settings and the service log |
 | `curl …/api/health` works, but messages carry no link or the link opens nothing | Link base URL empty (no links at all) or set to `127.0.0.1` | Settings → Notifications → Link base URL = the `https://…ts.net` URL |
 | A page that says *Foundry does not answer to the name "…"* | the address uses a name Foundry does not know as this computer's (a custom domain, a proxy) | Settings → Notifications → Link base URL = that address, or add the name to `FOUNDRY_ALLOWED_HOSTS` and restart |
-| After a one-click update the service log shows a port-in-use crash loop | the engine restarted itself instead of letting launchd/systemd do it | add `FOUNDRY_SUPERVISED=1` to the plist/unit (§3), then `launchctl kickstart -k …` / `systemctl --user restart foundry` |
-| Goals start but sessions fail immediately after a reboot | the service `PATH` lacks `claude` / `codex` / `bun`, or the Keychain login is not available (macOS, user not logged in) | fix `PATH` in the plist/unit; enable automatic login |
+| After a one-click update the service log shows a port-in-use crash loop | the service lacks `FOUNDRY_SUPERVISED=1` (one written by hand), so the engine restarted itself instead of letting launchd/systemd do it | `foundry restart` writes the installer's service, which sets it (§3) |
+| Goals start but sessions fail immediately after a reboot | the service `PATH` lacks `claude` / `codex`, or the Keychain login is not available (macOS, user not logged in) | `foundry restart` from a terminal that finds them; enable automatic login |
 | `tailscale serve` says the feature is not available | older client or plan without serve | update Tailscale, or use the bind-to-`100.x.y.z` alternative in §2 |
 | A preview's tailnet link answers *502* while it works on the machine | the dev server listens on IPv6 loopback only and the proxy was made for `127.0.0.1` (an earlier Foundry, or a serve you added by hand) | start the preview again: Foundry points the proxy at the address that answers; by hand, `tailscale serve --bg --https=<port> http://[::1]:<port>` |
 | A preview's tailnet link shows *Blocked request. This host ("…ts.net") is not allowed* | the dev server checks the Host header against an allow-list (Vite, Next) | Vite: start the preview again, Foundry passes the name in `__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS`; another server: add the name to its allow-list, or set the variable it reads in the goal's Preview environment |

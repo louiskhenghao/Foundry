@@ -6,26 +6,18 @@ This page says where Foundry keeps its state, how to back it up and restore it, 
 
 ## What lives where
 
-| What | Local install | Docker | Back it up? |
-|---|---|---|---|
-| **Data folder**: event log, settings, transcripts, uploads | `data/` for the Claude launch profile; `data-codex/` for Codex; the folder chosen in Settings → Engine (install), remembered in `~/.foundry/config.json`; `FOUNDRY_DATA_DIR` overrides all of them. A compiled install (the macOS app, a release tarball) keeps them under `~/Library/Application Support/Foundry/` on macOS and `~/.local/share/foundry/` on Linux instead of a tree | `/app/data` (`engine-data`) or `/app/data-codex` (`codex-data`) | **yes**, every instance’s active directory (`foundry serve` prints it) |
-| **Claude home**: Claude Code login, sessions, skills, plugins | `~/.claude` (or `CLAUDE_CONFIG_DIR`) | `/home/node/.claude`, volume `claude-home` | **yes** |
-| **Codex home**: native login/configuration, sessions, skills, plugins | `~/.codex`, or the configured Codex home (`FOUNDRY_CODEX_HOME`, then `CODEX_HOME`) | `/home/node/.codex`, volume `codex-home` | **yes**; re-login may still be needed when credentials use a host credential store |
-| **Shared skills** | `~/.agents/skills` | wherever you explicitly mount shared skills | if you customized them |
-| **Your repositories** | wherever they are | bind-mounted, usually at `/repos` | your normal backups |
-| **Progress folders**: one per goal, next to each repository | `<repo>-foundry/<goal>/` | same, inside the mount | until the goal is deleted |
-| **GitHub login** (`gh`) | `~/.config/gh` | `/home/node/.config/gh`, no volume unless you add one | optional |
-| **Chromium** for the self-check | `~/.cache/ms-playwright` | `/home/node/.cache/ms-playwright`, volume `playwright-browsers` (Compose) | no: **Install Chromium** downloads it again |
+| What | Where | Back it up? |
+|---|---|---|
+| **Data folder**: event log, settings, transcripts, uploads | `data/` for the Claude launch profile, `data-codex/` for Codex, `data-agy/` for Antigravity, under `~/Library/Application Support/Foundry/` on macOS (the app, or the binary there) and `~/.local/share/foundry/` on Linux; the folder chosen in Settings → Engine (install), remembered in `~/.foundry/config.json`; `FOUNDRY_DATA_DIR` overrides all of them | **yes**, every instance’s active directory (**Settings → Engine (install) → Data folder** shows it) |
+| **Claude home**: Claude Code login, sessions, skills, plugins | `~/.claude` (or `CLAUDE_CONFIG_DIR`) | **yes** |
+| **Codex home**: native login/configuration, sessions, skills, plugins | `~/.codex`, or the configured Codex home (`FOUNDRY_CODEX_HOME`, then `CODEX_HOME`) | **yes**; re-login may still be needed when credentials use a host credential store |
+| **Shared skills** | `~/.agents/skills` | if you customized them |
+| **Your repositories** | wherever they are | your normal backups |
+| **Progress folders**: one per goal, next to each repository | `<repo>-foundry/<goal>/` | until the goal is deleted |
+| **GitHub login** (`gh`) | `~/.config/gh` | optional |
+| **Chromium** for the self-check | `~/Library/Caches/ms-playwright` on macOS, `~/.cache/ms-playwright` on Linux | no: **Install Chromium** downloads it again |
 
-With Docker Compose, the real volume names start with the Compose project name, which is the folder you run
-`docker compose` from. From `~/foundry` they include `foundry_engine-data`, `foundry_codex-data`, `foundry_claude-home` and `foundry_codex-home`.
-`docker volume ls` lists them. With the `docker run` recipes in [install.md](./install.md) they are plainly
-`engine-data`, `codex-data`, `claude-home` and `codex-home` when those mounts are present. The prefixed and unprefixed sets are different volumes: switching from one way of running to the
-other means restoring a backup into the new volumes.
-
-With the Linux uid ≠ 1000 recipe, the data folders are `~/.foundry/data` and `~/.foundry/data-codex`, and the whole home is `~/.foundry/home`.
-
-On macOS, a local install's Claude login is in the Keychain, not in `~/.claude`.
+On macOS, the Claude login is in the Keychain, not in `~/.claude`.
 
 ### Inside the data folder
 
@@ -42,7 +34,7 @@ On macOS, a local install's Claude login is in the Keychain, not in `~/.claude`.
 | `attachments/` | files and links attached to goals | yes, if you want them |
 | `skills-cache/`, `skills-trash/` | fetched skill sources; uninstalled skills (restorable) | optional |
 | `worktrees/`, `screenshots/` | work of goals created before 0.3.0 (before progress folders) | until those goals are delivered |
-| `update-restart.log` | output of a local install after it restarted itself for an update | no |
+| `update-restart.log` | output of Foundry after it restarted itself for an update, where no service manager restarts it | no |
 
 ### Inside a progress folder's parent
 
@@ -61,82 +53,37 @@ Each repository `my-app` gets a sibling folder `my-app-foundry/`:
 ## Back up
 
 Stop Foundry first, so the SQLite database is not written while you copy it. A stopped engine loses nothing:
-eligible unfinished attempts resume after restart on the same backend. Stop the supervising service or disable its restart while copying, so it does not immediately start the engine again. Native homes may also be written by terminal or desktop clients: close those clients before taking a consistent copy. Use a private backup directory; it contains account and service credentials.
-
-### Docker
-
-This works for Compose and `docker run` alike, because `--volumes-from` finds the volumes by container:
-
-```bash
-mkdir -p foundry-backup
-chmod 700 foundry-backup
-cd foundry-backup
-umask 077
-docker stop foundry
-docker run --rm --volumes-from foundry -v "$PWD":/out alpine \
-  tar czf /out/foundry-data.tgz -C /app/data .
-docker run --rm --volumes-from foundry -v "$PWD":/out alpine \
-  tar czf /out/foundry-claude.tgz -C /home/node/.claude .
-```
-
-For a Codex-profile or mixed-provider container, also copy each mounted Codex path while the container remains stopped:
-
-```bash
-docker run --rm --volumes-from foundry -v "$PWD":/out alpine \
-  tar czf /out/foundry-codex-data.tgz -C /app/data-codex .
-docker run --rm --volumes-from foundry -v "$PWD":/out alpine \
-  tar czf /out/foundry-codex-home.tgz -C /home/node/.codex .
-```
-
-Only archive paths your container actually mounts; a Claude-profile instance with Codex goals still keeps those goals in `/app/data`, so back up that directory as well as the Codex home. `FOUNDRY_DATA_DIR` may point elsewhere: substitute its actual path.
-
-After all mounted state has been copied, run `docker start foundry`.
-
-The same by volume name (`docker run` recipe; with Compose use the prefixed names from `docker volume ls`):
-
-```bash
-docker stop foundry
-docker run --rm -v engine-data:/d -v "$PWD":/out alpine tar czf /out/foundry-data.tgz -C /d .
-docker run --rm -v claude-home:/c -v "$PWD":/out alpine tar czf /out/foundry-claude.tgz -C /c .
-docker start foundry
-```
-
-### Local install
-
-Stop the server (Ctrl-C, or stop the service), then copy the data folder:
+eligible unfinished attempts resume after restart on the same backend. Choose **Quit Foundry** in the app's menu, or run `foundry stop` (the installer's command, which stops the binary's service too), so nothing starts the engine again while you copy. Native homes may also be written by terminal or desktop clients: close those clients before taking a consistent copy. Use a private backup directory; it contains account and service credentials.
 
 ```bash
 umask 077
-tar czf foundry-data.tgz -C /path/to/foundry/data .
+foundry stop                 # or Quit Foundry in the app's menu
+tar czf foundry-data.tgz -C "$HOME/Library/Application Support/Foundry/data" .   # Linux: -C ~/.local/share/foundry/data
+foundry start                # or open the app again
 ```
 
-Substitute `/path/to/foundry/data-codex` or your actual `FOUNDRY_DATA_DIR` when appropriate. Copy the complete directory, including `provider` and `providers/`. Back up the configured Claude and Codex homes and any shared skills with the rest of your home folder.
+Use `data-codex` or `data-agy` for a Codex or Antigravity launch profile, and the folder **Settings → Engine (install) → Data folder** shows when you chose another, or your `FOUNDRY_DATA_DIR`. Copy the complete directory, including `provider` and `providers/`. Back up the configured Claude and Codex homes and any shared skills with the rest of your home folder.
 
 ---
 
 ## Restore
 
-Stop Foundry and its supervisor. Keep a backup of the current state before replacing it: the commands below empty the destination. From the private backup directory, restore the matching data archive and native homes into the existing container’s volumes:
+Stop Foundry as for a backup, then restore the archive into an empty data folder. Keep the current one aside rather
+than deleting it:
 
 ```bash
-docker stop foundry
-docker run --rm --volumes-from foundry -v "$PWD":/in alpine sh -c \
-  'find /app/data -mindepth 1 -delete && tar xzf /in/foundry-data.tgz -C /app/data && chown -R 1000:1000 /app/data'
-docker run --rm --volumes-from foundry -v "$PWD":/in alpine sh -c \
-  'find /home/node/.claude -mindepth 1 -delete && tar xzf /in/foundry-claude.tgz -C /home/node/.claude && chown -R 1000:1000 /home/node/.claude'
+foundry stop                 # or Quit Foundry in the app's menu
+cd "$HOME/Library/Application Support/Foundry"      # Linux: cd ~/.local/share/foundry
+mv data data.before-restore
+mkdir data && tar xzf /path/to/foundry-data.tgz -C data
+foundry start                # or open the app again
 ```
 
-On a new machine, create the container first (`docker compose up -d` or your `docker run` line), then run the
-commands above. With the uid ≠ 1000 recipe, unpack into `~/.foundry/data` and `~/.foundry/home/.claude` instead and
-skip the `chown`.
+Use the same folder as the backup (`data-codex`, `data-agy`, or the one you chose). On a new machine, install the app or the binary first, then restore. Restore native homes separately. Start with the same launch profile, native-home settings and data path as the backup. Confirm both accounts in **Accounts**; a copied native home does not guarantee credentials remain valid.
 
-For Codex, repeat the restore pattern with `/app/data-codex` and `foundry-codex-data.tgz`, and `/home/node/.codex` with `foundry-codex-home.tgz`, only for paths you mounted. Match the original UID/GID. Keep the container stopped until every required archive has been restored, then run `docker start foundry`.
-
-For a local install, restore the archive contents into an empty data directory, for example `tar xzf foundry-data.tgz -C /path/to/foundry/data`. Restore native homes separately. Start with the same launch profile, native-home settings and data path as the backup. Confirm both accounts in **Accounts**; a copied native home does not guarantee credentials remain valid.
-
-The database stores repository paths as the engine saw them (container paths in Docker). On a new machine, mount the
-repositories at the same paths. If a repository's `git worktree list` shows worktrees that no longer exist, run
-`git worktree prune` in that repository.
+The database stores repository paths as the engine saw them. On a new machine, put the repositories at the same paths.
+If a repository's `git worktree list` shows worktrees that no longer exist, run `git worktree prune` in that
+repository.
 
 ---
 
@@ -172,16 +119,17 @@ foundry reattach <goalId>            # an unfinished goal carries on here
 
 Back up before the first startup of this revision. Startup appends provider assignments for older goals and records the data directory’s launch profile. Keep the existing Claude profile for an existing `data/`; add Codex through **Accounts** and the New goal backend selector. Changing `FOUNDRY_PROVIDER` is not a migration, and existing `data/` and `data-codex/` directories are not merged automatically.
 
-**Do not open an upgraded mixed-provider directory with an older binary.** A rollback needs both the old binary/image and its matching pre-upgrade data backup. Keep post-upgrade data separately if it contains work you need. Reverting application code alone is insufficient. Repository branches and progress folders are separate from the database backup, so preserve those too.
+**Do not open an upgraded mixed-provider directory with an older binary.** A rollback needs both the old release and its matching pre-upgrade data backup. Keep post-upgrade data separately if it contains work you need. Reverting application code alone is insufficient. Repository branches and progress folders are separate from the database backup, so preserve those too.
 
-If trying an unreleased branch, retain the previous image tag or commit. A successful merge does not publish a Docker image. Build that source revision explicitly; use [the validation record](../develop/codex-validation.md) to distinguish tested paths from live integration checks still outstanding.
+If trying an unreleased branch, retain the previous release or commit. A successful merge does not publish a release. Build that revision explicitly ([Developing Foundry](../develop/README.md)); use [the validation record](../develop/codex-validation.md) to distinguish tested paths from live integration checks still outstanding.
 
 ## Moving to 3.0
 
 From 3.0 Foundry ships only as the macOS app and the Linux binary
-([ADR-0106](../develop/adr/0106-before-3-0-a-switch-not-an-update.md)). A source install or a Docker container on the
-last 2.x sees 3.0 in **About & updates** as a switch, not an update: the dialog says what switching does, the risks and
-the way back before anything happens.
+([ADR-0108](../develop/adr/0108-foundry-ships-only-as-the-app-and-the-binary.md)): there is no image and no install
+from source. A source install or a Docker container on the last 2.x sees 3.0 in **About & updates** as a switch, not an
+update ([ADR-0106](../develop/adr/0106-before-3-0-a-switch-not-an-update.md)): the dialog says what switching does, the
+risks and the way back before anything happens.
 
 **From source.** Tick *I understand* and press **Switch to 3.0**, or run `foundry update` and answer yes. Foundry
 downloads 3.0 for this computer and checks it, puts the app in Applications (the binary in
@@ -189,7 +137,8 @@ downloads 3.0 for this computer and checks it, puts the app in Applications (the
 (`~/Library/Application Support/Foundry`, `~/.local/share/foundry`), and starts the new one on the same port. The
 page reconnects by itself. The checkout and its `data/` stay as they were, with a `MOVED.md` saying where the data
 went: they are the backup. Watch it in `~/.foundry/switch.log`. To go back, quit the new Foundry and start the
-checkout again.
+checkout again. A source install older than 2.36 has no switch: its `foundry update` says so and names the one line
+below, which installs 3.0, finds the checkout and offers to move its goals the same way.
 
 **From Docker.** Nothing in the container can install on the host, so the dialog shows one command to run on the
 computer Docker runs on:
@@ -209,14 +158,16 @@ The container and its volumes stay as they were: to go back, quit the new Foundr
 The 2.36.0 dialog lists six commands instead (install with `--no-start`, copy the volume, `foundry repath`, start).
 They still work: an installer run with `--no-start` leaves the container to them.
 
-**Without waiting for 3.0.** A source or Docker install can move at any time: install the app (or the binary), open it
-and press **Bring your goals over** ([Moving an earlier install](./install.md#moving-an-earlier-install)).
+**From the app or the binary.** A source or Docker install can move at any time: install the app (or the binary), open
+it and press **Bring your goals over** ([Moving an earlier install](./install.md#moving-an-earlier-install)).
 
 ## Self-update
 
-An install made with the [one-line installer](./install.md#one-line) also updates from the terminal: `foundry update`
-runs the newest installer the same way as last time (source: pull, rebuild, restart the service; Docker: pull the
-image, recreate the container). Its service sets `FOUNDRY_SUPERVISED=1`, so the button below works with it too.
+The app and the binary update themselves from the release on GitHub
+([ADR-0104](../develop/adr/0104-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)). An install made
+with the [installer](./install.md#the-installer) also updates from the terminal: `foundry update` runs the newest
+installer the same way as last time, which installs the newest release. The binary's service sets
+`FOUNDRY_SUPERVISED=1`, so the button below works with it too.
 
 Foundry checks for a new version by itself: about 15 seconds after it starts, then every 24 hours. When a newer
 release exists:
@@ -234,89 +185,26 @@ release exists:
 3. **Restart.** The page reconnects by itself. On start the engine replays its event log, and attempts that were
    cut off resume where they stopped.
 
-The mode is detected, never configured: the image sets `FOUNDRY_DOCKER=1`; a checkout with a `.git` folder is a
-local install. **Settings → About & updates** shows the mode next to the version.
+The mode is detected, never configured: the app and the binary know their own layout, and a git checkout (for working
+on Foundry itself) is a local install, which pulls with git instead. **Settings → About & updates** shows the mode next
+to the version.
 
-### Docker with the updater sidecar (Compose)
+### The app
 
-With Docker 29 or newer, the sidecar needs `DOCKER_API_VERSION: '1.40'` in its environment: its own client asks for API
-1.25, which Docker 29 refuses, and the sidecar restarts in a loop. The compose file in images after 1.0.0 sets it; an
-older `docker-compose.yml` needs the line added under `watchtower: environment:`, or run the installer again.
+**Update** downloads `Foundry-<version>-mac-universal.zip` into the data folder's `updates/` and checks it against the
+release's `SHA256SUMS`: a file that does not match is deleted and nothing changes. Then the engine exits, and the menu
+bar app swaps `Foundry.app` for the new one and starts it. The app it replaced is kept in `updates/previous/`. An
+engine started without the menu bar app cannot swap the bundle: the dialog then names the file to download and put in
+place of `Foundry.app` yourself.
 
-The shipped `docker-compose.yml` runs a [watchtower](https://containrrr.dev/watchtower/) sidecar. It is the only
-container that touches the Docker socket. Foundry asks it over HTTP to pull the new image and re-create the
-`foundry` container.
+### The binary
 
-One-click update needs all of these, and the shipped compose file provides them:
-
-- the container is named `foundry`;
-- the container sees `FOUNDRY_WATCHTOWER_URL` and `FOUNDRY_WATCHTOWER_TOKEN`;
-- the sidecar runs with the same token (`WATCHTOWER_HTTP_API_TOKEN`).
-
-If the container is still running five minutes after watchtower accepted the request, Foundry logs
-`[update] watchtower accepted the trigger but this container was never replaced` and starts taking work again.
-
-A compose file fetched before 0.2.0 has no sidecar. Fetch the current one again (this overwrites your edits to it, so
-re-apply them):
-
-```bash
-docker run --rm imlouiskhenghao/foundry:latest cat /app/docker-compose.yml > docker-compose.yml
-docker compose up -d
-```
-
-### Docker without the sidecar
-
-Without the sidecar the dialog shows the commands to run on the host instead of an Update button:
-
-```bash
-docker compose pull foundry
-docker compose up -d foundry
-```
-
-If you started with `docker run`, do the same by hand. Use exactly the flags and volumes you started with:
-
-```bash
-docker pull imlouiskhenghao/foundry:latest
-docker rm -f foundry
-docker run -d --name foundry ...        # your original line, same volumes
-```
-
-After re-creating the container, install Chromium again if you use the self-check, unless you mounted a volume at
-`/home/node/.cache/ms-playwright` (see [install.md](./install.md#6-previews-from-the-host)), and log in to `gh` again
-unless you mounted a volume for it (see [install.md](./install.md#7-github-for-delivery-optional)).
-
-### Local install (git)
-
-When `git` and `bun` are on the `PATH`, **Update** runs in the Foundry checkout:
-
-```bash
-git pull --ff-only
-bun install
-bun run web:build
-```
-
-Each step may take up to 15 minutes. If any step fails, Foundry runs `git reset --hard` back to the commit it
-started from and `bun install` again, and does **not** restart. You stay on the old version.
-
-- The rollback is a hard reset, so do not keep uncommitted changes in the Foundry checkout.
-- `git pull --ff-only` pulls the branch the checkout is on. Releases are tagged `vX.Y.Z` on `main`.
-
-After a successful update Foundry restarts itself: it starts a detached `bun apps/cli/src/main.ts serve` that logs to
-`<dataDir>/update-restart.log`, then exits.
-
-**Under launchd or systemd, set `FOUNDRY_SUPERVISED=1`.** Then Foundry just exits after the update and the service
-manager starts the new version. Without it, the self-started copy and the service manager fight over the port.
-Under systemd, Foundry also detects the service by its `INVOCATION_ID` variable. The service files are in
-[remote-access.md](./remote-access.md#the-engine-as-a-service).
-
-If `git` or `bun` is missing, the dialog shows the commands to run yourself, then restart:
-
-```bash
-git pull
-bun install
-bun run web:build
-bun run serve
-```
+**Update** downloads `foundry-<version>-<platform>.tar.gz`, checks it against `SHA256SUMS`, unpacks it beside the
+current version in `~/.local/share/foundry/releases/`, points `current` at it and restarts. The version it replaced
+stays in `releases/`. Under the installer's systemd or launchd service (`FOUNDRY_SUPERVISED=1`; systemd is also detected
+by its `INVOCATION_ID`), Foundry just exits and the service manager starts the new version. Without a service manager it
+starts the new version itself, detached, logging to `<dataDir>/update-restart.log`. A `foundry` that is not in a
+`releases/<version>` folder with a `current` link cannot update itself: the dialog shows the steps instead.
 
 ### Restarting by hand
 
@@ -327,12 +215,15 @@ Before a manual restart, check that nothing is running. See
 
 ## Release channel
 
-- **Where versions come from.** Both Docker and local installs ask Docker Hub for the tags of
-  `imlouiskhenghao/foundry` and take the newest stable `x.y.z` tag. Other tags are ignored.
-- **Image tags.** Every release is pushed as `x.y.z` and as `latest`, for `linux/amd64` and `linux/arm64`.
-- **Pinning.** To stay on one version, use a version tag, for example `image: imlouiskhenghao/foundry:0.4.0` in
-  `docker-compose.yml`. The sidecar re-pulls the tag the container runs, so a pinned container does not move. Change
-  the tag and run `docker compose up -d` to move. Use `latest` for one-click updates.
+- **Where versions come from.** Every install reads the GitHub Releases of `louiskhenghao/foundry-releases` and takes
+  the newest published, stable `vX.Y.Z` release. Drafts, pre-releases and other tags are ignored.
+- **Release files.** Every release carries the macOS app (`Foundry-<version>-mac-universal.dmg` and `.zip`), the
+  binaries (`foundry-<version>-darwin-universal.tar.gz`, `foundry-<version>-linux-x64.tar.gz`,
+  `foundry-<version>-linux-arm64.tar.gz`) and `SHA256SUMS`.
+- **Pinning.** To stay on one version, install it with `--version X.Y.Z` and do not press **Update**: Foundry never
+  updates by itself.
+- **No image.** The Docker Hub image `imlouiskhenghao/foundry` ends at 2.36.0, where `latest` stays
+  ([ADR-0108](../develop/adr/0108-foundry-ships-only-as-the-app-and-the-binary.md)).
 - **Changelog.** <https://raw.githubusercontent.com/louiskhenghao/foundry-releases/main/CHANGELOG.md>
   (repository `louiskhenghao/foundry-releases`). The update dialog shows the sections newer than your version.
 - **Your version.** **Settings → About & updates**, or the `version` field of `GET /api/health`.
@@ -346,5 +237,5 @@ FOUNDRY_UPDATE_CHECK=off      # also accepted: 0, false, no
 This stops the daily background check. Opening the UI still checks once after each start, and **Check now** still
 works. The Update button is never pressed for you.
 
-The version source and changelog URL can be pointed elsewhere with `FOUNDRY_UPDATE_IMAGE` (default
-`imlouiskhenghao/foundry`) and `FOUNDRY_CHANGELOG_URL`. Normal installs do not need them.
+The version source and changelog URL can be pointed elsewhere with `FOUNDRY_RELEASES_URL` (default: the GitHub
+Releases API of `louiskhenghao/foundry-releases`) and `FOUNDRY_CHANGELOG_URL`. Normal installs do not need them.
