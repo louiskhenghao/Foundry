@@ -112,8 +112,9 @@ export class Mover {
       try {
         const found = await this.find(true);
         const seen = found.installs.find((i) => i.id === opts.id);
-        // a checkout named by path (foundry migrate --from, --data) is moved as named, found or not
-        const install = opts.from ? sourceInstallAt(opts.from, { data: opts.data, found: seen }) : seen;
+        // a checkout named by path (foundry migrate --from, --data): one the search found moves with every folder it
+        // found (each launch profile's), as foundry migrate does; one not found, or a folder named, is moved as named
+        const install = opts.from && (opts.data || !seen) ? sourceInstallAt(opts.from, { data: opts.data, found: seen }) : seen;
         if (!install) throw new MoveError(`${job.where} is not on this computer any more`);
         // where Foundry will answer once the move is in place: told before anything stops, so a page that loses this
         // server mid-move knows where to look (the old one's port, when it has one)

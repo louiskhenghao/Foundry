@@ -254,9 +254,10 @@ describe('the move the page asks for (ADR-0107)', () => {
       expect(asked).toEqual([]);
       expect(existsSync(theirs + STAGING_SUFFIX)).toBe(false);
       expect(existsSync(theirs + '.moving.json')).toBe(false);
-      // a fresh app: the copy is staged where it keeps Codex's data, and it starts again on Codex's profile
+      // a fresh app: the copy is staged where it keeps Codex's data, and it starts again on Codex's profile. Named by
+      // path, as foundry migrate --from asks a running app, it moves the folders the search found, not only data/
       goalsHere = 0;
-      const job = mover.start({ id: `source:${checkout}`, onLine: (l) => lines.push(l) });
+      const job = mover.start({ id: `source:${checkout}`, from: checkout, onLine: (l) => lines.push(l) });
       for (let i = 0; i < 200 && !asked.length; i++) await Bun.sleep(10);
       expect(job.state).toBe('restarting');
       expect(asked[0]).toMatchObject({ kind: 'move', profile: 'codex' });
