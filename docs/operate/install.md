@@ -79,7 +79,9 @@ everywhere. To use the server from elsewhere, see [remote-access.md](./remote-ac
 [`install.sh`](../../install.sh), the one line above, installs the app on a Mac (it asks, with the binary as the other
 choice) and the binary on Linux. It asks which coding agents to set up, as a checklist with Claude Code ticked: Claude
 Code, Codex and Antigravity. The binary's service starts with the first one ticked, in that order, as its launch
-profile; the app starts with Claude Code's. Every goal can still choose any coding agent that is set up. Then it:
+profile; the app starts with Claude Code's. Goals moved in from an install that ran another coding agent's profile bring
+that profile with them ([Moving an earlier install](#moving-an-earlier-install)). Every goal can still choose any coding
+agent that is set up. Then it:
 
 1. offers the optional tools as a checklist: markitdown, Chromium for the self-check and Docker for the services
    previews need are ticked unless they are already there, ffmpeg (video goals) is not. Docker comes as Docker Desktop
@@ -150,6 +152,10 @@ before the new install starts. A move:
 6. links each goal worktree to its repository again, resumes the goals it paused, and takes over the old install's
    port, so bookmarks and the CLI keep working. The `foundry` command and `~/.config/foundry/install.env` name the new
    install from then on.
+
+Goals made with Codex or Antigravity bring that coding agent's launch profile: a data folder belongs to one profile, so
+this install starts with it from then on, kept in `~/.foundry/config.json`. When this install already has goals of its
+own, the move asks to set them aside first (they stay in their folder) rather than hide them.
 
 Nothing of the old install is deleted: its folder, or its container and volumes, is the backup, with a `MOVED.md` that
 says how to go back. A Foundry does not open a folder that moved, so a checkout started again by habit says so instead of
