@@ -1,6 +1,6 @@
 # ADR-0024: One installer for both ways to run Foundry, and the host's Docker shared on request
 
-**Status:** accepted · 2026-10-06
+**Status:** accepted · 2026-10-06 · amended by ADR-0105 · source and Docker modes superseded by [ADR-0108](0108-foundry-ships-only-as-the-app-and-the-binary.md): 3.0 installs only the app or the binary
 
 ## Context
 

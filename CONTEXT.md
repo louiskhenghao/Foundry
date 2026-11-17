@@ -554,7 +554,7 @@ One published version of the whole product — a single stable semver shared by 
 _Avoid_: build, deploy
 
 **Deployment Mode**
-How this instance runs: *docker* (the published image), *local* (a git checkout served directly), *app* (the macOS application, a compiled foundry inside a bundle with its files in Contents/Resources) or *binary* (a compiled foundry with a `resources/` folder beside it, from a release tarball). Detected by the instance itself, never configured ([ADR-0104](docs/develop/adr/0104-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)); it decides what Self-Update does and what a Guided Update shows. The two compiled modes keep their data under the platform's place for application data, not in a tree.
+How this instance runs: *app* (the macOS application, a compiled foundry inside a bundle with its files in Contents/Resources), *binary* (a compiled foundry with a `resources/` folder beside it, from a release tarball) or *local* (a git checkout served directly, for working on Foundry itself). Detected by the instance itself, never configured ([ADR-0104](docs/develop/adr/0104-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)); it decides what Self-Update does and what a Guided Update shows. The two compiled modes keep their data under the platform's place for application data, not in a tree. Releases ship only those two since 3.0; there is no image any more ([ADR-0108](docs/develop/adr/0108-foundry-ships-only-as-the-app-and-the-binary.md)).
 
 **Update Check**
 The instance asking GitHub Releases, on a schedule or on demand, whether a Release newer than itself exists. Only stable semver counts — pre-release and floating tags are invisible to it. The result is remembered, shown in the UI, and announced through Notifications once per new Release.
@@ -565,7 +565,7 @@ The macOS app's own part ([ADR-0105](docs/develop/adr/0105-the-foundry-app-and-t
 _Avoid_: tray, desktop app (the UI is not in it)
 
 **Switch**
-What a checkout or a container does when the newest Release is a new major that ships only as the app and the binary ([ADR-0106](docs/develop/adr/0106-before-3-0-a-switch-not-an-update.md)): not an update but a change of how Foundry is installed, shown first in a risk dialog (what it does, the risks, the way back) and done only on a ticked box. A checkout's Foundry hands over to the new release's installer, which stops it, copies its data folder and starts the new install on the same port; a container gets the steps to run on its host.
+What a 2.x checkout or container did when the newest Release was 3.0, the first that ships only as the app and the binary ([ADR-0106](docs/develop/adr/0106-before-3-0-a-switch-not-an-update.md)): not an update but a change of how Foundry is installed, shown first in a risk dialog (what it does, the risks, the way back) and done only on a ticked box. A checkout's Foundry hands over to the new release's installer, which stops it, copies its data folder and starts the new install on the same port; a container gets one command to run on its host, which installs the app or the binary and offers the Move. A checkout still sees a Switch at a later major.
 _Avoid_: upgrade, migration (the data copy is one step of it)
 
 **Move**
