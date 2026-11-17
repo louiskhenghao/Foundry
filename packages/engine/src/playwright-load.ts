@@ -1,6 +1,6 @@
 /**
  * Playwright, found where this install keeps it. A checkout resolves the package the engine depends on; a compiled binary
- * (ADR-0101) does not bundle it, because Playwright finds its browsers from its own files on disk, so a release carries the
+ * (ADR-0104) does not bundle it, because Playwright finds its browsers from its own files on disk, so a release carries the
  * package in `<root>/node_modules/playwright` and the engine imports it from there by path. One path for both, so that the
  * bundler never sees a literal `import('playwright')` to pull into the executable.
  */

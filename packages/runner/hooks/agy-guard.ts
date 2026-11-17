@@ -47,6 +47,6 @@ export async function main(policyPath: string = process.argv[2]!): Promise<void>
     }
   }
 }
-/** the hook as `foundry hook agy-guard <policy>` runs it (ADR-0101); the file itself is run by Bun from a checkout */
+/** the hook as `foundry hook agy-guard <policy>` runs it (ADR-0104); the file itself is run by Bun from a checkout */
 export const run = (args: string[] = process.argv.slice(2)): Promise<void> => main(args[0]!).catch(() => deny('Foundry could not verify this tool call; stop the session.'));
 if (import.meta.main) void run();

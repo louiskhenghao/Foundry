@@ -1,5 +1,5 @@
 /**
- * Version self-knowledge and the self-update pipeline (ADR-0010, ADR-0101).
+ * Version self-knowledge and the self-update pipeline (ADR-0010, ADR-0104).
  * The version source is the public releases repository's GitHub Releases, for every deployment mode (the main repo may be
  * private; the releases repo is not), and the changelog comes from the same repo. Docker self-update goes through the
  * watchtower sidecar; a git checkout pulls, installs and builds with automatic rollback; a release install — the macOS
@@ -71,7 +71,7 @@ const FETCH_TIMEOUT_MS = 10_000;
 const DOWNLOAD_TIMEOUT_MS = 30 * 60_000;
 const USER_AGENT = 'foundry-updater';
 export const RELEASES_PAGE = 'https://github.com/louiskhenghao/foundry-releases/releases';
-/** the engine's exit code when a downloaded release waits in updates/ready.json for the menu bar app to install (ADR-0101) */
+/** the engine's exit code when a downloaded release waits in updates/ready.json for the menu bar app to install (ADR-0104) */
 export const UPDATE_READY_EXIT = 75;
 export const SHA256SUMS = 'SHA256SUMS';
 
@@ -382,7 +382,7 @@ export class UpdateManager {
   }
 
   /**
-   * A release install (ADR-0101): download this computer's file, check it against SHA256SUMS, unpack it under the data
+   * A release install (ADR-0104): download this computer's file, check it against SHA256SUMS, unpack it under the data
    * folder's updates/. The app writes updates/ready.json and exits 75 so the menu bar app swaps the bundle and starts it
    * again; a tarball install moves the new version beside the old one, repoints `current` and restarts.
    */

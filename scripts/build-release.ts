@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Build the release files (ADR-0101): one `foundry` executable per platform with its `resources/` folder beside it, packed
+ * Build the release files (ADR-0104): one `foundry` executable per platform with its `resources/` folder beside it, packed
  * as a tarball, plus SHA256SUMS. The macOS executable is universal (arm64 + x86_64 through lipo); each thin slice is signed
  * ad-hoc first, because Bun's cross-compiled output carries the stale signature of the Bun it was made from, which the
  * kernel refuses to map. Run from the repository root; the macOS target needs a Mac with Xcode's command line tools

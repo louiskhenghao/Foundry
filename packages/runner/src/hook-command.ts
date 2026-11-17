@@ -1,5 +1,5 @@
 /**
- * How one of Foundry's TypeScript hooks is started (ADR-0101). From a checkout the runtime is the Bun that runs Foundry:
+ * How one of Foundry's TypeScript hooks is started (ADR-0104). From a checkout the runtime is the Bun that runs Foundry:
  * `<bun> <hooks>/<name>.ts`. A compiled binary carries the hooks inside it and runs one as `<foundry> hook <name>`, since
  * nothing says a computer with the app has Bun. The shell hooks (boundary-guard.sh, canary.sh) need no runtime.
  */

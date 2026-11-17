@@ -1,5 +1,5 @@
 /**
- * One-command release (ADR-0010, ADR-0101): bump the product version, tag, publish the changelog to the public releases
+ * One-command release (ADR-0010, ADR-0104): bump the product version, tag, publish the changelog to the public releases
  * repo, build the release files (the executables with their resources, per platform) into a draft GitHub Release there,
  * push the multi-arch image to Docker Hub, then publish the GitHub Release — which is the moment deployed instances can
  * see the new version (they read GitHub Releases).
@@ -121,7 +121,7 @@ if (alreadyLogged) {
 const ahead = Number((await run(['git', 'rev-list', '--count', '@{u}..HEAD'], { cwd: RELEASES_DIR })).out.trim() || '0');
 if (ahead > 0) await git(['push'], RELEASES_DIR);
 
-// ---------- the release files (ADR-0101), as a draft GitHub Release of the public releases repo: unseen until published ----------
+// ---------- the release files (ADR-0104), as a draft GitHub Release of the public releases repo: unseen until published ----------
 const DIST = join(ROOT, 'dist', 'release', next);
 await run(['bun', 'scripts/build-release.ts', '--out', join(ROOT, 'dist', 'release')]);
 const assets = readdirSync(DIST).filter((f) => /\.(tar\.gz|zip|dmg)$/.test(f) || f === 'SHA256SUMS').map((f) => join(DIST, f));

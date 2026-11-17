@@ -10,7 +10,7 @@ import { calibrate, listAttemptsByGoal, listGoals, listTasks, listUsageSince, ty
 import { budgetStatus } from './budget.ts';
 import { estimateSamples } from './calibration.ts';
 import type { Engine } from './engine.ts';
-import type { Report, ReportBucket, ReportEstimate, ReportGoals, ReportKind, ReportMiss, ReportRepo, ReportRetries, ReportSpend } from './usage/types.ts';
+import type { Report, ReportBucket, ReportContext, ReportCuts, ReportEstimate, ReportGoals, ReportKind, ReportMiss, ReportRepo, ReportRetries, ReportSpend } from './usage/types.ts';
 
 const DAY = 86_400_000;
 const FINISHED = new Set<Goal['state']>(['done', 'over_delivered']);
@@ -60,6 +60,37 @@ function retries(engine: Engine, goals: Goal[]): ReportRetries {
 }
 
 const estimate = (samples: EstimateSample[]): ReportEstimate => ({ ...calibrate(samples), samples: samples.length });
+
+/** how a session ends when a limit stops it, by the limit (Settings → Models & limits; the idle limit is five silent minutes) */
+const CUT_BY: Record<string, keyof ReportCuts['byLimit']> = { killed_timeout: 'time', killed_idle: 'idle', error_max_turns: 'turns', error_max_budget_usd: 'cost' };
+/** the sessions a limit stopped and their share of the session time: each one resumes with its whole context read again */
+function cuts(rows: UsageRow[]): ReportCuts {
+  const byLimit = { time: 0, idle: 0, turns: 0, cost: 0 };
+  let sessions = 0;
+  let durationMs = 0;
+  for (const r of rows) {
+    const limit = CUT_BY[r.subtype];
+    if (!limit) continue;
+    byLimit[limit]++;
+    sessions++;
+    durationMs += r.duration_ms;
+  }
+  const total = rows.reduce((a, r) => a + r.duration_ms, 0);
+  return { sessions, durationMs, share: total > 0 ? durationMs / total : null, byLimit };
+}
+/** what a turn of a Claude Code session read on average — every turn reads its whole context again — and what sessions started with */
+function context(rows: UsageRow[]): ReportContext {
+  const counted = rows.filter((r) => claude(r) && (r.turns ?? 0) > 0 && r.context_tokens != null);
+  const turns = counted.reduce((a, r) => a + r.turns!, 0);
+  const tokens = counted.reduce((a, r) => a + r.context_tokens!, 0);
+  const starts = counted.filter((r) => r.start_context != null);
+  return {
+    perTurn: turns ? Math.round(tokens / turns) : null,
+    atStart: starts.length ? Math.round(starts.reduce((a, r) => a + r.start_context!, 0) / starts.length) : null,
+    sessions: counted.length,
+    turns,
+  };
+}
 
 const round2 = (x: number) => Math.round(x * 100) / 100;
 const off = (factor: number | null) => (factor == null || !(factor > 0) ? 0 : Math.abs(Math.log(factor)));
@@ -167,7 +198,7 @@ export function buildReport(engine: Engine, opts: { days: number | null; now?: n
     now: new Date(now).toISOString(),
     window: { days: opts.days, from: new Date(from).toISOString(), to: new Date(now).toISOString() },
     step,
-    totals: { ...total, goals: goalCounts(goals), activeMin: minutes(goals), retries: retries(engine, goals), estimate: estimate(samples), noGoal: spend(rows.filter((r) => !repoOf(r))) },
+    totals: { ...total, goals: goalCounts(goals), activeMin: minutes(goals), retries: retries(engine, goals), estimate: estimate(samples), noGoal: spend(rows.filter((r) => !repoOf(r))), cuts: cuts(rows), context: context(rows) },
     series: series(rows, goals, from, now, step),
     repos,
     kinds,

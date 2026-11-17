@@ -1,6 +1,6 @@
 # Releasing
 
-A **Release** is one stable semver shared by every package: the `version` in the root `package.json`. Deployed instances learn about it from the public repo **`louiskhenghao/foundry-releases`** ([ADR-0010](adr/0010-self-update-via-docker-hub-and-watchtower.md), [ADR-0101](adr/0101-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)):
+A **Release** is one stable semver shared by every package: the `version` in the root `package.json`. Deployed instances learn about it from the public repo **`louiskhenghao/foundry-releases`** ([ADR-0010](adr/0010-self-update-via-docker-hub-and-watchtower.md), [ADR-0104](adr/0104-foundry-ships-as-compiled-binaries-with-its-files-beside-them.md)):
 
 - its **GitHub Releases**, the version source: one release per version, carrying the release files — `foundry-<version>-darwin-universal.tar.gz`, `foundry-<version>-linux-x64.tar.gz`, `foundry-<version>-linux-arm64.tar.gz` (each a compiled `foundry` with its `resources/` folder) and `SHA256SUMS`
 - its `CHANGELOG.md`, the notes, which instances read without authentication because the main repo may be private

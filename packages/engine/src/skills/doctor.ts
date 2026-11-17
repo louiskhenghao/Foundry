@@ -80,7 +80,7 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
 
   const git = which('git');
   checks.push(git ? ok('git', 'git', git) : err('git', 'git', 'git not found on PATH', { command: 'xcode-select --install', url: 'https://git-scm.com/downloads' }));
-  // a compiled foundry carries its runtime (ADR-0101): nothing to find on PATH
+  // a compiled foundry carries its runtime (ADR-0104): nothing to find on PATH
   const embedded = installRoot().kind !== 'checkout';
   const bun = embedded ? process.execPath : which('bun');
   const runtime = ctx.runtimeVersion ?? (typeof Bun !== 'undefined' ? Bun.version : null);

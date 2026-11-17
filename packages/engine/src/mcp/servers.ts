@@ -48,6 +48,52 @@ function pluginServers(installPath: string): Record<string, Config> {
   return m && typeof m === 'object' ? m : {};
 }
 
+/** The plugins Claude Code loads everywhere: installed for the user and not switched off in its settings. */
+function enabledPlugins(claudeHome: string): { id: string; plugin: string; path: string }[] {
+  const registry = readJson(join(claudeHome, 'plugins', 'installed_plugins.json'));
+  const enabled = readJson(join(claudeHome, 'settings.json'))?.enabledPlugins ?? {};
+  const out: { id: string; plugin: string; path: string }[] = [];
+  for (const [id, recs] of Object.entries<any>(registry?.plugins ?? registry ?? {})) {
+    if (enabled[id] === false) continue;
+    // a plugin installed for one project (scope project/local) is not loaded everywhere
+    const rec = (Array.isArray(recs) ? recs : [recs]).find((r) => r?.installPath && (r.scope ?? 'user') === 'user');
+    if (!rec) continue;
+    out.push({ id, plugin: id.split('@')[0]!, path: isAbsolute(rec.installPath) ? rec.installPath : join(claudeHome, 'plugins', rec.installPath) });
+  }
+  return out;
+}
+
+/** a variable Claude Code sets only for a plugin's own server: a server handed over by hand would read it empty */
+const PLUGIN_VARIABLE = /\$\{CLAUDE_PLUGIN_[A-Z_]*\}/;
+const PLUGIN_ROOT = '${CLAUDE_PLUGIN_ROOT}';
+
+/**
+ * The MCP servers a lean session is handed with --strict-mcp-config (ADR-0102): each server Claude Code would load whose
+ * tools the session may call, under the name it has natively so its tools keep their names — a user-scope server as
+ * .claude.json has it, a plugin's as `plugin_<plugin>_<server>` with its ${CLAUDE_PLUGIN_ROOT} written out (Claude Code
+ * expands ${VAR} and ${VAR:-default} in it as in a .mcp.json). `wanted` holds tool prefixes (mcp__<server>) or tool
+ * names. null when a wanted server cannot be handed over that way — a claude.ai connector, a plugin server that reads
+ * another plugin variable — and the session keeps the servers Claude Code loads itself. A repository's own .mcp.json is
+ * never read: it is the repository's, and Claude Code asks before it runs one.
+ */
+export function strictServers(claudeHome: string, wanted: readonly string[], claudeJson = defaultClaudeJson()): { mcpServers: Record<string, unknown> } | null {
+  const wants = (prefix: string) => wanted.some((w) => w === prefix || w.startsWith(`${prefix}__`));
+  const cfg = readJson(claudeJson) ?? {};
+  for (const name of Array.isArray(cfg.claudeAiMcpEverConnected) ? cfg.claudeAiMcpEverConnected : []) if (typeof name === 'string' && wants(userPrefix(name))) return null;
+  const out: Record<string, unknown> = {};
+  for (const [name, c] of Object.entries<Config>(cfg.mcpServers ?? {})) if (wants(userPrefix(name))) out[name] = c;
+  for (const { plugin, path } of enabledPlugins(claudeHome)) {
+    for (const [name, c] of Object.entries<Config>(pluginServers(path))) {
+      if (!wants(pluginPrefix(plugin, name))) continue;
+      // the path as it reads inside a JSON string; split/join, as a replacement string would read `$` in it
+      const text = JSON.stringify(c).split(PLUGIN_ROOT).join(JSON.stringify(path).slice(1, -1));
+      if (PLUGIN_VARIABLE.test(text)) return null;
+      out[`plugin_${plugin}_${name}`] = JSON.parse(text);
+    }
+  }
+  return { mcpServers: out };
+}
+
 /**
  * Every MCP server Claude Code would load, read from its files (ADR-0016): user scope in .claude.json, servers shipped
  * by enabled plugins, and claude.ai connectors. No server is started.
@@ -58,15 +104,7 @@ export function listServers(claudeHome: string, allowed: readonly string[], clau
   const cfg = readJson(claudeJson) ?? {};
   for (const [name, c] of Object.entries<Config>(cfg.mcpServers ?? {})) out.push(row({ name, source: 'user', plugin: null, prefix: userPrefix(name), ...describe(c) }));
 
-  const registry = readJson(join(claudeHome, 'plugins', 'installed_plugins.json'));
-  const enabled = readJson(join(claudeHome, 'settings.json'))?.enabledPlugins ?? {};
-  for (const [id, recs] of Object.entries<any>(registry?.plugins ?? registry ?? {})) {
-    if (enabled[id] === false) continue;
-    // a plugin installed for one project (scope project/local) is not loaded everywhere
-    const rec = (Array.isArray(recs) ? recs : [recs]).find((r) => r?.installPath && (r.scope ?? 'user') === 'user');
-    if (!rec) continue;
-    const path = isAbsolute(rec.installPath) ? rec.installPath : join(claudeHome, 'plugins', rec.installPath);
-    const plugin = id.split('@')[0]!;
+  for (const { id, plugin, path } of enabledPlugins(claudeHome)) {
     for (const [name, c] of Object.entries<Config>(pluginServers(path))) out.push(row({ name, source: 'plugin', plugin: id, prefix: pluginPrefix(plugin, name), ...describe(c) }));
   }
 

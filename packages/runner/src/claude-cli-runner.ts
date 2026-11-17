@@ -2,6 +2,7 @@ import { EventQueue } from './event-queue.ts';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
+import { IdleWatch } from './idle-watch.ts';
 import { Semaphore } from './semaphore.ts';
 import { LineSplitter, decodeLine, decodeMessage, parseJson, skillNameFromToolUse } from './stream-codec.ts';
 import type { ClaudeRunner, RunHandle, RunResult, RunSpec, RunnerEvent } from './types.ts';
@@ -165,11 +166,8 @@ export class ClaudeCliRunner implements ClaudeRunner {
     };
 
     const wallTimer = setTimeout(() => kill('killed_timeout'), timeoutMs);
-    let idleTimer = setTimeout(() => kill('killed_idle'), idleMs);
-    const touch = () => {
-      clearTimeout(idleTimer);
-      idleTimer = setTimeout(() => kill('killed_idle'), idleMs);
-    };
+    // the idle limit (ADR-0101): silence counts only while no tool call is under way
+    const idle = new IdleWatch(idleMs, () => kill('killed_idle'));
 
     const readStdout = async () => {
       const splitter = new LineSplitter();
@@ -188,7 +186,9 @@ export class ClaudeCliRunner implements ClaudeRunner {
           if (ev.kind === 'init') sessionId = ev.sessionId;
           if (ev.kind === 'rate_limit') rateLimit = ev.info;
           if (ev.kind === 'result') lastResult = ev.result;
+          if (ev.kind === 'tool_result') idle.toolEnded(ev.toolUseId);
           if (ev.kind === 'tool_use') {
+            idle.toolStarted(ev.id);
             toolsUsed[ev.name] = (toolsUsed[ev.name] ?? 0) + 1;
             const skill = skillNameFromToolUse(ev);
             if (skill && !skillsUsed.includes(skill)) skillsUsed.push(skill);
@@ -199,7 +199,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
       for (;;) {
         const { value, done } = await reader.read();
         if (done) break;
-        touch();
+        idle.touch();
         for (const line of splitter.push(value)) handle(line);
       }
       for (const line of splitter.flush()) handle(line);
@@ -225,7 +225,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
         log(`[runner] stream error: ${err}`);
       } finally {
         clearTimeout(wallTimer);
-        clearTimeout(idleTimer);
+        idle.stop();
         this.running--;
         release();
         queue.close();
@@ -233,9 +233,11 @@ export class ClaudeCliRunner implements ClaudeRunner {
       const durationMs = Date.now() - started;
       if (lastResult) {
         const r = lastResult as RunResult;
-        return { ...r, costStatus: r.costStatus ?? 'reported', sessionId: r.sessionId ?? sessionId, durationMs, exitCode, pid: proc!.pid, rateLimit, subtype: killReason ?? r.subtype, skillsUsed: [...skillsUsed], toolsUsed: { ...toolsUsed } };
+        return { ...r, costStatus: r.costStatus ?? 'reported', sessionId: r.sessionId ?? sessionId, durationMs, exitCode, pid: proc!.pid, rateLimit, subtype: killReason ?? r.subtype, skillsUsed: [...skillsUsed], toolsUsed: { ...toolsUsed }, context: tally.context() };
       }
       const subtype = killReason ?? (exitCode === 0 ? 'no_result' : 'error_during_execution');
+      // what this run's turns read, from its stream alone: the session's own record holds a resumed session's earlier runs too
+      const context = tally.context();
       // No result line, so the CLI never said what the session cost. Count what the stream and the session's own
       // record say (turns, tokens, models) and leave the dollars unknown: never book a cut session as free.
       if (sessionId) tally.addAll(readSessionRecord(spec.configHome ?? this.home, sessionId));
@@ -248,6 +250,7 @@ export class ClaudeCliRunner implements ClaudeRunner {
         numTurns: tally.turns(),
         usage: measured ? tally.totals() : null,
         modelUsage: measured ? tally.byModel() : null,
+        context,
       };
     })();
 

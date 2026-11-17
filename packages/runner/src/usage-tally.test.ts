@@ -50,6 +50,15 @@ describe('UsageTally', () => {
     expect(t.turns()).toBe(0);
     expect(t.byModel()).toEqual({ 'claude-opus-5-5': { inputTokens: 2, outputTokens: 9, cacheReadInputTokens: 100, cacheCreationInputTokens: 50 } });
   });
+  test("what the main conversation's turns read: each turn's whole context, summed, and the first one's alone", () => {
+    const t = new UsageTally();
+    t.add(assistantUsage(line('m1', counts(6)))!);
+    t.add(assistantUsage(line('m2', counts(6, { cache_read_input_tokens: 900 })))!);
+    // a helper agent reads a context of its own: not a turn of this one
+    t.add(assistantUsage(line('m3', counts(6, { cache_read_input_tokens: 5000 }), { parent_tool_use_id: 'toolu_1' }))!);
+    expect(t.context()).toEqual({ turns: 2, tokens: 152 + 952, first: 152 });
+    expect(new UsageTally().context()).toEqual({ turns: 0, tokens: 0, first: null });
+  });
   test('empty: nothing counted', () => {
     const t = new UsageTally();
     expect(t.messages).toBe(0);

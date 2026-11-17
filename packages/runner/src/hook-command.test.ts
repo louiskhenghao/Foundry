@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { isCompiledBinary, tsHookArgv, tsHookCommand } from './hook-command.ts';
 
-describe('how a TypeScript hook is started (ADR-0101)', () => {
+describe('how a TypeScript hook is started (ADR-0104)', () => {
   test('a checkout runs the hook file with the Bun that runs Foundry', () => {
     expect(isCompiledBinary()).toBe(false);
     expect(tsHookArgv('/src/hooks', 'rm-guard')).toEqual([process.execPath, '/src/hooks/rm-guard.ts']);

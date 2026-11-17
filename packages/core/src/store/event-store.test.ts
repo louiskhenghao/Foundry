@@ -381,6 +381,20 @@ describe('rate limit state', () => {
   });
 });
 
+describe('the usage ledger', () => {
+  test("keeps what a session's turns read, and nothing for a session that did not say; a replay gives the same rows", async () => {
+    const { listUsageSince } = await import('./projections.ts');
+    const store = new EventStore(openDatabase(':memory:'));
+    const usage = (sessionId: string, context?: { turns: number; tokens: number; first: number | null }) => ({ sessionId, kind: 'attempt', model: 'opus', inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheCreateTokens: 0, costUsd: 0, durationMs: 1, subtype: 'success', rateLimit: null, skillsUsed: [], ...(context ? { context } : {}) });
+    store.append({ type: 'session.usage', goalId: null, payload: usage('s1', { turns: 12, tokens: 960_000, first: 47_000 }) });
+    store.append({ type: 'session.usage', goalId: null, payload: usage('s2') });
+    expect(listUsageSince(store.db, '1970-01-01T00:00:00.000Z').map((r) => [r.turns, r.context_tokens, r.start_context])).toEqual([[12, 960_000, 47_000], [null, null, null]]);
+    const before = store.snapshotReadModels();
+    store.replay();
+    expect(store.snapshotReadModels()).toEqual(before);
+  });
+});
+
 describe('goal rows written by an older Foundry', () => {
   test('read with the defaults of the fields added since: nothing replays the projections on an update', () => {
     const db = openDatabase(':memory:');

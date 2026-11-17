@@ -46,6 +46,6 @@ if (/^(Bash|exec_command|shell|shell_command)$/.test(name)) {
 }
 
 }
-/** the hook as `foundry hook codex-guard` runs it (ADR-0101); the file itself is run by Bun from a checkout */
+/** the hook as `foundry hook codex-guard` runs it (ADR-0104); the file itself is run by Bun from a checkout */
 export const run = (): Promise<void> => main().catch(() => deny('Foundry could not verify this tool call; stop the session.'));
 if (import.meta.main) void run();

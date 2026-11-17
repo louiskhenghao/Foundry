@@ -12,7 +12,7 @@ import { agyMeters, claudeMeters, codexMeters, type AccountMeters } from '@found
 import { installRoot } from '@foundry/engine/install-root';
 import { readFileSync } from 'node:fs';
 
-// a checkout runs from its tree; a compiled foundry finds its files beside the executable (ADR-0101)
+// a checkout runs from its tree; a compiled foundry finds its files beside the executable (ADR-0104)
 const INSTALL = installRoot();
 const ROOT = INSTALL.root;
 const argv = process.argv.slice(2);
@@ -595,6 +595,11 @@ switch (cmd) {
     console.log(`${r.window.days == null ? 'All time' : `Last ${r.window.days} days`}: ${usd(t.costUsd)} (Claude Code)  ${t.sessions} sessions  ${t.goals.finished}/${t.goals.total} goals finished (${t.goals.failed} failed, ${t.goals.cancelled} cancelled)  ${hours(t.activeMin)} worked`);
     console.log(`retries: ${pct(t.retries.rate)} of ${t.retries.tasks} tasks needed more than one attempt; ${t.retries.fixTasks} fix tasks`);
     console.log(`estimates: cost ${factor(t.estimate.cost)}, time ${factor(t.estimate.time)} (actual ÷ estimate over ${t.estimate.samples} goal${t.estimate.samples === 1 ? '' : 's'} with one)`);
+    // a server from before these were reported sends neither
+    const c = t.cuts;
+    if (c) console.log(`cut short: ${pct(c.share)} of session time (${c.sessions} session${c.sessions === 1 ? '' : 's'} stopped by a limit: ${c.byLimit.time} time, ${c.byLimit.idle} idle, ${c.byLimit.turns} turn cap, ${c.byLimit.cost} cost cap)`);
+    const x = t.context;
+    if (x) console.log(x.perTurn == null ? 'context per turn: — (recorded for Claude Code sessions from this version on)' : `context per turn: ${fmtK(x.perTurn)} tokens (Claude Code, ${x.turns} turns of ${x.sessions} sessions${x.atStart != null ? `; started with ${fmtK(x.atStart)}` : ''})`);
     if (r.repos.length) {
       console.log('by project:');
       for (const p of r.repos) console.log(`  ${p.name}: ${usd(p.costUsd)}  ${p.goals.finished}/${p.goals.total} finished  ${hours(p.activeMin)}  retries ${pct(p.retries.rate)}  estimate ${factor(p.estimate.cost)}/${factor(p.estimate.time)}`);
@@ -753,7 +758,7 @@ switch (cmd) {
     else console.log(`foundry ${version} (${INSTALL.kind} install: ${ROOT})`);
     break;
   }
-  // the hooks a compiled foundry carries, run by the coding agents' hook settings (ADR-0101); a checkout runs the files with Bun
+  // the hooks a compiled foundry carries, run by the coding agents' hook settings (ADR-0104); a checkout runs the files with Bun
   case 'hook': {
     const { hookRuns } = await import('@foundry/runner/hooks');
     const run = hookRuns[rest[0] as keyof typeof hookRuns];

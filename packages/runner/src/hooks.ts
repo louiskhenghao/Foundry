@@ -1,5 +1,5 @@
 /**
- * Foundry's TypeScript hooks as callable entry points, for the compiled binary's `foundry hook <name>` (ADR-0101): a
+ * Foundry's TypeScript hooks as callable entry points, for the compiled binary's `foundry hook <name>` (ADR-0104): a
  * checkout runs the files themselves with Bun. Each takes the arguments after the name and reads its event from stdin.
  */
 import { run as agyGuard } from '../hooks/agy-guard.ts';

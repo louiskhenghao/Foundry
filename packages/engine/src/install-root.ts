@@ -1,5 +1,5 @@
 /**
- * Where this Foundry's own files are (ADR-0101): the roles, the catalog, the templates, the hooks, the guide, the built UI,
+ * Where this Foundry's own files are (ADR-0104): the roles, the catalog, the templates, the hooks, the guide, the built UI,
  * the root package.json that carries the version.
  *
  * A git checkout runs from its own tree (`bun apps/cli/src/main.ts serve`). A compiled binary (`bun build --compile`) has no

@@ -13,7 +13,7 @@ const goalRecord = (id: string, title: string, state: Goal['state']) => {
   return Goal.parse({ id, title, prompt: 'p', repoPath: '/repo', baseBranch: 'main', branch: `goal/${id}`, budgets: {}, models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state, stateBeforeBlock: null, costUsd: 0, fixCycles: 0, runningSince: null, createdAt: now, updatedAt: now });
 };
 
-describe('the default data folder of a release install (ADR-0101)', () => {
+describe('the default data folder of a release install (ADR-0104)', () => {
   test("a checkout keeps data/ in its tree; the app and a tarball use the platform's place for application data", () => {
     expect(defaultDataDir(ROOT, 'claude', { kind: 'checkout' })).toBe(join(ROOT, 'data'));
     expect(defaultDataDir(ROOT, 'codex', { kind: 'checkout' })).toBe(join(ROOT, 'data-codex'));

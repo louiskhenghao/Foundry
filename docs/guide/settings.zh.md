@@ -183,15 +183,16 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 | 设置 | 默认 | 作用 |
 |---|---|---|
 | **Claude cost cap per session (USD)** | 10 | Claude worker 花到这个数就停（也不会超过 goal 剩余预算）。Codex 没有美元上限。 |
-| **Attempt timeout (minutes)** | 20 | 运行超过这个时间的会话会被停止。它已提交的内容会保留；Foundry 会续接或重试。 |
+| **Attempt timeout (minutes)** | 45 | 运行超过这个时间的会话会被停止。它已提交的内容会保留；Foundry 会续接或重试。worker 会被告知这个上限。没有工具调用在进行、却 5 分钟没有输出的会话会更早被停止。 |
 | **Continuations per attempt** | 2 | 被停止的会话在开始新尝试之前最多续接几次（续接更便宜，会保留它读过的内容）。 |
 | **Turn cap per session** | 150 | Claude 的模型轮数；Codex 的工具调用次数；Antigravity 每轮允许三次工具调用，因为它每读一个文件就调用一次工具。设宽松一点。 |
-| **Concurrent agent sessions** | 3 | 两种编码智能体的所有 goal 加起来同时运行的会话总数。 |
+| **Concurrency** | Fixed | **Fixed** 最多同时跑 **Concurrent agent sessions** 个会话。**Auto** 根据这台电脑自己算，并且每 30 秒重算一次：核心数的一半，内存超过 4 GB 的部分每 2 GB 一个会话，最多 16 个；电脑忙到超出核心数能承受时减半。在 **Auto** 下，某个编码智能体的账号 5 小时窗口用到 90% 时，它一次只跑一个任务，直到窗口重置，这样上限只会切断一个会话而不是好几个；如果打开了 **Switch accounts when a usage limit stops a session** 且还有空闲账号，就照常运行。设置下面那行会说现在同时跑几个、为什么。 |
+| **Concurrent agent sessions** | 3 | **Concurrency** 为 **Fixed** 时，两种编码智能体的所有 goal 加起来同时运行的会话总数。每个 goal 还有自己的 **Parallel sessions**。 |
 | **Reference investigation: cost cap** | $3 | Clarify 之前用 REA 调查 goal 参考对象的会话到这个花费就停下，把已有的发现写成报告。 |
 | **Reference investigation: minutes** | 20 | 它的时间上限。 |
 | **Account switch on a usage limit** | 关 | 用量上限是否把新会话转到这个编码智能体的下一个账号。这里只显示，在 Accounts 页面打开：见 [多个账号](./costs-and-usage.zh.md#多个账号)。 |
 
-什么时候改：如果大任务总是被中途截断，调高超时或 Claude 费用上限；如果你经常碰到套餐的用量上限，调低 **Concurrent agent sessions**。
+什么时候改：如果大任务总是被中途截断，调高超时或 Claude 费用上限；如果你经常碰到套餐的用量上限，调低 **Concurrent agent sessions**，或者把 **Concurrency** 设成 **Auto**，让电脑和 5 小时窗口来决定。
 
 ## Skills
 
@@ -201,6 +202,7 @@ skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foun
 - **Setting sources**（仅 Claude）：会话加载哪些 Claude Code 设置。留空。
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
 - **MCP tools that run or change things**（关）：让会话使用已允许的 MCP server 里会运行或改动东西的工具。对 REA 来说：启动目标程序、挂调试器、操作连接的 Android 设备。关着时会话只能做静态分析。
+- **Lean sessions**（仅 Claude，关）：Claude Code 会话只加载 Foundry 给它的东西：它可以用的 MCP server，别的都不加载；不加载 claude.ai 连接器（Gmail、Drive……），除非你允许了某个；也不加载你自己装、不是 Foundry 装的 skill。这样每一轮读的都更少。在一台有五个 MCP server、四个 claude.ai 连接器和七十个自装 skill 的机器上，server 全部允许时，会话起步少 6% 的 token；只允许默认那一个时少 15%。你的设置、登录、`CLAUDE.md`、plugin 和 hook 都保留，goal 文件夹里的项目 skill 也保留。Codex 和 Antigravity 的会话不变。
 - **Design skills**、**Image skills**、**Video skills**（以及打开 [Figure goals、Diagram goals 或 Deck goals](#beta) 后的 **Figure skills**、**Diagram skills** 或 **Deck skills**）：每类选一个包；只有这个包会交给前端、图片、视频、figure、diagram 或 deck 任务。Figure 包的两个技能随 Foundry 附带，安装就是复制、不用下载，而且一个 goal 可以在 New goal 表单上选另一种已安装的风格；见 [Figure goal](./figures.zh.md)。Diagram 包的技能从它的仓库克隆一个固定版本；见 [Diagram goal](./diagrams.zh.md)。Deck 包的技能克隆一个固定发布版，并在数据文件夹下用 uv 得到一个专属的 Python 环境；见 [Deck goal](./decks.zh.md)。每个包显示 **installed** 或 **N missing**，并带一个 **Install** 按钮。选包会立即保存。代码 goal 可以在 New goal 表单上（**Design skills**）或用 `--design-pack` 另选一个设计包；附了设计参考时，包只补设计稿没定的部分（见[带上你自己的设计稿](./bringing-your-own-design.zh.md)）。图片包只有在 [Tools & keys](#tools--keys) 里有 key 时，才能生成真正的图片。已安装的技能缺少它需要的 key 时，它的卡片上会显示 **⚠ key missing**，写明是哪个 key、缺了它会少什么；点它就会跳到 **Tools & keys**。
 - **Memory**——记住每个文件夹的 goal 做过什么、学到什么的 Hindsight 服务器——不在这里设置，而是在 Extensions 页面的 MCP servers 标签页（这张卡片上有链接过去）；每个文件夹的开关在 Learnings 页面上。见 [Memory](./memory.zh.md)。
 
@@ -255,7 +257,7 @@ MCP server 让 Claude Code 能用文件和命令行以外的工具，比如最�
 
 有些 server 要先连上账号才能用。claude.ai 连接器（Gmail、Google Drive……）有一个 **Connect** 按钮：它会打开 claude.ai，你在那里用它该用的账号授权；Claude Code 和 Foundry 共用这个连接。通过 URL 访问的 server 有 **Sign in**：会在运行 Foundry 的电脑上打开浏览器；如果那里没有浏览器（Docker），你就自己打开链接，再把浏览器最后停在的地址贴回来。如果登录没法在 Foundry 里完成，窗口会给出一条在你自己终端里运行的命令（比如 `claude mcp login context7`），带复制按钮。按过 **Check** 之后，还需要这样做的 server 会显示 **needs auth** 和一个 **Set up** 按钮。
 
-goal 运行时不会问你，所以只有勾上 **Allowed in goals** 的 server，它的工具才会被 goal 用到，而且只在真正干活的会话里，Clarify 和审查都不会用。你自己装的 server 和 claude.ai 连接器默认不勾：邮箱连接器可能会自己发邮件。
+goal 运行时不会问你，所以只有勾上 **Allowed in goals** 的 server，它的工具才会被 goal 用到，而且只在真正干活的会话里，Clarify 和审查都不会用。你自己装的 server 和 claude.ai 连接器默认不勾：邮箱连接器可能会自己发邮件。在 [Skills](#skills) 下打开 **Lean sessions** 后，没勾的 server 在会话里根本不会启动，对 goal 没有任何开销。
 
 **Recommended by Foundry** 列出值得装的 server。**context7**（库的最新文档）和 **playwright**（一个真的浏览器）不需要 key，是推荐项；它们没装时 Setup 会提醒你。**exa** 和 **brave-search** 给调研类 goal 加上网页搜索，需要 key：按 **Install…**，贴上 key，再按 **Install**。两个装一个就够了。从这里装的 server 会直接允许 goal 使用。
 

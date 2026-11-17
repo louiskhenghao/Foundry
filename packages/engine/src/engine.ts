@@ -142,7 +142,7 @@ import { copyProjectSkills, hasStackManifest, runAutoskills, type AutoskillsDeps
 import { artifactsDue, deliverArtifacts, inferCompletion, runGraphRefresh, shouldRunGraphRefresh, type GraphRefreshDeps } from './completion.ts';
 import { stuckCommits, takeBackOrphaned, takeBackStuck } from './take-back.ts';
 import { cadModelIn, recoverOverlays } from './goal-artifacts.ts';
-import type { Learning, SettingsPatch, SettingsView, DeployProvider, DeployHostProvider, DeployReadiness, RecipeRun, ServerRecipe } from '@foundry/core';
+import type { ConcurrencyView, Learning, SettingsPatch, SettingsView, DeployProvider, DeployHostProvider, DeployReadiness, RecipeRun, ServerRecipe } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
@@ -167,7 +167,9 @@ import { SessionCosts } from './session-costs.ts';
 import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
 import { workerTools } from './guards/boundary.ts';
 import { DESKTOP_APPS_PATTERNS, SLICER_APP_PATTERNS, SLICER_HEADLESS_PATTERNS } from './guards/patterns.ts';
-import { pluginServerPrefix } from './mcp/servers.ts';
+import { pluginServerPrefix, strictServers } from './mcp/servers.ts';
+import { CONNECTOR_PREFIX, leanSettings, ownSkillNames, projectSkillNames } from './lean-sessions.ts';
+import { autoConcurrency, fiveHourSignal, readMachine, windowHeld, windowHoldReason, type AutoConcurrency, type Machine, type WindowSignal } from './concurrency.ts';
 import { serverBaseArgs } from './skills/installer.ts';
 import { MOTION_STUDIO, exportHouseStyle, motionStudioCheck } from './motion-studio.ts';
 import { HYPERFRAMES, hyperframesCheck } from './hyperframes.ts';
@@ -513,11 +515,13 @@ export class Engine {
         run: async (spec) => {
           if (provider === 'codex') this.validateCodexChoice(spec.model, spec.effort);
           const suite = await this.suiteFor(spec, provider);
+          // a lean session loads only what Foundry gives it (ADR-0102)
+          const lean = provider === 'claude' && this.config.leanSessions ? this.leanSpec(spec) : {};
           // the current account of the coding agent runs the session; an added one in its own home (ADR-0065), where
           // Claude Code finds no user-scope MCP servers of the native sign-in unless handed them
           const account = isPooled(provider) ? this.accountPool.forRun(provider) : null;
-          const home = account?.home ? { configHome: account.home, ...(provider === 'claude' && !spec.strictMcp ? { mcpConfig: this.nativeMcpServers() } : {}) } : {};
-          const full = { ...spec, ...suite, ...home, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
+          const home = account?.home ? { configHome: account.home, ...(provider === 'claude' && !(lean.strictMcp ?? spec.strictMcp) ? { mcpConfig: this.nativeMcpServers() } : {}) } : {};
+          const full = { ...spec, ...suite, ...lean, ...home, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
           // Claude Code reports a resumed session's whole cost; Codex reports none worth correcting
           const handle = await (provider === 'claude' ? sessionCosts.run(full, (s) => inner.run(s)) : inner.run(full));
           return account ? { ...handle, result: handle.result.then((r) => ({ ...r, accountId: account.id })) } : handle;
@@ -551,6 +555,7 @@ export class Engine {
       const named = AgentProvider.safeParse(spec.meta?.provider);
       return named.success ? named.data : config.provider;
     }, config.maxConcurrent);
+    this.appliedLimit = config.maxConcurrent;
     this.roles = new Roles(config.rolesDir);
     const makeSkills = (provider: AgentProvider) => new SkillsManager({
       provider, codexBin: config.codexBin, codexHome: config.codexHome, agyBin: config.agyBin,
@@ -933,7 +938,7 @@ export class Engine {
   // ---------- settings ----------
 
   settingsView(): SettingsView {
-    return this.settings.view();
+    return { ...this.settings.view(), concurrency: this.concurrencyView() };
   }
   /** Validate, persist and hot-apply a settings patch; restart-only keys are persisted and reported. */
   updateSettings(patch: SettingsPatch): SettingsView {
@@ -947,7 +952,7 @@ export class Engine {
     }
     const { changed, view } = this.settings.update(patch);
     this.applySettingsChange(changed);
-    return view;
+    return { ...view, concurrency: this.concurrencyView() };
   }
   /**
    * Settings sections taken from another Foundry (Transfer, ADR-0030): each chosen section becomes what it saved there,
@@ -1021,7 +1026,7 @@ export class Engine {
     const modelsBefore = { ...this.config.models };
     applySettingsToConfig(this.config, this.settings.values(), new Set(changed.filter((key) => !['engine.provider', 'engine.codexBin', 'engine.codexHome'].includes(key))));
     if (changed.some((k) => k.startsWith('models.'))) this.propagateModels(modelsBefore);
-    if (changed.includes('engine.maxConcurrent')) this.runner.setMaxConcurrent?.(this.config.maxConcurrent);
+    if (changed.includes('engine.maxConcurrent') || changed.includes('engine.concurrency')) this.applyConcurrency();
     if (changed.includes('tools.useGraphify')) {
       this.context = this.buildContext();
       this.config.log(`[engine] context provider: ${this.context.name}`);
@@ -1293,6 +1298,12 @@ export class Engine {
     }, this.settings.values().delivery.storePollMin * 60_000);
     this.storeWatchTimer.unref?.();
     void checkStoreDeploys(this).catch((err) => this.config.log(`[deploy] the store watch failed: ${String((err as Error).message ?? err)}`));
+    // Concurrency (ADR-0103): Auto reads the machine now and again every half minute
+    this.applyConcurrency();
+    this.concurrencyTimer = setInterval(() => {
+      if (!this.stopped && this.config.concurrency === 'auto') this.applyConcurrency();
+    }, 30_000);
+    this.concurrencyTimer.unref?.();
     this.telegram.start();
     this.discord.start();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
@@ -1301,6 +1312,15 @@ export class Engine {
   private prWatchTimer: ReturnType<typeof setInterval> | null = null;
   private scheduleTimer: ReturnType<typeof setInterval> | null = null;
   private storeWatchTimer: ReturnType<typeof setInterval> | null = null;
+  private concurrencyTimer: ReturnType<typeof setInterval> | null = null;
+  /** the session limit the runners hold now: Settings' number, or what auto concurrency read from the machine (ADR-0103) */
+  private appliedLimit: number;
+  /** Auto: the machine as last read and what it carries */
+  private autoNow: (AutoConcurrency & Machine) | null = null;
+  /** the 5-hour window each account's last session reported, by `<provider>:<account>` (ADR-0103) */
+  private windows = new Map<string, WindowSignal>();
+  /** goals already told their coding agent runs one task at a time, by goal and window */
+  private windowNoted = new Set<string>();
   /** start() is putting right what the last run left (orphaned attempts, overlays): no goal runs meanwhile */
   private reconciling = false;
   private deliveryRefreshAt = new Map<string, number>();
@@ -1428,6 +1448,7 @@ export class Engine {
     if (this.prWatchTimer) clearInterval(this.prWatchTimer);
     if (this.scheduleTimer) clearInterval(this.scheduleTimer);
     if (this.storeWatchTimer) clearInterval(this.storeWatchTimer);
+    if (this.concurrencyTimer) clearInterval(this.concurrencyTimer);
     for (const timer of this.resumeTimers.values()) clearTimeout(timer);
     this.resumeTimers.clear();
     for (const account of Object.values(this.accounts)) account.cancelLogin();
@@ -1620,6 +1641,7 @@ export class Engine {
         rateLimit: result.rateLimit ? { status: result.rateLimit.status, resetsAt: result.rateLimit.resetsAt, rateLimitType: result.rateLimit.rateLimitType, isUsingOverage: result.rateLimit.isUsingOverage } : null,
         skillsUsed: result.skillsUsed ?? [],
         ...(result.accountId ? { accountId: result.accountId } : {}),
+        ...(result.context?.turns ? { context: result.context } : {}),
       },
     });
     // a skill the session chose itself, which no prompt of the goal named: into the goal's record as installed now (ADR-0098)
@@ -1631,7 +1653,72 @@ export class Engine {
         this.config.log(`[skills] ${meta.goalId}: could not record the invoked skills: ${String(err)}`);
       }
     }
+    // the 5-hour window the session's account had used, for auto concurrency's hold (ADR-0103)
+    const window = fiveHourSignal(result.rateLimit?.raw);
+    if (window) this.windows.set(`${provider}:${result.accountId ?? NATIVE_ACCOUNT}`, window);
     this.observeRateLimit(result, provider);
+  }
+
+  /**
+   * Applies Settings → Concurrency (ADR-0103): Fixed holds the runners at Concurrent agent sessions, Auto at what this
+   * machine carries now. Sessions running are never stopped: a lower limit holds the next ones back.
+   */
+  applyConcurrency(): void {
+    let limit = this.config.maxConcurrent;
+    if (this.config.concurrency === 'auto') {
+      const machine = (this.config.machine ?? readMachine)();
+      this.autoNow = { ...machine, ...autoConcurrency(machine) };
+      limit = this.autoNow.limit;
+    } else this.autoNow = null;
+    if (limit === this.appliedLimit) return;
+    this.appliedLimit = limit;
+    this.runner.setMaxConcurrent?.(limit);
+    const a = this.autoNow;
+    this.config.log(`[engine] concurrent sessions: ${limit}${a ? ` (auto: ${a.cpus} cores, ${Math.round(a.memGB)} GB${a.busy ? `, halved while the load is ${a.load1.toFixed(1)}` : ''})` : ''}`);
+  }
+
+  /** what Settings shows under Concurrency */
+  concurrencyView(): ConcurrencyView {
+    const now = Date.now();
+    const a = this.autoNow;
+    return {
+      mode: this.config.concurrency,
+      limit: this.appliedLimit,
+      ...(a ? { auto: { cap: a.cap, busy: a.busy, cpus: a.cpus, memGB: Math.round(a.memGB), load1: Math.round(a.load1 * 10) / 10 } } : {}),
+      held: AGENT_PROVIDERS.flatMap((provider) => {
+        const w = this.windowHold(provider, now);
+        return w ? [{ provider, utilization: w.utilization, resetsAt: new Date(w.resetsAt * 1000).toISOString() }] : [];
+      }),
+    };
+  }
+
+  /**
+   * The 5-hour window that holds a coding agent at one task at a time under auto concurrency (ADR-0103): its current
+   * account's last session said it was used 90% or more, and it has not reset. null with Fixed, below the mark, and when
+   * auto switch would move new sessions to another account with room left.
+   */
+  windowHold(provider: AgentProvider, now = Date.now()): WindowSignal | null {
+    if (this.config.concurrency !== 'auto') return null;
+    const account = isPooled(provider) ? this.accountPool.currentId(provider) : NATIVE_ACCOUNT;
+    const w = this.windows.get(`${provider}:${account}`);
+    if (!windowHeld(w, now)) return null;
+    if (isPooled(provider) && this.config.autoSwitch[provider] && this.accountPool.next(provider)) return null;
+    return w;
+  }
+
+  /** the tasks of a coding agent's goals at work now */
+  inFlightOf(provider: AgentProvider): number {
+    let n = 0;
+    for (const f of this.inFlight.values()) if ((getGoal(this.store.db, f.goalId)?.provider ?? this.config.provider) === provider) n++;
+    return n;
+  }
+
+  /** says once per goal and window why its tasks start one at a time */
+  noteWindowHold(goal: Goal, w: WindowSignal): void {
+    const key = `${goal.id}:${w.resetsAt}`;
+    if (this.windowNoted.has(key)) return;
+    this.windowNoted.add(key);
+    this.store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `Tasks start one at a time: ${windowHoldReason(w)}.` } });
   }
 
   private observeRateLimit(result: RunResult, provider: AgentProvider): void {
@@ -1681,14 +1768,43 @@ export class Engine {
     }
   }
 
+  /** the native sign-in's .claude.json: an added account's home has one of its own, with its sign-in in it */
+  private nativeClaudeJson(): string {
+    const dir = claudeConfigEnv(this.config.claudeHome).CLAUDE_CONFIG_DIR ?? process.env.CLAUDE_CONFIG_DIR;
+    return dir ? join(dir, '.claude.json') : join(homedir(), '.claude.json');
+  }
+
+  /** the person's own skills a lean session goes without, read at most every half minute (a scan reads every SKILL.md) */
+  private leanSkills: { at: number; names: string[] } | null = null;
+
+  /**
+   * What a lean Claude Code session gets on top of its spec (ADR-0102): flag settings that keep the claude.ai connectors
+   * and the person's own skills out, and the MCP servers it may use handed over explicitly under --strict-mcp-config —
+   * the ones its allowed tools name, else what its goal (or Settings) allows. A session that is strict already (Clarify,
+   * a replan) keeps its own MCP choice; one whose servers cannot all be handed over keeps the ones Claude Code loads.
+   */
+  leanSpec(spec: RunSpec): Pick<RunSpec, 'settings'> & Partial<Pick<RunSpec, 'strictMcp' | 'mcpConfig'>> {
+    const goal = spec.meta?.goalId ? getGoal(this.store.db, spec.meta.goalId) : null;
+    const wanted = (spec.allowedTools ?? (goal ? this.mcpAllowedFor(goal) : this.config.mcpAllowed)).filter((t) => t.startsWith('mcp__'));
+    const now = Date.now();
+    if (!this.leanSkills || now - this.leanSkills.at > 30_000) {
+      const skills = this.providerSkills.claude;
+      this.leanSkills = { at: now, names: ownSkillNames(skills.scan().installed, new Set(skills.catalog().entries.map((e) => e.name))) };
+    }
+    const project = new Set(projectSkillNames(spec.cwd));
+    const settings = leanSettings(spec.settings, { connectorsAllowed: wanted.some((t) => t.startsWith(CONNECTOR_PREFIX)), skillsOff: this.leanSkills.names.filter((n) => !project.has(n)) });
+    if (spec.strictMcp) return { settings };
+    const servers = strictServers(this.config.claudeHome, wanted, this.nativeClaudeJson());
+    return servers ? { settings, strictMcp: true, mcpConfig: { mcpServers: { ...servers.mcpServers, ...(spec.mcpConfig?.mcpServers ?? {}) } } } : { settings };
+  }
+
   /**
    * The user-scope MCP servers of the native Claude sign-in, for a session on an added account: they live in the native
    * .claude.json, and an account's home has a .claude.json of its own (its sign-in is in it).
    */
   private nativeMcpServers(): { mcpServers: Record<string, unknown> } | undefined {
-    const dir = claudeConfigEnv(this.config.claudeHome).CLAUDE_CONFIG_DIR ?? process.env.CLAUDE_CONFIG_DIR;
     try {
-      const servers = JSON.parse(readFileSync(dir ? join(dir, '.claude.json') : join(homedir(), '.claude.json'), 'utf8')).mcpServers;
+      const servers = JSON.parse(readFileSync(this.nativeClaudeJson(), 'utf8')).mcpServers;
       return servers && typeof servers === 'object' && Object.keys(servers).length ? { mcpServers: servers } : undefined;
     } catch {
       return undefined;
@@ -2138,6 +2254,10 @@ export class Engine {
     const running = tasks.filter((t) => inFlight.includes(t.id));
     const names = (ts: Task[]) => ts.map((t) => `"${t.title}"`).join(', ');
     if (inFlight.length >= goal.budgets.maxConcurrent) return { kind: 'capacity', reason: `every slot is taken (${names(running) || `${inFlight.length} running`})` };
+    // near the end of its 5-hour window a coding agent runs one task at a time (Concurrency: Auto, ADR-0103)
+    const provider = goal.provider ?? this.config.provider;
+    const held = this.windowHold(provider);
+    if (held && this.inFlightOf(provider) > 0) return { kind: 'capacity', reason: windowHoldReason(held) };
     // not a dependency: a task the Brief marked not parallelizable runs alone, so it waits for whatever runs now
     if (!task.parallelizable && inFlight.length > 0) return { kind: 'serial', reason: `it runs alone (not parallelizable), so it starts once ${names(running) || 'the running task'} ${running.length > 1 ? 'finish' : 'finishes'}; it does not depend on ${running.length > 1 ? 'them' : 'it'}` };
     const clash = running.find((x) => filesOverlap(task.relevantFiles, x.relevantFiles).length > 0);

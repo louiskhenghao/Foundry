@@ -59,7 +59,7 @@ export type DataDirSource = 'env' | 'config' | 'default';
 
 /**
  * The data folder a launch profile opens when nothing chose one: `data/` (`data-<provider>/`) in a checkout; a release install
- * (the macOS app, a tarball, ADR-0101) has no tree to keep data in, so it uses the platform's place for an application's
+ * (the macOS app, a tarball, ADR-0104) has no tree to keep data in, so it uses the platform's place for an application's
  * data — `~/Library/Application Support/Foundry` on macOS, `$XDG_DATA_HOME/foundry` (`~/.local/share/foundry`) elsewhere.
  */
 export function defaultDataDir(root: string, provider: AgentProvider, opts: { kind?: InstallKind; platform?: NodeJS.Platform; home?: string; env?: NodeJS.ProcessEnv } = {}): string {
