@@ -39,6 +39,21 @@ With the Foundry app on a Mac, Foundry lives in the menu bar: the **F** at the t
 
 Open the app again from the Applications folder or Spotlight while it runs, and the page opens.
 
+### Bring your goals over
+
+Did you run Foundry before, from source or in Docker, on this computer? The app finds it. While the app has no goals of
+its own, the **Goals** page shows **Bring your goals over**: where that Foundry is, its goals, and one button, **Move N
+goals here**. With more than one, pick which.
+
+The move pauses the goals at work there and waits for them, stops that Foundry, and copies everything here: goals,
+history, settings, attachments and worktrees. You watch each step. Then Foundry starts again on your goals, at the
+address the old one had, and the page follows it. **Move now** does not wait for the goals at work: the steps they are
+in start again here.
+
+The old Foundry stays as it is, as the backup: its folder (or its Docker container) gets a `MOVED.md` that says how to
+go back. If the move stops half way, nothing changes, and the old one runs again. **Settings → Engine (install)** keeps
+the same move for later.
+
 ### Check the Setup page
 
 Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on ⚙ means something is still missing). Select **Claude Code** or **Codex** on Setup. The checks, sign-in, fixes and recommended skill installation all target that coding agent; **Create your first goal** preserves the selection. Foundry shows a green or red line for each:

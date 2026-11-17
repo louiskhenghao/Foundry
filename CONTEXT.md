@@ -568,6 +568,10 @@ _Avoid_: tray, desktop app (the UI is not in it)
 What a checkout or a container does when the newest Release is a new major that ships only as the app and the binary ([ADR-0106](docs/develop/adr/0106-before-3-0-a-switch-not-an-update.md)): not an update but a change of how Foundry is installed, shown first in a risk dialog (what it does, the risks, the way back) and done only on a ticked box. A checkout's Foundry hands over to the new release's installer, which stops it, copies its data folder and starts the new install on the same port; a container gets the steps to run on its host.
 _Avoid_: upgrade, migration (the data copy is one step of it)
 
+**Move**
+Bringing an earlier Foundry's goals, settings and history into this install, from a checkout or a container on the same computer ([ADR-0107](docs/develop/adr/0107-a-move-from-an-earlier-install-takes-one-click.md)). The app and the binary find the earlier install themselves and offer it on the Goals page (*Bring your goals over*) and in Settings; `foundry migrate`, the installer and the Switch run the same move. It pauses the goals at work there, stops it, copies its data folders with their paths and worktree links pointed here, carries its settings, checks the copy, swaps it in and takes over its port. The earlier install stays as it is, as the backup; a failed move leaves both as they were.
+_Avoid_: migration (the CLI command keeps the name `foundry migrate`), import, Transfer (that one moves goals between computers)
+
 **Self-Update**
 The one-click path from a noticed Release to running it: the instance drains active work, replaces itself, and comes back on the new version — rolling back and staying put if any step fails. An instance that lacks the means to replace itself falls back to a Guided Update instead of failing.
 _Avoid_: auto-update, hot update
