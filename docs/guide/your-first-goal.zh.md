@@ -48,6 +48,7 @@ Foundry 运行时，从 Applications 文件夹或 Spotlight 再打开一次 app�
 
 搬迁会先暂停那边正在工作的 goal 并等它们停下，再停止那个 Foundry，然后把所有东西复制过来：goal、历史、设置、附件和 worktree。每一步你都能看到。
 之后 Foundry 在你的 goal 上重新启动，用的是旧 Foundry 的地址，页面会跟着过去。**Move now** 不等正在工作的 goal：它们正在做的那一步会在这边重新开始。
+用 Codex 或 Antigravity 做的 goal 会带上那个 coding agent 的启动配置（launch profile）：从此 app 就用它启动，和旧 Foundry 一样。
 
 旧的 Foundry 原样保留，作为备份：它的文件夹（或它的 Docker 容器）里会有一个 `MOVED.md`，写着怎么回去。搬到一半停下的话，什么都不会改变，旧的 Foundry
 会重新运行。**Settings → Engine (install)** 里随时都能再做同样的搬迁。

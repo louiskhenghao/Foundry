@@ -48,7 +48,8 @@ goals here**. With more than one, pick which.
 The move pauses the goals at work there and waits for them, stops that Foundry, and copies everything here: goals,
 history, settings, attachments and worktrees. You watch each step. Then Foundry starts again on your goals, at the
 address the old one had, and the page follows it. **Move now** does not wait for the goals at work: the steps they are
-in start again here.
+in start again here. Goals made with Codex or Antigravity bring that coding agent's launch profile: from then on the app
+starts with it, as the old Foundry did.
 
 The old Foundry stays as it is, as the backup: its folder (or its Docker container) gets a `MOVED.md` that says how to
 go back. If the move stops half way, nothing changes, and the old one runs again. **Settings → Engine (install)** keeps
