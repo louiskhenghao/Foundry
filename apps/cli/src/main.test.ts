@@ -177,7 +177,7 @@ describe('CLI report (ADR-0060)', () => {
     const estimate = { cost: { factor: 1.4, samples: 3, spread: 'tight' }, time: null, samples: 3 };
     const fixture = {
       now: '2026-10-21T12:00:00Z', window: { days: 90, from: '2026-07-23T12:00:00Z', to: '2026-10-21T12:00:00Z' }, step: 'week',
-      totals: { ...spend, goals: { total: 4, finished: 3, failed: 1, cancelled: 0, open: 0 }, activeMin: 150, retries, estimate, noGoal: { sessions: 0, costUsd: 0, unmeasured: 0, codexSessions: 0, durationMs: 0 } },
+      totals: { ...spend, goals: { total: 4, finished: 3, failed: 1, cancelled: 0, open: 0 }, activeMin: 150, retries, estimate, noGoal: { sessions: 0, costUsd: 0, unmeasured: 0, codexSessions: 0, durationMs: 0 }, cuts: { sessions: 3, durationMs: 1_200_000, share: 0.33, byLimit: { time: 2, idle: 1, turns: 0, cost: 0 } }, context: { perTurn: 81_200, atStart: 47_600, sessions: 9, turns: 410 } },
       series: [], repos: [{ repoPath: '/x/alpha', name: 'alpha', ...spend, goals: { total: 4, finished: 3, failed: 1, cancelled: 0, open: 0 }, activeMin: 150, costPerFinishedGoal: 6.17, retries, estimate }],
       kinds: [{ kind: 'attempt', sessions: 10, costUsd: 16, unmeasured: 1, codexSessions: 0, durationMs: 3_000_000, costShare: 0.86, timeShare: 0.83 }], misses: [], note: 'From the sessions Foundry started on this machine.',
     };
@@ -197,6 +197,8 @@ describe('CLI report (ADR-0060)', () => {
       expect(exitCode).toBe(0);
       expect(asked).toBe('/api/reports?days=90');
       expect(stdout).toContain('Last 90 days: $18.50 (Claude Code)  12 sessions  3/4 goals finished (1 failed, 0 cancelled)  2.5 h worked');
+      expect(stdout).toContain('cut short: 33% of session time (3 sessions stopped by a limit: 2 time, 1 idle, 0 turn cap, 0 cost cap)');
+      expect(stdout).toContain('context per turn: 81.2k tokens (Claude Code, 410 turns of 9 sessions; started with 47.6k)');
       expect(stdout).toContain('retries: 20% of 10 tasks needed more than one attempt; 1 fix tasks');
       expect(stdout).toContain('estimates: cost ×1.4, time — (actual ÷ estimate over 3 goals with one)');
       expect(stdout).toContain('  alpha: $18.50  3/4 finished  2.5 h  retries 20%  estimate ×1.4/—');

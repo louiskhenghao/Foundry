@@ -1,12 +1,12 @@
 import { ChartColumn, Gauge } from 'lucide-react';
-import type { Report, ReportEstimate, ReportFactor, ReportRepo } from '@foundry/engine/usage-types';
+import type { Report, ReportContext, ReportCuts, ReportEstimate, ReportFactor, ReportRepo } from '@foundry/engine/usage-types';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api.ts';
 import { useLive } from '../store.ts';
 import { BOARD_HEAD, ButtonGroup, Card, Empty, EmptyState, Loading, PageHeader, cn, fmtUsd } from '../ui.tsx';
 import { HelpLink } from './HelpPage.tsx';
-import { Kpi, SERIES } from './UsagePage.tsx';
+import { Kpi, SERIES, fmtK } from './UsagePage.tsx';
 
 type Window = '30' | '90' | '365' | 'all';
 const WINDOWS: { id: Window; label: string; title: string }[] = [
@@ -51,6 +51,18 @@ const partial = (s: { unmeasured: number; codexSessions: number }) =>
   [s.unmeasured ? `${s.unmeasured} Claude Code session${s.unmeasured === 1 ? '' : 's'} with unknown cost left out` : '', s.codexSessions ? `${s.codexSessions} Codex or Antigravity session${s.codexSessions === 1 ? '' : 's'} report no cost` : ''].filter(Boolean).join('; ');
 /** a retry rate past which a project retries too much: the figure turns red */
 const RETRIES_HIGH = 0.3;
+/** a share of session time in sessions cut short past which limits cost too much: the figure turns red */
+const CUTS_HIGH = 0.15;
+const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`;
+/** what stopped the sessions cut short, by limit */
+const cutsHint = (c: ReportCuts) =>
+  c.sessions
+    ? `${plural(c.sessions, 'session')} stopped by a limit before finishing (${fmtMin(c.durationMs / 60_000)}): ${[c.byLimit.time ? `${c.byLimit.time} at the time limit` : '', c.byLimit.idle ? `${c.byLimit.idle} after five silent minutes` : '', c.byLimit.turns ? `${c.byLimit.turns} at the turn cap` : '', c.byLimit.cost ? `${c.byLimit.cost} at the cost cap` : ''].filter(Boolean).join(', ')}. Each resumes with its whole context read again.`
+    : 'no session was stopped by a limit';
+const contextHint = (c: ReportContext) =>
+  c.perTurn == null
+    ? 'what one model turn reads; recorded for Claude Code sessions from this version on'
+    : `what one model turn of a Claude Code session read on average — every turn reads its whole context again — over ${plural(c.turns, 'turn')} of ${plural(c.sessions, 'session')}${c.atStart != null ? `; sessions started with ${fmtK(c.atStart)}` : ''}. Lean sessions (Settings → Skills) lowers the start.`;
 
 /** a chart's key: a small square in a series' colour, before the words that name it */
 const Swatch = ({ className }: { className: string }) => <span aria-hidden="true" className={cn('mr-1.5 inline-block h-2.5 w-2.5 rounded-[2px] align-[-0.1em]', className)} />;
@@ -123,7 +135,7 @@ export function ReportView({ report: r }: { report: Report }) {
   const starved = partial(t);
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Kpi label="spend" value={fmtUsd(t.costUsd)} hint={`Claude Code estimates${starved ? `; ${starved}` : ''}`} />
         <Kpi label="sessions" value={String(t.sessions)} hint={`${fmtMin(t.durationMs / 60_000)} in sessions`} />
         {/* how the goals came out and how often tasks retried, in their signals: green while none failed and the retries
@@ -132,6 +144,9 @@ export function ReportView({ report: r }: { report: Report }) {
         <Kpi label="hours worked" value={fmtMin(t.activeMin)} hint="Foundry's working time on those goals, waits for you left out" />
         <Kpi label="retry rate" value={pct(t.retries.rate)} hint={`${t.retries.retried} of ${t.retries.tasks} attempted tasks needed more than one attempt (${t.retries.attempts} attempts); ${t.retries.fixTasks} fix task${t.retries.fixTasks === 1 ? '' : 's'}`} good={t.retries.rate != null && t.retries.rate <= RETRIES_HIGH} bad={t.retries.rate != null && t.retries.rate > RETRIES_HIGH} />
         <Kpi label="estimate error" value={factors(t.estimate)} hint={`actual ÷ the Brief's estimate, the median over ${t.estimate.samples} goal${t.estimate.samples === 1 ? '' : 's'} with one: cost / time`} />
+        {/* where the time and the tokens go: sessions a limit stopped (each resumes and reads its context again), and what every turn reads */}
+        <Kpi label="cut short" value={pct(t.cuts.share)} hint={cutsHint(t.cuts)} good={t.cuts.share != null && t.cuts.share <= CUTS_HIGH} bad={t.cuts.share != null && t.cuts.share > CUTS_HIGH} />
+        <Kpi label="context per turn" value={t.context.perTurn == null ? '—' : fmtK(t.context.perTurn)} hint={contextHint(t.context)} />
       </div>
 
       {/* spend in the blue of every spend chart (a series); green, the signal of what is done, where a goal finished */}

@@ -1,3 +1,4 @@
+import type { TurnContext } from './usage-tally.ts';
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'dontAsk' | 'plan' | 'auto';
 
 export interface AgentDef {
@@ -177,6 +178,11 @@ export interface RunResult {
   skillsUsed: string[];
   /** tool name → number of calls */
   toolsUsed: Record<string, number>;
+  /**
+   * What this run's turns read (Claude Code: counted from its stream, so a resumed session's earlier runs are not in it;
+   * absent from the other coding agents, which report no per-turn usage)
+   */
+  context?: TurnContext | null;
   /** which of the coding agent's accounts ran the session (ADR-0065); set by the engine, never by a runner */
   accountId?: string;
 }

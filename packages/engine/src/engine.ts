@@ -1641,6 +1641,7 @@ export class Engine {
         rateLimit: result.rateLimit ? { status: result.rateLimit.status, resetsAt: result.rateLimit.resetsAt, rateLimitType: result.rateLimit.rateLimitType, isUsingOverage: result.rateLimit.isUsingOverage } : null,
         skillsUsed: result.skillsUsed ?? [],
         ...(result.accountId ? { accountId: result.accountId } : {}),
+        ...(result.context?.turns ? { context: result.context } : {}),
       },
     });
     // a skill the session chose itself, which no prompt of the goal named: into the goal's record as installed now (ADR-0098)

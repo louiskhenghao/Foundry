@@ -84,6 +84,7 @@ describe('a session that ends without a result line', () => {
     expect(r.costStatus).toBe('unavailable');
     expect(r.costUsd).toBe(0);
     expect(r.numTurns).toBe(1);
+    expect(r.context).toEqual({ turns: 1, tokens: 1052, first: 1052 });
     expect(r.usage).toEqual({ input_tokens: 4, output_tokens: 12, cache_read_input_tokens: 2000, cache_creation_input_tokens: 100 });
     expect(r.modelUsage).toEqual({ 'claude-opus-5-5': { inputTokens: 4, outputTokens: 12, cacheReadInputTokens: 2000, cacheCreationInputTokens: 100 } });
     expect(r.sessionId).toBe(SID);
@@ -109,6 +110,8 @@ describe('a session that ends without a result line', () => {
     expect(r.costUsd).toBe(0.42);
     expect(r.numTurns).toBe(3);
     expect(r.usage).toEqual({ input_tokens: 9 });
+    // what its turns read comes from the stream either way
+    expect(r.context).toEqual({ turns: 1, tokens: 1052, first: 1052 });
   });
   test('a CLI that died before any session started has nothing unknown about it: nothing ran', async () => {
     const dir = tmp();
