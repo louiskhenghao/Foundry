@@ -183,7 +183,7 @@ On by default. When a task is allowed two or more attempts, its last attempt, an
 | Setting | Default | What it does |
 |---|---|---|
 | **Claude cost cap per session (USD)** | 10 | A Claude worker stops at this spend (and never spends more than the goal has left). Codex has no USD cap. |
-| **Attempt timeout (minutes)** | 20 | A session running longer is stopped. What it committed stays; Foundry resumes or retries. |
+| **Attempt timeout (minutes)** | 45 | A session running longer is stopped. What it committed stays; Foundry resumes or retries. The worker is told the cap. A session silent for five minutes while no tool call is under way is stopped sooner. |
 | **Continuations per attempt** | 2 | How often a stopped session is resumed (cheaper, it keeps what it read) before a fresh attempt starts. |
 | **Turn cap per session** | 150 | Model turns for Claude; tool calls for Codex; three tool calls per turn for Antigravity, which calls a tool for every file it reads. Keep it generous. |
 | **Concurrent agent sessions** | 3 | Total simultaneous sessions across both providers and all goals. |

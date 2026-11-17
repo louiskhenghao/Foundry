@@ -114,3 +114,22 @@ test('a design reference sits right after the task, before the style direction; 
   // without a design the style line stays as it was
   expect(buildAttemptPrompt({ ...base, style })).not.toContain('read from the design reference');
 });
+
+test('the worker is told its wall-clock cap and how to pace itself; nothing when none is given', () => {
+  const p = buildAttemptPrompt({ ...base, timeoutMin: 45 });
+  expect(p).toContain('stopped after 45 minutes of wall clock');
+  expect(p).toMatch(/\n4\. This session is stopped/);
+  expect(p).toMatch(/\n5\. When done/);
+  const without = buildAttemptPrompt(base);
+  expect(without).not.toContain('minutes of wall clock');
+  expect(without).toMatch(/\n4\. When done/);
+});
+
+test('a research task is told to read through sub-agents and write as it goes; a docs task is not', () => {
+  const research = buildAttemptPrompt({ ...base, task: { ...base.task, scenario: 'research' } });
+  expect(research).toContain('Every claim needs a source');
+  expect(research).toContain('sub-agent (the Agent tool)');
+  const docs = buildAttemptPrompt({ ...base, task: { ...base.task, scenario: 'docs' } });
+  expect(docs).toContain('# Writing conventions');
+  expect(docs).not.toContain('sub-agent');
+});

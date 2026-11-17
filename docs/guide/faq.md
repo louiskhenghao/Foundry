@@ -20,7 +20,7 @@ Probably not. Check in this order:
 4. **The Agents page.** Foundry-owned running sessions show known activity. External Codex history can show **status unknown**; it cannot prove a process is running.
 5. **The ⚙ menu** at the right of the top bar says **Live**. A red dot on the ⚙ button and **Reconnecting…** in the menu mean the page lost contact with Foundry; reload it, and check that Foundry is still running.
 
-A task attempt that seems stuck is stopped after 20 minutes by default (**Attempt timeout** in Settings) and resumed, so a real hang does not last. A Clarify session stops after 15 minutes, the final review after 30.
+A task attempt that seems stuck is stopped after 45 minutes by default (**Attempt timeout** in Settings) and resumed, so a real hang does not last; the worker is told its cap so it paces itself. A session that has been silent for five minutes while no tool call is under way is stopped sooner — with Claude Code and Codex, a long test run, a build or a sub-agent at work is never silence. Antigravity reports a tool only once it is done, so for it five silent minutes are enough. A Clarify session stops after 15 minutes, the final review after 30.
 
 ## Can I change the plan after approving?
 

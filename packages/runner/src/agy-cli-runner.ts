@@ -4,6 +4,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AgyStreamDecoder, agyUsage } from './agy-stream-codec.ts';
 import { EventQueue } from './event-queue.ts';
+import { IdleWatch } from './idle-watch.ts';
 import { Semaphore } from './semaphore.ts';
 import { LineSplitter } from './stream-codec.ts';
 import { classifyFailure, type AgentRunner, type RunHandle, type RunResult, type RunSpec, type RunnerEvent } from './types.ts';
@@ -233,7 +234,9 @@ export class AgyCliRunner implements AgentRunner {
       this.opts.log?.(`[agy] spawned pid=${child.pid} ${spec.label ?? ''}`);
       const wall = setTimeout(() => kill('killed_timeout'), spec.timeoutMs ?? this.opts.defaultTimeoutMs ?? 20 * 60_000);
       const idleMs = spec.idleTimeoutMs ?? this.opts.defaultIdleTimeoutMs ?? 5 * 60_000;
-      let idle = setTimeout(() => kill('killed_idle'), idleMs);
+      // the idle limit (ADR-0101): Antigravity reports a tool only once it is done (its call and its output together, a
+      // helper agent's step alone), so its stream never shows one under way and silence is silence here
+      const idle = new IdleWatch(idleMs, () => kill('killed_idle'));
       let pendingInit: RunnerEvent | null = null;
       let verified = false;
       const verify = () => {
@@ -295,8 +298,7 @@ export class AgyCliRunner implements AgentRunner {
         for (;;) {
           const { value: chunk, done } = await reader.read();
           if (done) break;
-          clearTimeout(idle);
-          idle = setTimeout(() => kill('killed_idle'), idleMs);
+          idle.touch();
           if (stdout) for (const line of splitter.push(chunk)) await handleLine(line);
           else {
             const text = new TextDecoder().decode(chunk);
@@ -364,7 +366,7 @@ export class AgyCliRunner implements AgentRunner {
           return makeResult(killed!);
         } finally {
           clearTimeout(wall);
-          clearTimeout(idle);
+          idle.stop();
           await terminate!();
           removeHooks?.();
           removeHooks = null;

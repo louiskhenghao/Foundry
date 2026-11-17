@@ -48,9 +48,9 @@ export interface RunSpec {
   /** Claude Code effort level (`--effort`); omitted = the CLI default */
   /** the reasoning effort (`--effort`): a level the coding agent's binary takes (ADR-0085: the engine reads Claude's from the binary; Codex's are none, minimal, low, medium, high, xhigh, max, ultra) */
   effort?: string;
-  /** Wall clock, default 20 min. */
+  /** Wall clock; the runner's own default is 20 min, the engine passes each session's (an attempt's is Settings → sessions.attemptTimeoutMin, 45 by default). */
   timeoutMs?: number;
-  /** No stdout activity, default 5 min. */
+  /** The idle limit, default 5 min: nothing on the stream while no tool call is under way (ADR-0101). */
   idleTimeoutMs?: number;
   /** Every raw NDJSON line is appended here before parsing. */
   transcriptPath?: string;

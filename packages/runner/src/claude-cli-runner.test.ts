@@ -128,3 +128,35 @@ describe('partial messages (ADR-0073)', () => {
     expect(runner.buildArgs({ prompt: 'x', cwd: '/tmp' })).not.toContain('--include-partial-messages');
   });
 });
+
+describe('the idle limit', () => {
+  const toolUse = { type: 'assistant', message: { id: 'm1', model: 'claude-opus-5-5', usage: counts(3), content: [{ type: 'tool_use', id: 'toolu_1', name: 'Bash', input: { command: 'bun test' } }] } };
+  const toolResult = { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' }] } };
+  const done = { type: 'result', subtype: 'success', is_error: false, result: 'done', session_id: SID, total_cost_usd: 0.1, num_turns: 2, usage: { input_tokens: 9 } };
+  /** a stand-in CLI that prints the lines before the pause, waits `pauseS` seconds with nothing on its stream, then prints the rest */
+  function pausingCli(dir: string, before: object[], after: object[], pauseS: number): string {
+    const a = join(dir, 'before.jsonl');
+    const b = join(dir, 'after.jsonl');
+    writeFileSync(a, before.map((l) => JSON.stringify(l)).join('\n') + '\n');
+    writeFileSync(b, after.map((l) => JSON.stringify(l)).join('\n') + '\n');
+    const bin = join(dir, 'fake-cli');
+    writeFileSync(bin, `#!/bin/sh\ncat '${a}'\nsleep ${pauseS}\ncat '${b}'\n`);
+    chmodSync(bin, 0o755);
+    return bin;
+  }
+  test('a tool call under way is not idleness: a command that outlives the limit ends the session normally', async () => {
+    const dir = tmp();
+    // the limit is short and the pause well past it; both leave room for the shell to start, which counts as silence too
+    const bin = pausingCli(dir, [init, toolUse], [toolResult, done], 2.5);
+    const r = await run(new ClaudeCliRunner({ claudeBin: bin, claudeHome: join(dir, 'home'), defaultIdleTimeoutMs: 1200 }), dir);
+    expect(r.subtype).toBe('success');
+    expect(r.toolsUsed).toEqual({ Bash: 1 });
+  });
+  test('silence while no tool call is under way is idleness: the session is stopped', async () => {
+    const dir = tmp();
+    const bin = pausingCli(dir, [init, assistant('m1', 6)], [done], 2.5);
+    const r = await run(new ClaudeCliRunner({ claudeBin: bin, claudeHome: join(dir, 'home'), defaultIdleTimeoutMs: 1200 }), dir);
+    expect(r.subtype).toBe('killed_idle');
+    expect(r.costStatus).toBe('unavailable');
+  });
+});
