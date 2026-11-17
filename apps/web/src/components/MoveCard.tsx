@@ -66,11 +66,11 @@ export function MoveCard({ variant }: { variant: 'offer' | 'settings' }) {
       try {
         if (same) {
           const s = await api.moveStatus();
-          if (s.last && s.last.finishedAt > job.startedAt) return void (window.location.href = '/goals');
+          if (s.last && s.last.finishedAt > job.startedAt) return void (window.location.href = '/');
         } else {
           // another port is another origin: a no-cors request only says that something answers there
           await fetch(`${next}/api/health`, { mode: 'no-cors', cache: 'no-store' });
-          return void (window.location.href = `${next}/goals`);
+          return void (window.location.href = `${next}/`);
         }
       } catch {}
       setTimeout(() => void tick(), 1000);
