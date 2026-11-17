@@ -202,7 +202,9 @@ export class CodexCliRunner implements AgentRunner {
           const event = spec.transcriptPath ? { ...ev, ref: { file: basename(spec.transcriptPath), line: at, block } } : ev;
           if (ev.kind === 'init') { sessionId = ev.sessionId; if (!verified) { pendingInit = event; continue; } }
           if (ev.kind === 'text') finalText = ev.text;
-          if (ev.kind === 'tool_use') { idle.toolStarted(ev.id); toolsUsed[ev.name] = (toolsUsed[ev.name] ?? 0) + 1; }
+          // a tool is under way from its item.started to its result; a step the stream reports only once it is done (a web
+          // search, a to-do update, a file change) never was, and opening it would stop the idle clock for good
+          if (ev.kind === 'tool_use') { if (raw?.type === 'item.started') idle.toolStarted(ev.id); toolsUsed[ev.name] = (toolsUsed[ev.name] ?? 0) + 1; }
           if (ev.kind === 'tool_result') idle.toolEnded(ev.toolUseId);
           queue.push(ev.kind === 'init' ? { ...event, model } as RunnerEvent : event);
         }

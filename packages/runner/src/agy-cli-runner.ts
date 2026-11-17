@@ -234,7 +234,8 @@ export class AgyCliRunner implements AgentRunner {
       this.opts.log?.(`[agy] spawned pid=${child.pid} ${spec.label ?? ''}`);
       const wall = setTimeout(() => kill('killed_timeout'), spec.timeoutMs ?? this.opts.defaultTimeoutMs ?? 20 * 60_000);
       const idleMs = spec.idleTimeoutMs ?? this.opts.defaultIdleTimeoutMs ?? 5 * 60_000;
-      // the idle limit (ADR-0101): silence counts only while no tool call is under way
+      // the idle limit (ADR-0101): Antigravity reports a tool only once it is done (its call and its output together, a
+      // helper agent's step alone), so its stream never shows one under way and silence is silence here
       const idle = new IdleWatch(idleMs, () => kill('killed_idle'));
       let pendingInit: RunnerEvent | null = null;
       let verified = false;
@@ -287,11 +288,7 @@ export class AgyCliRunner implements AgentRunner {
             }
           }
           if (ev.kind === 'text') finalText = ev.text;
-          if (ev.kind === 'tool_use') {
-            idle.toolStarted(ev.id);
-            toolsUsed[ev.name] = (toolsUsed[ev.name] ?? 0) + 1;
-          }
-          if (ev.kind === 'tool_result') idle.toolEnded(ev.toolUseId);
+          if (ev.kind === 'tool_use') toolsUsed[ev.name] = (toolsUsed[ev.name] ?? 0) + 1;
           queue.push(ev.kind === 'init' ? ({ ...event, model } as RunnerEvent) : event);
         }
       };

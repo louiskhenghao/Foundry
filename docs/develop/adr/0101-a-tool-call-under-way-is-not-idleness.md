@@ -24,9 +24,13 @@ its own context for seventy to ninety turns and was cut writing the report.
 
 ## Decision
 
-**A tool call under way is not idleness.** Each runner (Claude Code, Codex, Antigravity) keeps the idle clock stopped
-while a tool call is open — a `tool_use` whose `tool_result` has not arrived — and starts it again, from zero, when the
-last open call ends (`IdleWatch`). Output while a call is open does not start the clock either. Silence while nothing
+**A tool call under way is not idleness.** The Claude Code and Codex runners keep the idle clock stopped while a tool
+call is open — one their stream announced as started (a `tool_use`; for Codex an `item.started`) whose result has not
+arrived — and start it again, from zero, when the last open call ends (`IdleWatch`). Output while a call is open does
+not start the clock either. A step Codex reports only once it is done (a web search, a to-do update) is never opened:
+with no result line to close it, it would stop the clock for the rest of the session. Antigravity reports every tool
+only once it is done, its call and its output together, so its stream never shows one under way, and its sessions keep
+the plain rule: five minutes of silence. Silence while nothing
 runs is the coding agent gone quiet, and that is what the limit is for. The coding agent's own tool timeouts bound a
 tool call (Claude Code's shell tool stops a command after two minutes by default, ten at most), and the wall clock
 bounds everything, so a tool that truly hangs is still cut, by the wall clock instead of after five minutes.
