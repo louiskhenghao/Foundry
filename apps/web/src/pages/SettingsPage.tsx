@@ -595,6 +595,7 @@ export function SettingsPage() {
               </>,
             )}
             <Toggle path="workflow.mcpDynamicTools" />
+            {modelProvider === 'claude' && <Toggle path="workflow.leanSessions" />}
             <Toggle path="workflow.autoskills" />
             <p className="text-[11px] text-ink-faint">
               Memory — a Hindsight server that remembers what each folder’s goals did and taught — is set up on the{' '}

@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { McpManager, SERVER_NAME } from './manager.ts';
-import { listServers, parseHealth, userPrefix } from './servers.ts';
+import { listServers, parseHealth, strictServers, userPrefix } from './servers.ts';
 
 const CATALOG = resolve(import.meta.dir, '../../../../catalog/mcp.json');
 
@@ -44,6 +44,39 @@ describe('listServers', () => {
   test('no Claude config at all is an empty list', () => {
     const none = mkdtempSync(join(tmpdir(), 'foundry-mcp-none-'));
     expect(listServers(join(none, '.claude'), [], join(none, '.claude.json'))).toEqual([]);
+  });
+});
+
+describe('strictServers (ADR-0102)', () => {
+  /** fakeHome plus a plugin whose server runs from its own folder and reads a key from the environment */
+  function homeWithRoot(extra: Record<string, unknown> = {}): string {
+    const home = fakeHome();
+    const media = join(home, 'plugins', 'cache', 'media');
+    writeFileSync(join(media, '.mcp.json'), JSON.stringify({ 'media-pipeline': { command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/build/bundle.js'], env: { KEY: '${GEMINI_API_KEY:-none}' }, ...extra } }));
+    return home;
+  }
+  const json = (home: string) => join(dirname(home), '.claude.json');
+
+  test('the servers a session may use, under their own names, a plugin\'s with its folder written out', () => {
+    const home = homeWithRoot();
+    const media = join(home, 'plugins', 'cache', 'media');
+    expect(strictServers(home, ['mcp__gitnexus', 'mcp__plugin_media-pipeline_media-pipeline'], json(home))).toEqual({
+      mcpServers: {
+        gitnexus: { command: '/bin/gitnexus', args: ['mcp'], env: { SECRET: 'x' } },
+        'plugin_media-pipeline_media-pipeline': { command: 'node', args: [`${media}/build/bundle.js`], env: { KEY: '${GEMINI_API_KEY:-none}' } },
+      },
+    });
+  });
+  test('a tool name counts for its server; a switched-off plugin and servers not wanted stay out; nothing wanted is no server', () => {
+    const home = homeWithRoot();
+    expect(Object.keys(strictServers(home, ['Bash', 'mcp__docs__search', 'mcp__plugin_off_quiet'], json(home))!.mcpServers)).toEqual(['docs']);
+    expect(strictServers(home, [], json(home))).toEqual({ mcpServers: {} });
+  });
+  test('a server that cannot be handed over leaves the session to Claude Code\'s own: a connector, another plugin variable', () => {
+    const home = homeWithRoot();
+    expect(strictServers(home, ['mcp__gitnexus', 'mcp__claude_ai_Gmail'], json(home))).toBeNull();
+    const data = homeWithRoot({ cwd: '${CLAUDE_PLUGIN_DATA}' });
+    expect(strictServers(data, ['mcp__plugin_media-pipeline_media-pipeline'], json(data))).toBeNull();
   });
 });
 

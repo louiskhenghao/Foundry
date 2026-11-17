@@ -144,6 +144,8 @@ export interface EngineConfig {
   designCheck: boolean;
   /** tools of allowed catalog MCP servers that run or change things are usable in sessions */
   mcpDynamicTools: boolean;
+  /** Claude Code sessions load only what Foundry gives them: the allowed MCP servers, no claude.ai connector unless allowed, none of the person's own skills (ADR-0102) */
+  leanSessions: boolean;
   /** caps of the session that investigates a goal's reference */
   investigationMaxCostUsd: number;
   investigationMaxMinutes: number;
@@ -271,6 +273,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     workflowQa: process.env.FOUNDRY_QA === '1' || process.env.FOUNDRY_QA === 'true',
     designCheck: !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_DESIGN_CHECK ?? ''),
     mcpDynamicTools: process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === '1' || process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === 'true',
+    leanSessions: process.env.FOUNDRY_LEAN_SESSIONS === '1' || process.env.FOUNDRY_LEAN_SESSIONS === 'true',
     desktopApps: process.env.FOUNDRY_DESKTOP_APPS === '1' || process.env.FOUNDRY_DESKTOP_APPS === 'true',
     investigationMaxCostUsd: Number(process.env.FOUNDRY_INVESTIGATION_MAX_COST ?? 3) || 3,
     investigationMaxMinutes: Number(process.env.FOUNDRY_INVESTIGATION_MAX_MINUTES ?? 20) || 20,

@@ -167,7 +167,8 @@ import { SessionCosts } from './session-costs.ts';
 import { CODE_SERVER_INSTALL, CodeServer } from './editor/code-server.ts';
 import { workerTools } from './guards/boundary.ts';
 import { DESKTOP_APPS_PATTERNS, SLICER_APP_PATTERNS, SLICER_HEADLESS_PATTERNS } from './guards/patterns.ts';
-import { pluginServerPrefix } from './mcp/servers.ts';
+import { pluginServerPrefix, strictServers } from './mcp/servers.ts';
+import { CONNECTOR_PREFIX, leanSettings, ownSkillNames, projectSkillNames } from './lean-sessions.ts';
 import { serverBaseArgs } from './skills/installer.ts';
 import { MOTION_STUDIO, exportHouseStyle, motionStudioCheck } from './motion-studio.ts';
 import { HYPERFRAMES, hyperframesCheck } from './hyperframes.ts';
@@ -513,11 +514,13 @@ export class Engine {
         run: async (spec) => {
           if (provider === 'codex') this.validateCodexChoice(spec.model, spec.effort);
           const suite = await this.suiteFor(spec, provider);
+          // a lean session loads only what Foundry gives it (ADR-0102)
+          const lean = provider === 'claude' && this.config.leanSessions ? this.leanSpec(spec) : {};
           // the current account of the coding agent runs the session; an added one in its own home (ADR-0065), where
           // Claude Code finds no user-scope MCP servers of the native sign-in unless handed them
           const account = isPooled(provider) ? this.accountPool.forRun(provider) : null;
-          const home = account?.home ? { configHome: account.home, ...(provider === 'claude' && !spec.strictMcp ? { mcpConfig: this.nativeMcpServers() } : {}) } : {};
-          const full = { ...spec, ...suite, ...home, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
+          const home = account?.home ? { configHome: account.home, ...(provider === 'claude' && !(lean.strictMcp ?? spec.strictMcp) ? { mcpConfig: this.nativeMcpServers() } : {}) } : {};
+          const full = { ...spec, ...suite, ...lean, ...home, env: { ...this.mediaEnv(spec.cwd, spec.meta?.goalId ?? null), ...spec.env } };
           // Claude Code reports a resumed session's whole cost; Codex reports none worth correcting
           const handle = await (provider === 'claude' ? sessionCosts.run(full, (s) => inner.run(s)) : inner.run(full));
           return account ? { ...handle, result: handle.result.then((r) => ({ ...r, accountId: account.id })) } : handle;
@@ -1681,14 +1684,43 @@ export class Engine {
     }
   }
 
+  /** the native sign-in's .claude.json: an added account's home has one of its own, with its sign-in in it */
+  private nativeClaudeJson(): string {
+    const dir = claudeConfigEnv(this.config.claudeHome).CLAUDE_CONFIG_DIR ?? process.env.CLAUDE_CONFIG_DIR;
+    return dir ? join(dir, '.claude.json') : join(homedir(), '.claude.json');
+  }
+
+  /** the person's own skills a lean session goes without, read at most every half minute (a scan reads every SKILL.md) */
+  private leanSkills: { at: number; names: string[] } | null = null;
+
+  /**
+   * What a lean Claude Code session gets on top of its spec (ADR-0102): flag settings that keep the claude.ai connectors
+   * and the person's own skills out, and the MCP servers it may use handed over explicitly under --strict-mcp-config —
+   * the ones its allowed tools name, else what its goal (or Settings) allows. A session that is strict already (Clarify,
+   * a replan) keeps its own MCP choice; one whose servers cannot all be handed over keeps the ones Claude Code loads.
+   */
+  leanSpec(spec: RunSpec): Pick<RunSpec, 'settings'> & Partial<Pick<RunSpec, 'strictMcp' | 'mcpConfig'>> {
+    const goal = spec.meta?.goalId ? getGoal(this.store.db, spec.meta.goalId) : null;
+    const wanted = (spec.allowedTools ?? (goal ? this.mcpAllowedFor(goal) : this.config.mcpAllowed)).filter((t) => t.startsWith('mcp__'));
+    const now = Date.now();
+    if (!this.leanSkills || now - this.leanSkills.at > 30_000) {
+      const skills = this.providerSkills.claude;
+      this.leanSkills = { at: now, names: ownSkillNames(skills.scan().installed, new Set(skills.catalog().entries.map((e) => e.name))) };
+    }
+    const project = new Set(projectSkillNames(spec.cwd));
+    const settings = leanSettings(spec.settings, { connectorsAllowed: wanted.some((t) => t.startsWith(CONNECTOR_PREFIX)), skillsOff: this.leanSkills.names.filter((n) => !project.has(n)) });
+    if (spec.strictMcp) return { settings };
+    const servers = strictServers(this.config.claudeHome, wanted, this.nativeClaudeJson());
+    return servers ? { settings, strictMcp: true, mcpConfig: { mcpServers: { ...servers.mcpServers, ...(spec.mcpConfig?.mcpServers ?? {}) } } } : { settings };
+  }
+
   /**
    * The user-scope MCP servers of the native Claude sign-in, for a session on an added account: they live in the native
    * .claude.json, and an account's home has a .claude.json of its own (its sign-in is in it).
    */
   private nativeMcpServers(): { mcpServers: Record<string, unknown> } | undefined {
-    const dir = claudeConfigEnv(this.config.claudeHome).CLAUDE_CONFIG_DIR ?? process.env.CLAUDE_CONFIG_DIR;
     try {
-      const servers = JSON.parse(readFileSync(dir ? join(dir, '.claude.json') : join(homedir(), '.claude.json'), 'utf8')).mcpServers;
+      const servers = JSON.parse(readFileSync(this.nativeClaudeJson(), 'utf8')).mcpServers;
       return servers && typeof servers === 'object' && Object.keys(servers).length ? { mcpServers: servers } : undefined;
     } catch {
       return undefined;

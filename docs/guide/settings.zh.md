@@ -201,6 +201,7 @@ skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foun
 - **Setting sources**（仅 Claude）：会话加载哪些 Claude Code 设置。留空。
 - **autoskills per goal**（开）：你批准 Brief 后，把匹配你项目技术栈（React、Tailwind……）的 skill 加到 goal 的文件夹里。它们不会进入你的提交。
 - **MCP tools that run or change things**（关）：让会话使用已允许的 MCP server 里会运行或改动东西的工具。对 REA 来说：启动目标程序、挂调试器、操作连接的 Android 设备。关着时会话只能做静态分析。
+- **Lean sessions**（仅 Claude，关）：Claude Code 会话只加载 Foundry 给它的东西：它可以用的 MCP server，别的都不加载；不加载 claude.ai 连接器（Gmail、Drive……），除非你允许了某个；也不加载你自己装、不是 Foundry 装的 skill。这样每一轮读的都更少。在一台有五个 MCP server、四个 claude.ai 连接器和七十个自装 skill 的机器上，server 全部允许时，会话起步少 6% 的 token；只允许默认那一个时少 15%。你的设置、登录、`CLAUDE.md`、plugin 和 hook 都保留，goal 文件夹里的项目 skill 也保留。Codex 和 Antigravity 的会话不变。
 - **Design skills**、**Image skills**、**Video skills**（以及打开 [Figure goals、Diagram goals 或 Deck goals](#beta) 后的 **Figure skills**、**Diagram skills** 或 **Deck skills**）：每类选一个包；只有这个包会交给前端、图片、视频、figure、diagram 或 deck 任务。Figure 包的两个技能随 Foundry 附带，安装就是复制、不用下载，而且一个 goal 可以在 New goal 表单上选另一种已安装的风格；见 [Figure goal](./figures.zh.md)。Diagram 包的技能从它的仓库克隆一个固定版本；见 [Diagram goal](./diagrams.zh.md)。Deck 包的技能克隆一个固定发布版，并在数据文件夹下用 uv 得到一个专属的 Python 环境；见 [Deck goal](./decks.zh.md)。每个包显示 **installed** 或 **N missing**，并带一个 **Install** 按钮。选包会立即保存。代码 goal 可以在 New goal 表单上（**Design skills**）或用 `--design-pack` 另选一个设计包；附了设计参考时，包只补设计稿没定的部分（见[带上你自己的设计稿](./bringing-your-own-design.zh.md)）。图片包只有在 [Tools & keys](#tools--keys) 里有 key 时，才能生成真正的图片。已安装的技能缺少它需要的 key 时，它的卡片上会显示 **⚠ key missing**，写明是哪个 key、缺了它会少什么；点它就会跳到 **Tools & keys**。
 - **Memory**——记住每个文件夹的 goal 做过什么、学到什么的 Hindsight 服务器——不在这里设置，而是在 Extensions 页面的 MCP servers 标签页（这张卡片上有链接过去）；每个文件夹的开关在 Learnings 页面上。见 [Memory](./memory.zh.md)。
 
@@ -255,7 +256,7 @@ MCP server 让 Claude Code 能用文件和命令行以外的工具，比如最�
 
 有些 server 要先连上账号才能用。claude.ai 连接器（Gmail、Google Drive……）有一个 **Connect** 按钮：它会打开 claude.ai，你在那里用它该用的账号授权；Claude Code 和 Foundry 共用这个连接。通过 URL 访问的 server 有 **Sign in**：会在运行 Foundry 的电脑上打开浏览器；如果那里没有浏览器（Docker），你就自己打开链接，再把浏览器最后停在的地址贴回来。如果登录没法在 Foundry 里完成，窗口会给出一条在你自己终端里运行的命令（比如 `claude mcp login context7`），带复制按钮。按过 **Check** 之后，还需要这样做的 server 会显示 **needs auth** 和一个 **Set up** 按钮。
 
-goal 运行时不会问你，所以只有勾上 **Allowed in goals** 的 server，它的工具才会被 goal 用到，而且只在真正干活的会话里，Clarify 和审查都不会用。你自己装的 server 和 claude.ai 连接器默认不勾：邮箱连接器可能会自己发邮件。
+goal 运行时不会问你，所以只有勾上 **Allowed in goals** 的 server，它的工具才会被 goal 用到，而且只在真正干活的会话里，Clarify 和审查都不会用。你自己装的 server 和 claude.ai 连接器默认不勾：邮箱连接器可能会自己发邮件。在 [Skills](#skills) 下打开 **Lean sessions** 后，没勾的 server 在会话里根本不会启动，对 goal 没有任何开销。
 
 **Recommended by Foundry** 列出值得装的 server。**context7**（库的最新文档）和 **playwright**（一个真的浏览器）不需要 key，是推荐项；它们没装时 Setup 会提醒你。**exa** 和 **brave-search** 给调研类 goal 加上网页搜索，需要 key：按 **Install…**，贴上 key，再按 **Install**。两个装一个就够了。从这里装的 server 会直接允许 goal 使用。
 

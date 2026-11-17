@@ -421,6 +421,10 @@ _Avoid_: skin, style; Appearance is the Settings section that picks a Theme, not
 **MCP Server**
 A program that gives a coding agent extra tools (library docs, a browser, web search). Each coding agent owns its native configuration and independent Allowed in goals policy. Foundry manages Claude servers/connectors and Codex user-configured stdio/HTTP servers through their respective native clients. Only work-performing sessions receive the selected coding agent's allowed prefixes. A catalog server may carry a disclaimer, confirmed once before it installs, and the names of its tools that run or change things; those are denied in sessions until Settings opens them.
 
+**Lean session**
+A Claude Code session started with only what Foundry gives it (a setting, off by default): the MCP Servers it may use, handed over explicitly so no other starts; no claude.ai connector unless one is allowed; none of the user's own Skills that Foundry did not install and no catalog entry names. The user's settings, sign-in, CLAUDE.md, plugins and hooks stay, and so do the Project Skills of the Goal's folder. Every turn reads the whole starting context again, so what a session never loads it never pays for.
+_Avoid_: bare session (Claude Code's `--bare` mode skips the sign-in and the hooks, and Foundry never uses it)
+
 ## Goal natures
 
 **Nature**
