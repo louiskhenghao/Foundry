@@ -1,8 +1,8 @@
 /**
- * Regenerate the open-source credits from bun.lock, node_modules, the Dockerfile and the Extensions catalog:
+ * Regenerate the open-source credits from bun.lock, node_modules, scripts/credits/tools.ts and the Extensions catalog:
  *   apps/web/src/pages/credits/credits.json  ← the Open source credits page
  *   THIRD-PARTY-NOTICES.txt                  ← the same notices as plain text, shipped in the image
- * credits.test.ts fails when either is out of date. Run after a dependency, Dockerfile or catalog change (and after
+ * credits.test.ts fails when either is out of date. Run after a dependency, tools.ts or catalog change (and after
  * bun install --frozen-lockfile, so node_modules matches the lock): bun scripts/gen-credits.ts
  */
 import { writeFileSync } from 'node:fs';

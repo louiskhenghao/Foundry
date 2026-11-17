@@ -1,9 +1,9 @@
 /**
- * What the Dockerfile puts in the image besides the npm packages: the "Tools in the Docker image" group of the Open
- * source credits page and of THIRD-PARTY-NOTICES.txt. `installs` are the Dockerfile keys an entry accounts for (see
- * dockerfileInstalls in credits.ts); credits.test.ts fails when the Dockerfile installs something no entry and no
- * exclusion accounts for, or an entry claims something the Dockerfile no longer installs. The license texts are
- * upstream's, copied into ./licenses at the version the image installs.
+ * The software besides the npm packages (ADR-0108: there is no Docker image any more): the runtime Foundry's release
+ * ships, compiled into foundry, and what `foundry setup` installs on a person's computer, each from its own project's
+ * release. Both are on the Open source credits page and in THIRD-PARTY-NOTICES.txt; Foundry's own files hold only the
+ * first. credits.test.ts fails when foundry setup installs something no entry and no exclusion accounts for. The license
+ * texts are upstream's, copied into ./licenses.
  */
 export type Tool = {
   id: string;
@@ -11,9 +11,10 @@ export type Tool = {
   url: string;
   license: string;
   copyright: string | null;
-  installs: string[];
-  /** a Dockerfile ARG holding the version, the base image whose tag is the version, or the version itself */
-  version?: { arg: string } | { image: string } | string;
+  /** release: in Foundry's own release files · setup: installed by foundry setup, from its own project's release */
+  ships: 'release' | 'setup';
+  /** the version, where one is fixed */
+  version?: string;
   /** file names in ./licenses */
   text?: string;
   notice?: string;
@@ -22,26 +23,24 @@ export type Tool = {
 
 export const TOOLS: Tool[] = [
   {
-    id: 'node',
-    name: 'Node.js',
-    url: 'https://github.com/nodejs/node',
-    license: 'MIT',
-    copyright: 'Copyright Node.js contributors. All rights reserved.',
-    installs: ['image:node'],
-    version: { image: 'node' },
-    text: 'node.txt',
-    note: 'Node.js bundles third-party components. Their licenses follow its own in /usr/local/LICENSE in the image.',
-  },
-  {
     id: 'bun',
     name: 'Bun',
     url: 'https://github.com/oven-sh/bun',
     license: 'MIT',
     copyright: null,
-    installs: ['npm:bun'],
-    version: { arg: 'BUN_VERSION' },
+    ships: 'release',
     text: 'bun.md',
-    note: 'Bun statically links JavaScriptCore and WebKit (LGPL-2.0) and the libraries listed in its license below.',
+    note: 'Compiled into foundry: a release runs on the Bun that built it. Bun statically links JavaScriptCore and WebKit (LGPL-2.0) and the libraries listed in its license below.',
+  },
+  {
+    id: 'node',
+    name: 'Node.js',
+    url: 'https://github.com/nodejs/node',
+    license: 'MIT',
+    copyright: 'Copyright Node.js contributors. All rights reserved.',
+    ships: 'setup',
+    text: 'node.txt',
+    note: 'Installed by foundry setup (from Homebrew, or its own release under ~/.local) for the MCP servers and coding-agent CLIs that run on it. It bundles third-party components, whose licenses follow its own in the LICENSE file it installs.',
   },
   {
     id: 'codex',
@@ -49,10 +48,10 @@ export const TOOLS: Tool[] = [
     url: 'https://github.com/openai/codex',
     license: 'Apache-2.0',
     copyright: 'Copyright 2025 OpenAI',
-    installs: ['npm:@openai/codex'],
-    version: { arg: 'CODEX_VERSION' },
+    ships: 'setup',
     text: 'codex.txt',
     notice: 'codex.NOTICE',
+    note: 'Installed by foundry setup when Codex is one of the coding agents.',
   },
   {
     id: 'gh',
@@ -60,7 +59,7 @@ export const TOOLS: Tool[] = [
     url: 'https://github.com/cli/cli',
     license: 'MIT',
     copyright: 'Copyright (c) 2019 GitHub Inc.',
-    installs: ['apt:gh'],
+    ships: 'setup',
     text: 'gh.txt',
   },
   {
@@ -69,7 +68,7 @@ export const TOOLS: Tool[] = [
     url: 'https://github.com/astral-sh/uv',
     license: 'MIT OR Apache-2.0',
     copyright: 'Copyright (c) 2025 Astral Software Inc.',
-    installs: ['image:ghcr.io/astral-sh/uv'],
+    ships: 'setup',
     text: 'uv.txt',
     note: 'Licensed under MIT or Apache-2.0, at your option. The MIT terms are reproduced here.',
   },
@@ -79,10 +78,10 @@ export const TOOLS: Tool[] = [
     url: 'https://github.com/python/cpython',
     license: 'PSF-2.0',
     copyright: 'Copyright (c) 2001 Python Software Foundation. All rights reserved.',
-    installs: ['python:3.12'],
+    ships: 'setup',
     version: '3.12',
     text: 'python.txt',
-    note: 'Installed by uv for graphify and MarkItDown. The libraries this build links and the Python packages installed with it keep their license files under /opt/uv in the image.',
+    note: 'Installed by uv for graphify and MarkItDown, with the libraries its build links, each keeping its license file beside it.',
   },
   {
     id: 'graphify',
@@ -90,7 +89,7 @@ export const TOOLS: Tool[] = [
     url: 'https://github.com/safishamsi/graphify',
     license: 'Apache-2.0',
     copyright: 'Copyright 2026 Safi Shamsi and the Graphify contributors.',
-    installs: ['uv:graphifyy'],
+    ships: 'setup',
     text: 'graphify.txt',
     notice: 'graphify.NOTICE',
   },
@@ -100,51 +99,25 @@ export const TOOLS: Tool[] = [
     url: 'https://github.com/microsoft/markitdown',
     license: 'MIT',
     copyright: 'Copyright (c) Microsoft Corporation.',
-    installs: ['uv:markitdown'],
+    ships: 'setup',
     text: 'markitdown.txt',
-    note: 'The Python packages it depends on are installed beside it under /opt/uv/tools/markitdown, each with its own license file.',
-  },
-  {
-    id: 'docker-cli',
-    name: 'Docker CLI',
-    url: 'https://github.com/docker/cli',
-    license: 'Apache-2.0',
-    copyright: 'Copyright 2012-2017 Docker, Inc.',
-    installs: ['apt:docker-ce-cli'],
-    text: 'docker-cli.txt',
-    notice: 'docker-cli.NOTICE',
-  },
-  {
-    id: 'docker-compose',
-    name: 'Docker Compose',
-    url: 'https://github.com/docker/compose',
-    license: 'Apache-2.0',
-    copyright: 'Copyright 2020 Docker Compose authors',
-    installs: ['apt:docker-compose-plugin'],
-    text: 'docker-compose.txt',
-    notice: 'docker-compose.NOTICE',
+    note: 'Optional (foundry setup --with markitdown). The Python packages it depends on are installed beside it, each with its own license file.',
   },
   {
     id: 'ffmpeg',
     name: 'FFmpeg',
     url: 'https://ffmpeg.org',
-    license: 'GPL-2.0-or-later (Debian build; LGPL-2.1-or-later core)',
+    license: 'LGPL-2.1-or-later, or GPL-2.0-or-later by build',
     copyright: null,
-    installs: ['apt:ffmpeg'],
-    note: "Debian's ffmpeg package is built with its GPL components (libx264 among them), so the binary is GPL-2+ while FFmpeg's own core is LGPL-2.1+. Its copyright file is at /usr/share/doc/ffmpeg/copyright in the image. Foundry runs it to render and measure video (the motion-studio engine, the likeness review's frames, the reviewers' ffprobe checks).",
-  },
-  {
-    id: 'debian',
-    name: 'Debian packages',
-    url: 'https://www.debian.org',
-    license: 'Various',
-    copyright: null,
-    installs: ['apt:git', 'apt:ripgrep', 'apt:ca-certificates', 'apt:curl', 'apt:gnupg', 'apt:python3-minimal', 'apt:openssh-client'],
-    note: "git, ripgrep, curl, ca-certificates, gnupg, python3-minimal (Python, PSF-2.0: the Figure pack's skills build their page with it, ADR-0076), openssh-client (OpenSSH, BSD: how Deploy reaches a server of your own, ADR-0091), the base image's system and the libraries Playwright's Chromium needs come from Debian 12 (bookworm). Each package's copyright and license are in /usr/share/doc/<package>/copyright in the image.",
+    ships: 'setup',
+    note: "Optional (foundry setup --with ffmpeg), from Homebrew or the system's packages, whose build decides whether it is LGPL-2.1+ or GPL-2+. Foundry runs it to render and measure video (the motion-studio engine, the likeness review's frames, the reviewers' ffprobe checks).",
   },
 ];
 
-/** what the Dockerfile installs that the credits leave out on purpose, and why */
-export const EXCLUDED_INSTALLS: Record<string, string> = {
-  'npm:@anthropic-ai/claude-code': "Claude Code is proprietary (Anthropic's Commercial Terms of Service), not open source.",
+/** what foundry setup installs that the credits leave out on purpose, and why (every one of its ids is either here or credited) */
+export const SETUP_NOT_CREDITED: Record<string, string> = {
+  claude: "Claude Code is proprietary (Anthropic's Commercial Terms of Service), not open source.",
+  agy: "The Antigravity CLI is Google's own, not open source.",
+  git: "git comes with the computer's own developer tools (Apple's command line tools, or the system's packages), not from Foundry.",
+  chromium: 'Chromium for Playwright is downloaded by Playwright itself, which is credited with the npm packages.',
 };

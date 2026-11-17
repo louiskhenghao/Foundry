@@ -2,8 +2,8 @@ import type { Credits } from './types.ts';
 
 /**
  * The cards at the top of the Open source credits page: the projects Foundry leans on most, each with what Foundry uses
- * it for. A card's version, license and link come from credits.json through its `ref`. Git and SQLite reach the image
- * inside Debian and Bun, so they carry their own. credits.test.ts checks that every ref resolves.
+ * it for. A card's version, license and link come from credits.json through its `ref`. Git comes with the computer and
+ * SQLite inside Bun, so they carry their own. credits.test.ts checks that every ref resolves.
  */
 export type FeaturedRef = { npm: string } | { tool: string } | { catalog: string };
 export type Featured = { name: string; use: string } & ({ ref: FeaturedRef } | { license: string; url: string });
@@ -13,9 +13,9 @@ export const FEATURED: { title: string; blurb: string; items: Featured[] }[] = [
     title: 'Runtime',
     blurb: 'What Foundry itself runs on.',
     items: [
-      { name: 'Bun', use: 'Runs the engine, the server and the CLI, and installs their packages.', ref: { tool: 'bun' } },
+      { name: 'Bun', use: 'Compiled into foundry: runs the engine, the server and the CLI.', ref: { tool: 'bun' } },
       { name: 'SQLite', use: 'Keeps every goal, task, event and setting, through the driver built into Bun.', license: 'Public domain', url: 'https://sqlite.org' },
-      { name: 'Node.js', use: 'Runs the coding-agent CLIs in the Docker image, and the MCP servers they start.', ref: { tool: 'node' } },
+      { name: 'Node.js', use: 'Runs the MCP servers the coding agents start, and the CLIs built on it.', ref: { tool: 'node' } },
       { name: 'Git', use: 'Gives every goal its own branch and worktree, and delivers it as a merge or a pull request.', license: 'GPL-2.0', url: 'https://git-scm.com' },
       { name: 'React & React Router', use: 'Draw every screen of the web UI and move between them.', ref: { npm: 'react' } },
       { name: 'Hono', use: "Serves Foundry's API and the web UI.", ref: { npm: 'hono' } },
