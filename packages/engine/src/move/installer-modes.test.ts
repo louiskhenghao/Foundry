@@ -46,3 +46,26 @@ test('an install recorded by a 2.x source installer is not reinstalled: the bina
     rmSync(home, { recursive: true, force: true });
   }
 });
+
+test("what a 2.36 install hands the 3.0 installer still runs: the page's switch and the container's steps (ADR-0106, ADR-0108)", () => {
+  const home = tmp();
+  try {
+    mkdirSync(join(home, 'api'), { recursive: true });
+    writeFileSync(join(home, 'api', 'latest'), JSON.stringify({ tag_name: 'v3.0.0', assets: [] }));
+    // the page's switch: the release file it downloaded and checked, and the checkout it moves (2.36.0's applySwitch)
+    const file = join(home, 'foundry-3.0.0-linux-x64.tar.gz');
+    writeFileSync(file, '');
+    const checkout = join(home, 'foundry');
+    mkdirSync(checkout, { recursive: true });
+    const sw = installer(home, ['install', '--mode', 'binary', '--from-file', file, '--migrate-from', checkout, '--migrate-data', join(checkout, 'data'), '--migrate-stop', '12345', '--port', '4111', '--agent', 'claude', '--with', 'none', '--yes', '--no-open', '--no-modify-path', '--dry-run']);
+    expect(sw.out).not.toContain('unknown option');
+    expect(sw.code).toBe(0);
+    expect(sw.out).toContain('foundry 3.0.0');
+    // a container's first step on its host (2.36.0's dockerSwitchSteps), before it copies the volume itself
+    const steps = installer(home, ['--mode', 'binary', '--no-start', '--yes', '--dry-run']);
+    expect(steps.out).not.toContain('unknown option');
+    expect(steps.code).toBe(0);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
