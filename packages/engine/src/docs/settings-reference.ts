@@ -173,7 +173,6 @@ const show = (v: unknown) => (v === null ? '—' : typeof v === 'object' ? (Arra
 
 /** Operational variables read outside Settings (install and runtime switches). */
 const OPERATIONAL_ENV: { name: string; help: string }[] = [
-  { name: 'FOUNDRY_REPOS', help: 'Docker compose only: host folder mounted at /repos.' },
   { name: 'FOUNDRY_SUPERVISED', help: 'Set to 1 under launchd / systemd so a self-update exits and lets the supervisor restart Foundry.' },
   { name: 'FOUNDRY_UPDATE_CHECK', help: 'off = no daily release check.' },
   { name: 'FOUNDRY_RELEASES_URL', help: 'The GitHub Releases API address the update check reads (default: the public foundry-releases repository).' },
@@ -181,12 +180,6 @@ const OPERATIONAL_ENV: { name: string; help: string }[] = [
   { name: 'FOUNDRY_APP_SHELL', help: 'Set to 1 by the macOS menu bar app (ADR-0105): the engine writes where it listens to ~/.foundry/app.json, stops when the app does, and a self-update hands the downloaded release to the app to install.' },
   { name: 'FOUNDRY_LOGIN_ITEM', help: 'off = the macOS app does not make itself a login item on its first launch.' },
   { name: 'FOUNDRY_ALLOWED_HOSTS', help: 'More names Foundry answers to, comma-separated (a tunnel or proxy domain); * = any. IP addresses, localhost, names without a dot or ending in .local, *.ts.net and the Link base URL\'s host always work; other names are refused against DNS rebinding.' },
-  { name: 'FOUNDRY_WATCHTOWER_URL / FOUNDRY_WATCHTOWER_TOKEN', help: 'Docker: the watchtower sidecar that applies one-click updates.' },
-  { name: 'FOUNDRY_HOST_REPOS', help: "Docker: the projects folder shared at the same path as on the host; the folder picker starts there (set by the installer)." },
-  { name: 'FOUNDRY_HOST_DOCKER / FOUNDRY_CONTAINER', help: "Docker: the host's Docker socket is shared, so preview services start there in this container's network (container name, default foundry). Set by the installer (ADR-0024)." },
-  { name: 'FOUNDRY_SKIP_SETUP', help: 'Docker: skip installing the graphify skill into a fresh Claude home on first start.' },
-  { name: 'COMPOSE_PROFILES', help: 'Docker compose only: `memory` starts the Hindsight service beside Foundry for Memory (ADR-0072); `install.sh --with hindsight` writes it to .env with HINDSIGHT_API_URL=http://hindsight:8888.' },
-  { name: 'HINDSIGHT_API_LLM_PROVIDER / HINDSIGHT_API_LLM_API_KEY / HINDSIGHT_API_LLM_MODEL', help: 'Docker compose only, in hindsight.env beside the compose file (mode 600): the LLM the Hindsight service extracts and answers with; the installer asks for them.' },
   { name: 'CLAUDE_CONFIG_DIR', help: 'Alternative to FOUNDRY_CLAUDE_HOME.' },
 ];
 

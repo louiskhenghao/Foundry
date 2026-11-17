@@ -95,12 +95,10 @@ describe('pickFolder', () => {
     expect(calls).toBe(1);
     expect(a).toEqual(b);
   });
-  test("in the Docker image the shared projects folder comes first and may be browsed, at the host's path and at /repos", () => {
+  test('the folders a person may browse: the home folder, mounted volumes, the temporary folders (ADR-0108: no image, no /repos)', () => {
     const home = mkdtempSync(join(tmpdir(), 'foundry-home-'));
-    const shared = mkdtempSync(join(tmpdir(), 'foundry-shared-'));
-    const env = { FOUNDRY_HOST_REPOS: shared, FOUNDRY_DOCKER: '1' };
-    expect(wellKnownRoots(home, env)[0]).toEqual({ label: 'Your projects', path: shared });
-    expect(defaultAllowedRoots(home, env)).toContain(shared);
-    expect(defaultAllowedRoots(home, {})).not.toContain(shared);
+    expect(defaultAllowedRoots(home)).toContain(home);
+    expect(defaultAllowedRoots(home)).not.toContain('/repos');
+    expect(wellKnownRoots(home)[0]).toEqual({ label: 'Home', path: home });
   });
 });

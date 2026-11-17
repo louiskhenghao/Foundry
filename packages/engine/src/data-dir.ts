@@ -438,7 +438,7 @@ export interface DataDirStatus {
   /** when this engine started: another value after a restart */
   startedAt: string;
   /** under Docker, or with FOUNDRY_DATA_DIR set, the folder is not chosen here */
-  readOnly: { reason: 'docker' | 'env'; detail: string } | null;
+  readOnly: { reason: 'env'; detail: string } | null;
   /** folders this Foundry had before, newest first, that are still there */
   recent: string[];
   configFile: string | null;

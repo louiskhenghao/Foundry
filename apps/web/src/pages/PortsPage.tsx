@@ -379,7 +379,6 @@ export function PortsPage() {
       </div>
 
       {/* in its Docker image Foundry sees only its own container: information, not a warning */}
-      {view?.inContainer && <div className={cn(notice('work'), 'px-3 py-2 text-xs text-work-ink')}>Foundry runs in its Docker image: only ports inside its container show here, not the host's.</div>}
       {error && view && <div className={cn(notice('bad'), 'px-3 py-2 text-xs text-bad-ink')}>The last scan failed: {error}</div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

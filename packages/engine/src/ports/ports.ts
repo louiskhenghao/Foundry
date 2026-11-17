@@ -43,8 +43,6 @@ export interface PortRow {
 
 export interface PortsView {
   rows: PortRow[];
-  /** Foundry runs in its Docker image: the host's ports cannot be seen from here */
-  inContainer: boolean;
   scannedAt: string;
   /** this Foundry's own port, and the range previews get their ports from (Settings → Preview & self-check) */
   foundryPort: number;
@@ -123,7 +121,6 @@ function ownerOf(cwd: string | null, places: { goal: Goal; ws: string; tasks: Ta
 
 export async function listPorts(engine: Engine, deps: PortsDeps = {}): Promise<PortsView> {
   const { config } = engine;
-  const inContainer = !!process.env.FOUNDRY_DOCKER;
   const [sockets, serves, dockerOut] = await Promise.all([listSockets({ run: deps.run, platform: deps.platform }), (deps.serves ?? (() => engine.tailnet.serves()))().catch(() => []), (deps.dockerPs ?? defaultDockerPs)().catch(() => '')]);
   const containers = parseDockerPs(dockerOut);
   const info = await processInfo(sockets.flatMap((s) => (s.pid ? [s.pid] : [])), { run: deps.run, platform: deps.platform });
@@ -236,7 +233,7 @@ export async function listPorts(engine: Engine, deps: PortsDeps = {}): Promise<P
 
   const order: Record<PortCategory, number> = { foundry: 0, tailscale: 1, docker: 2, process: 3, unknown: 4 };
   rows.sort((a, b) => order[a.category] - order[b.category] || a.port - b.port);
-  return { rows, inContainer, scannedAt: new Date().toISOString(), foundryPort: config.port, previewRange: { from: portFrom, to: portTo } };
+  return { rows, scannedAt: new Date().toISOString(), foundryPort: config.port, previewRange: { from: portFrom, to: portTo } };
 }
 
 /** a command's last path part: `/Applications/Docker.app/…/com.docker.backend` → `com.docker.backend` */
