@@ -86,16 +86,9 @@ export function switchEnv(env: NodeJS.ProcessEnv): Record<string, string> {
 }
 
 /** a container's way to the binary (ADR-0106): what the dialog lists, since nothing in a container can do it */
-export function dockerSwitchSteps(install: 'app' | 'binary'): string[] {
-  const data = install === 'app' ? '"$HOME/Library/Application Support/Foundry/data"' : '"$HOME/.local/share/foundry/data"';
-  return [
-    `curl -fsSL ${INSTALLER_URL} | bash -s -- --mode ${install} --no-start`,
-    'docker stop foundry',
-    `mkdir -p ${data} && docker run --rm --volumes-from foundry -v ${data}:/out alpine sh -c 'cp -a /app/data/. /out/'`,
-    `foundry repath /app/data ${data}`,
-    'foundry repath /repos "$HOME/Projects"',
-    'foundry start',
-  ];
+export function dockerSwitchSteps(): string[] {
+  // the installer picks the app on a Mac and the binary on Linux, finds this container and offers to move it (ADR-0107)
+  return [`curl -fsSL ${INSTALLER_URL} | bash`];
 }
 
 export interface UpdaterOptions {
@@ -295,7 +288,7 @@ export class UpdateManager {
       log: join(foundryHome(this.env), 'switch.log'),
     };
     // a container cannot install anything on its host: the steps, to run there
-    if (mode === 'docker') return { mode, canSelfUpdate: false, method: null, guided: dockerSwitchSteps(install), switch: info };
+    if (mode === 'docker') return { mode, canSelfUpdate: false, method: null, guided: dockerSwitchSteps(), switch: info };
     const asset = releaseAssetName(install, to, this.platform, this.arch);
     const can = !!asset && !!Bun.which('bash', { PATH: this.env.PATH ?? '' });
     return { mode, canSelfUpdate: can, method: can ? 'switch' : null, guided: [`curl -fsSL ${INSTALLER_URL} | bash -s -- --mode ${install} --migrate-from ${JSON.stringify(cfg.rootDir)}`], switch: info };

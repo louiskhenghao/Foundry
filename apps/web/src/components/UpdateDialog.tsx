@@ -217,7 +217,11 @@ export function SwitchNotice({ sw, steps, canSwitch, force, onForce, err, onSwit
         <ul className={list}>
           <li>Installs Foundry {sw.to} {sw.install === 'app' ? 'as Foundry.app in Applications, run from the menu bar' : 'in ~/.local/share/foundry, run as a service'}.</li>
           <li>
-            Stops this Foundry, then copies its data folder <span className={mono}>{sw.dataDir}</span> to <span className={mono}>{sw.target}</span>. The original stays as it is: it is the backup.
+            {sw.from === 'docker' ? (
+              <>Stops this container, then copies its data folder <span className={mono}>{sw.dataDir}</span> to <span className={mono}>{sw.target}</span>, with the paths it wrote pointed at this computer. The container stays as it is, and Docker does not start it again: it is the backup.</>
+            ) : (
+              <>Stops this Foundry, then copies its data folder <span className={mono}>{sw.dataDir}</span> to <span className={mono}>{sw.target}</span>. The original stays as it is: it is the backup.</>
+            )}
           </li>
           <li>Starts the new Foundry on port {sw.port}, the address this page has. The page reconnects by itself.</li>
           <li>Your repositories, their branches and the goals' progress folders are not touched.</li>
@@ -239,7 +243,7 @@ export function SwitchNotice({ sw, steps, canSwitch, force, onForce, err, onSwit
         <ul className={list}>
           <li>
             {sw.from === 'docker'
-              ? 'The Docker volumes stay as they are. To go back, stop the new Foundry and start the container again.'
+              ? 'The container and its volumes stay as they are. To go back, quit the new Foundry and start the container again: the MOVED.md in its data folder says how.'
               : 'This checkout and its data stay as they were. To go back, quit the new Foundry and start this one again.'}
           </li>
         </ul>
@@ -248,7 +252,7 @@ export function SwitchNotice({ sw, steps, canSwitch, force, onForce, err, onSwit
         <div className="space-y-2">
           <p className="text-xs text-ink-faint">
             {sw.from === 'docker'
-              ? 'Nothing in a container can install on its host. On the host, run these in order (Linux; on a Mac, --mode app and ~/Library/Application Support/Foundry/data):'
+              ? `Nothing in a container can install on its host. On the computer Docker runs on, run this: it installs Foundry ${sw.to} (the app on a Mac, the binary on Linux), finds this container and offers to move its goals. On a Mac you can instead download the app from the releases page and open it: it offers the same move.`
               : 'This Foundry cannot switch by itself here. In a terminal:'}
           </p>
           <div className="rounded-md border border-line bg-sunken p-3 space-y-1">
