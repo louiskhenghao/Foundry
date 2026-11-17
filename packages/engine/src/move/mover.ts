@@ -8,7 +8,7 @@ import { isPortFree } from '../app-shell.ts';
 import type { RestartRequest } from '../data-dir.ts';
 import type { InstallKind } from '../install-root.ts';
 import { readMovedFrom, type MovedFrom } from './finish.ts';
-import { CHECKOUT_ENTRY, findEarlierInstalls, type EarlierInstall, type Found } from './find.ts';
+import { CHECKOUT_ENTRY, commandOf, findEarlierInstalls, type EarlierInstall, type Found } from './find.ts';
 import { MoveError, type MoveItem, openers, planMove, runMove } from './move.ts';
 import { localProbe, type Probe } from './probe.ts';
 
@@ -136,7 +136,7 @@ export class Mover {
  */
 export async function openedByOther(dataDir: string, probe: Probe = localProbe()): Promise<string | null> {
   for (const pid of (await openers([`${dataDir}/engine.db`], probe)).filter((p) => !probe.self.includes(p))) {
-    const cmd = (await probe.run(['ps', '-o', 'command=', '-p', String(pid)], { timeoutMs: 5000 })).stdout.trim();
+    const cmd = await commandOf(probe, pid);
     if (cmd.includes(CHECKOUT_ENTRY) || /foundry(-engine)?\s+serve\b/.test(cmd)) return `pid ${pid} (${cmd.slice(0, 120)})`;
   }
   return null;

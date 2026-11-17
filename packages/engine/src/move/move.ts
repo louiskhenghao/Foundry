@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path';
 import { folderBytesAsync, formatBytes, rewriteDataDirPaths } from '../data-dir.ts';
 import { isFoundryFolder, stopProcess, stopSourceService } from '../migrate.ts';
 import { carrySettings, settingsFromEnv } from '../settings.ts';
-import { CHECKOUT_ENTRY, CONTAINER_DATA, countFolder, type DockerFacts, type EarlierInstall, type FolderCounts } from './find.ts';
+import { CHECKOUT_ENTRY, commandOf, CONTAINER_DATA, countFolder, type DockerFacts, type EarlierInstall, type FolderCounts } from './find.ts';
 import { localProbe, type Probe } from './probe.ts';
 
 export const STAGING_SUFFIX = '.moving';
@@ -292,7 +292,7 @@ async function waitClosed(files: string[], probe: Probe, timeoutMs: number, slee
     const pids = (await openers(files, probe)).filter((p) => !probe.self.includes(p));
     if (!pids.length) return null;
     if (Date.now() - t0 > timeoutMs) {
-      const cmd = (await probe.run(['ps', '-o', 'command=', '-p', String(pids[0])], { timeoutMs: 5000 })).stdout.trim();
+      const cmd = await commandOf(probe, pids[0]!);
       return `pid ${pids[0]}${cmd ? ` (${cmd.slice(0, 160)})` : ''}`;
     }
     await sleep(1000);
@@ -311,7 +311,7 @@ async function stopCheckout(install: EarlierInstall, o: { probe: Probe; log: (m:
   let byHand = false;
   for (const pid of await openers(files, probe)) {
     if (probe.self.includes(pid)) continue;
-    const cmd = (await run(['ps', '-o', 'command=', '-p', String(pid)])).stdout.trim();
+    const cmd = await commandOf(probe, pid);
     if (!cmd) continue;
     if (!cmd.includes(CHECKOUT_ENTRY)) {
       await svc.restore();

@@ -27,6 +27,16 @@ describe('reading what runs on a computer', () => {
     expect(listenPort([])).toBeNull();
   });
 
+  test('a slim Linux with no ps: the processes are read from /proc', async () => {
+    const { listProcesses, commandOf } = await import('./find.ts');
+    const probe = fakeProbe({ home: '/x', platform: 'linux', run: (argv) => (argv[0] === 'ps' ? { code: 127, stdout: '', stderr: '' } : argv[0] === 'sh' ? ok('1 /sbin/init \n42 bun apps/cli/src/main.ts serve \n43 \n') : null) });
+    expect(await listProcesses(probe)).toEqual([
+      { pid: 1, command: '/sbin/init' },
+      { pid: 42, command: 'bun apps/cli/src/main.ts serve' },
+    ]);
+    expect(await commandOf(probe, 999999)).toBe('');
+  });
+
   test('a .env and a systemd unit', () => {
     expect(parseDotenv('# a comment\nexport FOUNDRY_MAX_CONCURRENT=5\nFOUNDRY_MODEL_CHEAP="haiku" \nHINDSIGHT_API_URL=http://hindsight:8888 # memory\n')).toEqual({ FOUNDRY_MAX_CONCURRENT: '5', FOUNDRY_MODEL_CHEAP: 'haiku', HINDSIGHT_API_URL: 'http://hindsight:8888' });
     expect(parseUnit('[Service]\nWorkingDirectory=/home/me/foundry\nExecStart=/usr/bin/bun apps/cli/src/main.ts serve\nEnvironment="FOUNDRY_PORT=4111" FOUNDRY_PROVIDER=claude\n')).toEqual({ dir: '/home/me/foundry', exec: '/usr/bin/bun apps/cli/src/main.ts serve', env: { FOUNDRY_PORT: '4111', FOUNDRY_PROVIDER: 'claude' } });

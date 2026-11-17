@@ -110,6 +110,21 @@ export function parsePs(text: string): { pid: number; command: string }[] {
   return out;
 }
 
+/** every process and its command line: ps, or /proc where ps is not installed (a slim Linux image) */
+export async function listProcesses(probe: Probe): Promise<{ pid: number; command: string }[]> {
+  const ps = await probe.run(probe.platform === 'darwin' ? ['ps', '-axo', 'pid=,command='] : ['ps', '-eo', 'pid=,args='], { timeoutMs: 5000 });
+  if (ps.code !== 127 || probe.platform !== 'linux') return parsePs(ps.stdout);
+  const r = await probe.run(['sh', '-c', 'for p in /proc/[0-9]*; do printf "%s " "${p#/proc/}"; tr "\\0" " " < "$p/cmdline" 2>/dev/null; echo; done'], { timeoutMs: 10_000 });
+  return parsePs(r.stdout).filter((x) => x.command.trim() !== '');
+}
+
+/** one process's command line, '' when it is gone: ps, or /proc where ps is not installed */
+export async function commandOf(probe: Probe, pid: number): Promise<string> {
+  const r = await probe.run(['ps', '-o', 'command=', '-p', String(pid)], { timeoutMs: 5000 });
+  if (r.code !== 127 || probe.platform !== 'linux') return r.stdout.trim();
+  return (probe.read(`/proc/${pid}/cmdline`) ?? '').split('\0').join(' ').trim();
+}
+
 /** a Foundry server run from a checkout: `bun [--watch] [path/]apps/cli/src/main.ts serve` */
 export const isCheckoutServe = (command: string) => command.includes(CHECKOUT_ENTRY) && /\sserve(\s|$)/.test(command.slice(command.indexOf(CHECKOUT_ENTRY)));
 
@@ -245,8 +260,7 @@ export async function findEarlierInstalls(opts: { probe?: Probe; exclude?: strin
   }
 
   // the Foundries running from a checkout now: a service's, the installer's background one, one started by hand
-  const ps = await probe.run(probe.platform === 'darwin' ? ['ps', '-axo', 'pid=,command='] : ['ps', '-eo', 'pid=,args='], { timeoutMs: 5000 });
-  for (const { pid, command } of parsePs(ps.stdout)) {
+  for (const { pid, command } of await listProcesses(probe)) {
     if (probe.self.includes(pid) || !isCheckoutServe(command)) continue;
     const facts = await processFacts(probe, pid);
     const checkout = checkoutOf(command, facts.cwd);
