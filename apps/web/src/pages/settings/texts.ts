@@ -92,7 +92,7 @@ export const SETTING_TEXT = {
   'tools.markitdownBin': { label: 'markitdown binary', help: 'Converts attachments and repository documents to markdown before sessions read them. Empty = auto-detect on PATH and ~/.local/bin.' },
   // Preview & self-check
   'preview.portFrom': { label: 'First port', help: 'Previews take the first free port in this range.' },
-  'preview.portTo': { label: 'Last port', help: 'Docker: publish this range in docker-compose.yml so the preview is reachable from the host.' },
+  'preview.portTo': { label: 'Last port', help: 'Previews take ports up to this one; when every port in the range is taken, a new preview does not start.' },
   'preview.idleMinutes': { label: 'Idle minutes', help: 'A preview nobody opened for this long is stopped (never while the goal waits for your look).' },
   'checks.selfCheck': { label: 'Self-check new goals by default', help: 'Off by default: it needs Playwright\'s Chromium (below) and only helps goals whose result runs in a browser. Each goal\'s page has its own switch.' },
   // Notifications

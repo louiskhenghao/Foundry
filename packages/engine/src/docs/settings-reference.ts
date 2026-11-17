@@ -124,7 +124,7 @@ export const SETTING_DOCS: Record<string, { section: Section; help: string }> = 
   'tools.groqApiKey': { section: 'Tools & keys', help: 'Handed to sessions as GROQ_API_KEY (speech-to-text fallback for captions when local transcription struggles).' },
   // Preview & self-check
   'preview.portFrom': { section: 'Preview & self-check', help: 'First port handed to goal previews; an app keeps its usual port (3000 for Next) while that is free.' },
-  'preview.portTo': { section: 'Preview & self-check', help: 'Last port handed to goal previews (Docker: publish the range).' },
+  'preview.portTo': { section: 'Preview & self-check', help: 'Last port handed to goal previews.' },
   'preview.idleMinutes': { section: 'Preview & self-check', help: 'A preview nobody opened for this long is stopped (never while a goal waits for your look).' },
   'checks.selfCheck': { section: 'Preview & self-check', help: 'New goals open their preview in headless Chromium after each task, screenshot it and fail on console or network errors.' },
   // shown under Models & limits, switched on the Accounts page (ADR-0065)
