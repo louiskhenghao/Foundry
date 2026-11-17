@@ -306,22 +306,38 @@ const REWRITE_SKIP = new Set(['transcripts', 'claude-home', 'codex-home', 'accou
 const REWRITE_MAX_BYTES = 4 * 1024 * 1024;
 
 /**
+ * `from` where a path starts and ends: no path character just before it (so `/repos` is not found in `/home/me/repos` or
+ * in `https://api.github.com/repos/…`), and a slash, a quote, a space or the end just after (so `/data` is not `/data-codex`).
+ */
+function pathAt(from: string): RegExp {
+  const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![A-Za-z0-9._~%+\\-])${escaped}(?=[/"'\\s,;:)\\]}]|$)`, 'g');
+}
+
+/**
  * A copy of a data folder keeps the paths the original wrote about itself (transcripts, check output): in the copy they
  * are made to point into the copy — in the event log (the read models are rebuilt from it) and in the JSON files beside
  * it. Paths outside the data folder (repositories, progress folders) are shared by both and stay.
  */
 export function rewriteDataDirPaths(dir: string, from: string, to: string): { events: number; files: number } {
-  const forms: [string, string][] = [
-    [from + '/', to + '/'],
-    [`"${from}"`, `"${to}"`],
-  ];
+  const re = pathAt(from);
+  const swap = (text: string) => text.replace(re, () => to);
   let events = 0;
   const dbFile = join(dir, 'engine.db');
   if (existsSync(dbFile)) {
     const db = openDatabase(dbFile);
     try {
-      const r = db.run('UPDATE events SET payload = replace(replace(payload, ?1, ?2), ?3, ?4) WHERE instr(payload, ?5) > 0', [forms[0]![0], forms[0]![1], forms[1]![0], forms[1]![1], from]);
-      events = r.changes;
+      const rows = db.query('SELECT seq, payload FROM events WHERE instr(payload, ?1) > 0').all(from) as { seq: number; payload: string }[];
+      const update = db.prepare('UPDATE events SET payload = ?1 WHERE seq = ?2');
+      db.transaction(() => {
+        for (const r of rows) {
+          const out = swap(r.payload);
+          if (out !== r.payload) {
+            update.run(out, r.seq);
+            events++;
+          }
+        }
+      })();
       if (events) new EventStore(db).replay();
     } finally {
       db.close();
@@ -347,8 +363,7 @@ export function rewriteDataDirPaths(dir: string, from: string, to: string): { ev
         if (statSync(p).size > REWRITE_MAX_BYTES) continue;
         const text = readFileSync(p, 'utf8');
         if (!text.includes(from)) continue;
-        let out = text;
-        for (const [a, b] of forms) out = out.split(a).join(b);
+        const out = swap(text);
         if (out !== text) {
           writeFileSync(p, out);
           files++;
