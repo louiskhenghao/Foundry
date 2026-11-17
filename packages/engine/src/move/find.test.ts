@@ -18,6 +18,10 @@ describe('reading what runs on a computer', () => {
     // the CLI of a checkout, or anything else that serves, is not a Foundry server
     expect(isCheckoutServe('bun apps/cli/src/main.ts ask g_1 hi')).toBe(false);
     expect(isCheckoutServe('python -m http.server serve')).toBe(false);
+    // a shell that only mentions it (bun run serve's wrapper, a script) is not the Foundry: found running a real one
+    expect(isCheckoutServe('sh -c bun apps/cli/src/main.ts serve')).toBe(false);
+    expect(isCheckoutServe(`/bin/zsh -c cd /x && nohup bun apps/cli/src/main.ts serve > log 2>&1 &`)).toBe(false);
+    expect(isCheckoutServe('/Users/me/.bun/bin/bun --watch apps/cli/src/main.ts serve')).toBe(true);
     expect(checkoutOf('bun --watch apps/cli/src/main.ts serve', '/Users/me/foundry')).toBe('/Users/me/foundry');
     expect(checkoutOf('/opt/bun /srv/foundry/apps/cli/src/main.ts serve', null)).toBe('/srv/foundry');
     expect(checkoutOf('bun apps/cli/src/main.ts serve', null)).toBeNull();

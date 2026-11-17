@@ -9,6 +9,7 @@ import { Database } from 'bun:sqlite';
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { foundryHome, readHomeConfig } from '../data-dir.ts';
+import { readDataLock } from '../data-lock.ts';
 import { folderProvider, isFoundryFolder, parseInstallEnv, SOURCE_SERVICE_LABEL } from '../migrate.ts';
 import { localProbe, type Probe } from './probe.ts';
 
@@ -126,8 +127,14 @@ export async function commandOf(probe: Probe, pid: number): Promise<string> {
   return (probe.read(`/proc/${pid}/cmdline`) ?? '').split('\0').join(' ').trim();
 }
 
-/** a Foundry server run from a checkout: `bun [--watch] [path/]apps/cli/src/main.ts serve` */
-export const isCheckoutServe = (command: string) => command.includes(CHECKOUT_ENTRY) && /\sserve(\s|$)/.test(command.slice(command.indexOf(CHECKOUT_ENTRY)));
+/**
+ * A Foundry server run from a checkout: bun itself running `[--watch] [path/]apps/cli/src/main.ts serve`. A shell whose
+ * command only mentions it (`sh -c "bun apps/cli/src/main.ts serve"`, what `bun run serve` can start first) is not one.
+ */
+export const isCheckoutServe = (command: string) => {
+  const exe = command.trim().split(/\s+/)[0] ?? '';
+  return /(^|\/)bun$/.test(exe) && command.includes(CHECKOUT_ENTRY) && /\sserve(\s|$)/.test(command.slice(command.indexOf(CHECKOUT_ENTRY)));
+};
 
 /** the checkout a command runs from: the path written before the entry point, else the process's folder */
 export function checkoutOf(command: string, cwd: string | null): string | null {
@@ -285,9 +292,12 @@ export async function findEarlierInstalls(opts: { probe?: Probe; exclude?: strin
       folders.push({ provider, path: dir, counts: countFolder(dir), moved: probe.exists(join(dir, 'MOVED.md')), chosen });
     }
     if (!folders.length) continue;
-    const proc = s.procs[0] ?? null;
+    // the process that listens, else one that holds a data folder: the Foundry itself, not a wrapper around it
+    const proc = s.procs.find((x) => x.port) ?? s.procs.find((x) => x.held.length) ?? s.procs[0] ?? null;
     const running = s.service ? { pid: s.service.pid ?? proc?.pid ?? null, how: s.service.how } : proc ? { pid: proc.pid, how: 'process' as const } : null;
-    const port = proc?.port ?? s.port ?? null;
+    // its port: the socket it listens on, else what it wrote in the folder it holds (engine.pid, since 2.36), else its service's
+    const locked = folders.map((f) => readDataLock(f.path)).find((l) => l && l.port && s.procs.some((x) => x.pid === l.pid));
+    const port = proc?.port ?? locked?.port ?? s.port ?? null;
     const url = port && running ? ((await probe.json(`http://127.0.0.1:${port}/api/health`)) ? `http://127.0.0.1:${port}` : null) : null;
     const dotenv = (() => {
       const t = probe.read(join(checkout, '.env'));
