@@ -225,3 +225,38 @@ describe('the first start on a moved copy (ADR-0107)', () => {
     }
   });
 });
+
+describe('the move the page asks for (ADR-0107)', () => {
+  test('an app with no goals offers it; the job copies while this engine serves, then asks the serve loop to swap', async () => {
+    const { Mover } = await import('./mover.ts');
+    const home = tmp();
+    try {
+      const checkout = join(home, 'foundry');
+      seedCheckout(checkout, 2);
+      const target = join(home, 'app', 'data');
+      seedFolder(target, 0);
+      mkdirSync(join(home, '.config', 'foundry'), { recursive: true });
+      writeFileSync(join(home, '.config', 'foundry', 'install.env'), `MODE=source\nDIR=${checkout}\nPORT=4199\n`);
+      const probe = fakeProbe({ home, run: (argv) => (argv[0] === 'docker' ? { code: 127, stdout: '', stderr: '' } : argv[0] === 'ps' || argv[0] === 'lsof' ? { code: 1, stdout: '', stderr: '' } : null) });
+      const asked: unknown[] = [];
+      const lines: string[] = [];
+      const mover = new Mover({ kind: 'app', dataDir: () => target, targetFor: () => target, goals: () => 0, port: () => 4112, restart: (r) => void asked.push(r), log: quiet, probe });
+      const status = await mover.status();
+      expect(status.offer).toBe(true);
+      expect(status.installs[0]).toMatchObject({ id: `source:${checkout}`, goals: 2, plan: [{ action: 'replace' }] });
+      const job = mover.start({ id: `source:${checkout}`, onLine: (l) => lines.push(l) });
+      expect(() => mover.start({ id: `source:${checkout}`, onLine: quiet })).toThrow('a move is under way');
+      for (let i = 0; i < 200 && job.state === 'running'; i++) await Bun.sleep(10);
+      expect(job.state).toBe('restarting');
+      expect(asked).toEqual([{ kind: 'move', staged: [{ staging: target + STAGING_SUFFIX, target }], port: expect.anything() }]);
+      // staged beside this install's folder, which this engine still has open
+      expect(countFolder(target + STAGING_SUFFIX)?.goals).toBe(2);
+      expect(countFolder(target)?.goals).toBe(0);
+      expect(lines.some((l) => l.startsWith('starting again on the moved data'))).toBe(true);
+      // a checkout never offers one
+      expect((await new Mover({ kind: 'checkout', dataDir: () => target, targetFor: () => target, goals: () => 0, port: () => 4111, restart: () => {}, log: quiet, probe }).status()).offer).toBe(false);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});

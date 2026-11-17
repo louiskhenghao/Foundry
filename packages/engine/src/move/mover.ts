@@ -8,7 +8,7 @@ import { isPortFree } from '../app-shell.ts';
 import type { RestartRequest } from '../data-dir.ts';
 import type { InstallKind } from '../install-root.ts';
 import { readMovedFrom, type MovedFrom } from './finish.ts';
-import { findEarlierInstalls, type EarlierInstall, type Found } from './find.ts';
+import { CHECKOUT_ENTRY, findEarlierInstalls, type EarlierInstall, type Found } from './find.ts';
 import { MoveError, type MoveItem, openers, planMove, runMove } from './move.ts';
 import { localProbe, type Probe } from './probe.ts';
 
@@ -121,10 +121,14 @@ export class Mover {
   }
 }
 
-/** who else has this data folder's database open (a pid and its command), for a Foundry older than 2.36 claims nothing */
+/**
+ * Another Foundry that has this data folder's database open (its pid and command), for one older than 2.36 claims
+ * nothing. Only a Foundry counts: a database browser reading the file is no reason not to start.
+ */
 export async function openedByOther(dataDir: string, probe: Probe = localProbe()): Promise<string | null> {
-  const pids = (await openers([`${dataDir}/engine.db`], probe)).filter((p) => !probe.self.includes(p));
-  if (!pids.length) return null;
-  const cmd = (await probe.run(['ps', '-o', 'command=', '-p', String(pids[0])], { timeoutMs: 5000 })).stdout.trim();
-  return `pid ${pids[0]}${cmd ? ` (${cmd.slice(0, 120)})` : ''}`;
+  for (const pid of (await openers([`${dataDir}/engine.db`], probe)).filter((p) => !probe.self.includes(p))) {
+    const cmd = (await probe.run(['ps', '-o', 'command=', '-p', String(pid)], { timeoutMs: 5000 })).stdout.trim();
+    if (cmd.includes(CHECKOUT_ENTRY) || /foundry(-engine)?\s+serve\b/.test(cmd)) return `pid ${pid} (${cmd.slice(0, 120)})`;
+  }
+  return null;
 }

@@ -12,6 +12,7 @@ import { boardOf, isFinished, needOf, type Need } from './goal-boards.ts';
 import { foldable, listEntries, memberRole, type GoalChain, type ListEntry } from './goal-chains.ts';
 import { useLive } from '../store.ts';
 import { BOARD_HEAD, BOARD_ROW, Board, Button, EmptyState, Loading, PageHeader, ago, buttonClass, cn, fmtUsd, stateLabel, waited } from '../ui.tsx';
+import { MoveCard } from '../components/MoveCard.tsx';
 
 /**
  * A goal's state in words, in its signal colour with its mark, so it reads at a glance where there is no room for a
@@ -373,17 +374,21 @@ export function GoalsPage() {
       {!goals ? (
         <Loading label="Loading goals…" />
       ) : goals.length === 0 ? (
-        <EmptyState
-          icon={Target}
-          title="No goals yet"
-          actions={
-            <Link to="/goals/new" className={buttonClass('primary', 'lg')}>
-              <Plus size={16} aria-hidden="true" /> New goal
-            </Link>
-          }
-        >
-          Say what you want done and pick the project folder: Foundry clarifies it into a Brief, then builds it while you watch from here.
-        </EmptyState>
+        <>
+          {/* an app with no goals yet, and an earlier Foundry on this computer with some (ADR-0107) */}
+          <MoveCard variant="offer" />
+          <EmptyState
+            icon={Target}
+            title="No goals yet"
+            actions={
+              <Link to="/goals/new" className={buttonClass('primary', 'lg')}>
+                <Plus size={16} aria-hidden="true" /> New goal
+              </Link>
+            }
+          >
+            Say what you want done and pick the project folder: Foundry clarifies it into a Brief, then builds it while you watch from here.
+          </EmptyState>
+        </>
       ) : (
         <>
           {signs.length > 0 && (

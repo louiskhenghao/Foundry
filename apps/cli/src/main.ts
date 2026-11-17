@@ -152,7 +152,7 @@ const scoped = (path: string) => provider ? `${path}${path.includes('?') ? '&' :
 const providerApi = (path: string, init?: RequestInit) => api(scoped(path), init);
 switch (cmd) {
   case 'serve': {
-    const { adoptLocalBin, choosePort, foundryHome, keepPort, watchParentPipe, writeAppState } = await import('@foundry/engine');
+    const { adoptLocalBin, choosePort, defaultDataDir, foundryHome, keepPort, openedByOther, watchParentPipe, writeAppState } = await import('@foundry/engine');
     const { serveLoop } = await import('@foundry/server');
     // under the menu bar app (ADR-0105): it reads where the engine listens from ~/.foundry/app.json
     const shell = !!process.env.FOUNDRY_APP_SHELL;
@@ -168,6 +168,9 @@ switch (cmd) {
     const loop = serveLoop({
       root: ROOT,
       webDist: resolve(ROOT, 'apps/web/dist'),
+      // a release install (ADR-0107): the folder chosen in Settings held by another Foundry sends this one to its own,
+      // and that one is found by who has its database open, for one older than 2.36 claims nothing
+      ...(INSTALL.kind === 'checkout' ? {} : { fallbackDataDir: (p: AgentProvider) => defaultDataDir(ROOT, p), openedBy: (dir: string) => openedByOther(dir) }),
       onListening: (engine, server) => {
         engine.updater.startSchedule();
         if (shell) writeAppState(foundryHome(), { pid: process.pid, port: server.port!, url: `http://127.0.0.1:${server.port}`, dataDir: engine.config.dataDir, version: engine.updater.current(), startedAt: new Date().toISOString() });
