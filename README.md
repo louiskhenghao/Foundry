@@ -107,17 +107,16 @@ When it is done you get the work on its own branch, and — if you chose it — 
 
 ## Codex coding agent
 
-Use your Codex CLI with ChatGPT sign-in:
+Use your Codex CLI with ChatGPT sign-in: tick Codex when the installer asks (or pass `--agent codex`), then sign in.
 
 ```sh
-codex login
-bun install --frozen-lockfile && bun run web:build
-bun run serve:codex
+curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash -s -- --agent codex
+codex login                   # or Accounts → Sign in to Codex
 ```
 
 The Codex launch profile defaults to `data-codex/`; the Claude profile defaults to `data/`. Either instance can run both coding agents: choose **Coding agent** on each new goal. The data directory belongs to the instance, not to each goal. Accounts, presets and MCP permissions stay independent. Codex supports ChatGPT sign-in only, and its quota display follows the account's actual windows, including weekly-only accounts.
 
-Install a hooks-capable Codex CLI before these commands; the Docker build pins 0.160.0. See [Codex setup and differences](docs/operate/codex.md) for prerequisites, Docker and current limits. Before upgrading an existing instance, read [backup and rollback](docs/operate/updates-and-backup.md#upgrading-to-mixed-provider-goals). The Claude quick start follows below.
+Foundry needs a hooks-capable Codex CLI: `foundry setup` installs one and Setup checks it. See [Codex setup and differences](docs/operate/codex.md) for prerequisites and current limits. Before upgrading an existing instance, read [backup and rollback](docs/operate/updates-and-backup.md#upgrading-to-mixed-provider-goals). The Claude quick start follows below.
 
 ## Quick start
 
@@ -130,32 +129,26 @@ curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.
 # skip the coding-agent question:  … | bash -s -- --agent codex   (or agy for Antigravity, claude,agy, all)
 ```
 
-It asks how to run Foundry and which coding agents to use: Claude Code, Codex or Antigravity (not in Docker).
+It asks which coding agents to use: Claude Code, Codex or Antigravity, and on a Mac whether you want the app or the binary.
 **The app** (macOS) puts `Foundry.app` in Applications: Foundry runs from the menu bar and starts when you log in.
 **The binary** (Linux) runs the compiled `foundry` from the newest release as a background service. Both are the
 release itself, checked against its `SHA256SUMS`, and `foundry setup` installs what is missing (git, uv, graphify, the
-coding agents' CLIs, the GitHub CLI, Node.js and the optional tools you tick). **From source** builds a git checkout,
-and **Docker** runs the container, which is being retired. It offers to sign in, opens <http://127.0.0.1:4111> (or
+coding agents' CLIs, the GitHub CLI, Node.js and the optional tools you tick). Foundry 3.0 has no Docker image and no
+install from source ([ADR-0108](docs/develop/adr/0108-foundry-ships-only-as-the-app-and-the-binary.md)): when the
+installer finds an earlier install on the computer, it offers to move its goals
+([how](docs/operate/install.md#moving-an-earlier-install)). It offers to sign in, opens <http://127.0.0.1:4111> (or
 the port it chose), and leaves a `foundry` command: `foundry status | logs | stop | start | update | uninstall`, and
-with the app or the binary Foundry's own commands too (`foundry ask`, `foundry usage`…). Run the line again, or
-`foundry update`, to update.
+Foundry's own commands too (`foundry ask`, `foundry usage`…). Run the line again, or `foundry update`, to update.
 
 **The app, downloaded** (macOS): `Foundry-<version>-mac-universal.dmg` from the
 [releases](https://github.com/louiskhenghao/foundry-releases/releases); drag Foundry onto Applications. It is not
 notarized, so the first open needs **System Settings → Privacy & Security → Open Anyway**
 ([how](docs/operate/install.md#the-app-macos)). Its Setup page installs the tools.
 
-**From source, by hand** — the core of what the one-line install does: needs [Bun](https://bun.sh), [Claude Code](https://code.claude.com/docs/en/setup) signed in
-(`claude` on your PATH) and [graphify](https://github.com/safishamsi/graphify). For ChatGPT sign-in, see the [Codex setup](docs/operate/codex.md):
-
-```bash
-git clone https://github.com/louiskhenghao/Foundry.git foundry && cd foundry
-bun install && bun run web:build
-bun run serve                 # then open http://127.0.0.1:4111
-```
+To work on Foundry itself from a git checkout, see the [contributor docs](docs/develop/README.md#getting-a-working-tree).
 
 Open <http://127.0.0.1:4111>, press **New goal**, point it at a repository and describe what you want. The
-[Setup](docs/guide/your-first-goal.md#check-the-setup-page) page checks that everything is in place and installs what is missing with one click. Full steps, Claude sign-in in Docker and
+[Setup](docs/guide/your-first-goal.md#check-the-setup-page) page checks that everything is in place and installs what is missing with one click. Full steps and
 remote access from your phone: [Install](docs/operate/install.md).
 
 ## Learn more
@@ -163,7 +156,7 @@ remote access from your phone: [Install](docs/operate/install.md).
 | I want to… | Read |
 |---|---|
 | **use Foundry** — goals, the interview, the Brief, the Inbox, costs | [User guide](docs/guide/) · [中文](docs/guide/README.zh.md) |
-| **install and run it** — Docker, remote access, notifications, updates, every setting | [Operator docs](docs/operate/) |
+| **install and run it** — the app and the binary, remote access, notifications, updates, every setting | [Operator docs](docs/operate/) |
 | **change its code** — architecture, roles, testing, releasing, design decisions | [Contributor docs](docs/develop/) · [CONTRIBUTING](CONTRIBUTING.md) |
 
 The words Foundry uses (Goal, Brief, Milestone, Model Preset …) are defined in the [glossary](CONTEXT.md).
