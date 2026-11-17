@@ -108,3 +108,61 @@ test('serve switches the data folder in this process: a copy, the choice kept, a
     rmSync(dir, { recursive: true, force: true });
   }
 }, 60_000);
+
+test('a move swaps the staged copy in while the engine is stopped, and a copy that cannot boot is swapped back (ADR-0107)', async () => {
+  const { seedFolder } = await import('../../engine/src/move/test-helpers.ts');
+  const { countFolder, HANDOFF_FILE, MOVED_FROM_FILE } = await import('@foundry/engine');
+  const { readdirSync } = await import('node:fs');
+  const dir = mkdtempSync(join(tmpdir(), 'foundry-serve-move-'));
+  const home = join(dir, 'home');
+  const A = join(dir, 'data');
+  mkdirSync(A);
+  writeHomeConfig(home, { dataDirs: { claude: A }, recent: [] });
+  const loop = serveLoop({
+    root: ROOT,
+    config: { foundryHome: home, provider: 'claude', claudeHome: join(dir, 'claude'), codexHome: join(dir, 'codex'), host: '127.0.0.1', port: 0, log: () => {} },
+    makeEngine: (cfg) => {
+      if (!cfg.dataDir.startsWith(dir)) throw new Error(`a test engine on ${cfg.dataDir}`);
+      // a copy that cannot boot carries this mark
+      if (existsSync(join(cfg.dataDir, 'boom'))) throw new Error('this copy does not open');
+      return new Engine(cfg, new FakeRunner(() => {}));
+    },
+    log: () => {},
+    graceMs: 50,
+  });
+  try {
+    let cur = await until(() => loop.current());
+    expect(cur.engine.config.dataDir).toBe(A);
+    const staging = `${A}.moving`;
+    seedFolder(staging, 2);
+    writeFileSync(join(staging, HANDOFF_FILE), JSON.stringify({ from: { kind: 'source', where: '/old', version: null, folder: '/old/data' }, at: 'x', paused: [], goals: 2, events: 2, carried: [], pathMap: [] }));
+    const before = cur.engine;
+    before.restart.request({ kind: 'move', staged: [{ staging, target: A }], port: null });
+    cur = await until(() => {
+      const c = loop.current();
+      return c && c.engine !== before ? c : null;
+    });
+    expect(cur.engine.config.dataDir).toBe(A);
+    expect(countFolder(A)?.goals).toBe(2);
+    expect(readdirSync(dir).filter((n) => n.startsWith('data.before-move-'))).toHaveLength(1);
+    // the first start on the copy finished the move
+    await until(() => existsSync(join(A, MOVED_FROM_FILE)));
+    expect(existsSync(join(A, HANDOFF_FILE))).toBe(false);
+
+    // a copy that cannot boot: this install is back on its folder, the copy kept beside it
+    seedFolder(staging, 1);
+    writeFileSync(join(staging, 'boom'), '');
+    const second = cur.engine;
+    second.restart.request({ kind: 'move', staged: [{ staging, target: A }], port: null });
+    cur = await until(() => {
+      const c = loop.current();
+      return c && c.engine !== second ? c : null;
+    });
+    expect(countFolder(A)?.goals).toBe(2);
+    expect(existsSync(join(staging, 'boom'))).toBe(true);
+    expect(cur.engine.dataDirNotice).toMatchObject({ kind: 'move-failed', error: 'this copy does not open' });
+  } finally {
+    await loop.shutdown();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

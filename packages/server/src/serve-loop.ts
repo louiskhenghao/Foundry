@@ -3,7 +3,8 @@
  * data folder (a Setting marked restart) or on another one. Nothing exits, so under `bun --watch`, launchd or Docker the
  * process keeps its port. A switch whose folder cannot boot comes back on the folder before, with a notice for Settings.
  */
-import { Engine, claimDataDir, defaultConfig, prepareDataDir, readHomeConfig, releaseDataDir, rememberRecent, writeHomeConfig, type DataDirNotice, type EngineConfig } from '@foundry/engine';
+import type { AgentProvider } from '@foundry/core';
+import { DataFolderInUse, Engine, claimDataDir, defaultConfig, finishMove, keepPort, prepareDataDir, readHomeConfig, releaseDataDir, rememberRecent, swapIn, swapOut, writeHomeConfig, type DataDirNotice, type EngineConfig } from '@foundry/engine';
 import { startServer, type ServeOptions } from './index.ts';
 
 type Server = ReturnType<typeof startServer>;
@@ -19,6 +20,13 @@ export interface ServeLoopOptions extends ServeOptions {
   onListening?: (engine: Engine, server: Server) => void;
   /** how long the answer to the request that asked for the restart gets to leave (default 250 ms) */
   graceMs?: number;
+  /**
+   * A release install (ADR-0107): when another Foundry has the folder chosen in Settings open, this one starts on its
+   * default folder (with a notice) instead of failing, and the move can then bring it over.
+   */
+  fallbackDataDir?: (provider: AgentProvider) => string;
+  /** who else has a data folder's database open: a Foundry older than 2.36 writes no engine.pid to claim it */
+  openedBy?: (dataDir: string) => Promise<string | null>;
 }
 export interface ServeLoop {
   /** settles when the loop ends (shutdown) or a boot fails with no folder to fall back to */
@@ -39,6 +47,10 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
   // a switch under way: the folder it left, so a boot that fails goes back there
   let pending: { from: string; to: string; provider: string } | null = null;
   let notice: DataDirNotice | null = null;
+  // the folder one boot opens instead of the one chosen (another Foundry has that open)
+  let bootDir: string | null = null;
+  // a move swapped in: what to take back when its copy cannot boot
+  let moved: { staged: { provider: AgentProvider; staging: string; target: string }[]; setAside: string[]; port: string | undefined } | null = null;
 
   const run = async (): Promise<void> => {
     for (;;) {
@@ -47,9 +59,26 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
       let cfg: EngineConfig | undefined;
       let claimed: string | null = null;
       try {
-        cfg = defaultConfig(opts.root, opts.config);
-        // one Foundry per data folder (ADR-0105): a folder another live process holds is refused before anything opens it
-        claimDataDir(cfg.dataDir, { port: cfg.port });
+        cfg = defaultConfig(opts.root, bootDir ? { ...opts.config, dataDir: bootDir } : opts.config);
+        bootDir = null;
+        try {
+          // one Foundry per data folder (ADR-0105): a folder another live process holds is refused before anything opens it
+          claimDataDir(cfg.dataDir, { port: cfg.port });
+          const other = await opts.openedBy?.(cfg.dataDir);
+          if (other) {
+            releaseDataDir(cfg.dataDir);
+            throw new DataFolderInUse(cfg.dataDir, { pid: Number(/pid (\d+)/.exec(other)?.[1] ?? 0), port: null, startedAt: '' });
+          }
+        } catch (err) {
+          if (err instanceof DataFolderInUse && cfg.dataDirSource === 'config' && opts.fallbackDataDir) {
+            const fallback = opts.fallbackDataDir(cfg.provider);
+            log(`[data-dir] another Foundry has ${cfg.dataDir} open (pid ${err.holder.pid}); starting on ${fallback} until it stops`);
+            notice = { kind: 'in-use', chosen: cfg.dataDir, holder: `pid ${err.holder.pid}`, at: new Date().toISOString() };
+            bootDir = fallback;
+            continue;
+          }
+          throw err;
+        }
         claimed = cfg.dataDir;
         engine = make(cfg);
         server = startServer(engine, { webDist: opts.webDist });
@@ -60,6 +89,10 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
         log(`foundry listening on http://${engine.config.host}:${server.port}  (data: ${engine.config.dataDir})`);
         opts.onListening?.(engine, server);
         await engine.start();
+        // a move's copy opened for the first time (ADR-0107): its worktrees linked again, the goals paused for it resumed
+        const started = engine;
+        await finishMove({ dataDir: started.config.dataDir, resume: (id) => started.resumeGoal(id), log }).catch((err) => log(`[move] finishing the move failed: ${message(err)}`));
+        moved = null;
       } catch (err) {
         // half built: the server may listen, the engine may hold the database
         current = null;
@@ -70,6 +103,19 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
           await engine?.stop();
         } catch {}
         if (claimed) releaseDataDir(claimed);
+        if (moved) {
+          // the moved copy cannot boot: this install goes back on its own folder, the copy kept beside it
+          log(`[move] the moved data could not be opened (${message(err)}); back on this install's own folder`);
+          swapOut(moved.staged, moved.setAside);
+          if (moved.port === undefined) delete process.env.FOUNDRY_PORT;
+          else {
+            process.env.FOUNDRY_PORT = moved.port;
+            if (cfg?.foundryHome) keepPort(cfg.foundryHome, Number(moved.port));
+          }
+          notice = { kind: 'move-failed', error: message(err), at: new Date().toISOString() };
+          moved = null;
+          continue;
+        }
         if (pending && cfg?.foundryHome) {
           log(`[data-dir] ${pending.to} could not be opened (${message(err)}); back on ${pending.from}`);
           const home = readHomeConfig(cfg.foundryHome, log);
@@ -84,12 +130,28 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
       if (stopping) engine.restart.request({ kind: 'exit' });
       const req = await engine.restart.wait();
       if (opts.graceMs !== 0) await sleep(opts.graceMs ?? 250);
-      log(req.kind === 'exit' ? '[engine] stopping' : req.kind === 'restart' ? `[engine] restarting: ${req.why}` : `[engine] restarting on ${req.to} (${req.mode})`);
+      log(req.kind === 'exit' ? '[engine] stopping' : req.kind === 'restart' ? `[engine] restarting: ${req.why}` : req.kind === 'move' ? '[engine] restarting on the moved data' : `[engine] restarting on ${req.to} (${req.mode})`);
       await engine.stop();
       server.stop(true);
       releaseDataDir(cfg.dataDir);
       current = null;
       if (req.kind === 'exit') return;
+      if (req.kind === 'move') {
+        const before = process.env.FOUNDRY_PORT;
+        try {
+          const staged = req.staged.map((x) => ({ provider: cfg!.provider, ...x }));
+          const setAside = swapIn(staged, log);
+          if (req.port) {
+            process.env.FOUNDRY_PORT = String(req.port);
+            if (cfg.foundryHome) keepPort(cfg.foundryHome, req.port);
+          }
+          moved = { staged, setAside, port: before };
+        } catch (err) {
+          log(`[move] the moved data could not be put in place: ${message(err)}; staying on this install's own folder`);
+          notice = { kind: 'move-failed', error: message(err), at: new Date().toISOString() };
+        }
+        continue;
+      }
       if (req.kind === 'data-dir') {
         const from = engine.config.dataDir;
         const provider = cfg.provider;
