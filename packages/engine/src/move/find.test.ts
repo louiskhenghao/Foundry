@@ -34,7 +34,9 @@ describe('reading what runs on a computer', () => {
 
   test("a container is Foundry's by its image, or by its /app/data, never by its name alone", () => {
     const inspect = (image: string, mounts: { Type: string; Name?: string; Source: string; Destination: string }[]) => ({ Name: '/foundry', Image: 'sha256:abc', Config: { Image: image, Labels: { 'com.docker.compose.project': 'foundry', 'com.docker.compose.project.working_dir': '/Users/me/foundry' } }, State: { Running: true }, HostConfig: { RestartPolicy: { Name: 'unless-stopped' } }, NetworkSettings: { Ports: { '4111/tcp': [{ HostIp: '127.0.0.1', HostPort: '4111' }] } }, Mounts: mounts });
-    const seen = containerFacts(inspect('imlouiskhenghao/foundry:latest', [{ Type: 'volume', Name: 'foundry_engine-data', Source: '/var/lib/docker/volumes/foundry_engine-data/_data', Destination: '/app/data' }, { Type: 'bind', Source: '/Users/me/Projects', Destination: '/repos' }]))!;
+    // Docker Desktop on a Mac names a bind mount's source as its VM sees it
+    const seen = containerFacts(inspect('imlouiskhenghao/foundry:latest', [{ Type: 'volume', Name: 'foundry_engine-data', Source: '/var/lib/docker/volumes/foundry_engine-data/_data', Destination: '/app/data' }, { Type: 'bind', Source: '/host_mnt/Users/me/Projects', Destination: '/repos' }]))!;
+    expect(seen.facts.mounts[1]).toMatchObject({ source: '/Users/me/Projects', destination: '/repos' });
     expect(seen.running).toBe(true);
     expect(seen.port).toBe(4111);
     expect(seen.facts).toMatchObject({ container: 'foundry', image: 'imlouiskhenghao/foundry:latest', imageId: 'sha256:abc', restart: 'unless-stopped', composeDir: '/Users/me/foundry' });

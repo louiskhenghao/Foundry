@@ -341,11 +341,14 @@ export function parseDockerPs(text: string): { id: string; name: string; image: 
     .map(([id, name, image]) => ({ id: id!, name: name!, image: image! }));
 }
 
+/** a bind mount's source as this computer names it: Docker Desktop on a Mac reports /host_mnt/Users/… (found moving a real container) */
+export const hostPath = (source: string) => source.replace(/^\/host_mnt(?=\/)/, '');
+
 const isFoundryImage = (image: string) => new RegExp(`^(docker\\.io/)?${FOUNDRY_IMAGE.replace('/', '\\/')}([:@]|$)`).test(image);
 
 /** one `docker inspect` entry as a move sees it; null when it is not a Foundry container */
 export function containerFacts(c: any): { facts: DockerFacts; running: boolean; port: number | null; folders: { provider: AgentProvider; path: string }[] } | null {
-  const mounts: DockerMount[] = (c?.Mounts ?? []).map((m: any) => ({ type: String(m.Type ?? ''), name: m.Name ?? null, source: String(m.Source ?? ''), destination: String(m.Destination ?? '') }));
+  const mounts: DockerMount[] = (c?.Mounts ?? []).map((m: any) => ({ type: String(m.Type ?? ''), name: m.Name ?? null, source: hostPath(String(m.Source ?? '')), destination: String(m.Destination ?? '') }));
   const image = String(c?.Config?.Image ?? '');
   if (!isFoundryImage(image) && !mounts.some((m) => m.destination === '/app/data')) return null;
   const labels: Record<string, string> = c?.Config?.Labels ?? {};
