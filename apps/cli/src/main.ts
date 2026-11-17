@@ -298,14 +298,21 @@ switch (cmd) {
       await api('/api/move', { method: 'POST', body: JSON.stringify({ id: install.id, now: has('--now'), replace: has('--replace') }) });
       let shown = 0;
       let next: string | null = null;
+      let seen: { nextUrl: string | null; startedAt: string } | null = null;
       for (let quiet = 0; !next; ) {
         await Bun.sleep(1000);
         const st = await fetch(BASE + '/api/move').then((r) => (r.ok ? r.json() : null)).catch(() => null);
         const job = st?.job;
         if (!job) {
-          if (++quiet > 600) return usage('Foundry stopped answering during the move: see its log');
+          // this server stopped answering: it started again on the moved data, where the job said it would
+          for (const url of [seen?.nextUrl, BASE].filter(Boolean) as string[]) {
+            const there = await fetch(`${url}/api/move`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+            if (seen && there?.last && there.last.finishedAt >= seen.startedAt) next = url;
+          }
+          if (!next && ++quiet > 600) return usage('Foundry stopped answering during the move: see its log');
           continue;
         }
+        seen = { nextUrl: job.nextUrl, startedAt: job.startedAt };
         for (const line of job.lines.slice(shown)) say(`  ${line}`);
         shown = job.lines.length;
         if (job.state === 'failed') {

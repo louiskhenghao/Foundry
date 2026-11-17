@@ -240,14 +240,16 @@ describe('the move the page asks for (ADR-0107)', () => {
       const probe = fakeProbe({ home, run: (argv) => (argv[0] === 'docker' ? { code: 127, stdout: '', stderr: '' } : argv[0] === 'ps' || argv[0] === 'lsof' ? { code: 1, stdout: '', stderr: '' } : null) });
       const asked: unknown[] = [];
       const lines: string[] = [];
-      const mover = new Mover({ kind: 'app', dataDir: () => target, targetFor: () => target, goals: () => 0, port: () => 4112, restart: (r) => void asked.push(r), log: quiet, probe });
+      const mover = new Mover({ kind: 'app', dataDir: () => target, targetFor: () => target, goals: () => 0, port: () => 4112, restart: (r) => void asked.push(r), log: quiet, probe, restartAfterMs: 0 });
       const status = await mover.status();
       expect(status.offer).toBe(true);
       expect(status.installs[0]).toMatchObject({ id: `source:${checkout}`, goals: 2, plan: [{ action: 'replace' }] });
       const job = mover.start({ id: `source:${checkout}`, onLine: (l) => lines.push(l) });
       expect(() => mover.start({ id: `source:${checkout}`, onLine: quiet })).toThrow('a move is under way');
-      for (let i = 0; i < 200 && job.state === 'running'; i++) await Bun.sleep(10);
+      for (let i = 0; i < 200 && !asked.length; i++) await Bun.sleep(10);
       expect(job.state).toBe('restarting');
+      // where it answers next was known before anything stopped: the old one's port, free here
+      expect(job.nextUrl).toBe('http://127.0.0.1:4199');
       expect(asked).toEqual([{ kind: 'move', staged: [{ staging: target + STAGING_SUFFIX, target }], port: expect.anything() }]);
       // staged beside this install's folder, which this engine still has open
       expect(countFolder(target + STAGING_SUFFIX)?.goals).toBe(2);

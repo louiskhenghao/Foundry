@@ -46,6 +46,8 @@ export interface MoverDeps {
   port: () => number;
   restart: (req: RestartRequest) => void;
   log: (m: string) => void;
+  /** how long the job says `restarting` before the restart (default 1.5 s): a page or a CLI polling once a second sees it */
+  restartAfterMs?: number;
   /** a release install: the installer's record and the foundry command follow the goals here */
   adopt?: (log: (m: string) => void) => Promise<unknown>;
   probe?: Probe;
@@ -99,6 +101,9 @@ export class Mover {
         const found = await this.find(true);
         const install = found.installs.find((i) => i.id === opts.id);
         if (!install) throw new MoveError(`${job.where} is not on this computer any more`);
+        // where Foundry will answer once the move is in place: told before anything stops, so a page that loses this
+        // server mid-move knows where to look (the old one's port, when it has one)
+        job.nextUrl = `http://127.0.0.1:${install.port && install.port !== this.d.port() ? install.port : this.d.port()}`;
         const items = planMove(install, { targetFor: this.d.targetFor, replace: opts.replace });
         const done = await runMove({ install, items, swap: false, now: () => this.skipWait, log, probe: this.d.probe });
         await this.d.adopt?.(log).catch((err) => log(`the foundry command still names the old install: ${(err as Error).message}`));
@@ -108,6 +113,7 @@ export class Mover {
         job.state = 'restarting';
         this.found = null;
         log(done.staged.length ? `starting again on the moved data${port ? `, at ${job.nextUrl}` : ''}` : 'starting again on the folder chosen in Settings');
+        await Bun.sleep(this.d.restartAfterMs ?? 1500);
         this.d.restart(done.staged.length ? { kind: 'move', staged: done.staged.map((s) => ({ staging: s.staging, target: s.target })), port } : { kind: 'restart', why: 'the move: the folder chosen in Settings is free now' });
       } catch (err) {
         job.state = 'failed';

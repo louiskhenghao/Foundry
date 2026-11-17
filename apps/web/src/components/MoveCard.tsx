@@ -39,15 +39,25 @@ export function MoveCard({ variant }: { variant: 'offer' | 'settings' }) {
   }, []);
 
   const job = status?.job ?? null;
+  // a server that stops answering mid-move has started again on the moved data: follow it
+  const [lost, setLost] = useState(false);
   // a move under way: its steps every second
   useEffect(() => {
     if (!job || job.state !== 'running') return;
-    const t = setInterval(() => void load(), 1000);
+    let misses = 0;
+    const t = setInterval(() => {
+      api
+        .moveStatus()
+        .then((s) => ((misses = 0), setStatus(s)))
+        .catch(() => {
+          if (++misses >= 2) setLost(true);
+        });
+    }, 1000);
     return () => clearInterval(t);
   }, [job?.state]);
   // the move is in place: Foundry starts again, perhaps on the old one's port, and the page goes there
   useEffect(() => {
-    if (job?.state !== 'restarting' || !job.nextUrl) return;
+    if (!job || !(job.state === 'restarting' || lost) || !job.nextUrl) return;
     let alive = true;
     const next = job.nextUrl;
     const same = new URL(next).origin === window.location.origin;
@@ -70,7 +80,7 @@ export function MoveCard({ variant }: { variant: 'offer' | 'settings' }) {
       alive = false;
       clearTimeout(t);
     };
-  }, [job?.state, job?.nextUrl]);
+  }, [job?.state, job?.nextUrl, lost]);
 
   if (!status) return null;
   const start = async (id: string) => {
