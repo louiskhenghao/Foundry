@@ -6,6 +6,7 @@
  */
 import type { AgentProvider } from '@foundry/core';
 import { Database } from 'bun:sqlite';
+import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { foundryHome, readHomeConfig } from '../data-dir.ts';
 import { folderProvider, isFoundryFolder, parseInstallEnv, SOURCE_SERVICE_LABEL } from '../migrate.ts';
@@ -346,6 +347,30 @@ async function processFacts(probe: Probe, pid: number): Promise<{ cwd: string | 
   };
 }
 
+/**
+ * A checkout's install as `--from <checkout> [--data <folder>]` names it, for one the search did not find (not running,
+ * not recorded) or the switch (ADR-0106), which knows the folder its engine ran on and the Foundry to stop.
+ */
+export function sourceInstallAt(checkout: string, o: { data?: string | null; found?: EarlierInstall; stopPid?: number; port?: number | null; recorded?: boolean } = {}): EarlierInstall {
+  const dir = o.data ?? join(checkout, 'data');
+  const counts = countFolder(dir);
+  return {
+    id: `source:${checkout}`,
+    kind: 'source',
+    where: checkout,
+    version: o.found?.version ?? null,
+    recorded: o.recorded ?? o.found?.recorded ?? false,
+    running: o.stopPid ? { pid: o.stopPid, how: 'process' } : (o.found?.running ?? null),
+    port: o.port ?? o.found?.port ?? null,
+    url: o.stopPid ? null : (o.found?.url ?? null),
+    folders: [{ provider: folderProvider(dir) ?? 'claude', path: dir, counts, moved: existsSync(join(dir, 'MOVED.md')), chosen: false }],
+    goals: counts?.goals ?? 0,
+    last: counts?.last ?? null,
+    env: o.found?.env ?? {},
+    docker: null,
+  };
+}
+
 /** `docker ps` lines: id, name, image */
 export function parseDockerPs(text: string): { id: string; name: string; image: string }[] {
   return text
@@ -385,10 +410,10 @@ export function containerFacts(c: any): { facts: DockerFacts; running: boolean; 
 
 /** count a container's goals with the bun its image carries: in it while it runs, else beside its volumes; 'none' for a folder with no database */
 export function containerCountScript(paths: string[]): string {
-  return `const {Database}=require('bun:sqlite');const {existsSync}=require('fs');const o={};for(const p of ${JSON.stringify(paths)}){if(!existsSync(p+'/engine.db')){o[p]='none';continue}try{const d=new Database(p+'/engine.db',{readonly:true});const n=(q)=>Number(d.query(q).get().n??0);o[p]={goals:n('SELECT count(*) AS n FROM goals'),events:n('SELECT count(*) AS n FROM events'),last:d.query('SELECT max(ts) AS t FROM events').get().t??null};d.close()}catch(e){o[p]=null}}console.log(JSON.stringify(o))`;
+  return `const {Database}=require('bun:sqlite');const {existsSync}=require('fs');const o={};for(const p of ${JSON.stringify(paths)}){if(!existsSync(p+'/engine.db')){o[p]='none';continue}try{const d=new Database(p+'/engine.db',{readonly:true});const n=(q)=>Number(d.query(q).get().n??0);o[p]={goals:n('SELECT count(*) AS n FROM goals'),events:n('SELECT count(*) AS n FROM events'),last:d.query('SELECT max(ts) AS t FROM events').get().t??null,moved:existsSync(p+'/MOVED.md')};d.close()}catch(e){o[p]=null}}console.log(JSON.stringify(o))`;
 }
 
-export async function countContainer(probe: Probe, facts: DockerFacts, paths: string[], running: boolean): Promise<Record<string, FolderCounts | 'none' | null>> {
+export async function countContainer(probe: Probe, facts: DockerFacts, paths: string[], running: boolean): Promise<Record<string, (FolderCounts & { moved?: boolean }) | 'none' | null>> {
   const script = containerCountScript(paths);
   const argv = running ? ['docker', 'exec', facts.container, 'bun', '-e', script] : ['docker', 'run', '--rm', '--entrypoint', 'bun', '--volumes-from', facts.container, facts.imageId, '-e', script];
   const r = await probe.run(argv, { timeoutMs: 90_000 });
@@ -428,7 +453,14 @@ async function findContainers(probe: Probe, notes: string[], recorded: Record<st
     const composeDir = facts.composeDir ?? (recorded?.MODE === 'docker' ? recorded.DIR ?? null : null);
     const dotenv = composeDir ? parseDotenv(probe.read(join(composeDir, '.env')) ?? '') : {};
     // a volume the image mounts whether or not it was used (data-codex): no database, nothing to move
-    const efolders: EarlierFolder[] = folders.filter((f) => counts[f.path] !== 'none').map((f) => ({ provider: f.provider, path: f.path, counts: (counts[f.path] as FolderCounts | null | undefined) ?? null, moved: false, chosen: false }));
+    // a container moved already keeps a MOVED.md in its volume: its goals are not offered again
+    const efolders: EarlierFolder[] = folders
+      .filter((f) => counts[f.path] !== 'none')
+      .map((f) => {
+        const c = (counts[f.path] as (FolderCounts & { moved?: boolean }) | null | undefined) ?? null;
+        return { provider: f.provider, path: f.path, counts: c ? { goals: c.goals, events: c.events, last: c.last } : null, moved: !!c?.moved, chosen: false };
+      });
+    const live = efolders.filter((f) => !f.moved);
     if (!efolders.length) continue;
     const url = running && port ? ((await probe.json(`http://127.0.0.1:${port}/api/health`)) ? `http://127.0.0.1:${port}` : null) : null;
     out.push({
@@ -441,8 +473,8 @@ async function findContainers(probe: Probe, notes: string[], recorded: Record<st
       port,
       url,
       folders: efolders,
-      goals: efolders.reduce((n, f) => n + (f.counts?.goals ?? 0), 0),
-      last: efolders.reduce<string | null>((l, f) => latest(l, f.counts?.last ?? null), null),
+      goals: live.reduce((n, f) => n + (f.counts?.goals ?? 0), 0),
+      last: live.reduce<string | null>((l, f) => latest(l, f.counts?.last ?? null), null),
       env: carried(dotenv),
       docker: { ...facts, composeDir },
     });

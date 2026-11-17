@@ -99,6 +99,7 @@ describe('finding the earlier installs (ADR-0107)', () => {
       expect(docker).toMatchObject({ version: '2.36.0', port: 4115, url: null, docker: { container: 'foundry', imageId: 'sha256:abc', restart: 'unless-stopped' } });
       // the codex volume the image always mounts held no database: not a folder to move (found moving a real container)
       expect(docker!.folders.map((f) => f.path)).toEqual(['/app/data']);
+      expect(docker!.folders[0]!.moved).toBe(false);
       // a stopped container is counted beside its volumes, with the image it already has
       expect(probe.ran.find((a) => a[1] === 'run')).toEqual(expect.arrayContaining(['--volumes-from', 'foundry', 'sha256:abc']));
       expect(old).toMatchObject({ recorded: true, goals: 0, version: '1.0.1' });
@@ -127,4 +128,27 @@ describe('finding the earlier installs (ADR-0107)', () => {
       rmSync(home, { recursive: true, force: true });
     }
   });
+});
+
+test('a container that moved already keeps its MOVED.md: its goals are not offered again', async () => {
+  const home = tmp();
+  try {
+    const probe = fakeProbe({
+      home,
+      run: (argv) => {
+        const a = argv.join(' ');
+        if (argv[0] === 'ps') return ok('');
+        if (a.startsWith('docker version')) return ok('27.0.1\n');
+        if (a.startsWith('docker ps -a --no-trunc')) return ok('c1\tfoundry\timlouiskhenghao/foundry:2.36.0\n');
+        if (a === 'docker inspect c1') return ok(JSON.stringify([{ Name: '/foundry', Image: 'sha256:abc', Config: { Image: 'imlouiskhenghao/foundry:2.36.0', Labels: {} }, State: { Running: false }, HostConfig: { RestartPolicy: { Name: 'no' } }, Mounts: [{ Type: 'volume', Name: 'engine-data', Source: '/v', Destination: '/app/data' }] }]));
+        if (argv[0] === 'docker' && argv[1] === 'run') return ok(JSON.stringify({ '/app/data': { goals: 7, events: 70, last: null, moved: true } }) + '\n');
+        return null;
+      },
+    });
+    const [docker] = (await findEarlierInstalls({ probe })).installs;
+    expect(docker).toMatchObject({ id: 'docker:foundry', goals: 0 });
+    expect(docker!.folders[0]).toMatchObject({ path: '/app/data', moved: true });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });
