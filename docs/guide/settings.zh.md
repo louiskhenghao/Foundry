@@ -255,7 +255,7 @@ skill 是所选编码智能体可以遵循的打包指令。在这里选择 Foun
 
 MCP server 让 Claude Code 能用文件和命令行以外的工具，比如最新的库文档、一个真的浏览器、网页搜索、你的邮箱。**Extensions** 页面有一个 **MCP servers** 标签页，列出 Claude Code 为你的账号加载的 server：你自己装的（**yours**）、插件带来的（**plugin**）和你的 claude.ai 连接器（**claude.ai**）。**Check** 会逐个连上去，看它能不能用；它不会自动运行，因为它会启动每一个 server。
 
-有些 server 要先连上账号才能用。claude.ai 连接器（Gmail、Google Drive……）有一个 **Connect** 按钮：它会打开 claude.ai，你在那里用它该用的账号授权；Claude Code 和 Foundry 共用这个连接。通过 URL 访问的 server 有 **Sign in**：会在运行 Foundry 的电脑上打开浏览器；如果那里没有浏览器（Docker），你就自己打开链接，再把浏览器最后停在的地址贴回来。如果登录没法在 Foundry 里完成，窗口会给出一条在你自己终端里运行的命令（比如 `claude mcp login context7`），带复制按钮。按过 **Check** 之后，还需要这样做的 server 会显示 **needs auth** 和一个 **Set up** 按钮。
+有些 server 要先连上账号才能用。claude.ai 连接器（Gmail、Google Drive……）有一个 **Connect** 按钮：它会打开 claude.ai，你在那里用它该用的账号授权；Claude Code 和 Foundry 共用这个连接。通过 URL 访问的 server 有 **Sign in**：会在运行 Foundry 的电脑上打开浏览器；如果那里没有浏览器（没有桌面的 Linux 服务器），你就自己打开链接，再把浏览器最后停在的地址贴回来。如果登录没法在 Foundry 里完成，窗口会给出一条在你自己终端里运行的命令（比如 `claude mcp login context7`），带复制按钮。按过 **Check** 之后，还需要这样做的 server 会显示 **needs auth** 和一个 **Set up** 按钮。
 
 goal 运行时不会问你，所以只有勾上 **Allowed in goals** 的 server，它的工具才会被 goal 用到，而且只在真正干活的会话里，Clarify 和审查都不会用。你自己装的 server 和 claude.ai 连接器默认不勾：邮箱连接器可能会自己发邮件。在 [Skills](#skills) 下打开 **Lean sessions** 后，没勾的 server 在会话里根本不会启动，对 goal 没有任何开销。
 
@@ -293,7 +293,7 @@ Foundry 怎样跟上你项目的线上副本，以及交付要等多久。
 - **OpenAI-compatible** —— **OpenAI-compatible API key**：图片 goal 要生成真正的图片就需要它。没有它，图片任务只能退回到手绘的 SVG 渲染。**OpenAI-compatible base URL**：只在用代理或其它兼容服务商时需要。
 - **Gemini** —— **Gemini API key**：某个图片包的替代选择。
 - **Kimi (Moonshot)** —— **Kimi (Moonshot) API key**：某个设计包的模型会用到，在 skill 调用它们的时候。
-- **MiniMax** —— **MiniMax API key**：通过 mmx 做视频和配音时用。如果你已经在这台电脑上用 `mmx auth login` 登录过，就留空；用 Docker 的话要填。
+- **MiniMax** —— **MiniMax API key**：通过 mmx 做视频和配音时用。如果你已经在这台电脑上用 `mmx auth login` 登录过，就留空。
 - **ElevenLabs** 和 **Groq** —— **ElevenLabs API key** 和 **Groq API key**：视频包用到时，分别用于配音声音和视频字幕的语音转文字。
 - **markitdown binary**（在卡片下方）：把附件文档转成文字的转换器。留空。
 
@@ -371,7 +371,7 @@ Access 打开后，每个人做的事都记在自己名下：goal 页面会写�
 
 ![Settings 的 Engine (install)：正在使用的数据文件夹，输入并测试过的另一个文件夹，以及 Save & restart](images/settings-data-folder.png)
 
-- **Data folder**：这个 Foundry 保存一切的地方 —— goal 及其历史、Settings、访问令牌、编码智能体添加的账户、模板、主题、Memory 的记录。仓库和进度文件夹不在里面。要换到另一个文件夹（更大的硬盘，或另一套 goal）：输入路径或 **Browse…**，按 **Test**，看检查结果 —— 文件夹必须是空的，或是同一编码智能体的 Foundry 数据文件夹；可写；硬盘有空间；且不是更新版本的 Foundry 写过的。空文件夹可以**从零开始**，或**复制当前数据**过去（在 Foundry 停下期间复制；文件夹很大时要几分钟）；Foundry 数据文件夹则原样打开。**Save & restart…** 会让你确认会变化的内容，然后 Foundry 在另一个文件夹上重启，页面自动刷新。有 goal 在跑时会被拒绝：先暂停它。离开的文件夹不会被删除；之前用过的文件夹列在 **Before** 下，可以换回去。选择记在 `~/.foundry/config.json` 里，每个启动配置一个；设了 `FOUNDRY_DATA_DIR` 或在 Docker 镜像里时，这里只显示文件夹，不能改。启动时如果选定的文件夹不在（硬盘没挂载），Foundry 会在默认文件夹上启动并提示：**Keep this folder** 把它定为选择，**Dismiss** 则等硬盘回来。
+- **Data folder**：这个 Foundry 保存一切的地方 —— goal 及其历史、Settings、访问令牌、编码智能体添加的账户、模板、主题、Memory 的记录。仓库和进度文件夹不在里面。要换到另一个文件夹（更大的硬盘，或另一套 goal）：输入路径或 **Browse…**，按 **Test**，看检查结果 —— 文件夹必须是空的，或是同一编码智能体的 Foundry 数据文件夹；可写；硬盘有空间；且不是更新版本的 Foundry 写过的。空文件夹可以**从零开始**，或**复制当前数据**过去（在 Foundry 停下期间复制；文件夹很大时要几分钟）；Foundry 数据文件夹则原样打开。**Save & restart…** 会让你确认会变化的内容，然后 Foundry 在另一个文件夹上重启，页面自动刷新。有 goal 在跑时会被拒绝：先暂停它。离开的文件夹不会被删除；之前用过的文件夹列在 **Before** 下，可以换回去。选择记在 `~/.foundry/config.json` 里，每个启动配置一个；设了 `FOUNDRY_DATA_DIR` 时，这里只显示文件夹，不能改。启动时如果选定的文件夹不在（硬盘没挂载），Foundry 会在默认文件夹上启动并提示：**Keep this folder** 把它定为选择，**Dismiss** 则等硬盘回来。
 - **Move from another Foundry**（app 和 binary 才有）：这台电脑上以前的 Foundry（从源码或在 Docker 里运行的）、它的 goal，以及 **Move N goals here** 按钮。和 Goals 页面上的 **Bring your goals over** 是同一个搬迁（见[把你的 goal 搬过来](./your-first-goal.zh.md#把你的-goal-搬过来)）。这个 Foundry 已经有自己的 goal 时，它们会被放到一边作为备份，不会合并，你要先勾选确认。
 - **Port**（4111）和 **Host**（127.0.0.1）：在哪里访问 Foundry。除非你设置了远程访问，否则保持 127.0.0.1。需要重启。
 - **claude binary** 和 **Claude Code home**：Claude Code 及其 skill 所在的位置。留空会自动找到。需要重启。
@@ -388,11 +388,11 @@ Access 打开后，每个人做的事都记在自己名下：goal 页面会写�
 
 更新对话框：
 
-- **Update**：不再启动新会话，运行中的会话跑完，然后 Foundry 更新并重启。页面会自己重新加载；其他开着的 Foundry 页面（在这台电脑或手机上）也会在新版本启动后一分钟内自己重新加载。有尚未保存的编辑（Brief、新 goal、文件夹的 Learnings）的页面会改为显示横幅，等你保存或按 **Reload** 后才重新加载。本机代码更新失败时会尝试恢复旧 checkout，这不等于数据库回退。升级混合编码智能体数据前先备份；要运行旧程序，必须恢复匹配的升级前备份。
+- **Update**：不再启动新会话，运行中的会话跑完，然后 Foundry 更新并重启。页面会自己重新加载；其他开着的 Foundry 页面（在这台电脑或手机上）也会在新版本启动后一分钟内自己重新加载。有尚未保存的编辑（Brief、新 goal、文件夹的 Learnings）的页面会改为显示横幅，等你保存或按 **Reload** 后才重新加载。下载失败或与发布的校验和不符时，什么都不会改变。换回旧版本不会让数据库回退：升级混合编码智能体数据前先备份；要运行旧程序，必须恢复匹配的升级前备份。
 - **Update immediately without waiting — interrupts running agents**：只有等不了时才勾选。
 - **Not now** 关闭对话框。
 - 如果这个安装没法自己更新，对话框会改为显示要运行的命令。
 
-卡片底部的 **Open source credits** 打开一个页面，列出 Foundry 所依托的开源项目，以及 Docker 镜像里每个组件的许可声明。**Download .txt** 把同样的声明存成一个文件。
+卡片底部的 **Open source credits** 打开一个页面，列出 Foundry 所依托的开源项目，以及它的发布包里每个组件（编译进 `foundry` 的 npm 包和 Bun 运行时）和 `foundry setup` 从各自发布处安装的工具的许可声明。**Download .txt** 把同样的声明存成一个文件。
 
 运维细节：[updates-and-backup.md](../operate/updates-and-backup.md)。

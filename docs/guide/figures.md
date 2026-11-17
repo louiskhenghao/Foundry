@@ -17,8 +17,8 @@ Two styles are available, from two skills by April Zhu that Foundry ships with:
 2. **Settings → Skills → Figure skills**: pick **Colorfigures** or **iso-glow** as the default style and press **Install**. Both skills are bundled with Foundry, so installing copies them to your coding agent's skills folder; nothing is downloaded. The pack works like the Design, Image and Video packs, with one difference: a goal may pick the other installed style (see below).
 3. The tools, which the Setup page's doctor lists while the pack is chosen:
    - **Chromium** (Settings → Preview & self-check → **Install Chromium**): Foundry opens every finished figure page in it to make sure the page runs. Without it every figure task fails its check.
-   - **python3**: Colorfigures builds its one-file page with it; iso-glow can do without. The Docker image has it.
-   - **A Chrome on this computer** (Colorfigures only): the skill checks its own drawing from every side in headless Chrome. Without one it skips those shots and says so; Foundry's own check still runs. The Docker image provides one.
+   - **python3**: Colorfigures builds its one-file page with it; iso-glow can do without.
+   - **A Chrome on this computer** (Colorfigures only): the skill checks its own drawing from every side in headless Chrome. Without one it skips those shots and says so; Foundry's own check still runs.
 
 No image model and no API key are involved: the whole cost is the worker's tokens and time, like a code goal's. A figure task's session may run 45 minutes before Foundry cuts and resumes it, whatever the attempt timeout under Settings → Models & limits says: Colorfigures draws in a few long turns.
 

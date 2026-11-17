@@ -200,7 +200,7 @@ Overview 标签上 **Workspace & preview** 卡片的顶部写着 worker 提交�
 
 **Start all** 启动所有还没运行的应用；**Stop all** 把它们全部停掉。每个应用有自己的端口，并会在环境变量里拿到其它应用的地址，名字是 `FOUNDRY_APP_<KEY>_URL`，例如 `FOUNDRY_APP_API_URL`，这样网站就能找到 API。
 
-只要端口空着，应用就沿用你自己运行它时用的端口，这样你 `.env` 文件里写的地址仍然能连上它。Foundry 从这些地方读出这个端口：启动脚本（`next dev -p 3001`）、应用 `.env` 文件里的 `PORT`、服务器代码里的默认值（`process.env.PORT ?? 4000`），或者框架的默认端口（Next 3000、Vite 5173）。如果这个端口被占用了（比如你自己的 dev server 正在用），应用改用 **Settings → Preview** 里的端口，所有指向 `localhost:<原端口>` 的变量都会在应用的环境变量里改成指向新端口；你的文件不会被修改。应用那一行会说明：**Usually on port 3000, which was taken; runs on 4200**，以及 **Pointed at the ports the apps got** 加上变量名。在 Docker 里，应用总是用这个范围里的端口（只有这个范围对外发布），变量也会指向那里。
+只要端口空着，应用就沿用你自己运行它时用的端口，这样你 `.env` 文件里写的地址仍然能连上它。Foundry 从这些地方读出这个端口：启动脚本（`next dev -p 3001`）、应用 `.env` 文件里的 `PORT`、服务器代码里的默认值（`process.env.PORT ?? 4000`），或者框架的默认端口（Next 3000、Vite 5173）。如果这个端口被占用了（比如你自己的 dev server 正在用），应用改用 **Settings → Preview** 里的端口，所有指向 `localhost:<原端口>` 的变量都会在应用的环境变量里改成指向新端口；你的文件不会被修改。应用那一行会说明：**Usually on port 3000, which was taken; runs on 4200**，以及 **Pointed at the ports the apps got** 加上变量名。
 
 ### Services
 
@@ -209,7 +209,7 @@ Overview 标签上 **Workspace & preview** 卡片的顶部写着 worker 提交�
 - 同一个仓库的所有 goal 共用这些服务，所以两个 goal 不会在同一个端口上各启动一个数据库。
 - 如果某个服务的端口在你电脑上已经被占用（比如你自己的 Postgres），它会显示 **in use elsewhere**：Foundry 不会启动它，应用直接用已经在运行的那个。
 - 预览停止时服务继续运行，所以数据会保留。**Stop services** 会停掉它们，数据仍然保留。
-- 需要装好 Docker。没有 Docker，或者 Foundry 本身运行在 Docker 里时，卡片会显示自己启动这些服务的命令，并带 **copy**。
+- 需要装好 Docker。没有 Docker 时，卡片会显示自己启动这些服务的命令，并带 **copy**。
 
 Foundry 也会在里程碑时自己启动预览；预览在运行时，每个任务并入后都会重启它；一段时间没人打开（默认 60 分钟）时，它会停止预览。goal 结束时，Foundry 只停止它自己启动的预览；你自己启动的（比如为了看一个已完成的 goal）会一直运行，直到闲置。卡片会说明 Foundry 为什么停止了它。
 

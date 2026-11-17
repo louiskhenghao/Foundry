@@ -200,7 +200,7 @@ A repository can hold several apps you run side by side, for example a web app, 
 
 **Start all** starts every app that is not running; **Stop all** stops them all. Each app gets its own port, and the addresses of the other apps in its environment as `FOUNDRY_APP_<KEY>_URL`, for example `FOUNDRY_APP_API_URL`, so the web app can find the API.
 
-An app keeps the port it uses when you run it yourself, while that port is free, so the addresses your `.env` files name still reach it. Foundry reads that port from the start script (`next dev -p 3001`), `PORT` in the app's `.env` files, a default in its server code (`process.env.PORT ?? 4000`) or the framework's default (Next 3000, Vite 5173). When the port is taken (your own dev server is on it, say), the app gets one from **Settings → Preview** instead, and every variable that points at `localhost:<usual port>` is pointed at the new port in the apps' environment; your files are not changed. The app's row says so: **Usually on port 3000, which was taken; runs on 4200**, and **Pointed at the ports the apps got** with the variable names. In Docker the apps always get ports from the range, since only it is published, and the variables are pointed there.
+An app keeps the port it uses when you run it yourself, while that port is free, so the addresses your `.env` files name still reach it. Foundry reads that port from the start script (`next dev -p 3001`), `PORT` in the app's `.env` files, a default in its server code (`process.env.PORT ?? 4000`) or the framework's default (Next 3000, Vite 5173). When the port is taken (your own dev server is on it, say), the app gets one from **Settings → Preview** instead, and every variable that points at `localhost:<usual port>` is pointed at the new port in the apps' environment; your files are not changed. The app's row says so: **Usually on port 3000, which was taken; runs on 4200**, and **Pointed at the ports the apps got** with the variable names.
 
 ### Services
 
@@ -209,7 +209,7 @@ If the repository has a Docker Compose file with services the apps need (a datab
 - Services are shared by every goal of the same repository, so two goals never start two databases on the same port.
 - If a service's port is already in use on your computer (your own Postgres, for example), it shows **in use elsewhere**: Foundry does not start it, and the apps use the one that is already running.
 - Services keep running when the preview stops, so their data is kept. **Stop services** stops them; the data is still kept.
-- Docker must be installed. Without it, or when Foundry itself runs inside Docker, the card shows the command to start the services yourself, with **copy**.
+- Docker must be installed. Without it, the card shows the command to start the services yourself, with **copy**.
 
 Foundry also starts the preview by itself at a milestone, restarts it after each task lands if it is running, and stops it when nobody opened it for a while (60 minutes by default). When the goal ends, Foundry stops the previews it started itself; one you started, for example to look at a finished goal, keeps running until it is idle. The card then says why Foundry stopped it.
 

@@ -20,8 +20,6 @@ The buttons above the list (**all**, **foundry**, **tailscale**, **docker**, **p
 
 On the right, **Overview** counts each group and shows Foundry's port, the preview port range and how many tailnet serves there are; **Why a port is busy** lists the usual causes. On a phone, **overview & help** shows them.
 
-Open from Foundry's Docker image, the page shows only the ports inside its container, and says so.
-
 ## Stop & release
 
 The red **Stop & release** at the end of a row stops what holds the port, so the port is free again; the blue **Open** opens a tailnet address. Click a card's heading to fold or unfold it (remembered in this browser); **expand all** and **collapse all** do every card, and a search opens them all. A dialog first says what will stop; **Stop & release** goes ahead, **Cancel** leaves it:

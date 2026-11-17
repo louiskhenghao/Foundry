@@ -17,8 +17,8 @@ Figures 是 **beta** 功能：默认关闭，打开后它出现的地方会标�
 2. **Settings → Skills → Figure skills**：选 **Colorfigures** 或 **iso-glow** 作为默认风格，按 **Install**。两个技能都随 Foundry 附带，安装就是把它们复制到你编码智能体的技能目录，不会下载任何东西。这个包和 Design、Image、Video 包用法一样，只有一点不同：一个 goal 可以选另一种已安装的风格（见下文）。
 3. 工具，选了包以后 Setup 页的 doctor 会列出来：
    - **Chromium**（Settings → Preview & self-check → **Install Chromium**）：Foundry 会用它打开每个做好的 figure 页面，确认页面能跑。没有它，每个 figure 任务的检查都会失败。
-   - **python3**：Colorfigures 用它组装单文件页面；iso-glow 没有也行。Docker 镜像里已带。
-   - **这台电脑上的 Chrome**（只有 Colorfigures 需要）：技能用无头 Chrome 从各个角度自检它画的图。没有的话它会跳过这些截图并说明；Foundry 自己的检查照常运行。Docker 镜像里提供了一个。
+   - **python3**：Colorfigures 用它组装单文件页面；iso-glow 没有也行。
+   - **这台电脑上的 Chrome**（只有 Colorfigures 需要）：技能用无头 Chrome 从各个角度自检它画的图。没有的话它会跳过这些截图并说明；Foundry 自己的检查照常运行。
 
 不涉及任何图像模型或 API key：全部花费就是 worker 的 token 和时间，和代码类 goal 一样。figure 任务的会话可以跑满 45 分钟才会被 Foundry 切断再续接，不管 Settings → Models & limits 里的 attempt 时限设成多少：Colorfigures 的每一轮都很长。
 

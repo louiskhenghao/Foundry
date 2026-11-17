@@ -20,8 +20,6 @@
 
 右侧的 **Overview** 统计每组的数量，并显示 Foundry 的端口、预览端口范围和 tailnet serve 的数量；**Why a port is busy** 列出端口被占用的常见原因。在手机上点 **overview & help** 查看。
 
-在 Foundry 的 Docker 镜像里打开时，页面只显示它容器里的端口，并会注明。
-
 ## Stop & release
 
 每行末尾红色的 **Stop & release** 会停掉占着端口的东西，让端口重新空出来；蓝色的 **Open** 打开 tailnet 地址。点卡片标题可以收起或展开（记在这个浏览器里）；**expand all** 和 **collapse all** 作用于所有卡片，搜索时所有卡片都会展开。会先弹出对话框说明会停掉什么；按 **Stop & release** 继续，按 **Cancel** 取消：

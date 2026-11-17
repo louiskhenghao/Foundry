@@ -61,7 +61,7 @@ Foundry 运行时，从 Applications 文件夹或 Spotlight 再打开一次 app�
 | **Claude Code CLI** / **Codex CLI** | 当前所选编码智能体的程序。 | 按 **Install**：Claude Code 用它自己的安装器，Codex 用 Homebrew、npm 或官方下载，都不需要 npm。也可以复制显示的命令。 |
 | **Claude login** / **Codex login** | 当前所选编码智能体的账户。 | 按 **Sign in**。 |
 | **git** | 保存你文件的每一个版本。 | 在 Mac 上按 **Install**：Apple 的命令行工具会打开它自己的安装程序，装完后按 **Re-run**。在 Linux 上复制显示的命令。 |
-| **Bun runtime** | Foundry 自己运行所需的环境。 | app 和发布包里已经自带。从源码运行时，复制显示的命令。 |
+| **Bun runtime** | Foundry 自己运行所需的环境。 | app 和发布包里已经自带，所以这一项不会是红的。 |
 | **uv** | 用来安装 graphify 和 markitdown。 | 按 **Install**。 |
 | **Required: …** | Foundry 的会话需要的技能（skills）。 | 按 **Install**。 |
 | **GitHub CLI (optional)** | 只有想让 Foundry 替你开 pull request 时才需要。 | 保持黄色也没关系。没装时按 **Install** 就会装上。显示 *not logged in* 时，按 **Sign in** 会打开一个带一次性代码的窗口：复制代码，打开 GitHub 的页面，粘贴并批准。 |
