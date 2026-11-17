@@ -1,10 +1,10 @@
 /**
- * Version self-knowledge and the self-update pipeline (ADR-0010, ADR-0104).
+ * Version self-knowledge and the self-update pipeline (ADR-0010, ADR-0104, ADR-0108).
  * The version source is the public releases repository's GitHub Releases, for every deployment mode (the main repo may be
- * private; the releases repo is not), and the changelog comes from the same repo. Docker self-update goes through the
- * watchtower sidecar; a git checkout pulls, installs and builds with automatic rollback; a release install — the macOS
- * app, a Linux or macOS tarball — downloads the release, checks its sha256 and swaps itself in. An instance that cannot
- * self-update degrades to guided commands — never an error.
+ * private; the releases repo is not), and the changelog comes from the same repo. A release install — the macOS app, a
+ * Linux or macOS tarball — downloads the release, checks its sha256 and swaps itself in; a git checkout (development)
+ * pulls, installs and builds with automatic rollback. An instance that cannot self-update degrades to guided commands —
+ * never an error. There is no image any more (ADR-0108).
  */
 import { closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync, writeSync } from 'node:fs';
 import { spawn } from 'node:child_process';
@@ -16,7 +16,7 @@ import type { Engine } from '../engine.ts';
 import { exec, git } from '../git/git.ts';
 import { APP_ENGINE_EXECUTABLE, APP_SHELL_EXECUTABLE, installRoot, type InstallRoot } from '../install-root.ts';
 
-export type DeploymentMode = 'docker' | 'local' | 'app' | 'binary' | 'unknown';
+export type DeploymentMode = 'local' | 'app' | 'binary' | 'unknown';
 
 export interface ReleaseAsset {
   name: string;
@@ -40,7 +40,7 @@ export interface UpdateReport {
 export interface UpdateCapability {
   mode: DeploymentMode;
   canSelfUpdate: boolean;
-  method: 'watchtower' | 'git' | 'release' | 'switch' | null;
+  method: 'git' | 'release' | 'switch' | null;
   /** commands for a guided update in this mode, shown when canSelfUpdate is false */
   guided: string[];
   /** a newer major version this kind of install does not get (ADR-0106): what switching to it means, for the risk dialog */
@@ -52,7 +52,7 @@ export interface SwitchInfo {
   to: string;
   /** what this computer switches to */
   install: 'app' | 'binary';
-  from: 'local' | 'docker';
+  from: 'local';
   /** the data folder in use, copied by the switch */
   dataDir: string;
   /** where the new install keeps it */
@@ -85,19 +85,11 @@ export function switchEnv(env: NodeJS.ProcessEnv): Record<string, string> {
   return out;
 }
 
-/** a container's way to the binary (ADR-0106): what the dialog lists, since nothing in a container can do it */
-export function dockerSwitchSteps(): string[] {
-  // the installer picks the app on a Mac and the binary on Linux, finds this container and offers to move it (ADR-0107)
-  return [`curl -fsSL ${INSTALLER_URL} | bash`];
-}
-
 export interface UpdaterOptions {
   /** GitHub Releases API of the public releases repository, the version source */
   releasesUrl?: string;
   /** raw URL of the public releases repo changelog */
   changelogUrl?: string;
-  /** Docker Hub repository of the image, for the guided commands of a container */
-  image?: string;
   /** test seams: how this Foundry is installed, and the computer it runs on */
   install?: InstallRoot;
   platform?: NodeJS.Platform;
@@ -209,7 +201,6 @@ export class UpdateManager {
   private checking: Promise<UpdateReport> | null = null;
   private applying = false;
   private timer: ReturnType<typeof setInterval> | null = null;
-  private readonly image: string;
   private readonly changelogUrl: string;
   private readonly releasesUrl: string;
   private readonly install: InstallRoot;
@@ -222,7 +213,6 @@ export class UpdateManager {
     opts: UpdaterOptions = {},
   ) {
     this.env = opts.env ?? process.env;
-    this.image = opts.image ?? this.env.FOUNDRY_UPDATE_IMAGE ?? 'imlouiskhenghao/foundry';
     this.changelogUrl = opts.changelogUrl ?? this.env.FOUNDRY_CHANGELOG_URL ?? 'https://raw.githubusercontent.com/louiskhenghao/foundry-releases/main/CHANGELOG.md';
     this.releasesUrl = opts.releasesUrl ?? this.env.FOUNDRY_RELEASES_URL ?? 'https://api.github.com/repos/louiskhenghao/foundry-releases/releases?per_page=20';
     this.install = opts.install ?? installRoot();
@@ -239,9 +229,8 @@ export class UpdateManager {
     }
   }
 
-  /** detected, never configured: the image sets FOUNDRY_DOCKER; a compiled foundry knows its layout; a source install has .git */
+  /** detected, never configured: a compiled foundry knows its layout; a source install has .git (ADR-0108: no image any more) */
   mode(): DeploymentMode {
-    if (this.env.FOUNDRY_DOCKER || existsSync('/.dockerenv')) return 'docker';
     if (this.install.kind === 'app' || this.install.kind === 'binary') return this.install.kind;
     if (existsSync(join(this.engine.config.rootDir, '.git'))) return 'local';
     return 'unknown';
@@ -249,13 +238,9 @@ export class UpdateManager {
 
   capability(): UpdateCapability {
     const mode = this.mode();
-    // 3.0 and later ship only as the app and the binary (ADR-0106): a checkout or a container switches, never updates, to them
+    // releases ship only as the app and the binary (ADR-0106, ADR-0108): a checkout switches, never updates, to a new major
     const latest = this.cached?.latest ?? null;
-    if ((mode === 'local' || mode === 'docker') && majorJump(this.current(), latest)) return this.switchCapability(mode, latest!);
-    if (mode === 'docker') {
-      const can = !!(this.env.FOUNDRY_WATCHTOWER_URL && this.env.FOUNDRY_WATCHTOWER_TOKEN);
-      return { mode, canSelfUpdate: can, method: can ? 'watchtower' : null, guided: ['docker compose pull foundry', 'docker compose up -d foundry'], switch: null };
-    }
+    if (mode === 'local' && majorJump(this.current(), latest)) return this.switchCapability(latest!);
     if (mode === 'local') {
       const can = !!(Bun.which('git') && Bun.which('bun'));
       return { mode, canSelfUpdate: can, method: can ? 'git' : null, guided: ['git pull', 'bun install', 'bun run web:build', 'bun run serve'], switch: null };
@@ -274,24 +259,22 @@ export class UpdateManager {
     return { mode, canSelfUpdate: false, method: null, guided: [`open ${RELEASES_PAGE}`], switch: null };
   }
 
-  /** what switching this checkout or container to the release means here, and whether this Foundry can do it itself */
-  private switchCapability(mode: 'local' | 'docker', to: string): UpdateCapability {
+  /** what switching this checkout to the release means here, and whether this Foundry can do it itself */
+  private switchCapability(to: string): UpdateCapability {
     const install: 'app' | 'binary' = this.platform === 'darwin' ? 'app' : 'binary';
     const cfg = this.engine.config;
     const info: SwitchInfo = {
       to,
       install,
-      from: mode,
+      from: 'local',
       dataDir: cfg.dataDir,
       target: defaultDataDir(cfg.rootDir, cfg.provider, { kind: install, platform: this.platform, env: this.env, home: this.env.HOME || homedir() }),
       port: cfg.port,
       log: join(foundryHome(this.env), 'switch.log'),
     };
-    // a container cannot install anything on its host: the steps, to run there
-    if (mode === 'docker') return { mode, canSelfUpdate: false, method: null, guided: dockerSwitchSteps(), switch: info };
     const asset = releaseAssetName(install, to, this.platform, this.arch);
     const can = !!asset && !!Bun.which('bash', { PATH: this.env.PATH ?? '' });
-    return { mode, canSelfUpdate: can, method: can ? 'switch' : null, guided: [`curl -fsSL ${INSTALLER_URL} | bash -s -- --mode ${install} --migrate-from ${JSON.stringify(cfg.rootDir)}`], switch: info };
+    return { mode: 'local', canSelfUpdate: can, method: can ? 'switch' : null, guided: [`curl -fsSL ${INSTALLER_URL} | bash -s -- --mode ${install} --migrate-from ${JSON.stringify(cfg.rootDir)}`], switch: info };
   }
 
   cachedReport(): UpdateReport | null {
@@ -360,8 +343,8 @@ export class UpdateManager {
   }
 
   /**
-   * One-click update: drain (unless force), then hand over to watchtower (docker), run the git pipeline with rollback
-   * (local), or download, verify and swap the release (app, binary). Runs in the background; progress goes to onLine.
+   * One-click update: drain (unless force), then run the git pipeline with rollback (local), or download, verify and swap
+   * the release (app, binary). Runs in the background; progress goes to onLine.
    */
   async apply(opts: { force?: boolean; acknowledge?: boolean; onLine?: (line: string) => void } = {}): Promise<void> {
     const line = opts.onLine ?? (() => {});
@@ -377,8 +360,7 @@ export class UpdateManager {
       this.engine.store.append({ type: 'update.run', goalId: null, payload: { mode: cap.mode, from: report.current, to: report.latest!, ok, error, durationMs: Date.now() - t0 } });
     try {
       await this.drain(!!opts.force, line);
-      if (cap.method === 'watchtower') await this.applyDocker(report.latest, line, done);
-      else if (cap.method === 'release') await this.applyRelease(report.latest, report.assets, line, done);
+      if (cap.method === 'release') await this.applyRelease(report.latest, report.assets, line, done);
       else if (cap.method === 'switch') await this.applySwitch(cap.switch!, report.assets, line, done);
       else await this.applyLocal(report.latest, line, done);
     } catch (e) {
@@ -410,25 +392,6 @@ export class UpdateManager {
       await new Promise((r) => setTimeout(r, 1000));
     }
     line('✔ drained — no active sessions');
-  }
-
-  /** watchtower pulls the new image and recreates this container; success means we die shortly */
-  private async applyDocker(to: string, line: (l: string) => void, done: (ok: boolean, err: string | null) => void): Promise<void> {
-    line(`→ asking watchtower to update to ${to}…`);
-    const res = await fetch(`${this.env.FOUNDRY_WATCHTOWER_URL!.replace(/\/+$/, '')}/v1/update`, {
-      headers: { Authorization: `Bearer ${this.env.FOUNDRY_WATCHTOWER_TOKEN}` },
-      signal: AbortSignal.timeout(10 * 60_000), // watchtower answers after the pull; images are large
-    });
-    if (!res.ok) throw new Error(`watchtower answered ${res.status} — is the sidecar running?`);
-    done(true, null);
-    line('✔ new image pulled — watchtower is restarting this container now');
-    // if we are still alive in 5 minutes the recreate never happened; reopen for business
-    setTimeout(() => {
-      if (!this.applying) return;
-      this.applying = false;
-      this.engine.endUpdateDrain();
-      this.engine.config.log('[update] watchtower accepted the trigger but this container was never replaced');
-    }, 5 * 60_000);
   }
 
   /** git pull → install → build; any failure restores the recorded commit and does NOT restart */

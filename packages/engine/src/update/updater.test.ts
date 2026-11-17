@@ -51,7 +51,7 @@ describe('the switch to 3.0 (ADR-0106)', () => {
   const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = require('node:fs') as typeof import('node:fs');
   const { tmpdir } = require('node:os') as typeof import('node:os');
   const { join } = require('node:path') as typeof import('node:path');
-  const { INSTALLER_URL, UpdateManager, dockerSwitchSteps, majorJump, majorOf, switchEnv } = require('./updater.ts') as typeof import('./updater.ts');
+  const { UpdateManager, majorJump, majorOf, switchEnv } = require('./updater.ts') as typeof import('./updater.ts');
 
   test('a new major is a jump; a minor or a patch is not', () => {
     expect(majorOf('2.35.0')).toBe(2);
@@ -66,10 +66,6 @@ describe('the switch to 3.0 (ADR-0106)', () => {
     // found switching a real install: FOUNDRY_DATA_DIR handed on had the new app open the old folder, not its copy
     const env = switchEnv({ PATH: '/usr/bin', HOME: '/Users/me', FOUNDRY_HOME: '/Users/me/.foundry', FOUNDRY_PROVIDER: 'codex', FOUNDRY_DATA_DIR: '/old/data', FOUNDRY_PORT: '4111', FOUNDRY_SUPERVISED: '1', INVOCATION_ID: 'x', FOUNDRY_ROOT: '/old', FOUNDRY_APP_SHELL: '1', FOUNDRY_DOCKER: '1', EMPTY: undefined });
     expect(env).toEqual({ PATH: '/usr/bin', HOME: '/Users/me', FOUNDRY_HOME: '/Users/me/.foundry', FOUNDRY_PROVIDER: 'codex' });
-  });
-
-  test("a container's way to 3.0 is one command on its host: the installer finds the container and moves it (ADR-0107)", () => {
-    expect(dockerSwitchSteps()).toEqual([`curl -fsSL ${INSTALLER_URL} | bash`]);
   });
 
   /** an UpdateManager over a checkout at 2.35.0, whose version source offers 3.0.0 */
@@ -101,13 +97,11 @@ describe('the switch to 3.0 (ADR-0106)', () => {
     }
   });
 
-  test('a container offered 3.0 gets the steps, never a button', async () => {
+  test('there is no image any more (ADR-0108): FOUNDRY_DOCKER makes nothing a container, a checkout stays a checkout', async () => {
     const { updater, done } = await checkout({ FOUNDRY_DOCKER: '1' });
     try {
-      const cap = updater.capability();
-      expect(cap).toMatchObject({ mode: 'docker', canSelfUpdate: false, method: null });
-      expect(cap.switch?.from).toBe('docker');
-      expect(cap.guided).toEqual(dockerSwitchSteps());
+      expect(updater.mode()).toBe('local');
+      expect(updater.capability().switch?.from).toBe('local');
     } finally {
       done();
     }
