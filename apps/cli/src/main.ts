@@ -210,57 +210,117 @@ switch (cmd) {
     console.log(r.ok ? '\n✔ ready: sign in to the coding agents if you have not (foundry auth login), then open Foundry' : `\n✘ still missing: ${missing.map((s) => s.name).join(', ')} — see above`);
     process.exit(r.ok ? 0 : 1);
   }
-  // a source install's goals, moved into this app or binary (ADR-0105)
+  // an earlier install's goals moved here (ADR-0105, ADR-0107): found rather than named, and handed to this install's
+  // running Foundry when there is one, so the swap happens while its engine is stopped
   case 'migrate': {
-    const { defaultDataDir, folderProvider, foundryHome, isCheckout, keepPort, planMigration, readHomeConfig, readInstallEnv, runMigration, stopProcess, stopSourceService, waitUntilClosed } = await import('@foundry/engine');
-    if (INSTALL.kind === 'checkout') return usage("foundry migrate moves a source install into the app or a release install: run the compiled foundry's (foundry link puts it on PATH)");
-    const recorded = readInstallEnv(process.env, homedir());
-    const named = opt('--from') ?? (recorded?.MODE === 'source' ? recorded.DIR : undefined);
-    if (!named) return usage('no source install was found (~/.config/foundry/install.env): name its folder with --from <checkout>');
+    const { countFolder, defaultDataDir, findEarlierInstalls, folderProvider, foundryHome, isCheckout, keepPort, planMove, readInstallEnv, runMove } = await import('@foundry/engine');
+    if (INSTALL.kind === 'checkout') return usage("foundry migrate moves an earlier install into the app or a release install: run the compiled foundry's (foundry link puts it on PATH)");
+    type Install = Awaited<ReturnType<typeof findEarlierInstalls>>['installs'][number];
     const expand = (p: string) => resolve(p.replace(/^~(?=\/|$)/, homedir()));
-    const checkout = expand(named);
-    if (!isCheckout(checkout)) return usage(`${checkout} is not a Foundry checkout (it has no apps/cli/src/main.ts)`);
-    // --data: the folder the Foundry that asked for the switch runs on (ADR-0106), copied in place of the checkout's default
-    const data = opt('--data') ? expand(opt('--data')!) : null;
-    const current = data ? { provider: folderProvider(data) ?? 'claude', dataDir: data } : undefined;
-    const plan = planMigration({ checkout, config: readHomeConfig(foundryHome()), targetFor: (p) => defaultDataDir(ROOT, p), current });
-    console.log(`Moving the source install in ${checkout} to this ${INSTALL.kind} install`);
-    for (const i of plan) console.log(`  ${{ copy: '→', keep: '=', done: '=', none: '·' }[i.action]} ${pad(i.provider, 7)} ${i.action === 'copy' ? `${i.from}  →  ${i.to}` : i.action === 'none' ? i.why : `${i.from}: ${i.why}`}`);
-    const copies = plan.filter((i) => i.action === 'copy');
-    if (has('--dry-run')) break;
-    if (!copies.length) console.log('nothing to copy.');
-    if (copies.length && !has('--yes')) {
-      const answer = prompt("Stop the checkout's Foundry and copy its data? [Y/n]") ?? '';
-      if (/^n/i.test(answer.trim())) break;
-    }
-    // the checkout's service first (a supervisor would start what we stop), then the Foundry that asked for the switch
-    const stopped = await stopSourceService({ checkout, home: homedir(), log: (m) => console.log(`  ${m}`) });
+    const targetFor = (p: AgentProvider) => defaultDataDir(ROOT, p);
     const stopPid = Number(opt('--stop-pid') ?? 0);
-    if (stopPid > 0) {
-      console.log(`  stopping the Foundry that asked for the switch (pid ${stopPid})`);
-      await stopProcess(stopPid, { timeoutMs: 120_000 });
-    } else if (stopped.kind === 'none' && copies.length) console.log("  no service of the checkout's was running");
-    const again = stopPid > 0 && stopped.kind === 'none' ? ` Start it again in ${checkout} with: bun run serve.` : '';
-    const holder = await waitUntilClosed(copies.map((i) => join(i.from, 'engine.db')));
-    if (holder) {
-      await stopped.restore();
-      console.error(`✘ ${copies[0]!.from}/engine.db is still open by ${holder}: stop that Foundry, then run foundry migrate again. Nothing was copied.${again}`);
-      process.exit(1);
+    const offer = has('--offer');
+    const say = (m: string) => console.log(m);
+    // this install's own Foundry, when it runs: it makes the move, so its folders are swapped while it is stopped
+    const live = !stopPid && !NEVER_SERVED ? await fetch(BASE + '/api/move').then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
+    const here = live && live.kind !== 'checkout' ? live : null;
+    const found: { installs: Install[]; notes: string[] } = here ?? (await findEarlierInstalls({ exclude: [targetFor('claude'), targetFor('codex'), targetFor('agy')], docker: !has('--no-docker') }));
+    let install: Install | undefined;
+    const from = opt('--from');
+    if (from?.startsWith('docker:')) install = found.installs.find((i) => i.id === from);
+    else if (from) {
+      const checkout = expand(from);
+      if (!isCheckout(checkout)) return usage(`${checkout} is not a Foundry checkout (it has no apps/cli/src/main.ts)`);
+      install = found.installs.find((i) => i.kind === 'source' && resolve(i.where) === checkout);
+      // the switch (ADR-0106) names the folder its engine ran on: that one moves, whatever else the checkout holds
+      const data = opt('--data') ? expand(opt('--data')!) : null;
+      if (data || !install) {
+        const dir = data ?? join(checkout, 'data');
+        const counts = countFolder(dir);
+        const recorded = readInstallEnv(process.env, homedir());
+        install = {
+          id: `source:${checkout}`,
+          kind: 'source',
+          where: checkout,
+          version: install?.version ?? null,
+          recorded: recorded?.MODE === 'source' && resolve(recorded.DIR ?? '') === checkout,
+          running: stopPid ? { pid: stopPid, how: 'process' } : (install?.running ?? null),
+          port: Number(opt('--keep-port') ?? 0) || (install?.port ?? null),
+          url: stopPid ? null : (install?.url ?? null),
+          folders: [{ provider: folderProvider(dir) ?? 'claude', path: dir, counts, moved: false, chosen: false }],
+          goals: counts?.goals ?? 0,
+          last: counts?.last ?? null,
+          env: install?.env ?? {},
+          docker: null,
+        };
+      }
+    } else {
+      const candidates = found.installs.filter((i) => i.goals > 0);
+      if (!candidates.length) {
+        if (!offer) say(`Nothing to move: no earlier Foundry with goals on this computer.${found.notes.length ? `\n  ${found.notes.join('\n  ')}` : ''}`);
+        for (const i of found.installs) if (!offer) say(`  · ${i.kind} ${i.where}: no goals`);
+        break;
+      }
+      install = candidates[0];
+      if (candidates.length > 1 && !has('--yes')) {
+        say('Foundry found more than one earlier install with goals:');
+        candidates.forEach((i, n) => say(`  ${n + 1}. ${i.kind === 'docker' ? `the Docker container ${i.where}` : i.where}: ${i.goals} goals${i.last ? `, last active ${i.last.slice(0, 10)}` : ''}${i.running ? ', running' : ''}`));
+        const pick = Number((prompt(`Which one moves here? [1-${candidates.length}, Enter for 1]`) ?? '').trim() || '1');
+        install = candidates[pick - 1];
+        if (!install) return usage('no such install');
+      }
     }
-    let copied: Awaited<ReturnType<typeof runMigration>>;
+    if (!install) return usage(`${from} was not found on this computer`);
+    const items = planMove(install, { targetFor, replace: has('--replace') });
+    const label = install.kind === 'docker' ? `the Docker container ${install.where}` : install.where;
+    say(`${offer ? 'Your earlier Foundry' : 'Moving'} ${label}${install.version ? ` (${install.version})` : ''}: ${install.goals} goal${install.goals === 1 ? '' : 's'}${install.running ? ', running now' : ''}`);
+    for (const i of items) say(`  ${{ copy: '→', replace: '→', keep: '=', conflict: '✘' }[i.action]} ${pad(i.provider, 7)} ${i.action === 'keep' ? `${i.from}: ${i.why}` : `${i.from}  →  ${i.to}${i.why ? `  (${i.why})` : ''}`}`);
+    if (has('--dry-run')) break;
+    const conflict = items.find((i) => i.action === 'conflict');
+    if (conflict) return usage(`this install already has goals in ${conflict.to}: add --replace to set them aside as a backup, or move nothing`);
+    if (!has('--yes')) {
+      const answer = prompt(`Move ${install.goals} goal${install.goals === 1 ? '' : 's'} here? ${install.kind === 'docker' ? 'The container stops' : 'It stops'} and stays as it is, as the backup. [Y/n]`) ?? '';
+      if (/^n/i.test(answer.trim())) {
+        say(`left as it is; later: foundry migrate${from ? ` --from ${from}` : ''}`);
+        break;
+      }
+    }
+    if (here) {
+      // this install's Foundry runs: it moves, and starts again on the moved data
+      await api('/api/move', { method: 'POST', body: JSON.stringify({ id: install.id, now: has('--now'), replace: has('--replace') }) });
+      let shown = 0;
+      let next: string | null = null;
+      for (let quiet = 0; !next; ) {
+        await Bun.sleep(1000);
+        const st = await fetch(BASE + '/api/move').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        const job = st?.job;
+        if (!job) {
+          if (++quiet > 600) return usage('Foundry stopped answering during the move: see its log');
+          continue;
+        }
+        for (const line of job.lines.slice(shown)) say(`  ${line}`);
+        shown = job.lines.length;
+        if (job.state === 'failed') {
+          console.error(`✘ ${job.error}`);
+          process.exit(1);
+        }
+        if (job.state === 'restarting') next = job.nextUrl;
+      }
+      for (let i = 0; i < 180 && !(await fetch(`${next}/api/health`).then((r) => r.ok).catch(() => false)); i++) await Bun.sleep(1000);
+      say(`\n✔ moved: Foundry answers at ${next} with the goals of ${label}.`);
+      break;
+    }
+    let done: Awaited<ReturnType<typeof runMove>>;
     try {
-      copied = await runMigration(plan, { log: (m) => console.log(`  ${m}`) });
+      done = await runMove({ install, items, swap: true, now: () => has('--now'), stopPid: stopPid || undefined, log: (m) => say(`  ${m}`) });
     } catch (err) {
-      // the copy failed: the old Foundry comes back as it was, its data untouched
-      await stopped.restore();
-      console.error(`✘ ${(err as Error).message}. Nothing moved; the checkout's Foundry is as it was.${again}`);
+      console.error(`✘ ${(err as Error).message}. Nothing here changed, and ${label} is as it was.`);
       process.exit(1);
     }
-    await stopped.forget();
-    // the address stays: the new install serves on the port the old one had
-    const port = Number(opt('--keep-port') ?? 0);
-    if (port > 0) keepPort(foundryHome(), port);
-    console.log(copied.length ? `\n✔ moved: ${copied.map((i) => i.provider).join(', ')}. The checkout ${checkout} is not used any more: once the app shows your goals, delete it (each data folder in it is the backup, with a MOVED.md).` : '\nnothing was moved.');
+    const port = Number(opt('--keep-port') ?? 0) || done.port;
+    // the address stays: this install serves on the port the old one had
+    if (port) keepPort(foundryHome(), port);
+    say(`\n✔ moved ${done.goals} goal${done.goals === 1 ? '' : 's'} from ${label}. ${install.kind === 'docker' ? `The container is stopped and kept, with its volumes, as the backup.` : `It is stopped and kept as the backup; each folder it had has a MOVED.md saying how to go back.`}`);
     break;
   }
   // a data folder's paths, rewritten: what a container saw as /app/data or /repos is a folder of this computer (ADR-0106)
