@@ -10,7 +10,7 @@ import { join, resolve } from 'node:path';
 import { codexQuotaWindows } from '@foundry/engine/quota-windows';
 import { agyMeters, claudeMeters, codexMeters, type AccountMeters } from '@foundry/engine/account-meters';
 import { installRoot } from '@foundry/engine/install-root';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 // a checkout runs from its tree; a compiled foundry finds its files beside the executable (ADR-0104)
 const INSTALL = installRoot();
@@ -212,14 +212,18 @@ switch (cmd) {
   }
   // a source install's goals, moved into this app or binary (ADR-0105)
   case 'migrate': {
-    const { defaultDataDir, foundryHome, isCheckout, planMigration, readHomeConfig, readInstallEnv, runMigration, stopSourceService, waitUntilClosed } = await import('@foundry/engine');
+    const { defaultDataDir, folderProvider, foundryHome, isCheckout, keepPort, planMigration, readHomeConfig, readInstallEnv, runMigration, stopProcess, stopSourceService, waitUntilClosed } = await import('@foundry/engine');
     if (INSTALL.kind === 'checkout') return usage("foundry migrate moves a source install into the app or a release install: run the compiled foundry's (foundry link puts it on PATH)");
     const recorded = readInstallEnv(process.env, homedir());
     const named = opt('--from') ?? (recorded?.MODE === 'source' ? recorded.DIR : undefined);
     if (!named) return usage('no source install was found (~/.config/foundry/install.env): name its folder with --from <checkout>');
-    const checkout = resolve(named.replace(/^~(?=\/|$)/, homedir()));
+    const expand = (p: string) => resolve(p.replace(/^~(?=\/|$)/, homedir()));
+    const checkout = expand(named);
     if (!isCheckout(checkout)) return usage(`${checkout} is not a Foundry checkout (it has no apps/cli/src/main.ts)`);
-    const plan = planMigration({ checkout, config: readHomeConfig(foundryHome()), targetFor: (p) => defaultDataDir(ROOT, p) });
+    // --data: the folder the Foundry that asked for the switch runs on (ADR-0106), copied in place of the checkout's default
+    const data = opt('--data') ? expand(opt('--data')!) : null;
+    const current = data ? { provider: folderProvider(data) ?? 'claude', dataDir: data } : undefined;
+    const plan = planMigration({ checkout, config: readHomeConfig(foundryHome()), targetFor: (p) => defaultDataDir(ROOT, p), current });
     console.log(`Moving the source install in ${checkout} to this ${INSTALL.kind} install`);
     for (const i of plan) console.log(`  ${{ copy: '→', keep: '=', done: '=', none: '·' }[i.action]} ${pad(i.provider, 7)} ${i.action === 'copy' ? `${i.from}  →  ${i.to}` : i.action === 'none' ? i.why : `${i.from}: ${i.why}`}`);
     const copies = plan.filter((i) => i.action === 'copy');
@@ -229,15 +233,48 @@ switch (cmd) {
       const answer = prompt("Stop the checkout's Foundry and copy its data? [Y/n]") ?? '';
       if (/^n/i.test(answer.trim())) break;
     }
+    // the checkout's service first (a supervisor would start what we stop), then the Foundry that asked for the switch
     const stopped = await stopSourceService({ checkout, home: homedir(), log: (m) => console.log(`  ${m}`) });
-    if (stopped === 'none' && copies.length) console.log("  no service of the checkout's was running");
+    const stopPid = Number(opt('--stop-pid') ?? 0);
+    if (stopPid > 0) {
+      console.log(`  stopping the Foundry that asked for the switch (pid ${stopPid})`);
+      await stopProcess(stopPid, { timeoutMs: 120_000 });
+    } else if (stopped.kind === 'none' && copies.length) console.log("  no service of the checkout's was running");
+    const again = stopPid > 0 && stopped.kind === 'none' ? ` Start it again in ${checkout} with: bun run serve.` : '';
     const holder = await waitUntilClosed(copies.map((i) => join(i.from, 'engine.db')));
     if (holder) {
-      console.error(`✘ ${copies[0]!.from}/engine.db is still open by ${holder}: stop that Foundry, then run foundry migrate again. Nothing was copied.`);
+      await stopped.restore();
+      console.error(`✘ ${copies[0]!.from}/engine.db is still open by ${holder}: stop that Foundry, then run foundry migrate again. Nothing was copied.${again}`);
       process.exit(1);
     }
-    const copied = await runMigration(plan, { log: (m) => console.log(`  ${m}`) });
+    let copied: Awaited<ReturnType<typeof runMigration>>;
+    try {
+      copied = await runMigration(plan, { log: (m) => console.log(`  ${m}`) });
+    } catch (err) {
+      // the copy failed: the old Foundry comes back as it was, its data untouched
+      await stopped.restore();
+      console.error(`✘ ${(err as Error).message}. Nothing moved; the checkout's Foundry is as it was.${again}`);
+      process.exit(1);
+    }
+    await stopped.forget();
+    // the address stays: the new install serves on the port the old one had
+    const port = Number(opt('--keep-port') ?? 0);
+    if (port > 0) keepPort(foundryHome(), port);
     console.log(copied.length ? `\n✔ moved: ${copied.map((i) => i.provider).join(', ')}. The checkout ${checkout} is not used any more: once the app shows your goals, delete it (each data folder in it is the backup, with a MOVED.md).` : '\nnothing was moved.');
+    break;
+  }
+  // a data folder's paths, rewritten: what a container saw as /app/data or /repos is a folder of this computer (ADR-0106)
+  case 'repath': {
+    const { defaultConfig, processAlive, readDataLock, rewriteDataDirPaths } = await import('@foundry/engine');
+    const [from, to] = positional();
+    if (!from || !to) return usage('foundry repath <from> <to>: the path the history names, and the one it is on this computer');
+    const target = resolve(to.replace(/^~(?=\/|$)/, homedir()));
+    const dir = defaultConfig(ROOT).dataDir;
+    if (!existsSync(join(dir, 'engine.db'))) return usage(`${dir} holds no Foundry data folder`);
+    const held = readDataLock(dir);
+    if (held && processAlive(held.pid)) return usage(`Foundry (pid ${held.pid}) has ${dir} open: stop it first (foundry stop)`);
+    const r = rewriteDataDirPaths(dir, from.replace(/\/+$/, ''), target);
+    console.log(`✔ ${from} → ${target} in ${dir}: ${r.events} event(s) and ${r.files} file(s)`);
     break;
   }
   // foundry in a terminal: ~/.local/bin/foundry linked to this compiled foundry (ADR-0105)

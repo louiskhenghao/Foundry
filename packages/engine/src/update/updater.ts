@@ -6,9 +6,12 @@
  * app, a Linux or macOS tarball — downloads the release, checks its sha256 and swaps itself in. An instance that cannot
  * self-update degrades to guided commands — never an error.
  */
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync, writeSync } from 'node:fs';
 import { spawn } from 'node:child_process';
-import { dirname, join } from 'node:path';
+import { homedir, tmpdir } from 'node:os';
+import { basename, dirname, join } from 'node:path';
+import { defaultDataDir, foundryHome } from '../data-dir.ts';
+import { readInstallEnv } from '../migrate.ts';
 import type { Engine } from '../engine.ts';
 import { exec, git } from '../git/git.ts';
 import { APP_ENGINE_EXECUTABLE, APP_SHELL_EXECUTABLE, installRoot, type InstallRoot } from '../install-root.ts';
@@ -37,9 +40,62 @@ export interface UpdateReport {
 export interface UpdateCapability {
   mode: DeploymentMode;
   canSelfUpdate: boolean;
-  method: 'watchtower' | 'git' | 'release' | null;
+  method: 'watchtower' | 'git' | 'release' | 'switch' | null;
   /** commands for a guided update in this mode, shown when canSelfUpdate is false */
   guided: string[];
+  /** a newer major version this kind of install does not get (ADR-0106): what switching to it means, for the risk dialog */
+  switch: SwitchInfo | null;
+}
+
+/** 3.0 and later ship only as the app and the binary: a checkout or a container switches to them instead of updating */
+export interface SwitchInfo {
+  to: string;
+  /** what this computer switches to */
+  install: 'app' | 'binary';
+  from: 'local' | 'docker';
+  /** the data folder in use, copied by the switch */
+  dataDir: string;
+  /** where the new install keeps it */
+  target: string;
+  /** the address stays: the new install serves on this port */
+  port: number;
+  /** what the installer writes while it switches */
+  log: string;
+}
+
+/** the major of a stable x.y.z */
+export const majorOf = (v: string): number => Number(STABLE.exec(v)?.[1] ?? NaN);
+/** the newest release is a new major: 2.x → 3.0 */
+export function majorJump(current: string, latest: string | null): boolean {
+  return !!latest && STABLE.test(current) && STABLE.test(latest) && majorOf(latest) > majorOf(current);
+}
+
+export const INSTALLER_URL = 'https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh';
+
+/**
+ * What only the old install's own environment names: its data folder, its port, its supervisor, its layout. The switch's
+ * installer and the new install it starts choose their own (ADR-0106); the old folder handed on would have the new
+ * install open it instead of its copy. macOS hands a launched app the environment of whoever opened it, so this matters
+ * all the way down.
+ */
+export const OLD_INSTALL_ENV = ['FOUNDRY_DATA_DIR', 'FOUNDRY_PORT', 'FOUNDRY_SUPERVISED', 'INVOCATION_ID', 'FOUNDRY_ROOT', 'FOUNDRY_APP_SHELL', 'FOUNDRY_DOCKER'];
+export function switchEnv(env: NodeJS.ProcessEnv): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(env)) if (v !== undefined && !OLD_INSTALL_ENV.includes(k)) out[k] = v;
+  return out;
+}
+
+/** a container's way to the binary (ADR-0106): what the dialog lists, since nothing in a container can do it */
+export function dockerSwitchSteps(install: 'app' | 'binary'): string[] {
+  const data = install === 'app' ? '"$HOME/Library/Application Support/Foundry/data"' : '"$HOME/.local/share/foundry/data"';
+  return [
+    `curl -fsSL ${INSTALLER_URL} | bash -s -- --mode ${install} --no-start`,
+    'docker stop foundry',
+    `mkdir -p ${data} && docker run --rm --volumes-from foundry -v ${data}:/out alpine sh -c 'cp -a /app/data/. /out/'`,
+    `foundry repath /app/data ${data}`,
+    'foundry repath /repos "$HOME/Projects"',
+    'foundry start',
+  ];
 }
 
 export interface UpdaterOptions {
@@ -200,26 +256,49 @@ export class UpdateManager {
 
   capability(): UpdateCapability {
     const mode = this.mode();
+    // 3.0 and later ship only as the app and the binary (ADR-0106): a checkout or a container switches, never updates, to them
+    const latest = this.cached?.latest ?? null;
+    if ((mode === 'local' || mode === 'docker') && majorJump(this.current(), latest)) return this.switchCapability(mode, latest!);
     if (mode === 'docker') {
       const can = !!(this.env.FOUNDRY_WATCHTOWER_URL && this.env.FOUNDRY_WATCHTOWER_TOKEN);
-      return { mode, canSelfUpdate: can, method: can ? 'watchtower' : null, guided: ['docker compose pull foundry', 'docker compose up -d foundry'] };
+      return { mode, canSelfUpdate: can, method: can ? 'watchtower' : null, guided: ['docker compose pull foundry', 'docker compose up -d foundry'], switch: null };
     }
     if (mode === 'local') {
       const can = !!(Bun.which('git') && Bun.which('bun'));
-      return { mode, canSelfUpdate: can, method: can ? 'git' : null, guided: ['git pull', 'bun install', 'bun run web:build', 'bun run serve'] };
+      return { mode, canSelfUpdate: can, method: can ? 'git' : null, guided: ['git pull', 'bun install', 'bun run web:build', 'bun run serve'], switch: null };
     }
-    const latest = this.cached?.latest ?? '<version>';
     if (mode === 'app') {
       // the menu bar app swaps the bundle once the engine has the release ready (exit 75); without it, nothing can
       const can = !!this.env.FOUNDRY_APP_SHELL;
-      return { mode, canSelfUpdate: can, method: can ? 'release' : null, guided: [`open ${RELEASES_PAGE}`, `download ${releaseAssetName('app', latest, 'darwin', this.arch)} and replace /Applications/Foundry.app with the Foundry.app inside it`] };
+      return { mode, canSelfUpdate: can, method: can ? 'release' : null, guided: [`open ${RELEASES_PAGE}`, `download ${releaseAssetName('app', latest ?? '<version>', 'darwin', this.arch)} and replace /Applications/Foundry.app with the Foundry.app inside it`], switch: null };
     }
     if (mode === 'binary') {
       const layout = releaseLayout(this.install.execDir);
-      const name = releaseAssetName('binary', latest, this.platform, this.arch) ?? `foundry-${latest}-<platform>.tar.gz`;
-      return { mode, canSelfUpdate: !!layout, method: layout ? 'release' : null, guided: [`open ${RELEASES_PAGE}`, `tar -xzf ${name}`, `replace ${this.install.execDir ?? 'the install folder'} with the unpacked foundry-${latest} folder, then restart foundry`] };
+      const v = latest ?? '<version>';
+      const name = releaseAssetName('binary', v, this.platform, this.arch) ?? `foundry-${v}-<platform>.tar.gz`;
+      return { mode, canSelfUpdate: !!layout, method: layout ? 'release' : null, guided: [`open ${RELEASES_PAGE}`, `tar -xzf ${name}`, `replace ${this.install.execDir ?? 'the install folder'} with the unpacked foundry-${v} folder, then restart foundry`], switch: null };
     }
-    return { mode, canSelfUpdate: false, method: null, guided: [`open ${RELEASES_PAGE}`] };
+    return { mode, canSelfUpdate: false, method: null, guided: [`open ${RELEASES_PAGE}`], switch: null };
+  }
+
+  /** what switching this checkout or container to the release means here, and whether this Foundry can do it itself */
+  private switchCapability(mode: 'local' | 'docker', to: string): UpdateCapability {
+    const install: 'app' | 'binary' = this.platform === 'darwin' ? 'app' : 'binary';
+    const cfg = this.engine.config;
+    const info: SwitchInfo = {
+      to,
+      install,
+      from: mode,
+      dataDir: cfg.dataDir,
+      target: defaultDataDir(cfg.rootDir, cfg.provider, { kind: install, platform: this.platform, env: this.env, home: this.env.HOME || homedir() }),
+      port: cfg.port,
+      log: join(foundryHome(this.env), 'switch.log'),
+    };
+    // a container cannot install anything on its host: the steps, to run there
+    if (mode === 'docker') return { mode, canSelfUpdate: false, method: null, guided: dockerSwitchSteps(install), switch: info };
+    const asset = releaseAssetName(install, to, this.platform, this.arch);
+    const can = !!asset && !!Bun.which('bash', { PATH: this.env.PATH ?? '' });
+    return { mode, canSelfUpdate: can, method: can ? 'switch' : null, guided: [`curl -fsSL ${INSTALLER_URL} | bash -s -- --mode ${install} --migrate-from ${JSON.stringify(cfg.rootDir)}`], switch: info };
   }
 
   cachedReport(): UpdateReport | null {
@@ -291,11 +370,12 @@ export class UpdateManager {
    * One-click update: drain (unless force), then hand over to watchtower (docker), run the git pipeline with rollback
    * (local), or download, verify and swap the release (app, binary). Runs in the background; progress goes to onLine.
    */
-  async apply(opts: { force?: boolean; onLine?: (line: string) => void } = {}): Promise<void> {
+  async apply(opts: { force?: boolean; acknowledge?: boolean; onLine?: (line: string) => void } = {}): Promise<void> {
     const line = opts.onLine ?? (() => {});
     const cap = this.capability();
     if (this.applying) throw new Error('an update is already running');
     if (!cap.canSelfUpdate) throw new Error(`this ${cap.mode} install cannot self-update — ${cap.guided.join('; ')}`);
+    if (cap.method === 'switch' && !opts.acknowledge) throw new Error(`switching to ${cap.switch!.to} changes how Foundry is installed: it needs the person's go-ahead in the dialog`);
     const report = this.cached ?? (await this.check());
     if (!report.updateAvailable || !report.latest) throw new Error('no newer version to update to');
     this.applying = true;
@@ -306,6 +386,7 @@ export class UpdateManager {
       await this.drain(!!opts.force, line);
       if (cap.method === 'watchtower') await this.applyDocker(report.latest, line, done);
       else if (cap.method === 'release') await this.applyRelease(report.latest, report.assets, line, done);
+      else if (cap.method === 'switch') await this.applySwitch(cap.switch!, report.assets, line, done);
       else await this.applyLocal(report.latest, line, done);
     } catch (e) {
       const msg = String((e as Error).message ?? e);
@@ -386,15 +467,12 @@ export class UpdateManager {
    * folder's updates/. The app writes updates/ready.json and exits 75 so the menu bar app swaps the bundle and starts it
    * again; a tarball install moves the new version beside the old one, repoints `current` and restarts.
    */
-  private async applyRelease(to: string, assets: ReleaseAsset[], line: (l: string) => void, done: (ok: boolean, err: string | null) => void): Promise<void> {
-    const mode = this.mode();
-    if (mode !== 'app' && mode !== 'binary') throw new Error(`not a release install (${mode})`);
-    const name = releaseAssetName(mode, to, this.platform, this.arch);
+  /** one file of the release into a folder, checked against its SHA256SUMS; a file that does not match is removed */
+  private async downloadChecked(to: string, name: string | null, assets: ReleaseAsset[], dir: string, line: (l: string) => void): Promise<string> {
     const asset = name ? assets.find((a) => a.name === name) : undefined;
     const sums = assets.find((a) => a.name === SHA256SUMS);
     if (!asset) throw new Error(`release ${to} has no file for this computer (${name ?? `${this.platform}/${this.arch}`})`);
     if (!sums) throw new Error(`release ${to} has no ${SHA256SUMS}`);
-    const dir = join(this.engine.config.dataDir, 'updates', to);
     mkdirSync(dir, { recursive: true });
     const file = join(dir, asset.name);
     line(`→ downloading ${asset.name}${asset.size ? ` (${formatBytes(asset.size)})` : ''}…`);
@@ -411,17 +489,31 @@ export class UpdateManager {
       throw new Error(`${asset.name} does not match ${SHA256SUMS} (expected ${expected.slice(0, 12)}…, got ${actual.slice(0, 12)}…) — nothing changed`);
     }
     line('✔ checksum verified');
+    return file;
+  }
+
+  /** a release file unpacked into `<dir>/unpacked` */
+  private async unpack(file: string, dir: string, line: (l: string) => void): Promise<string> {
     const unpacked = join(dir, 'unpacked');
     rmSync(unpacked, { recursive: true, force: true });
     mkdirSync(unpacked, { recursive: true });
     line('→ unpacking…');
-    const cmd = asset.name.endsWith('.zip') ? (this.platform === 'darwin' ? ['ditto', '-x', '-k', file, unpacked] : ['unzip', '-q', file, '-d', unpacked]) : ['tar', '-xzf', file, '-C', unpacked];
+    const cmd = file.endsWith('.zip') ? (this.platform === 'darwin' ? ['ditto', '-x', '-k', file, unpacked] : ['unzip', '-q', file, '-d', unpacked]) : ['tar', '-xzf', file, '-C', unpacked];
     const r = await exec(cmd, dir, { timeoutMs: 10 * 60_000 });
     if (r.code !== 0) throw new Error(`${cmd[0]} failed (${r.code}): ${(r.stderr || r.stdout).trim().slice(-400)}`);
+    return unpacked;
+  }
+
+  private async applyRelease(to: string, assets: ReleaseAsset[], line: (l: string) => void, done: (ok: boolean, err: string | null) => void): Promise<void> {
+    const mode = this.mode();
+    if (mode !== 'app' && mode !== 'binary') throw new Error(`not a release install (${mode})`);
+    const dir = join(this.engine.config.dataDir, 'updates', to);
+    const file = await this.downloadChecked(to, releaseAssetName(mode, to, this.platform, this.arch), assets, dir, line);
+    const unpacked = await this.unpack(file, dir, line);
     rmSync(file, { force: true });
     if (mode === 'app') {
       const bundle = join(unpacked, 'Foundry.app');
-      if (![APP_SHELL_EXECUTABLE, APP_ENGINE_EXECUTABLE].every((x) => existsSync(join(bundle, 'Contents', 'MacOS', x)))) throw new Error(`${asset.name} holds no Foundry.app`);
+      if (![APP_SHELL_EXECUTABLE, APP_ENGINE_EXECUTABLE].every((x) => existsSync(join(bundle, 'Contents', 'MacOS', x)))) throw new Error(`${basename(file)} holds no Foundry.app`);
       writeFileSync(join(this.engine.config.dataDir, 'updates', 'ready.json'), JSON.stringify({ version: to, bundle, at: new Date().toISOString() }, null, 2) + '\n');
       done(true, null);
       line(`✔ ${to} is ready — exiting so the menu bar app installs it and starts it again`);
@@ -431,7 +523,7 @@ export class UpdateManager {
     const layout = releaseLayout(this.install.execDir);
     if (!layout) throw new Error('this install is not in a release folder with a `current` link');
     const top = readdirSync(unpacked).find((d) => d.startsWith('foundry-'));
-    if (!top || !existsSync(join(unpacked, top, 'foundry'))) throw new Error(`${asset.name} holds no foundry-${to} folder`);
+    if (!top || !existsSync(join(unpacked, top, 'foundry'))) throw new Error(`${basename(file)} holds no foundry-${to} folder`);
     const dest = join(layout.base, to);
     rmSync(dest, { recursive: true, force: true });
     renameSync(join(unpacked, top), dest);
@@ -443,6 +535,41 @@ export class UpdateManager {
     rmSync(dir, { recursive: true, force: true });
     done(true, null);
     this.restart(to, line, `${JSON.stringify(join(layout.current, 'foundry'))} serve`, layout.base);
+  }
+
+  /**
+   * A checkout switches to the app or the binary (ADR-0106): the release file is downloaded and checked here, then the
+   * installer it carries takes over, detached, so it outlives this process. It places the new install, has
+   * `foundry migrate` stop this Foundry (its service, then this pid) and copy the data folder once the database is let
+   * go, and starts the new install on this port, where the page reconnects. An installer that ends before stopping this
+   * Foundry gave up: the drain ends and this one carries on, the reason in its log.
+   */
+  private async applySwitch(sw: SwitchInfo, assets: ReleaseAsset[], line: (l: string) => void, done: (ok: boolean, err: string | null) => void): Promise<void> {
+    const dir = mkdtempSync(join(tmpdir(), 'foundry-switch-'));
+    const file = await this.downloadChecked(sw.to, releaseAssetName(sw.install, sw.to, this.platform, this.arch), assets, dir, line);
+    const unpacked = await this.unpack(file, dir, line);
+    const installer = sw.install === 'app' ? join(unpacked, 'Foundry.app', 'Contents', 'Resources', 'install.sh') : join(unpacked, `foundry-${sw.to}`, 'resources', 'install.sh');
+    if (!existsSync(installer)) throw new Error(`${basename(file)} carries no installer to switch with`);
+    const cfg = this.engine.config;
+    const agents = readInstallEnv(this.env, homedir())?.AGENT || cfg.provider;
+    const args = [installer, 'install', '--mode', sw.install, '--from-file', file, '--migrate-from', cfg.rootDir, '--migrate-data', cfg.dataDir, '--migrate-stop', String(process.pid), '--port', String(sw.port), '--agent', agents, '--with', 'none', '--yes', '--no-open', '--no-modify-path'];
+    mkdirSync(dirname(sw.log), { recursive: true });
+    const out = openSync(sw.log, 'a');
+    writeSync(out, `\n=== ${new Date().toISOString()} switching Foundry ${this.current()} (${sw.from}, ${cfg.rootDir}) to ${sw.to} (${sw.install}) ===\n`);
+    // the record goes in before the copy, so the new install's history has it too
+    done(true, null);
+    line(`✔ ${sw.to} is here and checked; its installer takes over now (log: ${sw.log})`);
+    line(`→ it puts Foundry ${sw.to} in place, stops this Foundry, copies ${cfg.dataDir} and starts the new one on port ${sw.port}: this page reconnects by itself`);
+    const child = spawn('bash', args, { cwd: homedir(), detached: true, stdio: ['ignore', out, out], env: switchEnv(this.env) });
+    closeSync(out);
+    child.on('exit', (code) => {
+      // still here: the installer gave up before it stopped this Foundry, which carries on as it was
+      if (code === 0) return;
+      line(`✘ the switch stopped (exit ${code}) before this Foundry was stopped; nothing changed here — see ${sw.log}`);
+      this.engine.store.append({ type: 'update.run', goalId: null, payload: { mode: sw.from, from: this.current(), to: sw.to, ok: false, error: `the installer stopped with exit ${code}; see ${sw.log}`, durationMs: 0 } });
+      this.engine.endUpdateDrain();
+      this.applying = false;
+    });
   }
 
   /** under a supervisor just exit (it restarts the new version); otherwise hand the port to a detached successor */

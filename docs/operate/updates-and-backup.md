@@ -176,6 +176,38 @@ Back up before the first startup of this revision. Startup appends provider assi
 
 If trying an unreleased branch, retain the previous image tag or commit. A successful merge does not publish a Docker image. Build that source revision explicitly; use [the validation record](../develop/codex-validation.md) to distinguish tested paths from live integration checks still outstanding.
 
+## Moving to 3.0
+
+From 3.0 Foundry ships only as the macOS app and the Linux binary
+([ADR-0106](../develop/adr/0106-before-3-0-a-switch-not-an-update.md)). A source install or a Docker container on the
+last 2.x sees 3.0 in **About & updates** as a switch, not an update: the dialog says what switching does, the risks and
+the way back before anything happens.
+
+**From source.** Tick *I understand* and press **Switch to 3.0**, or run `foundry update` and answer yes. Foundry
+downloads 3.0 for this computer and checks it, puts the app in Applications (the binary in
+`~/.local/share/foundry` on Linux), stops itself and its service, copies its data folder to the new install's
+(`~/Library/Application Support/Foundry`, `~/.local/share/foundry`), and starts the new one on the same port. The
+page reconnects by itself. The checkout and its `data/` stay as they were, with a `MOVED.md` saying where the data
+went: they are the backup. Watch it in `~/.foundry/switch.log`. To go back, quit the new Foundry and start the
+checkout again.
+
+**From Docker.** Nothing in the container can install on the host, so the dialog lists these steps; run them on the
+host. On Linux (on a Mac, `--mode app` and `~/Library/Application Support/Foundry/data`):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash -s -- --mode binary --no-start
+docker stop foundry
+mkdir -p ~/.local/share/foundry/data
+docker run --rm --volumes-from foundry -v ~/.local/share/foundry/data:/out alpine sh -c 'cp -a /app/data/. /out/'
+foundry repath /app/data ~/.local/share/foundry/data
+foundry repath /repos ~/Projects        # your projects folder, as FOUNDRY_REPOS named it
+foundry start
+```
+
+With Codex goals, copy `/app/data-codex` to `~/.local/share/foundry/data-codex` the same way and repath it. The sign-ins
+are your computer's own: sign in to each coding agent on the Setup page. The Docker volumes stay as they were: to go
+back, `foundry stop` and `docker start foundry`.
+
 ## Self-update
 
 An install made with the [one-line installer](./install.md#one-line) also updates from the terminal: `foundry update`

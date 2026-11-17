@@ -68,4 +68,4 @@ Foundry 读你的项目，问你只有你能决定的事，然后写一份叫 **
 20. [常见问题](./faq.zh.md)：常见问题的简短回答。
 21. [带上你自己的设计稿](./bringing-your-own-design.zh.md)：把你设计好的界面交给 goal，以及 Brief 和工人会拿它做什么。
 
-顶栏右侧 ⚙ 菜单里的 **Help** 在 Foundry 里面直接显示本指南。同一个菜单里还有 **Settings**、**Setup**、**Transfer**、**Ports**、浅色／深色模式、**Appearance**（主题，见 [主题](./themes.zh.md)），以及你运行的版本：⚙ 按钮上的红点表示有新版本，按版本号会打开 **About & updates**。
+顶栏右侧 ⚙ 菜单里的 **Help** 在 Foundry 里面直接显示本指南。同一个菜单里还有 **Settings**、**Setup**、**Transfer**、**Ports**、浅色／深色模式、**Appearance**（主题，见 [主题](./themes.zh.md)），以及你运行的版本：⚙ 按钮上的红点表示有新版本，按版本号会打开 **About & updates**（新版本是 Foundry 3.0、而你是从源码或在 Docker 里运行时，那是换成 app（Linux 上是 binary）：对话框会先说明它会做什么、有哪些风险、怎么退回，你的 goal 都会一起带过去）。

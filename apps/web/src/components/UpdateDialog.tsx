@@ -1,7 +1,7 @@
 import { ArrowUpCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { api, type UpdateStatusView } from '../api.ts';
+import { api, type SwitchView, type UpdateStatusView } from '../api.ts';
 import { LiveLog } from '../pages/LiveLog.tsx';
 import { Button, CopyButton, Modal, cn } from '../ui.tsx';
 
@@ -87,10 +87,10 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
   }, [phase, status?.latest]);
   if (!status) return null;
   const cap = status.capability;
-  const start = async () => {
+  const start = async (acknowledge = false) => {
     setErr(null);
     try {
-      await api.updateApply(force);
+      await api.updateApply(force, acknowledge);
       setPhase('running');
     } catch (e: any) {
       setErr(e.message);
@@ -98,7 +98,7 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
   };
   // portalled to <body>: opened from the header's update pill, whose backdrop blur would pin a fixed overlay to the 48px header
   return createPortal(
-    <Modal open={open} title={`Update to ${status.latest ?? '…'}`} onClose={phase === 'running' ? () => {} : onClose} wide>
+    <Modal open={open} title={cap.switch ? `Switch to Foundry ${cap.switch.to}` : `Update to ${status.latest ?? '…'}`} onClose={phase === 'running' ? () => {} : onClose} wide>
       <div className="space-y-3 text-sm">
         <p className="text-xs text-ink-soft">
           {/* the newer version is news, in the information blue the top bar's pill shows it in */}
@@ -114,7 +114,9 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
             ))}
           </div>
         )}
-        {cap.canSelfUpdate ? (
+        {cap.switch && phase === 'idle' ? (
+          <SwitchNotice sw={cap.switch} steps={cap.guided} canSwitch={cap.canSelfUpdate} force={force} onForce={setForce} err={err} onSwitch={() => start(true)} onClose={onClose} />
+        ) : cap.canSelfUpdate ? (
           phase === 'idle' ? (
             <div className="space-y-2">
               <p className="text-xs text-ink-faint">
@@ -130,7 +132,7 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
                 <Button size="sm" variant="ghost" onClick={onClose}>
                   Not now
                 </Button>
-                <Button size="sm" variant="primary" onClick={start}>
+                <Button size="sm" variant="primary" onClick={() => start()}>
                   <ArrowUpCircle size={14} /> Update
                 </Button>
               </div>
@@ -140,7 +142,13 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
               <LiveLog attemptId="self-update" className="max-h-56" />
               {/* the update at work in blue, a failed one in red */}
               <p className={cn('text-xs font-semibold', phase === 'failed' ? 'text-bad-ink' : 'text-work-ink')}>
-                {phase === 'failed' ? 'The update did not go through — it was rolled back and the old version is running. See the log above.' : 'Updating… the server restarts at the end and this page reloads by itself.'}
+                {phase === 'failed'
+                  ? cap.switch
+                    ? `The switch did not go through — this Foundry carries on as it was. See the log above and ${cap.switch.log}.`
+                    : 'The update did not go through — it was rolled back and the old version is running. See the log above.'
+                  : cap.switch
+                    ? `Switching… this Foundry stops, its data is copied, and Foundry ${cap.switch.to} starts on port ${cap.switch.port}; this page reloads by itself. A large data folder takes a while.`
+                    : 'Updating… the server restarts at the end and this page reloads by itself.'}
               </p>
               {phase === 'failed' && (
                 <div className="flex justify-end">
@@ -173,5 +181,109 @@ export function UpdateDialog({ open, onClose, status }: { open: boolean; onClose
       </div>
     </Modal>,
     document.body,
+  );
+}
+
+const list = 'list-disc space-y-1 pl-5 text-xs text-ink-soft';
+const mono = 'mono text-ink [overflow-wrap:anywhere]';
+
+/**
+ * Before a checkout or a container meets 3.0 (ADR-0106): what the switch to the app or the binary does, what can go
+ * wrong, and the way back. A checkout switches on a ticked box; a container gets the steps to run on its host.
+ */
+export function SwitchNotice({ sw, steps, canSwitch, force, onForce, err, onSwitch, onClose }: {
+  sw: SwitchView;
+  steps: string[];
+  canSwitch: boolean;
+  force: boolean;
+  onForce: (v: boolean) => void;
+  err: string | null;
+  onSwitch: () => void;
+  onClose: () => void;
+}) {
+  const [sure, setSure] = useState(false);
+  const what = sw.install === 'app' ? 'the Foundry app' : 'the foundry binary';
+  return (
+    <div className="space-y-3">
+      {/* a decision only the person makes: in the colour of what waits for them */}
+      <div className="rounded-md border border-you/60 p-3 space-y-1">
+        <p className="text-sm font-bold text-ink">Foundry {sw.to} ships only as {what}.</p>
+        <p className="text-xs text-ink-soft">
+          This {sw.from === 'docker' ? 'Docker' : 'source'} install gets no updates from {sw.to} on. Switching keeps every goal, setting, transcript and attachment.
+        </p>
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-bold text-ink">What switching does</p>
+        <ul className={list}>
+          <li>Installs Foundry {sw.to} {sw.install === 'app' ? 'as Foundry.app in Applications, run from the menu bar' : 'in ~/.local/share/foundry, run as a service'}.</li>
+          <li>
+            Stops this Foundry, then copies its data folder <span className={mono}>{sw.dataDir}</span> to <span className={mono}>{sw.target}</span>. The original stays as it is: it is the backup.
+          </li>
+          <li>Starts the new Foundry on port {sw.port}, the address this page has. The page reconnects by itself.</li>
+          <li>Your repositories, their branches and the goals' progress folders are not touched.</li>
+        </ul>
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-bold text-ink">The risks</p>
+        <ul className={list}>
+          {sw.install === 'app' && <li>The app is not notarized by Apple. Installed this way it opens without a warning; after an update macOS may ask again for folders it guards, such as Documents or Desktop.</li>}
+          <li>The copy needs as much free disk as the data folder takes, and time to match: long transcripts and old worktrees make it slower.</li>
+          <li>Running goals are paused first, as with every update, and carry on in the new Foundry.</li>
+          <li>
+            If the switch stops before this Foundry is stopped, nothing changes here. If it stops after, its log says why: <span className={mono}>{sw.log}</span>.
+          </li>
+        </ul>
+      </div>
+      <div className="space-y-1">
+        <p className="text-xs font-bold text-ink">The way back</p>
+        <ul className={list}>
+          <li>
+            {sw.from === 'docker'
+              ? 'The Docker volumes stay as they are. To go back, stop the new Foundry and start the container again.'
+              : 'This checkout and its data stay as they were. To go back, quit the new Foundry and start this one again.'}
+          </li>
+        </ul>
+      </div>
+      {sw.from === 'docker' || !canSwitch ? (
+        <div className="space-y-2">
+          <p className="text-xs text-ink-faint">
+            {sw.from === 'docker'
+              ? 'Nothing in a container can install on its host. On the host, run these in order (Linux; on a Mac, --mode app and ~/Library/Application Support/Foundry/data):'
+              : 'This Foundry cannot switch by itself here. In a terminal:'}
+          </p>
+          <div className="rounded-md border border-line bg-sunken p-3 space-y-1">
+            {steps.map((cmd) => (
+              <div key={cmd} className="flex items-center gap-2 text-[12px] mono text-ink [overflow-wrap:anywhere]">
+                <span className="text-ink-faint">$</span> {cmd} <CopyButton text={cmd} />
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" variant="ghost" onClick={onClose}>
+              Close
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-xs text-ink cursor-pointer">
+            <input type="checkbox" checked={sure} onChange={(e) => setSure(e.target.checked)} />I understand: switch this install to Foundry {sw.to}
+          </label>
+          <label className="flex items-center gap-2 text-xs text-ink-soft cursor-pointer">
+            <input type="checkbox" checked={force} onChange={(e) => onForce(e.target.checked)} />
+            Switch now without waiting — interrupts running agents
+          </label>
+          {err && <div className="text-xs text-bad-ink">✘ {err}</div>}
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={onClose}>
+              Not now
+            </Button>
+            <Button size="sm" variant="primary" disabled={!sure} onClick={onSwitch}>
+              <ArrowUpCircle size={14} /> Switch to {sw.to}
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
