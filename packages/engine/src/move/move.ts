@@ -390,7 +390,7 @@ async function copyFolder(install: EarlierInstall, from: string, staging: string
   await ensureRoom(from, dirname(staging));
   const r = await probe.run(probe.platform === 'darwin' ? ['cp', '-R', '-p', `${from}/.`, staging] : ['cp', '-a', '--reflink=auto', `${from}/.`, staging], long);
   if (r.code !== 0) throw new MoveError(`the copy of ${from} failed: ${tail(r.stderr)}`);
-  return 'as a copy';
+  return probe.platform === 'darwin' ? 'in full' : 'in full, or as a reflink where the disk has them';
 }
 
 /** pause the goals at work in the old Foundry, through its page, and wait until nothing runs there */
