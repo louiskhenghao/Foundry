@@ -117,7 +117,8 @@ export function judgeReadOnlyShell(command: string): ShellVerdict {
   return { allow: true, reason: 'every command reads' };
 }
 
-if (import.meta.main) {
+/** the hook: read the event, answer, exit (`foundry hook readonly-bash` from a compiled binary, the file itself under Bun) */
+export async function run(): Promise<void> {
   const input = await new Response(Bun.stdin.stream()).text();
   let j: { tool_name?: string; tool_input?: { command?: string } } = {};
   try {
@@ -133,3 +134,4 @@ if (import.meta.main) {
   }
   process.exit(0);
 }
+if (import.meta.main) await run();

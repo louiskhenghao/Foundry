@@ -9,8 +9,12 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { codexQuotaWindows } from '@foundry/engine/quota-windows';
 import { agyMeters, claudeMeters, codexMeters, type AccountMeters } from '@foundry/engine/account-meters';
+import { installRoot } from '@foundry/engine/install-root';
+import { readFileSync } from 'node:fs';
 
-const ROOT = resolve(import.meta.dir, '../../..');
+// a checkout runs from its tree; a compiled foundry finds its files beside the executable (ADR-0104)
+const INSTALL = installRoot();
+const ROOT = INSTALL.root;
 const argv = process.argv.slice(2);
 const cmd = argv[0];
 const rest = argv.slice(1);
@@ -747,6 +751,30 @@ switch (cmd) {
       break;
     }
     return usage(`unknown skills subcommand: ${sub}`);
+  }
+  case 'version': {
+    const version = String(JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version ?? '0.0.0');
+    if (has('--json')) console.log(JSON.stringify({ version, install: INSTALL.kind, root: ROOT, runtime: `bun ${Bun.version}` }));
+    else console.log(`foundry ${version} (${INSTALL.kind} install: ${ROOT})`);
+    break;
+  }
+  // the hooks a compiled foundry carries, run by the coding agents' hook settings (ADR-0104); a checkout runs the files with Bun
+  case 'hook': {
+    const { hookRuns } = await import('@foundry/runner/hooks');
+    const run = hookRuns[rest[0] as keyof typeof hookRuns];
+    if (!run) return usage(`unknown hook "${rest[0] ?? ''}" (one of ${Object.keys(hookRuns).join(', ')})`);
+    await run(rest.slice(1));
+    break;
+  }
+  // Playwright's own CLI run inside foundry: a compiled install carries the package but no runtime for its cli.js
+  case 'playwright': {
+    const { locatePlaywright } = await import('@foundry/engine/playwright-load');
+    const loc = locatePlaywright();
+    if (!loc) return usage('Playwright is not installed with Foundry');
+    const { createRequire } = await import('node:module');
+    const { program } = createRequire(loc.cli)('./lib/program');
+    program.parse([process.execPath, 'playwright', ...rest]);
+    break;
   }
   default:
     usage();

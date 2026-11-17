@@ -1,7 +1,8 @@
 /**
- * One-command release (ADR-0010): bump the product version, tag, publish the changelog to the
- * public releases repo, and push the multi-arch image to Docker Hub — which is the moment
- * deployed instances can see the new version.
+ * One-command release (ADR-0010, ADR-0104): bump the product version, tag, publish the changelog to the public releases
+ * repo, build the release files (the executables with their resources, per platform) into a draft GitHub Release there,
+ * push the multi-arch image to Docker Hub, then publish the GitHub Release — which is the moment deployed instances can
+ * see the new version (they read GitHub Releases).
  *
  *   bun run release patch|minor|major|x.y.z [--notes "..."] [--dry-run]
  *
@@ -9,7 +10,7 @@
  * github.com/louiskhenghao/foundry-releases (public; created on first release) because the main
  * repo is private and deployments read the notes unauthenticated.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dir, '..');
@@ -120,10 +121,25 @@ if (alreadyLogged) {
 const ahead = Number((await run(['git', 'rev-list', '--count', '@{u}..HEAD'], { cwd: RELEASES_DIR })).out.trim() || '0');
 if (ahead > 0) await git(['push'], RELEASES_DIR);
 
-// ---------- the release becomes real: versioned multi-arch image on Docker Hub ----------
+// ---------- the release files (ADR-0104), as a draft GitHub Release of the public releases repo: unseen until published ----------
+const DIST = join(ROOT, 'dist', 'release', next);
+await run(['bun', 'scripts/build-release.ts', '--out', join(ROOT, 'dist', 'release')]);
+const assets = readdirSync(DIST).filter((f) => /\.(tar\.gz|zip|dmg)$/.test(f) || f === 'SHA256SUMS').map((f) => join(DIST, f));
+if (!assets.some((f) => f.endsWith('SHA256SUMS'))) fail(`no SHA256SUMS in ${DIST}`);
+const notesFile = join(RELEASES_DIR, `.notes-${next}.md`);
+writeFileSync(notesFile, (notes || '- (no notes)') + '\n');
+const releaseExists = (await run(['gh', 'release', 'view', `v${next}`, '--repo', RELEASES_REPO], { canFail: true })).code === 0;
+if (releaseExists) await run(['gh', 'release', 'upload', `v${next}`, '--repo', RELEASES_REPO, '--clobber', ...assets]);
+else await run(['gh', 'release', 'create', `v${next}`, '--repo', RELEASES_REPO, '--draft', '--title', `v${next}`, '--notes-file', notesFile, ...assets]);
+rmSync(notesFile, { force: true });
+
+// ---------- the versioned multi-arch image on Docker Hub (until the image is retired) ----------
 await run(['docker', 'buildx', 'build', '--platform', 'linux/amd64,linux/arm64', '-t', `${IMAGE}:${next}`, '-t', `${IMAGE}:latest`, '--push', '.']);
 
-// ---------- main repo last (a failed docker push must not leave a pushed tag with no image) ----------
+// ---------- the release becomes real: the GitHub Release is published, and instances find it on their next check ----------
+await run(['gh', 'release', 'edit', `v${next}`, '--repo', RELEASES_REPO, '--draft=false']);
+
+// ---------- main repo last (a failed build or push must not leave a pushed tag with no release) ----------
 await git(['push', 'origin', 'main', '--tags']);
 
 console.log(`\n✔ released ${next} — instances will see it on their next check`);

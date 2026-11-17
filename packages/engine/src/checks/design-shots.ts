@@ -14,6 +14,7 @@ import { detectRun } from '../preview/detect.ts';
 import { portFree } from '../preview/manager.ts';
 import { killGroup } from '../proc.ts';
 import { screenshotsDir } from '../workspace.ts';
+import { loadPlaywright } from '../playwright-load.ts';
 
 /** the widths a design is compared at: the desktop most exports are drawn for, and a phone */
 export const DESIGN_SHOT_WIDTHS: readonly number[] = [1440, 390];
@@ -82,7 +83,7 @@ export async function captureDesignShots(engine: Pick<Engine, 'config'>, goal: P
       const err = proc.stderr && typeof proc.stderr !== 'number' ? (await new Response(proc.stderr).text().catch(() => '')).slice(-400) : '';
       return { shots: [], url, note: `the result did not answer at ${url} ${exited ? 'before its process exited' : 'in time'}${err.trim() ? `: ${err.trim()}` : ''}` };
     }
-    const pw = await import('playwright').catch((err) => {
+    const pw = await loadPlaywright().catch((err) => {
       throw new Error(`Playwright is not installed (Settings → Preview & self-check): ${String((err as Error).message ?? err).slice(0, 100)}`);
     });
     browser = await pw.chromium.launch().catch((err) => {

@@ -6,6 +6,7 @@ import type { Database } from 'bun:sqlite';
 import type { Engine } from '../engine.ts';
 import type { EventStore } from '@foundry/core';
 import { ARTIFACTS_DIR, screenshotsDir } from '../workspace.ts';
+import { loadPlaywright } from '../playwright-load.ts';
 
 /** the shots the figure check last took of a task's pages (the closed object, then a Colorfigures page's see-through), as a milestone's evidence lists them */
 export function figureShots(store: Pick<EventStore, 'listByGoalOfTypes'>, goalId: string, taskId: string): { file: string; caption: string }[] {
@@ -88,7 +89,7 @@ export async function runFigureCheck(engine: Engine, goal: Goal, task: Task, att
   }
   let browser: import('playwright').Browser | null = null;
   try {
-    const pw = await import('playwright').catch((err) => {
+    const pw = await loadPlaywright().catch((err) => {
       throw new Error(`Playwright is not installed (Settings → Preview & self-check): ${String((err as Error).message ?? err).slice(0, 100)}`);
     });
     browser = await pw.chromium.launch().catch((err) => {

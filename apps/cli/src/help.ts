@@ -48,6 +48,9 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
                                           stay, the rest run (failed ones once more); --hint tells them something, the limits raise its budget
   replay --verify                         rebuild read models from the event log and compare
   doctor [--provider claude|codex|agy] [--json]                         environment check: selected agent, login, git, bun, required skills
+  version [--json]                        the version, how this Foundry is installed (checkout, app, binary) and where
+  hook <name> [args]                      run one of Foundry's session hooks (what a coding agent's hook settings call)
+  playwright <args>                       Playwright's own CLI inside foundry, e.g. playwright install chromium
   skills list [--scope user|plugin|project|all] [--repo <path>] [--json]
   skills catalog                          required / recommended / optional skills and their status
   skills install <id|name> [--force]      install into the selected agent's skills directory

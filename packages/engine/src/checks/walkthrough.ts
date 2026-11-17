@@ -14,6 +14,7 @@ import { runMilestoneScript, type ScriptDeps } from './milestone-script.ts';
 import { figureShots } from './figure.ts';
 import { diagramShots } from './diagram.ts';
 import { deckShots } from './deck.ts';
+import { loadPlaywright } from '../playwright-load.ts';
 
 export const WALK_MAX_BUDGET_USD = 0.5;
 const VIEWPORT = { width: 1280, height: 800 };
@@ -409,7 +410,7 @@ async function captureWalk(engine: Engine, goal: Goal, task: Task, opts: Capture
     // the CAD viewer is the person's to start: never the page a walkthrough records
     let app = pickApp(task, preview.apps.filter((a) => a.key !== CAD_VIEWER_KEY));
     if (!app) throw new Error('the preview has no app to look at');
-    const pw = await import('playwright').catch(() => {
+    const pw = await loadPlaywright().catch(() => {
       throw new Error('Playwright is not installed (Settings → Preview & self-check)');
     });
     const browser = await pw.chromium.launch().catch(() => {

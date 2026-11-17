@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { defaultConfig } from './config.ts';
-import { RestartGate, folderBytesAsync, prepareDataDir, readHomeConfig, rememberRecent, resolveDataDir, rewriteDataDirPaths, testDataDir, writeHomeConfig } from './data-dir.ts';
+import { RestartGate, defaultDataDir, folderBytesAsync, prepareDataDir, readHomeConfig, rememberRecent, resolveDataDir, rewriteDataDirPaths, testDataDir, writeHomeConfig } from './data-dir.ts';
 
 const ROOT = resolve(import.meta.dir, '../../..');
 const tmp = () => mkdtempSync(join(tmpdir(), 'foundry-data-dir-'));
@@ -12,6 +12,16 @@ const goalRecord = (id: string, title: string, state: Goal['state']) => {
   const now = new Date().toISOString();
   return Goal.parse({ id, title, prompt: 'p', repoPath: '/repo', baseBranch: 'main', branch: `goal/${id}`, budgets: {}, models: { strong: 'opus', cheap: 'haiku', worker: 'opus' }, state, stateBeforeBlock: null, costUsd: 0, fixCycles: 0, runningSince: null, createdAt: now, updatedAt: now });
 };
+
+describe('the default data folder of a release install (ADR-0104)', () => {
+  test("a checkout keeps data/ in its tree; the app and a tarball use the platform's place for application data", () => {
+    expect(defaultDataDir(ROOT, 'claude', { kind: 'checkout' })).toBe(join(ROOT, 'data'));
+    expect(defaultDataDir(ROOT, 'codex', { kind: 'checkout' })).toBe(join(ROOT, 'data-codex'));
+    expect(defaultDataDir('/Applications/Foundry.app/Contents/Resources', 'claude', { kind: 'app', platform: 'darwin', home: '/Users/me' })).toBe('/Users/me/Library/Application Support/Foundry/data');
+    expect(defaultDataDir('/opt/foundry/2.35.0/resources', 'codex', { kind: 'binary', platform: 'linux', home: '/home/me', env: {} })).toBe('/home/me/.local/share/foundry/data-codex');
+    expect(defaultDataDir('/opt/foundry/2.35.0/resources', 'claude', { kind: 'binary', platform: 'linux', home: '/home/me', env: { XDG_DATA_HOME: '/data/xdg' } })).toBe('/data/xdg/foundry/data');
+  });
+});
 
 describe('which data folder opens (ADR-0082)', () => {
   test('FOUNDRY_DATA_DIR wins over the choice kept in ~/.foundry, which wins over the default', () => {

@@ -5,7 +5,7 @@ const deny = (reason: string): never => {
   console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: reason } }));
   process.exit(0);
 };
-async function main() {
+export async function main(): Promise<void> {
 const input = await Bun.stdin.text();
 const payload = JSON.parse(input);
 const policy = JSON.parse(readFileSync(process.env.FOUNDRY_CODEX_POLICY!, 'utf8'));
@@ -46,4 +46,6 @@ if (/^(Bash|exec_command|shell|shell_command)$/.test(name)) {
 }
 
 }
-main().catch(() => deny("Foundry could not verify this tool call; stop the session."));
+/** the hook as `foundry hook codex-guard` runs it (ADR-0104); the file itself is run by Bun from a checkout */
+export const run = (): Promise<void> => main().catch(() => deny('Foundry could not verify this tool call; stop the session.'));
+if (import.meta.main) void run();

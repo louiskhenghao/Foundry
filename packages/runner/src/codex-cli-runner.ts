@@ -1,3 +1,4 @@
+import { tsHookCommand } from './hook-command.ts';
 import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
@@ -12,6 +13,8 @@ export const CODEX_DEFAULT_MODEL = 'codex-default';
 export interface CodexCliRunnerOptions {
   codexBin?: string;
   codexHome?: string;
+  /** the folder with Foundry's hooks (packages/runner/hooks); the package's own when not given */
+  hooksDir?: string;
   maxConcurrent?: number;
   defaultTimeoutMs?: number;
   defaultIdleTimeoutMs?: number;
@@ -81,7 +84,7 @@ export class CodexCliRunner implements AgentRunner {
     // Foundry orchestrates role sessions; native delegation stays disabled.
     config('features.multi_agent', false);
     config('hooks.SessionStart', [{ hooks: [{ type: 'command', command: `cat > ${shellQuote(files.canary)}` }] }]);
-    config('hooks.PreToolUse', [{ hooks: [{ type: 'command', command: `${shellQuote(process.execPath)} ${shellQuote(files.guard)}`, timeout: 10 }] }]);
+    config('hooks.PreToolUse', [{ hooks: [{ type: 'command', command: tsHookCommand(dirname(files.guard), 'codex-guard'), timeout: 10 }] }]);
     if (spec.model && spec.model !== CODEX_DEFAULT_MODEL) args.push('--model', spec.model);
     if (spec.effort) config('model_reasoning_effort', spec.effort);
     const role = [spec.appendSystemPrompt, spec.appendSystemPromptFile ? readFileSync(spec.appendSystemPromptFile, 'utf8') : null,
@@ -127,7 +130,7 @@ export class CodexCliRunner implements AgentRunner {
       const canary = join(dir, 'canary.json');
       const policy = join(dir, 'policy.json');
       const denials = join(dir, 'denials.jsonl');
-      const hooksDir = fileURLToPath(new URL('../hooks/', import.meta.url));
+      const hooksDir = this.opts.hooksDir ?? fileURLToPath(new URL('../hooks/', import.meta.url));
       writeFileSync(policy, JSON.stringify({ canary, denials, counter: join(dir, 'calls'), capped: join(dir, 'capped'), boundary: join(hooksDir, 'boundary-guard.sh'), readOnly: this.readOnly(spec), noTools: spec.allowedTools?.length === 0, mcpAllowed: (spec.allowedTools ?? []).filter((t) => t.startsWith('mcp__')), mcpDenied: (spec.disallowedTools ?? []).filter((t) => t.startsWith('mcp__')), maxToolCalls: spec.maxTurns }));
       const schema = spec.jsonSchema ? join(dir, 'schema.json') : undefined;
       if (schema) writeFileSync(schema, JSON.stringify(codexOutputSchema(spec.jsonSchema)));

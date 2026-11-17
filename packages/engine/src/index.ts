@@ -1,5 +1,7 @@
 export * from './config.ts';
 export * from './data-dir.ts';
+export * from './install-root.ts';
+export * from './playwright-load.ts';
 export * from './engine.ts';
 export * from './types.ts';
 export * from './budget.ts';

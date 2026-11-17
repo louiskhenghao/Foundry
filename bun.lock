@@ -19,6 +19,7 @@
       "dependencies": {
         "@foundry/core": "workspace:*",
         "@foundry/engine": "workspace:*",
+        "@foundry/runner": "workspace:*",
         "@foundry/server": "workspace:*",
       },
     },

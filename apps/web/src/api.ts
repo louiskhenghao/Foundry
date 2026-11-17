@@ -597,7 +597,7 @@ export interface UpdateReportView {
   error: string | null;
 }
 export interface UpdateStatusView extends UpdateReportView {
-  capability: { mode: 'docker' | 'local' | 'unknown'; canSelfUpdate: boolean; method: 'watchtower' | 'git' | null; guided: string[] };
+  capability: { mode: 'docker' | 'local' | 'app' | 'binary' | 'unknown'; canSelfUpdate: boolean; method: 'watchtower' | 'git' | 'release' | null; guided: string[] };
   checking: boolean;
   applying: boolean;
 }
