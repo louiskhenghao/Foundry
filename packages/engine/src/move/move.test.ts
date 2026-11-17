@@ -261,7 +261,7 @@ describe('the move the page asks for (ADR-0107)', () => {
       for (let i = 0; i < 200 && !asked.length; i++) await Bun.sleep(10);
       expect(job.state).toBe('restarting');
       expect(asked[0]).toMatchObject({ kind: 'move', profile: 'codex' });
-      expect((asked[0] as { staged: { provider: string; target: string }[] }).staged).toContainEqual({ provider: 'codex', staging: theirs + STAGING_SUFFIX, target: theirs });
+      expect((asked[0] as { staged: { provider: string; staging: string; target: string }[] }).staged).toContainEqual({ provider: 'codex', staging: theirs + STAGING_SUFFIX, target: theirs });
       expect(countFolder(theirs + STAGING_SUFFIX)?.goals).toBe(3);
       expect(lines).toContain("Foundry runs Codex's launch profile from now on: the goals were made with it");
     } finally {
