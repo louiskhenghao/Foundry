@@ -137,7 +137,7 @@ test('a move swaps the staged copy in while the engine is stopped, and a copy th
     seedFolder(staging, 2);
     writeFileSync(join(staging, HANDOFF_FILE), JSON.stringify({ from: { kind: 'source', where: '/old', version: null, folder: '/old/data' }, at: 'x', paused: [], goals: 2, events: 2, carried: [], pathMap: [] }));
     const before = cur.engine;
-    before.restart.request({ kind: 'move', staged: [{ staging, target: A }], port: null });
+    before.restart.request({ kind: 'move', staged: [{ provider: 'claude', staging, target: A }], port: null });
     cur = await until(() => {
       const c = loop.current();
       return c && c.engine !== before ? c : null;
@@ -153,13 +153,15 @@ test('a move swaps the staged copy in while the engine is stopped, and a copy th
     seedFolder(staging, 1);
     writeFileSync(join(staging, 'boom'), '');
     const second = cur.engine;
-    second.restart.request({ kind: 'move', staged: [{ staging, target: A }], port: null });
+    second.restart.request({ kind: 'move', staged: [{ provider: 'claude', staging, target: A }], port: null });
     cur = await until(() => {
       const c = loop.current();
       return c && c.engine !== second ? c : null;
     });
     expect(countFolder(A)?.goals).toBe(2);
-    expect(existsSync(join(staging, 'boom'))).toBe(true);
+    // the copy that did not open is gone, and nothing says a move is under way
+    expect(existsSync(staging)).toBe(false);
+    expect(existsSync(A + '.moving.json')).toBe(false);
     expect(cur.engine.dataDirNotice).toMatchObject({ kind: 'move-failed', error: 'this copy does not open' });
   } finally {
     await loop.shutdown();

@@ -394,7 +394,7 @@ export type RestartRequest =
   | { kind: 'restart'; why: string }
   | { kind: 'data-dir'; to: string; mode: DataDirMode }
   /** a move's copies, staged beside this install's folders, swapped in while the engine is stopped (ADR-0107); `port`: the old one's, taken over */
-  | { kind: 'move'; staged: { staging: string; target: string }[]; port: number | null }
+  | { kind: 'move'; staged: { provider: AgentProvider; staging: string; target: string }[]; port: number | null }
   | { kind: 'exit' };
 
 /** what the serve loop leaves for the engine that comes after a switch, for the Settings page to show */

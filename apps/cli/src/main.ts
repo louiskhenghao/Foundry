@@ -152,7 +152,7 @@ const scoped = (path: string) => provider ? `${path}${path.includes('?') ? '&' :
 const providerApi = (path: string, init?: RequestInit) => api(scoped(path), init);
 switch (cmd) {
   case 'serve': {
-    const { adoptLocalBin, choosePort, defaultDataDir, foundryHome, keepPort, openedByOther, watchParentPipe, writeAppState } = await import('@foundry/engine');
+    const { adoptInstall, adoptLocalBin, choosePort, defaultDataDir, foundryHome, keepPort, openedByOther, recoverInterruptedMoves, watchParentPipe, writeAppState } = await import('@foundry/engine');
     const { serveLoop } = await import('@foundry/server');
     // under the menu bar app (ADR-0105): it reads where the engine listens from ~/.foundry/app.json
     const shell = !!process.env.FOUNDRY_APP_SHELL;
@@ -163,6 +163,8 @@ switch (cmd) {
     if (INSTALL.kind !== 'checkout') {
       if (!process.env.FOUNDRY_PORT) process.env.FOUNDRY_PORT = String(choosePort({ home: foundryHome(), log: (m) => console.log(m) }));
       else keepPort(foundryHome(), Number(process.env.FOUNDRY_PORT));
+      // a move cut off before its copy ran here (ADR-0107): the Foundry it came from starts again as it was
+      await recoverInterruptedMoves(AGENT_PROVIDERS.map((p) => defaultDataDir(ROOT, p)), { log: (m) => console.log(m) });
     }
     // the engine and the server start again in this process when Settings asks: a restart, or another data folder (ADR-0082)
     const loop = serveLoop({
@@ -170,7 +172,13 @@ switch (cmd) {
       webDist: resolve(ROOT, 'apps/web/dist'),
       // a release install (ADR-0107): the folder chosen in Settings held by another Foundry sends this one to its own,
       // and that one is found by who has its database open, for one older than 2.36 claims nothing
-      ...(INSTALL.kind === 'checkout' ? {} : { fallbackDataDir: (p: AgentProvider) => defaultDataDir(ROOT, p), openedBy: (dir: string) => openedByOther(dir) }),
+      ...(INSTALL.kind === 'checkout'
+        ? {}
+        : {
+            fallbackDataDir: (p: AgentProvider) => defaultDataDir(ROOT, p),
+            openedBy: (dir: string) => openedByOther(dir),
+            adopt: (log: (m: string) => void) => adoptInstall({ root: ROOT, kind: INSTALL.kind as 'app' | 'binary', execPath: process.execPath, log }),
+          }),
       onListening: (engine, server) => {
         engine.updater.startSchedule();
         if (shell) writeAppState(foundryHome(), { pid: process.pid, port: server.port!, url: `http://127.0.0.1:${server.port}`, dataDir: engine.config.dataDir, version: engine.updater.current(), startedAt: new Date().toISOString() });

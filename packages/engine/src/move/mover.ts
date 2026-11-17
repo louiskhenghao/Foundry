@@ -8,8 +8,9 @@ import { isPortFree } from '../app-shell.ts';
 import type { RestartRequest } from '../data-dir.ts';
 import type { InstallKind } from '../install-root.ts';
 import { readMovedFrom, type MovedFrom } from './finish.ts';
-import { CHECKOUT_ENTRY, commandOf, findEarlierInstalls, type EarlierInstall, type Found } from './find.ts';
-import { MoveError, type MoveItem, openers, planMove, runMove } from './move.ts';
+import { rmSync } from 'node:fs';
+import { CHECKOUT_ENTRY, commandOf, findEarlierInstalls, sourceInstallAt, type EarlierInstall, type Found } from './find.ts';
+import { MoveError, type MoveItem, MOVING_SUFFIX, openers, planMove, restoreOld, runMove } from './move.ts';
 import { localProbe, type Probe } from './probe.ts';
 
 export interface MoveJob {
@@ -34,6 +35,8 @@ export interface MoveStatus {
   job: MoveJob | null;
   /** the move this install's data came from, once finished */
   last: MovedFrom | null;
+  /** a move whose copy could not be opened here: this install is back on its own folder, the old one runs again */
+  failed: { error: string; at: string } | null;
 }
 
 export interface MoverDeps {
@@ -50,8 +53,12 @@ export interface MoverDeps {
   restartAfterMs?: number;
   /** a release install: the installer's record and the foundry command follow the goals here */
   adopt?: (log: (m: string) => void) => Promise<unknown>;
+  /** the notice a move that did not take left (the serve loop's) */
+  failed?: () => { error: string; at: string } | null;
   probe?: Probe;
 }
+
+const PROVIDERS: AgentProvider[] = ['claude', 'codex', 'agy'];
 
 const FIND_FOR_MS = 30_000;
 
@@ -73,18 +80,20 @@ export class Mover {
       notes: found.notes,
       job: this.job,
       last: readMovedFrom(here.dataDir),
+      failed: this.d.failed?.() ?? null,
     };
   }
 
   private async find(fresh?: boolean): Promise<Found> {
     if (!fresh && this.found && Date.now() - this.found.at < FIND_FOR_MS) return this.found.value;
-    const value = await findEarlierInstalls({ probe: this.d.probe, exclude: [this.d.dataDir()] });
+    // never this install's own folders: the one open now, and where it keeps each provider's (as foundry migrate does)
+    const value = await findEarlierInstalls({ probe: this.d.probe, exclude: [this.d.dataDir(), ...PROVIDERS.map((p) => this.d.targetFor(p))] });
     this.found = { at: Date.now(), value };
     return value;
   }
 
   /** start moving `id` here; the job runs on, and the page follows it */
-  start(opts: { id: string; now?: boolean; replace?: boolean; onLine: (line: string) => void }): MoveJob {
+  start(opts: { id: string; now?: boolean; replace?: boolean; onLine: (line: string) => void; from?: string; data?: string | null }): MoveJob {
     if (this.job && this.job.state !== 'failed') throw new MoveError('a move is under way');
     if (this.d.kind === 'checkout') throw new MoveError('a checkout does not take a move: install the app or the binary, and move there');
     const job: MoveJob = { id: opts.id, where: opts.id.replace(/^(source|docker):/, ''), state: 'running', lines: [], error: null, nextUrl: null, startedAt: new Date().toISOString() };
@@ -99,14 +108,25 @@ export class Mover {
     void (async () => {
       try {
         const found = await this.find(true);
-        const install = found.installs.find((i) => i.id === opts.id);
+        const seen = found.installs.find((i) => i.id === opts.id);
+        // a checkout named by path (foundry migrate --from, --data) is moved as named, found or not
+        const install = opts.from ? sourceInstallAt(opts.from, { data: opts.data, found: seen }) : seen;
         if (!install) throw new MoveError(`${job.where} is not on this computer any more`);
         // where Foundry will answer once the move is in place: told before anything stops, so a page that loses this
         // server mid-move knows where to look (the old one's port, when it has one)
         job.nextUrl = `http://127.0.0.1:${install.port && install.port !== this.d.port() ? install.port : this.d.port()}`;
         const items = planMove(install, { targetFor: this.d.targetFor, replace: opts.replace });
         const done = await runMove({ install, items, swap: false, now: () => this.skipWait, log, probe: this.d.probe });
-        await this.d.adopt?.(log).catch((err) => log(`the foundry command still names the old install: ${(err as Error).message}`));
+        // a goal made here while the move waited would be set aside with this install's folder: put the old one back instead
+        const mine = this.d.goals();
+        if (mine > 0 && items.some((i) => i.action === 'replace') && !opts.replace) {
+          for (const s of done.staged) rmSync(s.staging, { recursive: true, force: true });
+          for (const s of done.staged) rmSync(s.target + MOVING_SUFFIX, { force: true });
+          if (done.old) await restoreOld(done.old, { probe: this.d.probe, log });
+          throw new MoveError(`this install has ${mine} goal${mine === 1 ? '' : 's'} now, made while the move ran; nothing moved, and the old Foundry runs again`);
+        }
+        // a folder chosen in Settings: the same folder, opened here once its old Foundry stopped; nothing to finish later
+        if (!done.staged.length) await this.d.adopt?.(log).catch((err) => log(`the foundry command still names the old install: ${(err as Error).message}`));
         // the old one's address, when it is free now: bookmarks and the CLI keep working
         const port = done.port && done.port !== this.d.port() && isPortFree(done.port) ? done.port : null;
         job.nextUrl = `http://127.0.0.1:${port ?? this.d.port()}`;
@@ -114,7 +134,7 @@ export class Mover {
         this.found = null;
         log(done.staged.length ? `starting again on the moved data${port ? `, at ${job.nextUrl}` : ''}` : 'starting again on the folder chosen in Settings');
         await Bun.sleep(this.d.restartAfterMs ?? 1500);
-        this.d.restart(done.staged.length ? { kind: 'move', staged: done.staged.map((s) => ({ staging: s.staging, target: s.target })), port } : { kind: 'restart', why: 'the move: the folder chosen in Settings is free now' });
+        this.d.restart(done.staged.length ? { kind: 'move', staged: done.staged.map((s) => ({ provider: s.provider, staging: s.staging, target: s.target })), port } : { kind: 'restart', why: 'the move: the folder chosen in Settings is free now' });
       } catch (err) {
         job.state = 'failed';
         job.error = (err as Error).message;

@@ -11,7 +11,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSy
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { folderBytesAsync, formatBytes, rewriteDataDirPaths } from '../data-dir.ts';
-import { isFoundryFolder, stopProcess, stopSourceService } from '../migrate.ts';
+import { isFoundryFolder, SOURCE_SERVICE_LABEL, stopProcess, stopSourceService } from '../migrate.ts';
 import { carrySettings, settingsFromEnv } from '../settings.ts';
 import { CHECKOUT_ENTRY, commandOf, CONTAINER_DATA, countFolder, type DockerFacts, type EarlierInstall, type FolderCounts } from './find.ts';
 import { localProbe, type Probe } from './probe.ts';
@@ -45,6 +45,32 @@ export interface Staged {
   target: string;
 }
 
+/** how the earlier install ran: what starts it again when a move does not take, and what turns it off once it has */
+export type OldService =
+  | { how: 'launchd'; domain: string; label: string; plist: string }
+  | { how: 'systemd'; unit: string }
+  | { how: 'process'; checkout: string }
+  | { how: 'container'; names: { name: string; running: boolean; policy: string }[] }
+  | { how: 'none' };
+
+/** what a move keeps of the install it moves, written down before anything is copied: it outlives this process */
+export interface OldInstall {
+  kind: 'source' | 'docker';
+  where: string;
+  version: string | null;
+  /** each folder a copy came from, and where it went */
+  folders: { from: string; to: string }[];
+  service: OldService;
+  /** its page: the goals the move paused there go on there if it comes back */
+  url: string | null;
+  paused: string[];
+  /** a container's restart policy, for the way back */
+  restart: string | null;
+}
+
+/** written beside a folder a move is putting in place, until the copy runs there (or the move is undone) */
+export const MOVING_SUFFIX = '.moving.json';
+
 export interface Handoff {
   from: { kind: 'source' | 'docker'; where: string; version: string | null; folder: string };
   at: string;
@@ -56,6 +82,9 @@ export interface Handoff {
   carried: string[];
   /** old path → new path, longest first: what the worktrees' links are mapped with */
   pathMap: [string, string][];
+  /** the install it came from; `retired` once its service is off and its folders say they moved */
+  old?: OldInstall;
+  retired?: boolean;
 }
 
 export interface MoveDone {
@@ -66,6 +95,8 @@ export interface MoveDone {
   /** this install's own folders, renamed aside by a swap made here */
   setAside: string[];
   goals: number;
+  /** the install moved: retired already when swapped here, else by the copy's first start */
+  old: OldInstall | null;
 }
 
 /**
@@ -266,10 +297,31 @@ export function swapOut(staged: Staged[], setAside: string[]): void {
 }
 
 export interface Stopper {
+  /** how it ran, written down: what restore and retire act on */
+  service: OldService;
   /** start it again its own way: the move failed */
   restore(): Promise<void>;
   /** the move is made: it never starts again by itself, and stays as the backup */
   retire(): Promise<void>;
+}
+
+/** start an earlier install again the way it ran */
+export async function restoreService(s: OldService, o: { probe: Probe; log: (m: string) => void }): Promise<void> {
+  const run = (argv: string[]) => o.probe.run(argv, { timeoutMs: 120_000 });
+  if (s.how === 'launchd') await run(['launchctl', 'bootstrap', s.domain, s.plist]);
+  else if (s.how === 'systemd') await run(['systemctl', '--user', 'start', s.unit]);
+  else if (s.how === 'process') o.log(`start the old Foundry again in ${s.checkout} with: bun run serve`);
+  else if (s.how === 'container') {
+    for (const n of s.names) await run(['docker', 'update', `--restart=${n.policy}`, n.name]);
+    const start = s.names.filter((n) => n.running).map((n) => n.name);
+    if (start.length) await run(['docker', 'start', ...start]);
+  }
+}
+
+/** turn an earlier install's service off for good, its file kept for the way back (a container keeps restart policy no) */
+export async function retireService(s: OldService, o: { probe: Probe }): Promise<void> {
+  if (s.how === 'launchd') await o.probe.run(['launchctl', 'disable', `${s.domain}/${s.label}`], { timeoutMs: 30_000 });
+  else if (s.how === 'systemd') await o.probe.run(['systemctl', '--user', 'disable', s.unit], { timeoutMs: 30_000 });
 }
 
 const shq = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
@@ -326,13 +378,15 @@ async function stopCheckout(install: EarlierInstall, o: { probe: Probe; log: (m:
     await svc.restore();
     throw new MoveError(`its database is still open in ${holder}: stop that, then move again`);
   }
-  return {
-    restore: async () => {
-      await svc.restore();
-      if (byHand && svc.kind === 'none') log(`start the old Foundry again in ${install.where} with: bun run serve`);
-    },
-    retire: () => svc.retire(),
-  };
+  const service: OldService =
+    svc.kind === 'launchd'
+      ? { how: 'launchd', domain: `gui/${probe.uid}`, label: SOURCE_SERVICE_LABEL, plist: join(probe.home, 'Library', 'LaunchAgents', `${SOURCE_SERVICE_LABEL}.plist`) }
+      : svc.kind === 'systemd'
+        ? { how: 'systemd', unit: 'foundry.service' }
+        : svc.kind === 'process' || byHand
+          ? { how: 'process', checkout: install.where }
+          : { how: 'none' };
+  return { service, restore: () => restoreService(service, { probe, log }), retire: () => retireService(service, { probe }) };
 }
 
 async function stopContainer(d: DockerFacts, o: { probe: Probe; log: (m: string) => void }): Promise<Stopper> {
@@ -340,11 +394,8 @@ async function stopContainer(d: DockerFacts, o: { probe: Probe; log: (m: string)
   const names = [d.container, ...(d.watchtower ? [d.watchtower] : [])];
   const before = await probe.run(['docker', 'inspect', '-f', '{{.Name}} {{.State.Running}} {{.HostConfig.RestartPolicy.Name}}', ...names], { timeoutMs: 15_000 });
   const was = new Map(before.stdout.trim().split('\n').map((l) => l.trim().split(' ')).filter((p) => p.length >= 3).map(([n, running, policy]) => [n!.replace(/^\//, ''), { running: running === 'true', policy: policy || 'no' }]));
-  const restore = async () => {
-    for (const [n, w] of was) await probe.run(['docker', 'update', `--restart=${w.policy}`, n], { timeoutMs: 30_000 });
-    const start = [...was].filter(([, w]) => w.running).map(([n]) => n);
-    if (start.length) await probe.run(['docker', 'start', ...start], { timeoutMs: 120_000 });
-  };
+  const service: OldService = { how: 'container', names: [...was].map(([name, w]) => ({ name, running: w.running, policy: w.policy })) };
+  const restore = () => restoreService(service, { probe, log });
   // its restart policy first: once stopped, neither Docker nor the watchtower brings it back
   const u = await probe.run(['docker', 'update', '--restart=no', ...names], { timeoutMs: 30_000 });
   if (u.code !== 0) throw new MoveError(`docker update failed: ${u.stderr.trim()}`);
@@ -354,7 +405,7 @@ async function stopContainer(d: DockerFacts, o: { probe: Probe; log: (m: string)
     await restore();
     throw new MoveError(`docker stop failed: ${s.stderr.trim()}`);
   }
-  return { restore, retire: async () => {} };
+  return { service, restore, retire: async () => {} };
 }
 
 const tail = (s: string) => s.trim().split('\n').slice(-3).join(' ');
@@ -443,28 +494,72 @@ async function resumeOld(url: string, ids: string[], o: { probe: Probe; log: (m:
 }
 
 /** the note a moved folder keeps: where it went, and the way back */
-export function movedNoteFor(install: EarlierInstall, from: string, to: string, at = new Date()): string {
+export function movedNoteFor(old: Pick<OldInstall, 'kind' | 'where' | 'restart'>, to: string, at = new Date()): string {
   const back =
-    install.kind === 'docker'
-      ? `quit the app, then start the container again:\n\n    docker update --restart=${install.docker?.restart ?? 'unless-stopped'} ${install.where} && docker start ${install.where}`
-      : `quit the app, delete this note (a Foundry does not open a folder that moved, so the same goals never run twice), then start this checkout again (\`bun run serve\` in ${install.where}).`;
+    old.kind === 'docker'
+      ? `quit the app, then start the container again:\n\n    docker update --restart=${old.restart ?? 'unless-stopped'} ${old.where} && docker start ${old.where}`
+      : `quit the app, delete this note (a Foundry does not open a folder that moved, so the same goals never run twice), then start this checkout again (\`bun run serve\` in ${old.where}).`;
   return `# This data folder moved\n\nFoundry copied it to\n\n    ${to}\n\non ${at.toISOString().slice(0, 10)}, and the Foundry app (or the foundry binary) opens that copy. This folder is the\nbackup of that day: nothing here changes any more.\n\nTo go back, ${back}\n\nIts goals are as they were on the day of the move. Once the app shows your goals, you can delete this.\n`;
 }
 
-async function markMoved(install: EarlierInstall, copies: MoveItem[], o: { probe: Probe; log: (m: string) => void }): Promise<void> {
-  for (const it of copies) {
+async function markMoved(old: OldInstall, o: { probe: Probe; log: (m: string) => void }): Promise<void> {
+  for (const f of old.folders) {
     try {
-      const note = movedNoteFor(install, it.from, it.to);
-      if (install.kind === 'docker') {
+      const note = movedNoteFor(old, f.to);
+      if (old.kind === 'docker') {
         const dir = mkdtempSync(join(tmpdir(), 'foundry-moved-'));
         writeFileSync(join(dir, 'MOVED.md'), note);
-        await o.probe.run(['docker', 'cp', join(dir, 'MOVED.md'), `${install.where}:${it.from}/MOVED.md`], { timeoutMs: 60_000 });
+        await o.probe.run(['docker', 'cp', join(dir, 'MOVED.md'), `${old.where}:${f.from}/MOVED.md`], { timeoutMs: 60_000 });
         rmSync(dir, { recursive: true, force: true });
-      } else writeFileSync(join(it.from, 'MOVED.md'), note);
+      } else writeFileSync(join(f.from, 'MOVED.md'), note);
     } catch (err) {
-      o.log(`the note in ${it.from} could not be written: ${(err as Error).message}`);
+      o.log(`the note in ${f.from} could not be written: ${(err as Error).message}`);
     }
   }
+}
+
+/** the move took: each folder it came from says so, and the old service never starts again by itself */
+export async function retireOld(old: OldInstall, o: { probe?: Probe; log: (m: string) => void }): Promise<void> {
+  const probe = o.probe ?? localProbe();
+  await markMoved(old, { probe, log: o.log });
+  try {
+    await retireService(old.service, { probe });
+  } catch (err) {
+    o.log(`the old service could not be turned off: ${(err as Error).message}`);
+  }
+}
+
+/** the move did not take: the old install starts again its own way, and the goals it paused go on there */
+export async function restoreOld(old: OldInstall, o: { probe?: Probe; log: (m: string) => void; sleep?: (ms: number) => Promise<void> }): Promise<void> {
+  const probe = o.probe ?? localProbe();
+  const sleep = o.sleep ?? ((ms: number) => Bun.sleep(ms));
+  await restoreService(old.service, { probe, log: o.log });
+  if (old.paused.length && old.url) await resumeOld(old.url, old.paused, { probe, log: o.log, sleep });
+}
+
+/**
+ * A move cut off before its copy ran here (the app quit, the computer slept for good): the old install has stopped but
+ * still holds every goal, so it starts again, and the half-made copy goes. Run before a release install starts.
+ */
+export async function recoverInterruptedMoves(targets: string[], o: { probe?: Probe; log: (m: string) => void }): Promise<number> {
+  let n = 0;
+  for (const target of targets) {
+    const file = target + MOVING_SUFFIX;
+    if (!existsSync(file)) continue;
+    // swapped in already: the copy's first start finishes it (finishMove)
+    if (existsSync(join(target, HANDOFF_FILE))) continue;
+    try {
+      const { old } = JSON.parse(readFileSync(file, 'utf8')) as { old: OldInstall };
+      o.log(`[move] a move from ${old.where} was cut off before its copy ran here: it starts again as it was`);
+      await restoreOld(old, o);
+    } catch (err) {
+      o.log(`[move] a move was cut off, and the Foundry it came from could not be started again: ${(err as Error).message}`);
+    }
+    rmSync(target + STAGING_SUFFIX, { recursive: true, force: true });
+    rmSync(file, { force: true });
+    n++;
+  }
+  return n;
 }
 
 export interface MoveRunOptions {
@@ -497,6 +592,13 @@ export async function runMove(o: MoveRunOptions): Promise<MoveDone> {
   let stopper: Stopper | null = null;
   try {
     stopper = install.kind === 'docker' ? await stopContainer(install.docker!, { probe, log }) : await stopCheckout(install, { probe, log, stopPid: o.stopPid, sleep });
+    const old: OldInstall = { kind: install.kind, where: install.where, version: install.version, folders: copies.map((i) => ({ from: i.from, to: i.to })), service: stopper.service, url: install.url, paused, restart: install.docker?.restart ?? null };
+    // written before anything is copied: a move cut off from here is undone by the next start (recoverInterruptedMoves)
+    for (const it of copies) {
+      // a fresh install may not have made its folder's parent yet
+      mkdirSync(dirname(it.to), { recursive: true });
+      writeFileSync(it.to + MOVING_SUFFIX, JSON.stringify({ old }, null, 2) + '\n');
+    }
     const map = pathMap(install, copies);
     const main = copies.find((i) => i.provider === (install.env.FOUNDRY_PROVIDER ?? 'claude')) ?? copies[0];
     let goals = 0;
@@ -518,21 +620,24 @@ export async function runMove(o: MoveRunOptions): Promise<MoveDone> {
       // after the stop the original holds still: the copy must hold the same
       const got = verifyCopy(staging, install.kind === 'docker' ? null : countFolder(it.from));
       goals += got.goals;
-      const handoff: Handoff = { from: { kind: install.kind, where: install.where, version: install.version, folder: it.from }, at: new Date().toISOString(), paused: it === main ? paused : [], goals: got.goals, events: got.events, carried, pathMap: map };
+      const handoff: Handoff = { from: { kind: install.kind, where: install.where, version: install.version, folder: it.from }, at: new Date().toISOString(), paused: it === main ? paused : [], goals: got.goals, events: got.events, carried, pathMap: map, ...(it === main ? { old, retired: o.swap } : {}) };
       writeFileSync(join(staging, HANDOFF_FILE), JSON.stringify(handoff, null, 2) + '\n');
       log(`checked: ${got.goals} goal${got.goals === 1 ? '' : 's'} and ${got.events} events, as in the original`);
     }
-    const setAside = o.swap && staged.length ? swapIn(staged, log) : [];
-    // from here the move is made: what follows cannot undo it
-    await markMoved(install, copies, { probe, log });
-    try {
-      await stopper.retire();
-    } catch (err) {
-      log(`the old service could not be turned off: ${(err as Error).message}`);
+    // a folder chosen in Settings is the same folder either way: its old service goes now
+    if (!copies.length) {
+      await retireService(stopper.service, { probe }).catch((err) => log(`the old service could not be turned off: ${(err as Error).message}`));
+      return { staged, kept, port: install.port, paused, setAside: [], goals, old };
     }
-    return { staged, kept, port: install.port, paused, setAside, goals };
+    if (!o.swap) return { staged, kept, port: install.port, paused, setAside: [], goals, old };
+    // swapped here, with no engine on these folders: the move is made, and the old one retires now
+    const setAside = swapIn(staged, log);
+    await retireOld(old, { probe, log });
+    for (const it of copies) rmSync(it.to + MOVING_SUFFIX, { force: true });
+    return { staged, kept, port: install.port, paused, setAside, goals, old };
   } catch (err) {
     for (const s of staged) rmSync(s.staging, { recursive: true, force: true });
+    for (const it of copies) rmSync(it.to + MOVING_SUFFIX, { force: true });
     if (stopper) await stopper.restore();
     if (paused.length && install.url) await resumeOld(install.url, paused, { probe, log, sleep });
     throw err;

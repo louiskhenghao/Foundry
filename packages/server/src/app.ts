@@ -347,6 +347,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   app.post('/api/goals', async (c) => {
+    // a move swaps this install's folder for the one it brings (ADR-0107): a goal made meanwhile would be set aside with it
+    if (mover.job && mover.job.state !== 'failed') throw new HttpError(409, { error: 'a move from an earlier Foundry is under way: its goals arrive here in a moment, then make new ones' });
     const body = CreateGoalBody.parse(await c.req.json());
     // a goal from a Template (ADR-0079): its words rendered here when only the values came, its settings where the request said nothing
     const goal = await engine.createGoal({ ...goalFromTemplate(engine, body), by: c.get('person')?.name ?? null });
@@ -1918,6 +1920,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     port: () => engine.config.port,
     restart: (r) => engine.restart.request(r),
     log: engine.config.log,
+    failed: () => (engine.dataDirNotice?.kind === 'move-failed' ? { error: engine.dataDirNotice.error, at: engine.dataDirNotice.at } : null),
     adopt: (log) => {
       const kind = installRoot().kind;
       return kind === 'checkout' ? Promise.resolve(false) : adoptInstall({ root: engine.config.rootDir, kind, execPath: process.execPath, log });
@@ -1925,11 +1928,11 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   app.get('/api/move', async (c) => c.json(await mover.status({ fresh: c.req.query('fresh') === '1' })));
   app.post('/api/move', async (c) => {
-    const { id, now, replace } = z.object({ id: z.string().min(1), now: z.boolean().optional(), replace: z.boolean().optional() }).parse(await c.req.json());
+    const { id, now, replace, from, data } = z.object({ id: z.string().min(1), now: z.boolean().optional(), replace: z.boolean().optional(), from: z.string().optional(), data: z.string().nullable().optional() }).parse(await c.req.json());
     refuseWithoutLoop();
     refuseWhileAtWork();
     try {
-      const job = mover.start({ id, now, replace, onLine: stream('move') });
+      const job = mover.start({ id, now, replace, from, data, onLine: stream('move') });
       return c.json({ started: true, channel: 'move', job }, 202);
     } catch (err) {
       if (err instanceof MoveError) throw new HttpError(409, { error: err.message });

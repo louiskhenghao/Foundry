@@ -5,7 +5,7 @@
  */
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { type Handoff, HANDOFF_FILE, MOVED_FROM_FILE, worktreesIn } from './move.ts';
+import { type Handoff, HANDOFF_FILE, MOVED_FROM_FILE, MOVING_SUFFIX, retireOld, worktreesIn } from './move.ts';
 import { localProbe, type Probe } from './probe.ts';
 
 export interface MovedFrom extends Handoff {
@@ -16,7 +16,7 @@ export interface MovedFrom extends Handoff {
   unrepaired: string[];
 }
 
-export async function finishMove(o: { dataDir: string; resume: (goalId: string) => Promise<void>; log: (m: string) => void; probe?: Probe }): Promise<MovedFrom | null> {
+export async function finishMove(o: { dataDir: string; resume: (goalId: string) => Promise<void>; log: (m: string) => void; probe?: Probe; adopt?: (log: (m: string) => void) => Promise<unknown> }): Promise<MovedFrom | null> {
   const file = join(o.dataDir, HANDOFF_FILE);
   if (!existsSync(file)) return null;
   let h: Handoff;
@@ -27,6 +27,12 @@ export async function finishMove(o: { dataDir: string; resume: (goalId: string) 
     return null;
   }
   const probe = o.probe ?? localProbe();
+  // the copy runs here: only now does the install it came from retire (a move from the page leaves that to this start)
+  if (h.old && !h.retired) {
+    await retireOld(h.old, { probe, log: (m) => o.log(`[move] ${m}`) });
+    await o.adopt?.((m) => o.log(`[move] ${m}`)).catch((err) => o.log(`[move] the foundry command still names the old install: ${(err as Error).message}`));
+  }
+  rmSync(o.dataDir + MOVING_SUFFIX, { force: true });
   let repaired = 0;
   const unrepaired: string[] = [];
   for (const dir of worktreesIn(o.dataDir)) {

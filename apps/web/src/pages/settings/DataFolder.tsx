@@ -116,7 +116,7 @@ export function DataDirNoticeBanner() {
         )}
         {n.kind === 'move-failed' && (
           <span>
-            <b className="font-bold">The moved goals could not be opened:</b> {n.error}. Foundry is back on <span className="mono">{status.current}</span>, and the copy is kept beside it.
+            <b className="font-bold">The moved goals could not be opened:</b> {n.error}. Foundry is back on <span className="mono">{status.current}</span>, and the Foundry they came from runs again as it was.
           </span>
         )}
         {n.kind === 'switch-failed' && (

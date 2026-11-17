@@ -250,13 +250,98 @@ describe('the move the page asks for (ADR-0107)', () => {
       expect(job.state).toBe('restarting');
       // where it answers next was known before anything stopped: the old one's port, free here
       expect(job.nextUrl).toBe('http://127.0.0.1:4199');
-      expect(asked).toEqual([{ kind: 'move', staged: [{ staging: target + STAGING_SUFFIX, target }], port: expect.anything() }]);
+      expect(asked).toEqual([{ kind: 'move', staged: [{ provider: 'claude', staging: target + STAGING_SUFFIX, target }], port: expect.anything() }]);
+      // the old one is untouched until the copy runs here: no note in its folder yet, and a record that a move is under way
+      expect(existsSync(join(checkout, 'data', 'MOVED.md'))).toBe(false);
+      expect(existsSync(target + '.moving.json')).toBe(true);
       // staged beside this install's folder, which this engine still has open
       expect(countFolder(target + STAGING_SUFFIX)?.goals).toBe(2);
       expect(countFolder(target)?.goals).toBe(0);
       expect(lines.some((l) => l.startsWith('starting again on the moved data'))).toBe(true);
       // a checkout never offers one
       expect((await new Mover({ kind: 'checkout', dataDir: () => target, targetFor: () => target, goals: () => 0, port: () => 4111, restart: () => {}, log: quiet, probe }).status()).offer).toBe(false);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('a move that has not run here yet (ADR-0107)', () => {
+  test("a move from the page leaves the old install as it is until its copy runs; the first start retires it", async () => {
+    const { MOVING_SUFFIX } = await import('./move.ts');
+    const home = tmp();
+    try {
+      const checkout = join(home, 'foundry');
+      seedCheckout(checkout, 2);
+      const agents = join(home, 'Library', 'LaunchAgents');
+      mkdirSync(agents, { recursive: true });
+      writeFileSync(join(agents, 'dev.foundry.server.plist'), `<plist><string>apps/cli/src/main.ts</string><string>${checkout}</string></plist>`);
+      const target = join(home, 'app', 'data');
+      const install = source(checkout);
+      const probe = fakeProbe({ home, run: (argv) => (argv[0] === 'launchctl' ? { code: 0, stdout: '', stderr: '' } : argv[0] === 'lsof' || argv[0] === 'ps' ? { code: 1, stdout: '', stderr: '' } : null) });
+      const done = await runMove({ install, items: planMove(install, { targetFor: () => target }), swap: false, log: quiet, probe, sleep: noSleep });
+      expect(done.old?.service).toMatchObject({ how: 'launchd' });
+      // stopped, not retired: no note, no disable, a record of the move in progress
+      expect(existsSync(join(checkout, 'data', 'MOVED.md'))).toBe(false);
+      expect(probe.ran.filter((a) => a[0] === 'launchctl').map((a) => a[1])).toEqual(['bootout']);
+      expect(JSON.parse(readFileSync(target + MOVING_SUFFIX, 'utf8')).old).toMatchObject({ where: checkout, folders: [{ from: join(checkout, 'data'), to: target }] });
+      // the serve loop swaps it in; the first start finishes: the old one retires, the installer's record follows
+      swapIn(done.staged, quiet);
+      const adopted: string[] = [];
+      await finishMove({ dataDir: target, resume: async () => {}, log: quiet, probe, adopt: async () => void adopted.push('yes') });
+      expect(readFileSync(join(checkout, 'data', 'MOVED.md'), 'utf8')).toContain('delete this note');
+      expect(probe.ran.filter((a) => a[0] === 'launchctl').map((a) => a[1])).toEqual(['bootout', 'disable']);
+      expect(adopted).toEqual(['yes']);
+      expect(existsSync(target + MOVING_SUFFIX)).toBe(false);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  test('a move cut off before its copy ran is undone by the next start: the old one runs again, the half copy goes', async () => {
+    const { recoverInterruptedMoves, MOVING_SUFFIX } = await import('./move.ts');
+    const home = tmp();
+    try {
+      const target = join(home, 'app', 'data');
+      mkdirSync(target + STAGING_SUFFIX, { recursive: true });
+      writeFileSync(target + MOVING_SUFFIX, JSON.stringify({ old: { kind: 'source', where: '/old', version: null, folders: [{ from: '/old/data', to: target }], service: { how: 'launchd', domain: 'gui/501', label: 'dev.foundry.server', plist: '/p.plist' }, url: null, paused: [], restart: null } }));
+      const probe = fakeProbe({ home, run: (argv) => (argv[0] === 'launchctl' ? { code: 0, stdout: '', stderr: '' } : null) });
+      expect(await recoverInterruptedMoves([target], { probe, log: quiet })).toBe(1);
+      expect(probe.ran).toContainEqual(['launchctl', 'bootstrap', 'gui/501', '/p.plist']);
+      expect(existsSync(target + STAGING_SUFFIX)).toBe(false);
+      expect(existsSync(target + MOVING_SUFFIX)).toBe(false);
+      // swapped in already: the copy's first start finishes that one, nothing to undo
+      seedFolder(target, 1);
+      writeFileSync(join(target, HANDOFF_FILE), '{}');
+      writeFileSync(target + MOVING_SUFFIX, '{}');
+      expect(await recoverInterruptedMoves([target], { probe, log: quiet })).toBe(0);
+      expect(existsSync(target + MOVING_SUFFIX)).toBe(true);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  test('a goal made here while the move waited: the move stops and the old one runs again', async () => {
+    const { Mover } = await import('./mover.ts');
+    const home = tmp();
+    try {
+      const checkout = join(home, 'foundry');
+      seedCheckout(checkout, 2);
+      const target = join(home, 'app', 'data');
+      seedFolder(target, 0);
+      mkdirSync(join(home, '.config', 'foundry'), { recursive: true });
+      writeFileSync(join(home, '.config', 'foundry', 'install.env'), `MODE=source\nDIR=${checkout}\n`);
+      const probe = fakeProbe({ home, run: (argv) => (argv[0] === 'docker' ? { code: 127, stdout: '', stderr: '' } : argv[0] === 'ps' || argv[0] === 'lsof' ? { code: 1, stdout: '', stderr: '' } : null) });
+      let goalsHere = 0;
+      const asked: unknown[] = [];
+      const mover = new Mover({ kind: 'app', dataDir: () => target, targetFor: () => target, goals: () => goalsHere, port: () => 4112, restart: (r) => void asked.push(r), log: quiet, probe, restartAfterMs: 0 });
+      const job = mover.start({ id: `source:${checkout}`, onLine: () => void (goalsHere = 1) });
+      for (let i = 0; i < 200 && job.state === 'running'; i++) await Bun.sleep(10);
+      expect(job.state).toBe('failed');
+      expect(job.error).toContain('made while the move ran');
+      expect(asked).toEqual([]);
+      expect(existsSync(target + STAGING_SUFFIX)).toBe(false);
+      expect(existsSync(join(checkout, 'data', 'MOVED.md'))).toBe(false);
     } finally {
       rmSync(home, { recursive: true, force: true });
     }

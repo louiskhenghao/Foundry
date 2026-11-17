@@ -445,6 +445,7 @@ export interface MoveStatus {
   notes: string[];
   job: MoveJob | null;
   last: MovedFrom | null;
+  failed: { error: string; at: string } | null;
 }
 export interface DataDirStatus {
   current: string;

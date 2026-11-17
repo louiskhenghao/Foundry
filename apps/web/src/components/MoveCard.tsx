@@ -63,16 +63,22 @@ export function MoveCard({ variant }: { variant: 'offer' | 'settings' }) {
     const same = new URL(next).origin === window.location.origin;
     const tick = async () => {
       if (!alive) return;
+      // this origin first: the moved goals here, or a move that did not take (back on this address, the old one running)
       try {
-        if (same) {
-          const s = await api.moveStatus();
-          if (s.last && s.last.finishedAt > job.startedAt) return void (window.location.href = '/');
-        } else {
+        const s = await api.moveStatus();
+        if (s.last && s.last.finishedAt > job.startedAt) return void (window.location.href = '/');
+        if (s.failed && s.failed.at >= job.startedAt) {
+          setLost(false);
+          return void setStatus(s);
+        }
+      } catch {}
+      if (!same) {
+        try {
           // another port is another origin: a no-cors request only says that something answers there
           await fetch(`${next}/api/health`, { mode: 'no-cors', cache: 'no-store' });
           return void (window.location.href = `${next}/`);
-        }
-      } catch {}
+        } catch {}
+      }
       setTimeout(() => void tick(), 1000);
     };
     const t = setTimeout(() => void tick(), 1500);
@@ -134,6 +140,11 @@ export function MoveView({ variant, status, chosen, onChoose, replace, onReplace
             {variant === 'offer' ? 'Bring your goals over' : 'Move from another Foundry'}
           </h2>
 
+          {!job && status.failed && (
+            <p>
+              <b className="font-bold">The last move did not take:</b> {status.failed.error}. This Foundry is back on its own folder, and the old one runs again as it was.
+            </p>
+          )}
           {job ? (
             <div className="space-y-3">
               <p>
