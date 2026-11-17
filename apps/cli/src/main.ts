@@ -224,7 +224,7 @@ switch (cmd) {
   // an earlier install's goals moved here (ADR-0105, ADR-0107): found rather than named, and handed to this install's
   // running Foundry when there is one, so the swap happens while its engine is stopped
   case 'migrate': {
-    const { adoptInstall, countFolder, defaultDataDir, findEarlierInstalls, folderProvider, foundryHome, isCheckout, keepPort, planMove, readInstallEnv, runMove } = await import('@foundry/engine');
+    const { adoptInstall, defaultDataDir, findEarlierInstalls, foundryHome, isCheckout, keepPort, openedByOther, planMove, processAlive, readDataLock, readInstallEnv, runMove, sourceInstallAt } = await import('@foundry/engine');
     if (INSTALL.kind === 'checkout') return usage("foundry migrate moves an earlier install into the app or a release install: run the compiled foundry's (foundry link puts it on PATH)");
     type Install = Awaited<ReturnType<typeof findEarlierInstalls>>['installs'][number];
     const expand = (p: string) => resolve(p.replace(/^~(?=\/|$)/, homedir()));
@@ -232,8 +232,18 @@ switch (cmd) {
     const stopPid = Number(opt('--stop-pid') ?? 0);
     const offer = has('--offer');
     const say = (m: string) => console.log(m);
-    // this install's own Foundry, when it runs: it makes the move, so its folders are swapped while it is stopped
-    const live = !stopPid && !NEVER_SERVED ? await fetch(BASE + '/api/move').then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
+    // this install's own Foundry, when it runs: it makes the move, so its folders are swapped while it is stopped. The
+    // app says where it listens in app.json; a binary's service is on the kept port
+    const appState = (() => {
+      try {
+        return JSON.parse(readFileSync(join(foundryHome(), 'app.json'), 'utf8')) as { pid: number; url: string };
+      } catch {
+        return null;
+      }
+    })();
+    const liveBase = appState && processAlive(appState.pid) ? appState.url : BASE;
+    const moveStatus = (url: string) => fetch(`${url}/api/move`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+    const live = !stopPid && (liveBase !== BASE || !NEVER_SERVED) ? await moveStatus(liveBase) : null;
     const here = live && live.kind !== 'checkout' ? live : null;
     const found: { installs: Install[]; notes: string[] } = here ?? (await findEarlierInstalls({ exclude: [targetFor('claude'), targetFor('codex'), targetFor('agy')], docker: !has('--no-docker') }));
     let install: Install | undefined;
@@ -246,24 +256,8 @@ switch (cmd) {
       // the switch (ADR-0106) names the folder its engine ran on: that one moves, whatever else the checkout holds
       const data = opt('--data') ? expand(opt('--data')!) : null;
       if (data || !install) {
-        const dir = data ?? join(checkout, 'data');
-        const counts = countFolder(dir);
         const recorded = readInstallEnv(process.env, homedir());
-        install = {
-          id: `source:${checkout}`,
-          kind: 'source',
-          where: checkout,
-          version: install?.version ?? null,
-          recorded: recorded?.MODE === 'source' && resolve(recorded.DIR ?? '') === checkout,
-          running: stopPid ? { pid: stopPid, how: 'process' } : (install?.running ?? null),
-          port: Number(opt('--keep-port') ?? 0) || (install?.port ?? null),
-          url: stopPid ? null : (install?.url ?? null),
-          folders: [{ provider: folderProvider(dir) ?? 'claude', path: dir, counts, moved: false, chosen: false }],
-          goals: counts?.goals ?? 0,
-          last: counts?.last ?? null,
-          env: install?.env ?? {},
-          docker: null,
-        };
+        install = sourceInstallAt(checkout, { data, found: install, stopPid: stopPid || undefined, port: Number(opt('--keep-port') ?? 0) || undefined, recorded: recorded?.MODE === 'source' && resolve(recorded.DIR ?? '') === checkout });
       }
     } else {
       const candidates = found.installs.filter((i) => i.goals > 0);
@@ -316,25 +310,38 @@ switch (cmd) {
       }
     }
     if (here) {
-      // this install's Foundry runs: it moves, and starts again on the moved data
-      await api('/api/move', { method: 'POST', body: JSON.stringify({ id: install.id, now: has('--now'), replace: has('--replace') }) });
+      // this install's Foundry runs: it moves (as named here, --from and --data included), and starts again on the moved data
+      const named = from && !from.startsWith('docker:') ? { from: expand(from), data: opt('--data') ? expand(opt('--data')!) : null } : {};
+      const asked = await fetch(`${liveBase}/api/move`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: install.id, now: has('--now'), replace: has('--replace'), ...named }) });
+      if (!asked.ok) {
+        console.error(`✘ ${((await asked.json().catch(() => null)) as { error?: string } | null)?.error ?? `the move was refused (${asked.status})`}`);
+        process.exit(1);
+      }
       let shown = 0;
       let next: string | null = null;
-      let seen: { nextUrl: string | null; startedAt: string } | null = null;
+      // what the job said before its server stopped: where it answers next, and when the move began
+      let expected: string | null = null;
+      let startedAt: string | null = null;
       for (let quiet = 0; !next; ) {
         await Bun.sleep(1000);
-        const st = await fetch(BASE + '/api/move').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        const st = await moveStatus(liveBase);
+        // the copy did not open there: that Foundry is back on its own folder, and the old one runs again
+        if (startedAt && st?.failed && st.failed.at >= startedAt) {
+          console.error(`✘ the moved goals could not be opened: ${st.failed.error}. This install is back on its own folder, and ${label} runs again as it was.`);
+          process.exit(1);
+        }
         const job = st?.job;
         if (!job) {
           // this server stopped answering: it started again on the moved data, where the job said it would
-          for (const url of [seen?.nextUrl, BASE].filter(Boolean) as string[]) {
-            const there = await fetch(`${url}/api/move`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-            if (seen && there?.last && there.last.finishedAt >= seen.startedAt) next = url;
+          for (const url of [expected, liveBase].filter(Boolean) as string[]) {
+            const there = await moveStatus(url);
+            if (startedAt && there?.last && there.last.finishedAt >= startedAt) next = url;
           }
           if (!next && ++quiet > 600) return usage('Foundry stopped answering during the move: see its log');
           continue;
         }
-        seen = { nextUrl: job.nextUrl, startedAt: job.startedAt };
+        expected = job.nextUrl;
+        startedAt = job.startedAt;
         for (const line of job.lines.slice(shown)) say(`  ${line}`);
         shown = job.lines.length;
         if (job.state === 'failed') {
@@ -346,6 +353,12 @@ switch (cmd) {
       for (let i = 0; i < 180 && !(await fetch(`${next}/api/health`).then((r) => r.ok).catch(() => false)); i++) await Bun.sleep(1000);
       say(`\n✔ moved: Foundry answers at ${next} with the goals of ${label}.`);
       break;
+    }
+    // a swap here renames this install's folders: never under a Foundry that has them open
+    for (const it of items.filter((i) => i.action === 'copy' || i.action === 'replace')) {
+      const lock = readDataLock(it.to);
+      const holder = lock && lock.pid !== process.pid && processAlive(lock.pid) ? `pid ${lock.pid}` : await openedByOther(it.to);
+      if (holder) return usage(`this install's Foundry has ${it.to} open (${holder}): move from its page (Bring your goals over), or quit it first`);
     }
     let done: Awaited<ReturnType<typeof runMove>>;
     try {
