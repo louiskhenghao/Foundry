@@ -1,3 +1,4 @@
+import type { TurnContext } from './usage-tally.ts';
 export type PermissionMode = 'default' | 'acceptEdits' | 'bypassPermissions' | 'dontAsk' | 'plan' | 'auto';
 
 export interface AgentDef {
@@ -48,9 +49,9 @@ export interface RunSpec {
   /** Claude Code effort level (`--effort`); omitted = the CLI default */
   /** the reasoning effort (`--effort`): a level the coding agent's binary takes (ADR-0085: the engine reads Claude's from the binary; Codex's are none, minimal, low, medium, high, xhigh, max, ultra) */
   effort?: string;
-  /** Wall clock, default 20 min. */
+  /** Wall clock; the runner's own default is 20 min, the engine passes each session's (an attempt's is Settings → sessions.attemptTimeoutMin, 45 by default). */
   timeoutMs?: number;
-  /** No stdout activity, default 5 min. */
+  /** The idle limit, default 5 min: nothing on the stream while no tool call is under way (ADR-0101). */
   idleTimeoutMs?: number;
   /** Every raw NDJSON line is appended here before parsing. */
   transcriptPath?: string;
@@ -177,6 +178,11 @@ export interface RunResult {
   skillsUsed: string[];
   /** tool name → number of calls */
   toolsUsed: Record<string, number>;
+  /**
+   * What this run's turns read (Claude Code: counted from its stream, so a resumed session's earlier runs are not in it;
+   * absent from the other coding agents, which report no per-turn usage)
+   */
+  context?: TurnContext | null;
   /** which of the coding agent's accounts ran the session (ADR-0065); set by the engine, never by a runner */
   accountId?: string;
 }

@@ -221,6 +221,24 @@ export interface ReportRepo extends ReportSpend {
   retries: ReportRetries;
   estimate: ReportEstimate;
 }
+/** sessions a limit stopped before they finished: each resumes with its whole context read again */
+export interface ReportCuts {
+  sessions: number;
+  durationMs: number;
+  /** of the window's session time; null when there was none */
+  share: number | null;
+  /** by the limit that stopped them: the session time limit, five silent minutes, the turn cap, the cost cap */
+  byLimit: { time: number; idle: number; turns: number; cost: number };
+}
+/** what a model turn of a Claude Code session read, over the sessions that recorded their turns */
+export interface ReportContext {
+  /** tokens a turn read on average; null when no session recorded its turns */
+  perTurn: number | null;
+  /** tokens the sessions started with, on average */
+  atStart: number | null;
+  sessions: number;
+  turns: number;
+}
 export interface ReportKind extends ReportSpend {
   kind: string;
   /** of the window's Claude Code dollars; null when there are none */
@@ -254,7 +272,7 @@ export interface Report {
   /** `days` null = all time, from the earliest record */
   window: { days: number | null; from: string; to: string };
   step: 'day' | 'week' | 'month';
-  totals: ReportSpend & { goals: ReportGoals; activeMin: number; retries: ReportRetries; estimate: ReportEstimate; /** sessions of no goal (probes, setup) or of a goal since deleted */ noGoal: ReportSpend };
+  totals: ReportSpend & { goals: ReportGoals; activeMin: number; retries: ReportRetries; estimate: ReportEstimate; /** sessions of no goal (probes, setup) or of a goal since deleted */ noGoal: ReportSpend; cuts: ReportCuts; context: ReportContext };
   series: ReportBucket[];
   /** by spend, then time */
   repos: ReportRepo[];

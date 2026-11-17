@@ -1,5 +1,5 @@
 /**
- * One Foundry per data folder (ADR-0102). Two engines on one engine.db write the same event log from two processes and
+ * One Foundry per data folder (ADR-0105). Two engines on one engine.db write the same event log from two processes and
  * each rebuilds its read models from what it alone saw. That used to take two checkouts pointed at one folder; with the
  * app beside a checkout, both read the folder ~/.foundry/config.json names. `foundry serve` claims the folder with an
  * `engine.pid` file and refuses one whose claimant still runs; a claim left by a process that is gone is taken over.

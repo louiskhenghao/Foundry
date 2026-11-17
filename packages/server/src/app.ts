@@ -2096,7 +2096,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     }
     return c.json(await detectTelegramChatId(t));
   });
-  // ---------- the macOS menu bar app (ADR-0102): one small answer for its menu, asked every few seconds ----------
+  // ---------- the macOS menu bar app (ADR-0105): one small answer for its menu, asked every few seconds ----------
   app.get('/api/app/status', (c) => {
     const report = engine.updater.reportOrKick();
     const inbox = listEscalations(db, { openOnly: true }).filter((e) => !historyRefused(e.goalId)).length;

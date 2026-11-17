@@ -1,5 +1,5 @@
 /**
- * `foundry` in a terminal (ADR-0102): a link in ~/.local/bin to the compiled foundry, so `foundry ask`, `foundry usage`
+ * `foundry` in a terminal (ADR-0105): a link in ~/.local/bin to the compiled foundry, so `foundry ask`, `foundry usage`
  * and the rest work from a shell. The installer writes a small script there instead, which runs its own commands (start,
  * stop, logs, update…) and hands everything else to the same binary; a script of the installer's is left as it is.
  * Never /usr/local/bin: nothing here asks for a password.

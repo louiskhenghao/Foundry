@@ -7,7 +7,7 @@ import { readHomeConfig, writeHomeConfig } from './data-dir.ts';
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'foundry-app-'));
 
-describe('the engine under the menu bar app (ADR-0102)', () => {
+describe('the engine under the menu bar app (ADR-0105)', () => {
   test('the port: the one kept in ~/.foundry/config.json, else 4111 or the next free, kept for next time', () => {
     const home = tmp();
     try {

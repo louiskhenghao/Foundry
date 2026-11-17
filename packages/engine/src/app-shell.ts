@@ -1,5 +1,5 @@
 /**
- * What `foundry serve` does differently when it runs inside the macOS app's menu bar shell (ADR-0102), and what a release
+ * What `foundry serve` does differently when it runs inside the macOS app's menu bar shell (ADR-0105), and what a release
  * install does about its port.
  *
  * The shell starts it with the PATH a terminal has (the login shell's, resolved by the shell: Bun looks commands up in

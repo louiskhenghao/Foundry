@@ -119,4 +119,13 @@ export const MIGRATIONS: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_conversations_goal ON conversations(goal_id);
     `,
   },
+  {
+    // what a session's turns read (Reports: context per turn): their number, the tokens read together, the first turn's; null before it was recorded
+    id: '0012-usage-context',
+    sql: `
+      ALTER TABLE usage_ledger ADD COLUMN turns INTEGER;
+      ALTER TABLE usage_ledger ADD COLUMN context_tokens INTEGER;
+      ALTER TABLE usage_ledger ADD COLUMN start_context INTEGER;
+    `,
+  },
 ];

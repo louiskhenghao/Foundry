@@ -16,7 +16,7 @@ function machine(have: string[], fail: string[] = []) {
   return { env, run, ran, bins };
 }
 
-describe('foundry setup (ADR-0102)', () => {
+describe('foundry setup (ADR-0105)', () => {
   test('a fresh Mac with curl: everything required installs, in order, and graphify gets its skill', async () => {
     const m = machine(['curl', 'git', 'tar']);
     const lines: string[] = [];

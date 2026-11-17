@@ -48,7 +48,7 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
       let claimed: string | null = null;
       try {
         cfg = defaultConfig(opts.root, opts.config);
-        // one Foundry per data folder (ADR-0102): a folder another live process holds is refused before anything opens it
+        // one Foundry per data folder (ADR-0105): a folder another live process holds is refused before anything opens it
         claimDataDir(cfg.dataDir, { port: cfg.port });
         claimed = cfg.dataDir;
         engine = make(cfg);

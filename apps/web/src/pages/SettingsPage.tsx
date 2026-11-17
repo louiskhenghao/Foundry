@@ -1,7 +1,7 @@
 import type { AgentProvider } from '../api.ts';
 import { KNOWN_EFFORTS } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
-import type { Settings, SettingsView } from '@foundry/core/browser';
+import type { ConcurrencyView, Settings, SettingsView } from '@foundry/core/browser';
 import { AGENT_PROVIDERS, PROVIDER_LABEL } from '@foundry/core/browser';
 import { AudioLines, Check, CheckCircle2, CircleDashed, LoaderCircle, RotateCcw, Sparkles, XCircle } from 'lucide-react';
 import { siAppstore, siCloudflarepages, siDiscord, siElevenlabs, siExpo, siFlydotio, siGooglegemini, siGoogleplay, siKimi, siMinimax, siNetlify, siRailway, siRender, siTailscale, siTelegram, siVercel } from 'simple-icons';
@@ -69,6 +69,14 @@ function InstallState({ tone, children }: { tone: Tone; children: ReactNode }) {
   );
 }
 
+
+/** what Concurrency runs at now, in a line under the setting (ADR-0103) */
+function concurrencyNote(c: ConcurrencyView): string {
+  const now = `${c.limit} session${c.limit === 1 ? '' : 's'} at once now`;
+  const why = c.auto ? ` — this computer has ${c.auto.cpus} cores and ${c.auto.memGB} GB${c.auto.busy ? `; halved while it is busy (load ${c.auto.load1})` : ''}` : '';
+  const held = c.held.map((h) => `${PROVIDER_LABEL[h.provider as AgentProvider] ?? h.provider} runs one task at a time until its 5-hour window resets (${Math.round(h.utilization * 100)}% used)`);
+  return [now + why, ...held].join('. ') + '.';
+}
 
 export function SettingsPage() {
   const [view, setView] = useState<SettingsView | null>(null);
@@ -565,6 +573,13 @@ export function SettingsPage() {
                 <Setting path="sessions.attemptMaxTurns">
                   {num('sessions.attemptMaxTurns', { min: 10, max: 2000 })}
                 </Setting>
+                <Setting path="engine.concurrency">
+                  <Select value={draft.engine.concurrency} onChange={(e) => set('engine.concurrency', e.target.value)}>
+                    <option value="fixed">Fixed — the number below</option>
+                    <option value="auto">Auto — from this computer</option>
+                  </Select>
+                  {view.concurrency && <p className="mt-1 text-[11px] text-ink-faint">{concurrencyNote(view.concurrency)}</p>}
+                </Setting>
                 <Setting path="engine.maxConcurrent">
                   {num('engine.maxConcurrent', { min: 1, max: 16 })}
                 </Setting>
@@ -595,6 +610,7 @@ export function SettingsPage() {
               </>,
             )}
             <Toggle path="workflow.mcpDynamicTools" />
+            {modelProvider === 'claude' && <Toggle path="workflow.leanSessions" />}
             <Toggle path="workflow.autoskills" />
             <p className="text-[11px] text-ink-faint">
               Memory — a Hindsight server that remembers what each folder’s goals did and taught — is set up on the{' '}

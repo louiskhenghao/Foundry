@@ -663,8 +663,8 @@ function project(db: Database, e: EngineEvent): void {
     case 'session.usage': {
       const p = e.payload;
       db.run(
-        'INSERT OR REPLACE INTO usage_ledger (event_id, ts, goal_id, kind, model, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, cost_usd, duration_ms, subtype, cost_status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [e.id, e.ts, e.goalId, p.kind, p.model, p.inputTokens, p.outputTokens, p.cacheReadTokens, p.cacheCreateTokens, p.costUsd, p.durationMs, p.subtype, p.costStatus ?? null],
+        'INSERT OR REPLACE INTO usage_ledger (event_id, ts, goal_id, kind, model, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, cost_usd, duration_ms, subtype, cost_status, turns, context_tokens, start_context) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [e.id, e.ts, e.goalId, p.kind, p.model, p.inputTokens, p.outputTokens, p.cacheReadTokens, p.cacheCreateTokens, p.costUsd, p.durationMs, p.subtype, p.costStatus ?? null, p.context?.turns ?? null, p.context?.tokens ?? null, p.context?.first ?? null],
       );
       if (p.rateLimit) {
         // the newest sighting wins: usage that came through a Transfer is older than this computer's limits
@@ -1040,6 +1040,10 @@ export interface UsageRow {
   subtype: string;
   /** `unavailable`: no dollar cost was reported, so `cost_usd` 0 is unknown; null on rows from before this was recorded */
   cost_status?: 'reported' | 'unavailable' | null;
+  /** the session's turns, the tokens they read together and the first turn's (Claude Code); null on rows from before this was recorded */
+  turns?: number | null;
+  context_tokens?: number | null;
+  start_context?: number | null;
 }
 export function listUsageSince(db: Database, sinceIso: string): UsageRow[] {
   return db.query(`SELECT u.*, COALESCE(json_extract(e.payload, '$.provider'), json_extract(g.data, '$.provider')) AS provider, json_extract(e.payload, '$.accountId') AS account_id FROM usage_ledger u LEFT JOIN events e ON e.id = u.event_id LEFT JOIN goals g ON g.id = u.goal_id WHERE u.ts >= ? ORDER BY u.ts`).all(sinceIso) as UsageRow[];

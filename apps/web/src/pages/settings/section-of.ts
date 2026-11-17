@@ -23,10 +23,11 @@ const SECTION_OF_PATH: Record<string, string> = {
   'workflow.investigationMaxCostUsd': 'models',
   'workflow.investigationMaxMinutes': 'models',
   'engine.maxConcurrent': 'models',
+  'engine.concurrency': 'models',
   'delivery.defaultMode': 'goals',
   'delivery.defaultUnit': 'goals',
   'delivery.defaultRemote': 'goals',
-  ...Object.fromEntries(['settingSources', 'mcpDynamicTools', 'autoskills', 'designPack', 'imagePack', 'videoPack', 'figurePack', 'diagramPack', 'deckPack'].map((k) => [`workflow.${k}`, 'skills'])),
+  ...Object.fromEntries(['settingSources', 'mcpDynamicTools', 'leanSessions', 'autoskills', 'designPack', 'imagePack', 'videoPack', 'figurePack', 'diagramPack', 'deckPack'].map((k) => [`workflow.${k}`, 'skills'])),
 };
 
 /** the id of the section (a Card's id on the page) where `path` is edited; null for a setting the page has no control for */

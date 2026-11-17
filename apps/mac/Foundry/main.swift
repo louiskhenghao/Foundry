@@ -1,4 +1,4 @@
-// Foundry's macOS menu bar app (ADR-0102): a status item around the compiled foundry engine beside it in Contents/MacOS.
+// Foundry's macOS menu bar app (ADR-0105): a status item around the compiled foundry engine beside it in Contents/MacOS.
 // The engine serves the page in the person's own browser; this keeps it running, says how it is and what waits, opens
 // the page, starts at login, and installs an update the engine downloaded and checked. Built with swiftc by
 // scripts/build-release.ts, no Xcode project: one file, AppKit and ServiceManagement only.

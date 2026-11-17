@@ -3,6 +3,7 @@ import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type CodexModelPre
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { foundryHome, resolveDataDir, type DataDirSource } from './data-dir.ts';
+import type { Machine } from './concurrency.ts';
 
 export interface EngineConfig {
   provider: AgentProvider;
@@ -45,6 +46,10 @@ export interface EngineConfig {
   autoSwitch: { claude: boolean; codex: boolean };
   /** Global cap on concurrent claude processes. */
   maxConcurrent: number;
+  /** `fixed`: at most maxConcurrent at once; `auto`: what this machine carries, read again every half minute (ADR-0103) */
+  concurrency: 'fixed' | 'auto';
+  /** how auto concurrency reads the machine (tests give their own) */
+  machine?: () => Machine;
   /** `--setting-sources`; undefined = inherit everything (user skills included). */
   settingSources?: string[];
   /** MCP tool prefixes worker sessions may use (Settings → workflow.mcpAllowed, ADR-0016) */
@@ -144,6 +149,8 @@ export interface EngineConfig {
   designCheck: boolean;
   /** tools of allowed catalog MCP servers that run or change things are usable in sessions */
   mcpDynamicTools: boolean;
+  /** Claude Code sessions load only what Foundry gives them: the allowed MCP servers, no claude.ai connector unless allowed, none of the person's own skills (ADR-0102) */
+  leanSessions: boolean;
   /** caps of the session that investigates a goal's reference */
   investigationMaxCostUsd: number;
   investigationMaxMinutes: number;
@@ -219,6 +226,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     port: Number(process.env.FOUNDRY_PORT ?? 4111),
     host: process.env.FOUNDRY_HOST ?? '127.0.0.1',
     maxConcurrent: Number(process.env.FOUNDRY_MAX_CONCURRENT ?? 3),
+    concurrency: process.env.FOUNDRY_CONCURRENCY === 'auto' ? 'auto' : 'fixed',
     autoSwitch: { claude: false, codex: false },
     mcpAllowed: [...DEFAULT_MCP_ALLOWED],
     codexMcpAllowed: [],
@@ -243,7 +251,8 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     smallGoalLines: Number(process.env.FOUNDRY_SMALL_GOAL_LINES ?? 400),
     models: { strong: 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: 'opus' },
     modelFallbacks: (process.env.FOUNDRY_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
-    attemptTimeoutMs: 20 * 60_000,
+    // 45 minutes (ADR-0101): twenty cut workers a hundred turns deep mid-work, and every cut costs a fresh context
+    attemptTimeoutMs: 45 * 60_000,
     maxContinuations: process.env.FOUNDRY_MAX_CONTINUATIONS ? Number(process.env.FOUNDRY_MAX_CONTINUATIONS) : 2,
     // the cost cap is the real guard; turns only stop runaway loops
     attemptMaxTurns: Number(process.env.FOUNDRY_ATTEMPT_MAX_TURNS ?? 150),
@@ -270,6 +279,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     workflowQa: process.env.FOUNDRY_QA === '1' || process.env.FOUNDRY_QA === 'true',
     designCheck: !/^(0|false|off|no)$/i.test(process.env.FOUNDRY_DESIGN_CHECK ?? ''),
     mcpDynamicTools: process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === '1' || process.env.FOUNDRY_MCP_DYNAMIC_TOOLS === 'true',
+    leanSessions: process.env.FOUNDRY_LEAN_SESSIONS === '1' || process.env.FOUNDRY_LEAN_SESSIONS === 'true',
     desktopApps: process.env.FOUNDRY_DESKTOP_APPS === '1' || process.env.FOUNDRY_DESKTOP_APPS === 'true',
     investigationMaxCostUsd: Number(process.env.FOUNDRY_INVESTIGATION_MAX_COST ?? 3) || 3,
     investigationMaxMinutes: Number(process.env.FOUNDRY_INVESTIGATION_MAX_MINUTES ?? 20) || 20,

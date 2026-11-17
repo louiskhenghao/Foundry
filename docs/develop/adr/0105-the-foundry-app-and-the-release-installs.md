@@ -1,10 +1,10 @@
-# ADR-0102: The Foundry app and the release installs
+# ADR-0105: The Foundry app and the release installs
 
-**Status:** accepted · 2026-11-16 · builds on ADR-0101 · amends ADR-0024 and ADR-0082
+**Status:** accepted · 2026-11-16 · builds on ADR-0104 · amends ADR-0024 and ADR-0082
 
 ## Context
 
-ADR-0101 made Foundry a compiled executable with its files beside it, released on GitHub. Four things were still
+ADR-0104 made Foundry a compiled executable with its files beside it, released on GitHub. Four things were still
 missing before the Docker image could go. A Mac needs an app a person can download and open, which runs Foundry
 without a terminal and keeps it running. A computer that never ran the installer has no one to install git, uv, the
 coding agents' CLIs, graphify, the GitHub CLI or Node.js. A source install (a git checkout run by Bun) needs a way to
@@ -19,7 +19,7 @@ install's data copied, never moved.
   built by `scripts/build-release.ts` with `swiftc` for arm64 and x86_64 and joined with `lipo` (no Xcode project).
   `Foundry.app/Contents/MacOS/Foundry` is the shell; the universal foundry beside it is `foundry-engine`, because
   `foundry` and `Foundry` are one name on the case-insensitive disk most Macs have. `Contents/Resources` holds the
-  release's resources (ADR-0101) and the icon (`apps/mac/Foundry.icns`, drawn from the favicon by
+  release's resources (ADR-0104) and the icon (`apps/mac/Foundry.icns`, drawn from the favicon by
   `scripts/mac-icon.ts`). The bundle is `com.louiskhenghao.foundry`, a menu bar app (`LSUIElement`) for macOS 13 and
   later, signed ad-hoc and not notarized. The release carries it twice: `Foundry-<version>-mac-universal.zip` (what an
   installed app updates from) and `Foundry-<version>-mac-universal.dmg` (what a person downloads), both in
@@ -44,7 +44,7 @@ install's data copied, never moved.
   (version, open escalations, Briefs awaiting approval, the update). The engine's stdin is a pipe only the shell holds:
   when it closes, however the shell ended, the engine stops.
 - **An update swaps the app.** The engine downloads the release's zip, checks it against `SHA256SUMS`, unpacks it and
-  exits 75 (ADR-0101). The shell moves the running app to the data folder's `updates/previous/Foundry.app`, moves the
+  exits 75 (ADR-0104). The shell moves the running app to the data folder's `updates/previous/Foundry.app`, moves the
   new one into its place, and opens it with the same environment and `--after-update` (no new browser tab: the page
   reconnects by itself). An app macOS runs from a translocated copy (opened where it was downloaded) cannot replace
   itself and says so; one it cannot write over points to the releases page.

@@ -81,7 +81,7 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
 
   }
 
-  // the tools beside the coding agents get an Install button where Foundry can run their installer (ADR-0102)
+  // the tools beside the coding agents get an Install button where Foundry can run their installer (ADR-0105)
   const tenv: ToolEnv = { which, platform: process.platform, arch: process.arch, home: homedir() };
   const fixOf = (id: ToolId): DoctorCheck['fix'] => {
     const r = toolRecipe(id, tenv);
@@ -89,7 +89,7 @@ export async function runDoctor(ctx: DoctorContext): Promise<DoctorReport> {
   };
   const git = which('git');
   checks.push(git ? ok('git', 'git', git) : err('git', 'git', 'git not found on PATH', fixOf('git')));
-  // a compiled foundry carries its runtime (ADR-0101): nothing to find on PATH
+  // a compiled foundry carries its runtime (ADR-0104): nothing to find on PATH
   const embedded = installRoot().kind !== 'checkout';
   const bun = embedded ? process.execPath : which('bun');
   const runtime = ctx.runtimeVersion ?? (typeof Bun !== 'undefined' ? Bun.version : null);

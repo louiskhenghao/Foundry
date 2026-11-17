@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { loadPlaywright, locatePlaywright } from './playwright-load.ts';
 
-describe('Playwright found where the install keeps it (ADR-0101)', () => {
+describe('Playwright found where the install keeps it (ADR-0104)', () => {
   test('a checkout resolves the package the engine depends on, with its CLI', () => {
     const loc = locatePlaywright({ kind: 'checkout', root: '/unused', execDir: null });
     expect(loc).not.toBeNull();

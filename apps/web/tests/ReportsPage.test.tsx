@@ -12,7 +12,7 @@ const report: Report = {
   now: '2026-10-21T12:00:00Z',
   window: { days: 90, from: '2026-07-23T12:00:00Z', to: '2026-10-21T12:00:00Z' },
   step: 'week',
-  totals: { ...spend, goals: { total: 4, finished: 3, failed: 1, cancelled: 0, open: 0 }, activeMin: 150, retries, estimate, noGoal: { sessions: 1, costUsd: 0.1, unmeasured: 0, codexSessions: 0, durationMs: 60_000 } },
+  totals: { ...spend, goals: { total: 4, finished: 3, failed: 1, cancelled: 0, open: 0 }, activeMin: 150, retries, estimate, noGoal: { sessions: 1, costUsd: 0.1, unmeasured: 0, codexSessions: 0, durationMs: 60_000 }, cuts: { sessions: 3, durationMs: 1_200_000, share: 0.33, byLimit: { time: 2, idle: 1, turns: 0, cost: 0 } }, context: { perTurn: 81_200, atStart: 47_600, sessions: 9, turns: 410 } },
   series: [{ t: '2026-10-05T00:00:00.000Z', label: 'Oct 5', sessions: 5, costUsd: 8, finished: 1 }, { t: '2026-10-12T00:00:00.000Z', label: 'Oct 12', sessions: 7, costUsd: 10.5, finished: 2 }],
   repos: [{ repoPath: '/home/me/alpha', name: 'alpha', ...spend, goals: { total: 4, finished: 3, failed: 1, cancelled: 0, open: 0 }, activeMin: 150, costPerFinishedGoal: 6.17, retries, estimate }],
   kinds: [{ kind: 'attempt', sessions: 10, costUsd: 16, unmeasured: 1, codexSessions: 0, durationMs: 3_000_000, costShare: 0.86, timeShare: 0.83 }, { kind: 'review-goal', sessions: 2, costUsd: 2.5, unmeasured: 0, codexSessions: 0, durationMs: 600_000, costShare: 0.14, timeShare: 0.17 }],
@@ -42,6 +42,13 @@ test('the report shows the window numbers, the spend by week, each project, the 
   expect(h).toContain('no goal (probes, setup, goals since deleted)');
   expect(h).toContain('1 Claude Code session with unknown cost left out');
   expect(h).toContain(report.note);
+  // where time and tokens go: the session time cut short by a limit (red past 15%), and what a turn reads
+  expect(h).toContain('cut short');
+  expect(h).toContain('33%');
+  expect(h).toContain('3 sessions stopped by a limit before finishing (20 min): 2 at the time limit, 1 after five silent minutes.');
+  expect(h).toContain('context per turn');
+  expect(h).toContain('81.2k');
+  expect(h).toContain('over 410 turns of 9 sessions; sessions started with 47.6k');
   expect(kindLabel('qa')).toBe('Browser QA');
   expect(kindLabel('something-new')).toBe('something-new');
 });
@@ -49,4 +56,10 @@ test('the report shows the window numbers, the spend by week, each project, the 
 test('a window with nothing in it says so', () => {
   const empty: Report = { ...report, totals: { ...report.totals, sessions: 0, costUsd: 0, goals: { total: 0, finished: 0, failed: 0, cancelled: 0, open: 0 }, noGoal: { sessions: 0, costUsd: 0, unmeasured: 0, codexSessions: 0, durationMs: 0 } }, series: [], repos: [], kinds: [], misses: [] };
   expect(html(empty)).toContain('Nothing ran in this window');
+});
+
+test('before any session recorded its turns, context per turn says so instead of showing a number', () => {
+  const h = html({ ...report, totals: { ...report.totals, cuts: { sessions: 0, durationMs: 0, share: 0, byLimit: { time: 0, idle: 0, turns: 0, cost: 0 } }, context: { perTurn: null, atStart: null, sessions: 0, turns: 0 } } });
+  expect(h).toContain('recorded for Claude Code sessions from this version on');
+  expect(h).toContain('no session was stopped by a limit');
 });

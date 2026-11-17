@@ -6,7 +6,7 @@ const env = (over: Partial<ToolEnv> & { have?: string[] } = {}): ToolEnv => {
   return { which: (b) => (have.has(b) ? `/usr/bin/${b}` : null), platform: 'darwin', arch: 'arm64', home: '/Users/me', ...over };
 };
 
-describe('how Setup installs the tools beside the coding agents (ADR-0102)', () => {
+describe('how Setup installs the tools beside the coding agents (ADR-0105)', () => {
   test('Homebrew first on macOS when it is there', () => {
     const e = env({ have: ['curl', 'brew'] });
     expect(toolRecipe('gh', e)).toMatchObject({ command: 'brew install gh', via: 'brew' });

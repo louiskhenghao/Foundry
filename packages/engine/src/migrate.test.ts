@@ -7,7 +7,7 @@ import { SOURCE_SERVICE_LABEL, parseInstallEnv, planMigration, runMigration, sto
 
 const tmp = () => mkdtempSync(join(tmpdir(), 'foundry-migrate-'));
 
-describe('moving a source install to the app or the binary (ADR-0102)', () => {
+describe('moving a source install to the app or the binary (ADR-0105)', () => {
   test("the installer's choices, as printf %q wrote them", () => {
     const env = parseInstallEnv("# written by the Foundry installer\nMODE=source\nDIR=/Users/me/My\\ Foundry\nHOST_DOCKER=''\nSERVICE=launchd\nNOTE=$'two\\nlines'\nbad line\n");
     expect(env).toEqual({ MODE: 'source', DIR: '/Users/me/My Foundry', HOST_DOCKER: '', SERVICE: 'launchd', NOTE: 'two\nlines' });

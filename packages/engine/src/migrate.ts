@@ -1,5 +1,5 @@
 /**
- * `foundry migrate` (ADR-0102): what a source install keeps in its checkout — the data folders with every goal, setting,
+ * `foundry migrate` (ADR-0105): what a source install keeps in its checkout — the data folders with every goal, setting,
  * transcript and attachment — copied to where a compiled install keeps it, so the app or the binary opens the same
  * goals. The checkout's service is stopped first (a SQLite file is never copied while an engine writes it), each folder
  * is copied with ADR-0082's copy-and-rewrite (the paths the folder wrote about itself point into the copy), and the

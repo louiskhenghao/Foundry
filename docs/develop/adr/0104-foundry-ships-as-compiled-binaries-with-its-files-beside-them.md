@@ -1,4 +1,4 @@
-# ADR-0101: Foundry ships as compiled binaries with its files beside them, and releases live on GitHub Releases
+# ADR-0104: Foundry ships as compiled binaries with its files beside them, and releases live on GitHub Releases
 
 **Status:** accepted · 2026-11-16 · amends ADR-0010 and ADR-0024
 

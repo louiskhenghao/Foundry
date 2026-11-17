@@ -43,6 +43,16 @@ export function assistantUsage(msg: any): MessageUsage | null {
   };
 }
 
+/** what the turns of one run read (UsageTally.context) */
+export interface TurnContext {
+  /** turns of the main conversation */
+  turns: number;
+  /** the tokens those turns read, summed */
+  tokens: number;
+  /** what the first of them read: the context the run started with; null without a turn */
+  first: number | null;
+}
+
 /** Per-message token counts: one entry per API message, however many lines or records it arrived in. */
 export class UsageTally {
   private byId = new Map<string, MessageUsage>();
@@ -70,6 +80,24 @@ export class UsageTally {
     let n = 0;
     for (const m of this.byId.values()) if (!m.subagent) n++;
     return n;
+  }
+  /**
+   * What the main conversation's turns read: each turn reads its whole context again — the input, what came from the
+   * cache and what went into it — so this sums those over the turns, and keeps the first turn's alone, the context the
+   * session started with. Helper agents' turns are left out: they read contexts of their own.
+   */
+  context(): TurnContext {
+    let turns = 0;
+    let tokens = 0;
+    let first: number | null = null;
+    for (const m of this.byId.values()) {
+      if (m.subagent) continue;
+      const read = m.usage.input_tokens + m.usage.cache_read_input_tokens + m.usage.cache_creation_input_tokens;
+      turns++;
+      tokens += read;
+      first ??= read;
+    }
+    return { turns, tokens, first };
   }
   totals(): TokenCounts {
     const t: TokenCounts = { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 };

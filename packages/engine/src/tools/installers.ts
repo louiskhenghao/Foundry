@@ -1,5 +1,5 @@
 /**
- * The tools Foundry needs beside the coding agents, and how to install each without a terminal (ADR-0102): the recipes
+ * The tools Foundry needs beside the coding agents, and how to install each without a terminal (ADR-0105): the recipes
  * install.sh ran in bash, as commands the Setup page and `foundry setup` run alike. A compiled Foundry (the macOS app, a
  * release tarball) has no installer around it, so the person installs what is missing from the Setup page. Each recipe
  * prefers Homebrew on macOS when it is there and otherwise a release build unpacked under ~/.local, so nothing asks for

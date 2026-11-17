@@ -5,7 +5,7 @@
 #
 # It asks how to run Foundry and which coding agents to use, then sets up everything that way:
 #
-#   app      macOS (ADR-0102): Foundry.app from the newest release, checked against its SHA256SUMS, in /Applications (or
+#   app      macOS (ADR-0105): Foundry.app from the newest release, checked against its SHA256SUMS, in /Applications (or
 #            ~/Applications); its menu bar item runs Foundry and starts it at login. `foundry setup` installs what is
 #            missing (git, uv, the coding agents' CLIs, graphify, GitHub CLI, Node.js, the optional tools you pick)
 #   binary   Linux (and macOS without the app): the compiled foundry from the newest release, checked, unpacked into
@@ -49,7 +49,7 @@ trap 'printf "\n\033[31m✘ stopped: \"%s\" failed (install.sh line %s)\033[0m\n
 
 RAW_URL="${FOUNDRY_INSTALL_URL:-https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh}"
 IMAGE="${FOUNDRY_IMAGE:-imlouiskhenghao/foundry}"
-# app, binary: the releases on GitHub (ADR-0101); FOUNDRY_RELEASES_API points a test at a server of its own
+# app, binary: the releases on GitHub (ADR-0104); FOUNDRY_RELEASES_API points a test at a server of its own
 RELEASES_API="${FOUNDRY_RELEASES_API:-https://api.github.com/repos/louiskhenghao/foundry-releases/releases}"
 APP_ID="com.louiskhenghao.foundry"
 STATE_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/foundry"
@@ -239,7 +239,7 @@ install() {
 }
 
 choose_mode() {
-  # the release itself, compiled (ADR-0101/0102): the app on a Mac, the binary on Linux
+  # the release itself, compiled (ADR-0104/0102): the app on a Mac, the binary on Linux
   local first="binary" label="The binary   foundry from the newest release, run as a background service"
   is_mac && first="app" label="The app      Foundry.app from the newest release, in the menu bar"
   if [ -n "$TTY" ]; then
@@ -284,7 +284,7 @@ agent_label() {
   esac
 }
 
-# ---------- the release: app and binary modes (ADR-0101, ADR-0102) ----------
+# ---------- the release: app and binary modes (ADR-0104, ADR-0105) ----------
 
 sha256_of() { if have sha256sum; then sha256sum "$1" | awk '{print $1}'; else shasum -a 256 "$1" | awk '{print $1}'; fi; }
 # the release's JSON from GitHub: the one --version names, else the newest published one

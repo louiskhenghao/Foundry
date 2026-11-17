@@ -4,6 +4,7 @@ import { homedir, tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { EventQueue } from './event-queue.ts';
+import { IdleWatch } from './idle-watch.ts';
 import { Semaphore } from './semaphore.ts';
 import { decodeLine, LineSplitter } from './stream-codec.ts';
 import { classifyFailure, type AgentRunner, type RunHandle, type RunResult, type RunSpec, type RunnerEvent } from './types.ts';
@@ -170,7 +171,8 @@ export class CodexCliRunner implements AgentRunner {
       this.opts.log?.(`[codex] spawned pid=${child.pid} ${spec.label ?? ''}`);
       const wall = setTimeout(() => kill('killed_timeout'), spec.timeoutMs ?? this.opts.defaultTimeoutMs ?? 20 * 60_000);
       const idleMs = spec.idleTimeoutMs ?? this.opts.defaultIdleTimeoutMs ?? 5 * 60_000;
-      let idle = setTimeout(() => kill('killed_idle'), idleMs);
+      // the idle limit (ADR-0101): silence counts only while no tool call is under way
+      const idle = new IdleWatch(idleMs, () => kill('killed_idle'));
       let pendingInit: RunnerEvent | null = null;
       let verified = false;
       const verify = () => {
@@ -203,7 +205,10 @@ export class CodexCliRunner implements AgentRunner {
           const event = spec.transcriptPath ? { ...ev, ref: { file: basename(spec.transcriptPath), line: at, block } } : ev;
           if (ev.kind === 'init') { sessionId = ev.sessionId; if (!verified) { pendingInit = event; continue; } }
           if (ev.kind === 'text') finalText = ev.text;
-          if (ev.kind === 'tool_use') toolsUsed[ev.name] = (toolsUsed[ev.name] ?? 0) + 1;
+          // a tool is under way from its item.started to its result; a step the stream reports only once it is done (a web
+          // search, a to-do update, a file change) never was, and opening it would stop the idle clock for good
+          if (ev.kind === 'tool_use') { if (raw?.type === 'item.started') idle.toolStarted(ev.id); toolsUsed[ev.name] = (toolsUsed[ev.name] ?? 0) + 1; }
+          if (ev.kind === 'tool_result') idle.toolEnded(ev.toolUseId);
           queue.push(ev.kind === 'init' ? { ...event, model } as RunnerEvent : event);
         }
       };
@@ -213,7 +218,7 @@ export class CodexCliRunner implements AgentRunner {
         for (;;) {
           const { value: chunk, done } = await reader.read();
           if (done) break;
-          clearTimeout(idle); idle = setTimeout(() => kill('killed_idle'), idleMs);
+          idle.touch();
           if (stdout) for (const line of splitter.push(chunk)) await handleLine(line);
           else { const text = new TextDecoder().decode(chunk); stderr = (stderr + text).slice(-8000); queue.push({ kind: 'stderr', text }); }
         }
@@ -247,7 +252,7 @@ export class CodexCliRunner implements AgentRunner {
           errorMessage = String(error); kill('error_during_execution'); await child.exited;
           return makeResult(killed!);
         } finally {
-          clearTimeout(wall); clearTimeout(idle);
+          clearTimeout(wall); idle.stop();
           await terminate!();
           this.procs.delete(child); release(); queue.close();
           if (dir) rmSync(dir, { recursive: true, force: true });
