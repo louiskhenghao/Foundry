@@ -184,6 +184,7 @@ export function mapWorktreeLinks(dataDir: string, map: [string, string][]): numb
 function checkMigrations(dir: string): void {
   const known = new Set(knownMigrationIds());
   let ids: string[] = [];
+  if (!existsSync(join(dir, 'engine.db'))) throw new MoveError(`${dir} holds no Foundry database: nothing in it to move`);
   const db = new Database(join(dir, 'engine.db'), { readonly: true });
   try {
     ids = (db.query('SELECT id FROM _migrations').all() as { id: string }[]).map((r) => r.id);

@@ -366,12 +366,12 @@ export function containerFacts(c: any): { facts: DockerFacts; running: boolean; 
   };
 }
 
-/** count a container's goals with the bun its image carries: in it while it runs, else beside its volumes */
+/** count a container's goals with the bun its image carries: in it while it runs, else beside its volumes; 'none' for a folder with no database */
 export function containerCountScript(paths: string[]): string {
-  return `const {Database}=require('bun:sqlite');const o={};for(const p of ${JSON.stringify(paths)}){try{const d=new Database(p+'/engine.db',{readonly:true});const n=(q)=>Number(d.query(q).get().n??0);o[p]={goals:n('SELECT count(*) AS n FROM goals'),events:n('SELECT count(*) AS n FROM events'),last:d.query('SELECT max(ts) AS t FROM events').get().t??null};d.close()}catch(e){o[p]=null}}console.log(JSON.stringify(o))`;
+  return `const {Database}=require('bun:sqlite');const {existsSync}=require('fs');const o={};for(const p of ${JSON.stringify(paths)}){if(!existsSync(p+'/engine.db')){o[p]='none';continue}try{const d=new Database(p+'/engine.db',{readonly:true});const n=(q)=>Number(d.query(q).get().n??0);o[p]={goals:n('SELECT count(*) AS n FROM goals'),events:n('SELECT count(*) AS n FROM events'),last:d.query('SELECT max(ts) AS t FROM events').get().t??null};d.close()}catch(e){o[p]=null}}console.log(JSON.stringify(o))`;
 }
 
-export async function countContainer(probe: Probe, facts: DockerFacts, paths: string[], running: boolean): Promise<Record<string, FolderCounts | null>> {
+export async function countContainer(probe: Probe, facts: DockerFacts, paths: string[], running: boolean): Promise<Record<string, FolderCounts | 'none' | null>> {
   const script = containerCountScript(paths);
   const argv = running ? ['docker', 'exec', facts.container, 'bun', '-e', script] : ['docker', 'run', '--rm', '--entrypoint', 'bun', '--volumes-from', facts.container, facts.imageId, '-e', script];
   const r = await probe.run(argv, { timeoutMs: 90_000 });
@@ -410,7 +410,9 @@ async function findContainers(probe: Probe, notes: string[], recorded: Record<st
     const counts = await countContainer(probe, facts, folders.map((f) => f.path), running);
     const composeDir = facts.composeDir ?? (recorded?.MODE === 'docker' ? recorded.DIR ?? null : null);
     const dotenv = composeDir ? parseDotenv(probe.read(join(composeDir, '.env')) ?? '') : {};
-    const efolders: EarlierFolder[] = folders.map((f) => ({ provider: f.provider, path: f.path, counts: counts[f.path] ?? null, moved: false, chosen: false }));
+    // a volume the image mounts whether or not it was used (data-codex): no database, nothing to move
+    const efolders: EarlierFolder[] = folders.filter((f) => counts[f.path] !== 'none').map((f) => ({ provider: f.provider, path: f.path, counts: (counts[f.path] as FolderCounts | null | undefined) ?? null, moved: false, chosen: false }));
+    if (!efolders.length) continue;
     const url = running && port ? ((await probe.json(`http://127.0.0.1:${port}/api/health`)) ? `http://127.0.0.1:${port}` : null) : null;
     out.push({
       id: `docker:${facts.container}`,

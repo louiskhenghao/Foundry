@@ -68,8 +68,8 @@ describe('finding the earlier installs (ADR-0107)', () => {
           if (a === 'lsof -a -p 4242 -iTCP -sTCP:LISTEN -Fn -P') return ok('p4242\nn*:4111\n');
           if (a.startsWith('docker version')) return ok('27.0.1\n');
           if (a.startsWith('docker ps -a --no-trunc')) return ok('c1\tfoundry\timlouiskhenghao/foundry:2.36.0\nc2\tfoundry-shop-db-1\tpostgres:16\n');
-          if (a === 'docker inspect c1') return ok(JSON.stringify([{ Name: '/foundry', Image: 'sha256:abc', Config: { Image: 'imlouiskhenghao/foundry:2.36.0', Labels: {} }, State: { Running: false }, HostConfig: { RestartPolicy: { Name: 'unless-stopped' }, PortBindings: { '4111/tcp': [{ HostPort: '4115' }] } }, Mounts: [{ Type: 'volume', Name: 'engine-data', Source: '/v', Destination: '/app/data' }] }]));
-          if (argv[0] === 'docker' && argv[1] === 'run') return ok(JSON.stringify({ '/app/data': { goals: 7, events: 70, last: '2026-11-01T00:00:00.000Z' } }) + '\n');
+          if (a === 'docker inspect c1') return ok(JSON.stringify([{ Name: '/foundry', Image: 'sha256:abc', Config: { Image: 'imlouiskhenghao/foundry:2.36.0', Labels: {} }, State: { Running: false }, HostConfig: { RestartPolicy: { Name: 'unless-stopped' }, PortBindings: { '4111/tcp': [{ HostPort: '4115' }] } }, Mounts: [{ Type: 'volume', Name: 'engine-data', Source: '/v', Destination: '/app/data' }, { Type: 'volume', Name: 'codex-data', Source: '/w', Destination: '/app/data-codex' }] }]));
+          if (argv[0] === 'docker' && argv[1] === 'run') return ok(JSON.stringify({ '/app/data': { goals: 7, events: 70, last: '2026-11-01T00:00:00.000Z' }, '/app/data-codex': 'none' }) + '\n');
           return null;
         },
         json: (url) => (url === 'http://127.0.0.1:4111/api/health' ? { ok: true } : null),
@@ -85,6 +85,8 @@ describe('finding the earlier installs (ADR-0107)', () => {
       // what it read from its .env and may carry; the port is never carried
       expect(devInstall!.env).toEqual({ FOUNDRY_MAX_CONCURRENT: '5' });
       expect(docker).toMatchObject({ version: '2.36.0', port: 4115, url: null, docker: { container: 'foundry', imageId: 'sha256:abc', restart: 'unless-stopped' } });
+      // the codex volume the image always mounts held no database: not a folder to move (found moving a real container)
+      expect(docker!.folders.map((f) => f.path)).toEqual(['/app/data']);
       // a stopped container is counted beside its volumes, with the image it already has
       expect(probe.ran.find((a) => a[1] === 'run')).toEqual(expect.arrayContaining(['--volumes-from', 'foundry', 'sha256:abc']));
       expect(old).toMatchObject({ recorded: true, goals: 0, version: '1.0.1' });
