@@ -382,9 +382,10 @@ migrate_source() {
   # 2.36's steps for a container (--no-start) move it themselves
   local -a scope=()
   [ "$START" = 0 ] && scope+=(--no-docker)
+  # 0: one earlier Foundry with goals, 3: none, 4: several (the person chooses in Foundry or with foundry migrate --from)
   local found=0
-  "$BIN" migrate --offer --dry-run ${scope[@]+"${scope[@]}"} </dev/null && found=1
-  [ "$found" = 1 ] || return 0
+  "$BIN" migrate --offer --dry-run ${scope[@]+"${scope[@]}"} </dev/null || found=$?
+  [ "$found" = 0 ] || return 0
   if [ "$YES" = 1 ] || yesno "Move its goals here? It stops and stays as it is, as the backup." y; then
     "$BIN" migrate --offer --yes --no-adopt ${scope[@]+"${scope[@]}"} </dev/null || warn "the goals did not move; try again later with: foundry migrate"
   else

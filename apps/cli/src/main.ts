@@ -269,8 +269,14 @@ switch (cmd) {
         break;
       }
       install = candidates[0];
-      if (candidates.length > 1 && offer) say(`Foundry found more than one earlier install with goals; the most recent moves (foundry migrate --from <it> moves another): ${candidates.map((i) => i.where).join(', ')}`);
-      if (candidates.length > 1 && !has('--yes') && !offer) {
+      // several with goals: a person chooses, never an unattended run (the installer, --yes)
+      if (candidates.length > 1 && (offer || has('--yes'))) {
+        say('Foundry found more than one earlier install with goals:');
+        for (const i of candidates) say(`  · ${i.kind === 'docker' ? `the Docker container ${i.where}` : i.where}: ${i.goals} goals${i.last ? `, last active ${i.last.slice(0, 10)}` : ''}${i.running ? ', running' : ''}`);
+        say('Choose one: Bring your goals over in Foundry, or foundry migrate --from <one of them>.');
+        process.exit(offer ? 4 : 2);
+      }
+      if (candidates.length > 1) {
         say('Foundry found more than one earlier install with goals:');
         candidates.forEach((i, n) => say(`  ${n + 1}. ${i.kind === 'docker' ? `the Docker container ${i.where}` : i.where}: ${i.goals} goals${i.last ? `, last active ${i.last.slice(0, 10)}` : ''}${i.running ? ', running' : ''}`));
         const pick = Number((prompt(`Which one moves here? [1-${candidates.length}, Enter for 1]`) ?? '').trim() || '1');
