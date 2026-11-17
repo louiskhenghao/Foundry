@@ -1916,6 +1916,7 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     kind: installRoot().kind,
     dataDir: () => engine.config.dataDir,
     targetFor: (p) => defaultDataDir(engine.config.rootDir, p),
+    provider: () => engine.config.provider,
     goals: () => listGoals(db).length,
     port: () => engine.config.port,
     restart: (r) => engine.restart.request(r),

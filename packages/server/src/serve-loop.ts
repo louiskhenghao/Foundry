@@ -4,7 +4,7 @@
  * process keeps its port. A switch whose folder cannot boot comes back on the folder before, with a notice for Settings.
  */
 import type { AgentProvider } from '@foundry/core';
-import { DataFolderInUse, Engine, FolderMoved, HANDOFF_FILE, MOVED_NOTE, MOVING_SUFFIX, claimDataDir, defaultConfig, finishMove, keepPort, prepareDataDir, readHomeConfig, releaseDataDir, rememberRecent, restoreOld, swapIn, swapOut, writeHomeConfig, type DataDirNotice, type EngineConfig, type Handoff } from '@foundry/engine';
+import { DataFolderInUse, Engine, FolderMoved, HANDOFF_FILE, MOVED_NOTE, MOVING_SUFFIX, claimDataDir, defaultConfig, finishMove, keepPort, keepProvider, prepareDataDir, readHomeConfig, releaseDataDir, rememberRecent, restoreOld, swapIn, swapOut, writeHomeConfig, type DataDirNotice, type EngineConfig, type Handoff } from '@foundry/engine';
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { startServer, type ServeOptions } from './index.ts';
@@ -53,8 +53,10 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
   let notice: DataDirNotice | null = null;
   // the folder one boot opens instead of the one chosen (another Foundry has that open)
   let bootDir: string | null = null;
-  // a move swapped in: what to take back when its copy cannot boot
-  let moved: { staged: { provider: AgentProvider; staging: string; target: string }[]; setAside: string[]; port: string | undefined; kept: number | undefined } | null = null;
+  // a move swapped in: what to take back when its copy cannot boot (the profile and the record's port and profile before it)
+  let moved: { staged: { provider: AgentProvider; staging: string; target: string }[]; setAside: string[]; port: string | undefined; kept: number | undefined; profile: AgentProvider | null; keptProfile: AgentProvider | undefined } | null = null;
+  // the launch profile a move started this install on: its goals were made with another coding agent (ADR-0107)
+  let profile: AgentProvider | null = null;
 
   const run = async (): Promise<void> => {
     for (;;) {
@@ -63,7 +65,7 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
       let cfg: EngineConfig | undefined;
       let claimed: string | null = null;
       try {
-        cfg = defaultConfig(opts.root, bootDir ? { ...opts.config, dataDir: bootDir } : opts.config);
+        cfg = defaultConfig(opts.root, { ...opts.config, ...(profile ? { provider: profile } : {}), ...(bootDir ? { dataDir: bootDir } : {}) });
         bootDir = null;
         try {
           // a folder that moved (ADR-0107): its goals run in the copy now, and opening it would run them twice
@@ -116,9 +118,10 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
           swapOut(moved.staged, moved.setAside);
           if (moved.port === undefined) delete process.env.FOUNDRY_PORT;
           else process.env.FOUNDRY_PORT = moved.port;
+          profile = moved.profile;
           if (cfg?.foundryHome) {
             const home = readHomeConfig(cfg.foundryHome, log);
-            writeHomeConfig(cfg.foundryHome, { ...home, port: moved.kept });
+            writeHomeConfig(cfg.foundryHome, { ...home, port: moved.kept, provider: moved.keptProfile });
           }
           for (const st of moved.staged) {
             const handoff = join(st.staging, HANDOFF_FILE);
@@ -155,15 +158,21 @@ export function serveLoop(opts: ServeLoopOptions): ServeLoop {
       if (req.kind === 'exit') return;
       if (req.kind === 'move') {
         const before = process.env.FOUNDRY_PORT;
-        const kept = cfg.foundryHome ? readHomeConfig(cfg.foundryHome, log).port : undefined;
+        const record = cfg.foundryHome ? readHomeConfig(cfg.foundryHome, log) : null;
         try {
           const staged = req.staged;
           const setAside = swapIn(staged, log);
+          moved = { staged, setAside, port: before, kept: record?.port, profile, keptProfile: record?.provider };
           if (req.port) {
             process.env.FOUNDRY_PORT = String(req.port);
             if (cfg.foundryHome) keepPort(cfg.foundryHome, req.port);
           }
-          moved = { staged, setAside, port: before, kept };
+          // goals made with another coding agent open in its launch profile, here and at every start after
+          if (req.profile && req.profile !== cfg.provider) {
+            log(`[move] starting on ${req.profile}'s launch profile: the goals were made with it`);
+            profile = req.profile;
+            if (cfg.foundryHome) keepProvider(cfg.foundryHome, req.profile, log);
+          }
         } catch (err) {
           log(`[move] the moved data could not be put in place: ${message(err)}; staying on this install's own folder`);
           notice = { kind: 'move-failed', error: message(err), at: new Date().toISOString() };

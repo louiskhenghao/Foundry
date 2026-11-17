@@ -439,7 +439,7 @@ export interface MovedFrom {
 }
 export interface MoveStatus {
   kind: 'checkout' | 'app' | 'binary';
-  here: { goals: number; dataDir: string };
+  here: { goals: number; dataDir: string; provider: 'claude' | 'codex' | 'agy' };
   offer: boolean;
   installs: EarlierInstall[];
   notes: string[];

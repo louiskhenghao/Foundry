@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { chmodSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmp } from './test-helpers.ts';
 
@@ -35,4 +35,21 @@ test("the installer asks the compiled foundry what there is to move, and moves o
   expect(offer({ dryCode: 4 })).toEqual(['migrate --offer --dry-run']);
   // 2.36.0's container steps run the installer with --no-start: containers are left to them
   expect(offer({ dryCode: 0, start: 0 })).toEqual(['migrate --offer --dry-run --no-docker', 'migrate --offer --yes --no-adopt --no-docker']);
+});
+
+test("the service the installer writes runs the launch profile a move kept: the goals were made with that coding agent (ADR-0107)", () => {
+  const dir = tmp();
+  try {
+    const lib = readFileSync(join(REPO, 'install.sh'), 'utf8').replace(/\nmain "\$@"\s*$/, '\n');
+    writeFileSync(join(dir, 'lib.sh'), lib);
+    const profile = (agent: string) => Bun.spawnSync(['bash', '-c', `source "${dir}/lib.sh"; AGENT=${agent}; provider`], { env: { HOME: dir, PATH: process.env.PATH ?? '' } }).stdout.toString().trim();
+    expect(profile('claude')).toBe('claude');
+    expect(profile('codex')).toBe('codex');
+    mkdirSync(join(dir, '.foundry'), { recursive: true });
+    writeFileSync(join(dir, '.foundry', 'config.json'), JSON.stringify({ dataDirs: {}, recent: [], port: 4111, provider: 'codex' }, null, 2) + '\n');
+    expect(profile('claude')).toBe('codex');
+    expect(profile('claude,codex')).toBe('codex');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -227,6 +227,47 @@ describe('the first start on a moved copy (ADR-0107)', () => {
 });
 
 describe('the move the page asks for (ADR-0107)', () => {
+  test("goals made with Codex move into a fresh app on Codex's launch profile; over goals of the app's own, nothing stops", async () => {
+    const { Mover } = await import('./mover.ts');
+    const home = tmp();
+    try {
+      // a checkout that ran on Codex's profile, with the empty folder of Claude Code's beside it
+      const checkout = join(home, 'foundry');
+      seedCheckout(checkout, 0);
+      seedFolder(join(checkout, 'data-codex'), 3);
+      writeFileSync(join(checkout, 'data-codex', 'provider'), 'codex');
+      const mine = join(home, 'app', 'data');
+      seedFolder(mine, 0);
+      const theirs = join(home, 'app', 'data-codex');
+      mkdirSync(join(home, '.config', 'foundry'), { recursive: true });
+      writeFileSync(join(home, '.config', 'foundry', 'install.env'), `MODE=source\nDIR=${checkout}\nPORT=4199\n`);
+      const probe = fakeProbe({ home, run: (argv) => (argv[0] === 'docker' ? { code: 127, stdout: '', stderr: '' } : argv[0] === 'ps' || argv[0] === 'lsof' ? { code: 1, stdout: '', stderr: '' } : null) });
+      let goalsHere = 2;
+      const asked: unknown[] = [];
+      const lines: string[] = [];
+      const mover = new Mover({ kind: 'app', dataDir: () => mine, targetFor: (p) => (p === 'codex' ? theirs : mine), provider: () => 'claude', goals: () => goalsHere, port: () => 4112, restart: (r) => void asked.push(r), log: quiet, probe, restartAfterMs: 0 });
+      // the app has goals of its own on Claude Code's profile: refused before the old one stops or anything is copied
+      const refused = mover.start({ id: `source:${checkout}`, onLine: quiet });
+      for (let i = 0; i < 200 && refused.state === 'running'; i++) await Bun.sleep(10);
+      expect(refused.state).toBe('failed');
+      expect(refused.error).toContain("Codex's launch profile");
+      expect(asked).toEqual([]);
+      expect(existsSync(theirs + STAGING_SUFFIX)).toBe(false);
+      expect(existsSync(theirs + '.moving.json')).toBe(false);
+      // a fresh app: the copy is staged where it keeps Codex's data, and it starts again on Codex's profile
+      goalsHere = 0;
+      const job = mover.start({ id: `source:${checkout}`, onLine: (l) => lines.push(l) });
+      for (let i = 0; i < 200 && !asked.length; i++) await Bun.sleep(10);
+      expect(job.state).toBe('restarting');
+      expect(asked[0]).toMatchObject({ kind: 'move', profile: 'codex' });
+      expect((asked[0] as { staged: { provider: string; target: string }[] }).staged).toContainEqual({ provider: 'codex', staging: theirs + STAGING_SUFFIX, target: theirs });
+      expect(countFolder(theirs + STAGING_SUFFIX)?.goals).toBe(3);
+      expect(lines).toContain("Foundry runs Codex's launch profile from now on: the goals were made with it");
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
   test('an app with no goals offers it; the job copies while this engine serves, then asks the serve loop to swap', async () => {
     const { Mover } = await import('./mover.ts');
     const home = tmp();
@@ -240,7 +281,7 @@ describe('the move the page asks for (ADR-0107)', () => {
       const probe = fakeProbe({ home, run: (argv) => (argv[0] === 'docker' ? { code: 127, stdout: '', stderr: '' } : argv[0] === 'ps' || argv[0] === 'lsof' ? { code: 1, stdout: '', stderr: '' } : null) });
       const asked: unknown[] = [];
       const lines: string[] = [];
-      const mover = new Mover({ kind: 'app', dataDir: () => target, targetFor: () => target, goals: () => 0, port: () => 4112, restart: (r) => void asked.push(r), log: quiet, probe, restartAfterMs: 0 });
+      const mover = new Mover({ kind: 'app', dataDir: () => target, targetFor: () => target, provider: () => 'claude', goals: () => 0, port: () => 4112, restart: (r) => void asked.push(r), log: quiet, probe, restartAfterMs: 0 });
       const status = await mover.status();
       expect(status.offer).toBe(true);
       expect(status.installs[0]).toMatchObject({ id: `source:${checkout}`, goals: 2, plan: [{ action: 'replace' }] });
@@ -250,7 +291,7 @@ describe('the move the page asks for (ADR-0107)', () => {
       expect(job.state).toBe('restarting');
       // where it answers next was known before anything stopped: the old one's port, free here
       expect(job.nextUrl).toBe('http://127.0.0.1:4199');
-      expect(asked).toEqual([{ kind: 'move', staged: [{ provider: 'claude', staging: target + STAGING_SUFFIX, target }], port: expect.anything() }]);
+      expect(asked).toEqual([{ kind: 'move', staged: [{ provider: 'claude', staging: target + STAGING_SUFFIX, target }], port: expect.anything(), profile: null }]);
       // the old one is untouched until the copy runs here: no note in its folder yet, and a record that a move is under way
       expect(existsSync(join(checkout, 'data', 'MOVED.md'))).toBe(false);
       expect(existsSync(target + '.moving.json')).toBe(true);
@@ -259,7 +300,7 @@ describe('the move the page asks for (ADR-0107)', () => {
       expect(countFolder(target)?.goals).toBe(0);
       expect(lines.some((l) => l.startsWith('starting again on the moved data'))).toBe(true);
       // a checkout never offers one
-      expect((await new Mover({ kind: 'checkout', dataDir: () => target, targetFor: () => target, goals: () => 0, port: () => 4111, restart: () => {}, log: quiet, probe }).status()).offer).toBe(false);
+      expect((await new Mover({ kind: 'checkout', dataDir: () => target, targetFor: () => target, provider: () => 'claude', goals: () => 0, port: () => 4111, restart: () => {}, log: quiet, probe }).status()).offer).toBe(false);
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
@@ -334,7 +375,7 @@ describe('a move that has not run here yet (ADR-0107)', () => {
       const probe = fakeProbe({ home, run: (argv) => (argv[0] === 'docker' ? { code: 127, stdout: '', stderr: '' } : argv[0] === 'ps' || argv[0] === 'lsof' ? { code: 1, stdout: '', stderr: '' } : null) });
       let goalsHere = 0;
       const asked: unknown[] = [];
-      const mover = new Mover({ kind: 'app', dataDir: () => target, targetFor: () => target, goals: () => goalsHere, port: () => 4112, restart: (r) => void asked.push(r), log: quiet, probe, restartAfterMs: 0 });
+      const mover = new Mover({ kind: 'app', dataDir: () => target, targetFor: () => target, provider: () => 'claude', goals: () => goalsHere, port: () => 4112, restart: (r) => void asked.push(r), log: quiet, probe, restartAfterMs: 0 });
       const job = mover.start({ id: `source:${checkout}`, onLine: () => void (goalsHere = 1) });
       for (let i = 0; i < 200 && job.state === 'running'; i++) await Bun.sleep(10);
       expect(job.state).toBe('failed');

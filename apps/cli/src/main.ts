@@ -2,7 +2,7 @@
 /**
  * foundry CLI — thin client over the local server, plus `serve` and `replay`.
  */
-import { AGENT_PROVIDERS, reportsDollars, withoutProposalBlocks } from '@foundry/core';
+import { AGENT_PROVIDERS, PROVIDER_LABEL, reportsDollars, withoutProposalBlocks } from '@foundry/core';
 import type { AgentProvider } from '@foundry/core';
 import { help } from './help.ts';
 import { homedir } from 'node:os';
@@ -224,7 +224,7 @@ switch (cmd) {
   // an earlier install's goals moved here (ADR-0105, ADR-0107): found rather than named, and handed to this install's
   // running Foundry when there is one, so the swap happens while its engine is stopped
   case 'migrate': {
-    const { adoptInstall, defaultDataDir, findEarlierInstalls, foundryHome, isCheckout, keepPort, openedByOther, planMove, processAlive, readDataLock, readInstallEnv, runMove, sourceInstallAt } = await import('@foundry/engine');
+    const { adoptInstall, countFolder, defaultDataDir, findEarlierInstalls, foundryHome, isCheckout, keepPort, keepProvider, launchProfile, openedByOther, planMove, processAlive, profileAfterMove, readDataLock, readInstallEnv, resolveDataDir, runMove, sourceInstallAt } = await import('@foundry/engine');
     if (INSTALL.kind === 'checkout') return usage("foundry migrate moves an earlier install into the app or a release install: run the compiled foundry's (foundry link puts it on PATH)");
     type Install = Awaited<ReturnType<typeof findEarlierInstalls>>['installs'][number];
     const expand = (p: string) => resolve(p.replace(/^~(?=\/|$)/, homedir()));
@@ -302,9 +302,15 @@ switch (cmd) {
       say(`${offer ? 'Your earlier Foundry' : 'Moving'} ${label}${install.version ? ` (${install.version})` : ''}: ${install.goals} goal${install.goals === 1 ? '' : 's'}${install.running ? ', running now' : ''}`);
       for (const i of items) say(`  ${{ copy: '→', replace: '→', keep: '=', conflict: '✘' }[i.action]} ${pad(i.provider, 7)} ${i.action === 'keep' ? `${i.from}: ${i.why}` : `${i.from}  →  ${i.to}${i.why ? `  (${i.why})` : ''}`}`);
     }
+    // goals made with another coding agent (ADR-0107): this install starts on its launch profile, never over goals of its own
+    const running: AgentProvider = here?.here?.provider ?? launchProfile({ home: foundryHome(), kind: INSTALL.kind });
+    const ownGoals: number = here?.here?.goals ?? countFolder(resolveDataDir({ root: ROOT, provider: running, home: foundryHome() }).path)?.goals ?? 0;
+    const profile = profileAfterMove({ install, items, running, ownGoals, replace: has('--replace') });
+    if (profile.switchTo && !(offer && has('--yes'))) say(`  then Foundry runs ${PROVIDER_LABEL[profile.switchTo]}'s launch profile: the goals were made with it`);
     if (has('--dry-run')) break;
     const conflict = items.find((i) => i.action === 'conflict');
     if (conflict) return usage(`this install already has goals in ${conflict.to}: add --replace to set them aside as a backup, or move nothing`);
+    if (profile.refuse) return usage(`${label}: ${profile.refuse} (--replace)`);
     if (!has('--yes')) {
       const answer = prompt(`Move ${install.goals} goal${install.goals === 1 ? '' : 's'} here? ${install.kind === 'docker' ? 'The container stops' : 'It stops'} and stays as it is, as the backup. [Y/n]`) ?? '';
       if (/^n/i.test(answer.trim())) {
@@ -373,6 +379,11 @@ switch (cmd) {
     const port = Number(opt('--keep-port') ?? 0) || done.port;
     // the address stays: this install serves on the port the old one had
     if (port) keepPort(foundryHome(), port);
+    // and its next start opens the profile the goals were made with
+    if (profile.switchTo) {
+      keepProvider(foundryHome(), profile.switchTo);
+      say(`  Foundry runs ${PROVIDER_LABEL[profile.switchTo]}'s launch profile from now on: the goals were made with it`);
+    }
     // the installer writes its own record and command; a person running this gets them pointed here
     if (!has('--no-adopt')) await adoptInstall({ root: ROOT, kind: INSTALL.kind, execPath: process.execPath, log: (m) => say(`  ${m}`) });
     say(`\n✔ moved ${done.goals} goal${done.goals === 1 ? '' : 's'} from ${label}. ${install.kind === 'docker' ? `The container is stopped and kept, with its volumes, as the backup.` : `It is stopped and kept as the backup; each folder it had has a MOVED.md saying how to go back.`}`);
