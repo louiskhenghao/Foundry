@@ -105,3 +105,8 @@ the project asked for the move to be one a person cannot get wrong: no commands 
   and the move checks for it first.
 - Going back after a repair: the old checkout's worktrees still work, and `git worktree repair` run in the old folder
   points the repositories back at it.
+- A Linux binary's service names its port and launch profile in its environment, as the installer wrote it. A move
+  the installer offers happens before that, so the service names the moved ones. A move from the page later is right
+  for the running process, but a restart of the service by its manager comes back on the names it holds, until
+  `foundry restart` writes the service again: that picks up the kept launch profile, not the kept port. Reading both
+  from `~/.foundry/config.json` instead of the service's environment is left for a change of its own.
