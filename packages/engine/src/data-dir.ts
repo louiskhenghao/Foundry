@@ -390,7 +390,12 @@ export async function prepareDataDir(from: string, to: string, mode: DataDirMode
 
 // ---------- the gate a serve loop waits at ----------
 
-export type RestartRequest = { kind: 'restart'; why: string } | { kind: 'data-dir'; to: string; mode: DataDirMode } | { kind: 'exit' };
+export type RestartRequest =
+  | { kind: 'restart'; why: string }
+  | { kind: 'data-dir'; to: string; mode: DataDirMode }
+  /** a move's copies, staged beside this install's folders, swapped in while the engine is stopped (ADR-0107); `port`: the old one's, taken over */
+  | { kind: 'move'; staged: { staging: string; target: string }[]; port: number | null }
+  | { kind: 'exit' };
 
 /** what the serve loop leaves for the engine that comes after a switch, for the Settings page to show */
 export type DataDirNotice =
@@ -399,7 +404,11 @@ export type DataDirNotice =
   /** the copy or the choice could not be made: still on the folder before */
   | { kind: 'switch-failed'; to: string; error: string; at: string }
   /** the folder chosen in Settings is not there (a disk not mounted?): the default is open instead */
-  | { kind: 'missing'; chosen: string; at: string };
+  | { kind: 'missing'; chosen: string; at: string }
+  /** another Foundry has the folder chosen in Settings open: the default is open until that one stops (ADR-0107) */
+  | { kind: 'in-use'; chosen: string; holder: string; at: string }
+  /** a move's copy could not be opened: this install is back on its own folder, the copy kept beside it */
+  | { kind: 'move-failed'; error: string; at: string };
 
 /** A restart request waits here for the serve loop (ADR-0082); without a loop attached it has no taker. */
 export class RestartGate {

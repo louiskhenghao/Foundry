@@ -118,8 +118,8 @@ export interface StoppedService {
   kind: 'launchd' | 'systemd' | 'process' | 'none';
   /** start it again: the copy failed and the old Foundry comes back as it was */
   restore(): Promise<void>;
-  /** the copy is made: the service never starts again (the new install's own replaces it) */
-  forget(): Promise<void>;
+  /** the copy is made: the service never starts again, its file kept for the way back (ADR-0107) */
+  retire(): Promise<void>;
 }
 
 /**
@@ -138,7 +138,7 @@ export async function stopSourceService(opts: { checkout: string; home: string; 
       return false;
     }
   };
-  const none: StoppedService = { kind: 'none', restore: async () => {}, forget: async () => {} };
+  const none: StoppedService = { kind: 'none', restore: async () => {}, retire: async () => {} };
   const domain = `gui/${opts.uid ?? process.getuid?.() ?? 501}`;
   const plist = join(opts.home, 'Library', 'LaunchAgents', `${SOURCE_SERVICE_LABEL}.plist`);
   if ((opts.platform ?? process.platform) === 'darwin' && ours(plist)) {
@@ -147,7 +147,7 @@ export async function stopSourceService(opts: { checkout: string; home: string; 
     return {
       kind: 'launchd',
       restore: async () => void (await run(['launchctl', 'bootstrap', domain, plist])),
-      forget: async () => rmSync(plist, { force: true }),
+      retire: async () => void (await run(['launchctl', 'disable', `${domain}/${SOURCE_SERVICE_LABEL}`])),
     };
   }
   const unit = join(env.XDG_CONFIG_HOME || join(opts.home, '.config'), 'systemd', 'user', 'foundry.service');
@@ -157,11 +157,7 @@ export async function stopSourceService(opts: { checkout: string; home: string; 
     return {
       kind: 'systemd',
       restore: async () => void (await run(['systemctl', '--user', 'start', 'foundry.service'])),
-      forget: async () => {
-        await run(['systemctl', '--user', 'disable', 'foundry.service']);
-        rmSync(unit, { force: true });
-        await run(['systemctl', '--user', 'daemon-reload']);
-      },
+      retire: async () => void (await run(['systemctl', '--user', 'disable', 'foundry.service'])),
     };
   }
   const pidFile = join(env.XDG_DATA_HOME || join(opts.home, '.local', 'share'), 'foundry', 'foundry.pid');
@@ -175,7 +171,7 @@ export async function stopSourceService(opts: { checkout: string; home: string; 
       } catch {}
       rmSync(pidFile, { force: true });
       // a background process was started by hand or by the installer's foundry start: it is started the same way again
-      return { kind: 'process', restore: async () => opts.log(`start the checkout again with: foundry start`), forget: async () => {} };
+      return { kind: 'process', restore: async () => opts.log(`start the checkout again with: foundry start`), retire: async () => {} };
     }
   }
   return none;

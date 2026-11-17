@@ -167,6 +167,54 @@ export function resolveSettings(file: SettingsPatch, env: NodeJS.ProcessEnv = pr
   return { values: Settings.parse(values), meta };
 }
 
+/**
+ * What an environment sets, leaf by leaf, by the names `ENV` knows (FOUNDRY_*, CODEX_HOME…): what an earlier install read
+ * from its `.env` or its service, which a move carries into the copied folder's settings file (ADR-0107).
+ */
+export function settingsFromEnv(env: Record<string, string | undefined>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const path of SETTING_PATHS) {
+    const e = ENV[path];
+    const raw = e ? (env[e.name] ?? (e.alt ? env[e.alt] : undefined)) : undefined;
+    if (e && raw !== undefined && raw !== '') out[path] = e.parse(raw);
+  }
+  return out;
+}
+
+/**
+ * Write leaves into a data folder's settings file where the file holds none (file > env, so the install keeps what it
+ * ran with), each one validated alone; a value equal to the default is not written. The paths written.
+ */
+export function carrySettings(dataDir: string, leaves: Record<string, unknown>, log?: (m: string) => void): string[] {
+  const file = join(dataDir, SETTINGS_FILE);
+  let patch: any = {};
+  if (existsSync(file)) {
+    const parsed = SettingsPatch.safeParse(JSON.parse(readFileSync(file, 'utf8')));
+    if (!parsed.success) throw new Error(`${file} is not a settings file Foundry can read`);
+    patch = parsed.data;
+  }
+  const written: string[] = [];
+  for (const [path, value] of Object.entries(leaves)) {
+    if (!SETTING_PATHS.includes(path) || has(patch, path)) continue;
+    if (JSON.stringify(get(DEFAULT_SETTINGS, path)) === JSON.stringify(value)) continue;
+    const trial = structuredClone(DEFAULT_SETTINGS) as any;
+    set(trial, path, value);
+    const ok = Settings.safeParse(trial);
+    if (!ok.success) {
+      log?.(`[move] not carried: ${path} (${ok.error.issues.map((i) => i.message).join('; ')})`);
+      continue;
+    }
+    set(patch, path, get(ok.data, path));
+    written.push(path);
+  }
+  if (written.length) {
+    mkdirSync(dataDir, { recursive: true });
+    writeFileSync(file, JSON.stringify(patch, null, 2) + '\n', { mode: 0o600 });
+    chmodSync(file, 0o600);
+  }
+  return written;
+}
+
 export class SettingsStore {
   readonly path: string;
   private file: SettingsPatch = {};

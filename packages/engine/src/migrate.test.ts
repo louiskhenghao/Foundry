@@ -77,8 +77,10 @@ describe('moving a source install to the app or the binary (ADR-0105)', () => {
       expect(existsSync(plist)).toBe(true);
       await stopped.restore();
       expect(ran[1]).toEqual(['launchctl', 'bootstrap', 'gui/501', plist]);
-      await stopped.forget();
-      expect(existsSync(plist)).toBe(false);
+      // retired, not deleted: disabled so it never loads again, its file kept for the way back (ADR-0107)
+      await stopped.retire();
+      expect(ran[2]).toEqual(['launchctl', 'disable', `gui/501/${SOURCE_SERVICE_LABEL}`]);
+      expect(existsSync(plist)).toBe(true);
       // systemd on Linux
       const unitDir = join(home, '.config', 'systemd', 'user');
       mkdirSync(unitDir, { recursive: true });
@@ -87,9 +89,9 @@ describe('moving a source install to the app or the binary (ADR-0105)', () => {
       const unit = await stopSourceService({ checkout, home, env: {}, run, log: () => {}, platform: 'linux' });
       expect(unit.kind).toBe('systemd');
       expect(ran[0]).toEqual(['systemctl', '--user', 'stop', 'foundry.service']);
-      await unit.forget();
-      expect(ran.slice(1)).toEqual([['systemctl', '--user', 'disable', 'foundry.service'], ['systemctl', '--user', 'daemon-reload']]);
-      expect(existsSync(join(unitDir, 'foundry.service'))).toBe(false);
+      await unit.retire();
+      expect(ran.slice(1)).toEqual([['systemctl', '--user', 'disable', 'foundry.service']]);
+      expect(existsSync(join(unitDir, 'foundry.service'))).toBe(true);
     } finally {
       rmSync(home, { recursive: true, force: true });
     }
