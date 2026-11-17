@@ -276,6 +276,14 @@ switch (cmd) {
         say('Choose one: Bring your goals over in Foundry, or foundry migrate --from <one of them>.');
         process.exit(offer ? 4 : 2);
       }
+      // a dry run says what each one would do, and chooses nothing
+      if (candidates.length > 1 && has('--dry-run')) {
+        for (const i of candidates) {
+          say(`${i.kind === 'docker' ? `The Docker container ${i.where}` : i.where}${i.version ? ` (${i.version})` : ''}: ${i.goals} goals${i.running ? ', running now' : ''}`);
+          for (const it of planMove(i, { targetFor, replace: has('--replace') })) say(`  ${{ copy: '→', replace: '→', keep: '=', conflict: '✘' }[it.action]} ${pad(it.provider, 7)} ${it.from}  →  ${it.to}${it.why ? `  (${it.why})` : ''}`);
+        }
+        break;
+      }
       if (candidates.length > 1) {
         say('Foundry found more than one earlier install with goals:');
         candidates.forEach((i, n) => say(`  ${n + 1}. ${i.kind === 'docker' ? `the Docker container ${i.where}` : i.where}: ${i.goals} goals${i.last ? `, last active ${i.last.slice(0, 10)}` : ''}${i.running ? ', running' : ''}`));

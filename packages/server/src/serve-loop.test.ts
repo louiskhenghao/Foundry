@@ -166,3 +166,35 @@ test('a move swaps the staged copy in while the engine is stopped, and a copy th
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("a release install whose chosen folder another Foundry holds starts on its own folder, with a notice (ADR-0107)", async () => {
+  const { claimDataDir } = await import('@foundry/engine');
+  const dir = mkdtempSync(join(tmpdir(), 'foundry-serve-in-use-'));
+  const home = join(dir, 'home');
+  const chosen = join(dir, 'chosen');
+  const own = join(dir, 'own');
+  mkdirSync(chosen);
+  writeHomeConfig(home, { dataDirs: { claude: chosen }, recent: [] });
+  // another live Foundry holds the chosen folder
+  const other = Bun.spawn(['sleep', '30']);
+  claimDataDir(chosen, { pid: other.pid, port: 4999 });
+  const loop = serveLoop({
+    root: ROOT,
+    config: { foundryHome: home, provider: 'claude', claudeHome: join(dir, 'claude'), codexHome: join(dir, 'codex'), host: '127.0.0.1', port: 0, log: () => {} },
+    makeEngine: (cfg) => new Engine(cfg, new FakeRunner(() => {})),
+    fallbackDataDir: () => own,
+    log: () => {},
+    graceMs: 50,
+  });
+  try {
+    const cur = await until(() => loop.current());
+    expect(cur.engine.config.dataDir).toBe(own);
+    expect(cur.engine.dataDirNotice).toMatchObject({ kind: 'in-use', chosen, holder: `pid ${other.pid}` });
+    // the choice is kept: once that Foundry stops, a restart opens the chosen folder
+    expect(readHomeConfig(home).dataDirs.claude).toBe(chosen);
+  } finally {
+    other.kill();
+    await loop.shutdown();
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
