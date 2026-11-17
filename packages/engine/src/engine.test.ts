@@ -20,9 +20,14 @@ class FakeRunner implements ClaudeRunner {
   /** optional changes to one call's result (an error it ends with) */
   patch: ((spec: RunSpec) => Partial<RunResult> | null) | null = null;
   private totals = new Map<string, number>();
+  /** the session limit the engine last set (auto concurrency, ADR-0103) */
+  maxConcurrent: number | null = null;
   constructor(private behave: (spec: RunSpec, n: number) => void | Promise<void>) {}
   active() {
     return 0;
+  }
+  setMaxConcurrent(n: number) {
+    this.maxConcurrent = n;
   }
   async run(spec: RunSpec): Promise<RunHandle> {
     this.calls.push(spec);
@@ -1006,6 +1011,76 @@ describe('lean sessions (ADR-0102)', () => {
     expect(work.mcpConfig).toBeUndefined();
     expect(work.settings).not.toHaveProperty('disableClaudeAiConnectors');
     expect(work.settings).not.toHaveProperty('skillOverrides');
+  });
+});
+
+describe('auto concurrency (ADR-0103)', () => {
+  /** a finished session whose rate-limit event said how much of the 5-hour window its account had used */
+  const windowAt = (engine: Engine, utilization: number) =>
+    engine.recordSessionUsage(
+      { sessionId: null, subtype: 'success', isError: false, costUsd: 0, numTurns: 1, durationMs: 1, usage: null, modelUsage: null, permissionDenials: [], finalText: null, structuredOutput: null, exitCode: 0, pid: null, errorMessage: null, skillsUsed: [], toolsUsed: {}, rateLimit: { status: 'allowed', resetsAt: null, rateLimitType: 'seven_day', isUsingOverage: false, raw: { unifiedWindows: { five_hour: { utilization, resetsAt: Math.floor(Date.now() / 1000) + 3600, status: 'allowed' } } } } },
+      { goalId: null, kind: 'probe', provider: 'claude' },
+    );
+
+  test('Auto runs as many sessions as the machine carries, half while it is busy; Fixed goes back to the number', () => {
+    let load1 = 1;
+    const runner = new FakeRunner(() => {});
+    const engine = track(new Engine(cfg({ machine: () => ({ cpus: 10, memGB: 16, load1 }) }), runner));
+    expect(engine.concurrencyView()).toEqual({ mode: 'fixed', limit: 3, held: [] });
+    engine.updateSettings({ engine: { concurrency: 'auto' } });
+    expect(runner.maxConcurrent).toBe(5);
+    expect(engine.concurrencyView()).toEqual({ mode: 'auto', limit: 5, auto: { cap: 5, busy: false, cpus: 10, memGB: 16, load1: 1 }, held: [] });
+    load1 = 12;
+    engine.applyConcurrency();
+    expect(runner.maxConcurrent).toBe(2);
+    expect(engine.settingsView().concurrency).toMatchObject({ limit: 2, auto: { busy: true, load1: 12 } });
+    engine.updateSettings({ engine: { concurrency: 'fixed' } });
+    expect(runner.maxConcurrent).toBe(3);
+    expect(engine.concurrencyView()).toEqual({ mode: 'fixed', limit: 3, held: [] });
+  });
+
+  test("a coding agent at 90% of its 5-hour window is held at one task at a time under Auto only, and not when auto switch has another account", () => {
+    const fixed = track(new Engine(cfg(), new FakeRunner(() => {})));
+    windowAt(fixed, 0.95);
+    expect(fixed.windowHold('claude')).toBeNull();
+    const auto = track(new Engine(cfg({ concurrency: 'auto', machine: () => ({ cpus: 10, memGB: 16, load1: 0 }), autoSwitch: { claude: true, codex: false } }), new FakeRunner(() => {})));
+    windowAt(auto, 0.5);
+    expect(auto.windowHold('claude')).toBeNull();
+    windowAt(auto, 0.95);
+    expect(auto.windowHold('claude')).toMatchObject({ utilization: 0.95 });
+    expect(auto.concurrencyView().held).toMatchObject([{ provider: 'claude', utilization: 0.95 }]);
+    expect(auto.windowHold('codex')).toBeNull();
+    // another account with room: auto switch moves new sessions there instead
+    const home = join(dataDir, 'accounts', 'claude', 'acc_b');
+    mkdirSync(home, { recursive: true });
+    auto.store.append({ type: 'account.added', goalId: null, payload: { account: { provider: 'claude', id: 'acc_b', home, email: 'b@example.com', orgName: null, plan: 'max', addedAt: new Date().toISOString() } } });
+    expect(auto.windowHold('claude')).toBeNull();
+  });
+
+  test('held, two parallel tasks run one after the other, and the goal is told why; not held, they run together', async () => {
+    const t = (key: string) => ({ key, title: `step ${key}`, spec: `do ${key}`, kind: 'feature' as const, scope: null, scenario: 'general' as const, areaKey: null, tdd: 'off' as const, dependsOnKeys: [], parallelizable: true, relevantFiles: [`${key}.txt`], milestone: null });
+    const brief = { title: 'feat(demo): two steps', understanding: 'u', areas: [], assumptions: [], questions: [], styleOptions: [], checks: [], costEstimateUsd: 0, timeEstimateMin: 0, tasks: [t('T1'), t('T2')] };
+    const most: number[] = [];
+    for (const utilization of [0.95, 0.5]) {
+      let active = 0;
+      let peak = 0;
+      const runner = new FakeRunner(async (spec) => {
+        if (!spec.label?.startsWith('attempt')) return;
+        peak = Math.max(peak, ++active);
+        await Bun.sleep(300);
+        writeFileSync(join(spec.cwd, `${spec.label.includes('T1') ? 'T1' : 'T2'}.txt`), 'ok');
+        active--;
+      });
+      const engine = track(new Engine(cfg({ concurrency: 'auto', machine: () => ({ cpus: 10, memGB: 16, load1: 0 }) }), runner));
+      windowAt(engine, utilization);
+      const goal = await engine.createGoal({ prompt: 'two steps', repoPath: repo, brief, workflow: { pace: 'fast' } });
+      await waitFor(() => terminal(getGoal(engine.store.db, goal.id)!.state), 30_000);
+      expect(getGoal(engine.store.db, goal.id)!.state).toBe('done');
+      most.push(peak);
+      const told = engine.store.listByGoal(goal.id).filter((e) => e.type === 'engine.note' && (e.payload as { message: string }).message.startsWith('Tasks start one at a time'));
+      expect(told).toHaveLength(utilization >= 0.9 ? 1 : 0);
+    }
+    expect(most).toEqual([1, 2]);
   });
 });
 

@@ -34,7 +34,8 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
-| `engine.maxConcurrent` | `3` | `FOUNDRY_MAX_CONCURRENT` | Total concurrent agent sessions across Claude and Codex goals. A session a person is waiting for (Clarify and its planner, a Revise, a Draft) may run as one more beyond it, so at most this number plus one run at once. |
+| `engine.maxConcurrent` | `3` | `FOUNDRY_MAX_CONCURRENT` | Total concurrent agent sessions across Claude and Codex goals while Concurrency is Fixed. A session a person is waiting for (Clarify and its planner, a Revise, a Draft) may run as one more beyond it, so at most this number plus one run at once. |
+| `engine.concurrency` | `fixed` | `FOUNDRY_CONCURRENCY` | Fixed: at most engine.maxConcurrent sessions at once. Auto (ADR-0103): worked out from this machine and read again every 30 seconds — half its cores and one session per 2 GB of memory beyond 4, at least 1 and at most 16, halved while the load average is above the core count; and a coding agent whose current account reported its 5-hour window 90% used runs one task at a time until the window resets (unless auto switch has another account with room). Sessions already running are never stopped. |
 | `models.codexModel` | `codex-default` | `FOUNDRY_CODEX_MODEL` | Base model substituted for codex-default in new Codex goal presets. codex-default leaves model choice to the native CLI; an explicit model ID pins it. |
 | `models.codexPresets` | — | — | Independent Codex presets: model and reasoning effort per role and goal type, including housekeeping. Saved changes affect new Codex goals only. |
 | `models.codexPresetCode` | `production` | — | Codex preset for code and unclassified goals; its complete tables are captured when a goal is created. |

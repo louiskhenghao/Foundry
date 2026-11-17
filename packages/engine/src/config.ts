@@ -3,6 +3,7 @@ import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type CodexModelPre
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { foundryHome, resolveDataDir, type DataDirSource } from './data-dir.ts';
+import type { Machine } from './concurrency.ts';
 
 export interface EngineConfig {
   provider: AgentProvider;
@@ -45,6 +46,10 @@ export interface EngineConfig {
   autoSwitch: { claude: boolean; codex: boolean };
   /** Global cap on concurrent claude processes. */
   maxConcurrent: number;
+  /** `fixed`: at most maxConcurrent at once; `auto`: what this machine carries, read again every half minute (ADR-0103) */
+  concurrency: 'fixed' | 'auto';
+  /** how auto concurrency reads the machine (tests give their own) */
+  machine?: () => Machine;
   /** `--setting-sources`; undefined = inherit everything (user skills included). */
   settingSources?: string[];
   /** MCP tool prefixes worker sessions may use (Settings → workflow.mcpAllowed, ADR-0016) */
@@ -221,6 +226,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     port: Number(process.env.FOUNDRY_PORT ?? 4111),
     host: process.env.FOUNDRY_HOST ?? '127.0.0.1',
     maxConcurrent: Number(process.env.FOUNDRY_MAX_CONCURRENT ?? 3),
+    concurrency: process.env.FOUNDRY_CONCURRENCY === 'auto' ? 'auto' : 'fixed',
     autoSwitch: { claude: false, codex: false },
     mcpAllowed: [...DEFAULT_MCP_ALLOWED],
     codexMcpAllowed: [],

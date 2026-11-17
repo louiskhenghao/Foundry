@@ -186,12 +186,13 @@ On by default. When a task is allowed two or more attempts, its last attempt, an
 | **Attempt timeout (minutes)** | 45 | A session running longer is stopped. What it committed stays; Foundry resumes or retries. The worker is told the cap. A session silent for five minutes while no tool call is under way is stopped sooner. |
 | **Continuations per attempt** | 2 | How often a stopped session is resumed (cheaper, it keeps what it read) before a fresh attempt starts. |
 | **Turn cap per session** | 150 | Model turns for Claude; tool calls for Codex; three tool calls per turn for Antigravity, which calls a tool for every file it reads. Keep it generous. |
-| **Concurrent agent sessions** | 3 | Total simultaneous sessions across both providers and all goals. |
+| **Concurrency** | Fixed | **Fixed** runs at most **Concurrent agent sessions** at once. **Auto** works the number out from this computer and checks it again every 30 seconds: half its cores and one session for every 2 GB of memory beyond 4, at most 16, halved while the computer is busier than its cores can carry. Under **Auto**, a coding agent whose account has used 90% of its 5-hour window runs one task at a time until the window resets, so the limit cuts one session rather than several; with **Switch accounts when a usage limit stops a session** on and another account free, it goes on as before. The line under the setting says how many run now and why. |
+| **Concurrent agent sessions** | 3 | Total simultaneous sessions across both providers and all goals, while **Concurrency** is **Fixed**. Each goal also has its own **Parallel sessions**. |
 | **Reference investigation: cost cap** | $3 | The session that studies a goal's reference with REA before Clarify stops at this cost and writes up what it found so far. |
 | **Reference investigation: minutes** | 20 | Its time cap. |
 | **Account switch on a usage limit** | off | Whether a usage limit moves new sessions to the coding agent's next account. Shown here, switched on the Accounts page: see [Several accounts](./costs-and-usage.md#several-accounts). |
 
-When to change: raise the timeout or Claude cost cap if big tasks keep getting cut off; lower **Concurrent agent sessions** if you hit your plan's usage limit often.
+When to change: raise the timeout or Claude cost cap if big tasks keep getting cut off; lower **Concurrent agent sessions** if you hit your plan's usage limit often, or set **Concurrency** to **Auto** to let the computer and the 5-hour window decide.
 
 ## Skills
 

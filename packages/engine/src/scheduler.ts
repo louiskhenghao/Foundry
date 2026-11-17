@@ -163,6 +163,14 @@ export async function schedule(engine: Engine, goal: Goal): Promise<void> {
   const inFlight = engine.inFlightForGoal(goal.id);
   let capacity = Math.max(0, goal.budgets.maxConcurrent - inFlight.length);
   const ready = tasks.filter((t) => t.state === 'ready' && !engine.isInFlight(t.id) && !isDelegationTask(t));
+  // near the end of its 5-hour window a coding agent runs one task at a time, so its limit cuts one session rather than
+  // several (Concurrency: Auto, ADR-0103); the goal is told once
+  const held = engine.windowHold(goal.provider ?? engine.config.provider);
+  if (held) {
+    const room = Math.max(0, 1 - engine.inFlightOf(goal.provider ?? engine.config.provider));
+    if (room < capacity && ready.length > room) engine.noteWindowHold(goal, held);
+    capacity = Math.min(capacity, room);
+  }
   // while a Delegated goal is under way its landing needs the goal workspace: every task gets a worktree of its own meanwhile
   const goalWsBusy = tasks.some((t) => engine.isInFlight(t.id) && !t.worktreePath) || !!delegating(tasks);
   const started: Task[] = [];

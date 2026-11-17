@@ -23,6 +23,7 @@ const SECTION_OF_PATH: Record<string, string> = {
   'workflow.investigationMaxCostUsd': 'models',
   'workflow.investigationMaxMinutes': 'models',
   'engine.maxConcurrent': 'models',
+  'engine.concurrency': 'models',
   'delivery.defaultMode': 'goals',
   'delivery.defaultUnit': 'goals',
   'delivery.defaultRemote': 'goals',
