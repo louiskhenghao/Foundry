@@ -1659,25 +1659,37 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     return c.json({ ...result, op });
   });
 
-  // ---------- Memory (ADR-0072): a Hindsight server the person runs, set up from the Hindsight card of the MCP tab ----------
+  // ---------- Memory (ADR-0072): a Hindsight server the person runs, or one Foundry runs (ADR-0109), set up from the Hindsight card of the MCP tab ----------
   app.get('/api/memory', async (c) => c.json(await engine.memory.status()));
   // try an address before saving it; an empty token means the saved one
   app.post('/api/memory/test', async (c) => {
     const { url, token } = z.object({ url: z.string().url().max(500), token: z.string().max(4000).nullable().optional() }).parse(await c.req.json());
     return c.json(await engine.memory.probe({ url, token: token ? token : token === null ? null : engine.settings.values().memory.token }));
   });
-  // save the card: url null = Memory off; token absent or empty = keep the saved one, null = forget it
+  // save the card: run = Foundry runs the server (true again: try again after a failure); url null = no server of the
+  // person's; token absent or empty = keep the saved one, null = forget it
   app.put('/api/memory', async (c) => {
-    const body = z.object({ url: z.string().url().max(500).nullable(), token: z.string().max(4000).nullable().optional(), retainTranscripts: z.boolean().optional(), reflectSec: z.number().int().min(5).max(300).optional(), seedCommits: z.number().int().min(0).max(5000).optional() }).parse(await c.req.json());
+    const body = z.object({ run: z.boolean().optional(), url: z.string().url().max(500).nullable().optional(), token: z.string().max(4000).nullable().optional(), retainTranscripts: z.boolean().optional(), reflectSec: z.number().int().min(5).max(300).optional(), seedCommits: z.number().int().min(0).max(5000).optional() }).parse(await c.req.json());
     engine.updateSettings({
       memory: {
-        url: body.url,
+        ...(body.run !== undefined ? { run: body.run } : {}),
+        ...(body.url !== undefined ? { url: body.url } : {}),
         ...(body.token === null ? { token: null } : body.token ? { token: body.token } : {}),
         ...(body.retainTranscripts !== undefined ? { retainTranscripts: body.retainTranscripts } : {}),
         ...(body.reflectSec !== undefined ? { reflectSec: body.reflectSec } : {}),
         ...(body.seedCommits !== undefined ? { seedCommits: body.seedCommits } : {}),
       },
     });
+    if (body.run) engine.memory.server.retry();
+    return c.json(await engine.memory.status());
+  });
+  // the server Foundry runs signs in to Codex for itself, by device code (only where Claude Code is not signed in)
+  app.post('/api/memory/server/sign-in', async (c) => {
+    engine.memory.server.startSignIn();
+    return c.json(await engine.memory.status());
+  });
+  app.delete('/api/memory/server/sign-in', async (c) => {
+    engine.memory.server.cancelSignIn();
     return c.json(await engine.memory.status());
   });
   // the hindsight MCP server in a coding agent's own configuration, at user scope (ADR-0016), then allowed in goals
