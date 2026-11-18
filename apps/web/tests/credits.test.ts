@@ -6,6 +6,7 @@ import { CREDITS_JSON, NOTICES_TXT, ROOT, catalogProjects, collectCredits, produ
 import { SETUP_NOT_CREDITED, TOOLS } from '../../../scripts/credits/tools.ts';
 import { TOOL_IDS } from '../../../packages/engine/src/tools/installers.ts';
 import { OPTIONAL_TOOLS } from '../../../packages/engine/src/tools/setup.ts';
+import { HINDSIGHT_VERSION } from '../../../packages/engine/src/memory/server.ts';
 import { FEATURED, resolveFeatured } from '../src/pages/credits/featured.ts';
 import type { Credits } from '../src/pages/credits/types.ts';
 
@@ -31,6 +32,8 @@ describe('Open source credits', () => {
     expect([...credited, ...Object.keys(SETUP_NOT_CREDITED)].filter((id) => !setup.includes(id))).toEqual([]);
     // the release itself ships the runtime compiled into foundry, and nothing of the image any more
     expect(TOOLS.filter((t) => t.ships === 'release').map((t) => t.id)).toEqual(['bun']);
+    // Memory's own server (ADR-0109): credited at the version Foundry installs
+    expect(TOOLS.filter((t) => t.ships === 'memory').map((t) => [t.id, t.version])).toEqual([['hindsight', HINDSIGHT_VERSION]]);
   });
 
   test('every project the Extensions catalog draws on is credited or excluded in scripts/credits/catalog.ts, and nothing named there is gone', () => {

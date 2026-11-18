@@ -1304,6 +1304,8 @@ export class Engine {
     this.concurrencyTimer.unref?.();
     this.telegram.start();
     this.discord.start();
+    // the Hindsight server Foundry runs for Memory, when the setting asks for it (ADR-0109): installed and started in the background
+    this.memory.startServer();
     for (const g of listGoals(this.store.db)) this.tick(g.id);
   }
 
@@ -1484,8 +1486,10 @@ export class Engine {
     await settle([...this.landingDelegations.values(), ...this.approvingDelegated.values()], 10_000);
     // a learning session writes the folder's notebook when it ends (its session was killed above)
     await settle(learningWork(), 5_000);
-    // what Memory is still writing (a goal's record, a transcript) finishes, bounded (ADR-0072)
+    // what Memory is still writing (a goal's record, a transcript) finishes, bounded (ADR-0072); then the server Foundry runs
+    // for it stops, its database with it (ADR-0109; bounded too: one that will not stop is killed)
     await settle(this.memory.pendingWork(), 5_000);
+    await this.memory.stopServer().catch((err) => this.config.log(`[memory] the Hindsight server did not stop cleanly: ${String((err as Error)?.message ?? err)}`));
     // a deploy records how it ended (its commands were killed with the rest)
     await settle([...deployWork(), ...recipeWork(), ...revertWork()], 5_000);
     // last of all, the database closes: a data directory deleted after stop() then holds a closed file (on macOS, a

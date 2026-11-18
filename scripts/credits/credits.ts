@@ -204,5 +204,7 @@ export function renderNotices(c: Credits): string {
     ...c.packages.map((p) => entry(`${p.name} ${p.version} — ${p.license}`, p.url, undefined, p.text, p.notice)),
     `${heavy}\nTOOLS FOUNDRY SETUP INSTALLS (each from its own project's release)\n${heavy}`,
     ...c.tools.filter((t) => t.ships === 'setup').map((t) => entry(`${t.name}${t.version ? ` ${t.version}` : ''} — ${t.license}`, t.url, t.note, t.text, t.notice)),
+    `${heavy}\nINSTALLED WHEN MEMORY RUNS ITS OWN SERVER\n${heavy}`,
+    ...c.tools.filter((t) => t.ships === 'memory').map((t) => entry(`${t.name}${t.version ? ` ${t.version}` : ''} — ${t.license}`, t.url, t.note, t.text, t.notice)),
   ].join('\n\n');
 }
