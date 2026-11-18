@@ -8,6 +8,7 @@ import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import { GitHubSignInDialog } from '../components/GitHubSignInDialog.tsx';
 import { SignInDialog } from '../components/SignInDialog.tsx';
 import { LiveLog } from './LiveLog.tsx';
+import { MoveCard } from '../components/MoveCard.tsx';
 import { IconTitle } from './settings/sections.tsx';
 import { BOARD_ROW, Board, Button, CODES, Card, CopyButton, Empty, Loading, PageHeader, cn } from '../ui.tsx';
 
@@ -75,6 +76,8 @@ export function SetupPage() {
   if (!provider) return <Loading size="page" label="Loading setup…" />;
   return <div className="max-w-6xl mx-auto px-3 sm:px-4 md:px-6 pt-6 md:pt-9 pb-16 space-y-4">
     <PageHeader title="Setup" summary="Check the selected backend, sign in and install its recommended skills. Your project code is not changed." />
+    {/* a fresh app is sent here first when something is missing: the move of an earlier Foundry is offered here too (ADR-0107) */}
+    <MoveCard variant="offer" />
     <ProviderSelector value={provider} onChange={(id) => setParams((current) => { const next = new URLSearchParams(current); next.set('provider', id); return next; }, { replace: true })} />
     <SetupChecks key={provider} provider={provider} />
   </div>;

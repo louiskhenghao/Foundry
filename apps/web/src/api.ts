@@ -387,7 +387,66 @@ export interface DataDirTest {
   canClone: boolean;
   modes: DataDirMode[];
 }
-export type DataDirNotice = { kind: 'fell-back'; from: string; to: string; error: string; at: string } | { kind: 'switch-failed'; to: string; error: string; at: string } | { kind: 'missing'; chosen: string; at: string };
+export type DataDirNotice =
+  | { kind: 'fell-back'; from: string; to: string; error: string; at: string }
+  | { kind: 'switch-failed'; to: string; error: string; at: string }
+  | { kind: 'missing'; chosen: string; at: string }
+  | { kind: 'in-use'; chosen: string; holder: string; at: string }
+  | { kind: 'move-failed'; error: string; at: string };
+
+/** the move (ADR-0107): an earlier install found on this computer, what a move would do with it, and the move under way */
+export interface FolderCounts {
+  goals: number;
+  events: number;
+  last: string | null;
+}
+export interface MoveItem {
+  provider: AgentProvider;
+  from: string;
+  to: string;
+  action: 'copy' | 'replace' | 'keep' | 'conflict';
+  why: string;
+  counts: FolderCounts | null;
+}
+export interface EarlierInstall {
+  id: string;
+  kind: 'source' | 'docker';
+  where: string;
+  version: string | null;
+  recorded: boolean;
+  running: { pid: number | null; how: 'launchd' | 'systemd' | 'process' | 'container' } | null;
+  port: number | null;
+  url: string | null;
+  goals: number;
+  last: string | null;
+  plan: MoveItem[];
+}
+export interface MoveJob {
+  id: string;
+  where: string;
+  state: 'running' | 'restarting' | 'failed';
+  lines: string[];
+  error: string | null;
+  nextUrl: string | null;
+  startedAt: string;
+}
+export interface MovedFrom {
+  from: { kind: 'source' | 'docker'; where: string; version: string | null; folder: string };
+  goals: number;
+  finishedAt: string;
+  repaired: number;
+  unrepaired: string[];
+}
+export interface MoveStatus {
+  kind: 'checkout' | 'app' | 'binary';
+  here: { goals: number; dataDir: string; provider: 'claude' | 'codex' | 'agy' };
+  offer: boolean;
+  installs: EarlierInstall[];
+  notes: string[];
+  job: MoveJob | null;
+  last: MovedFrom | null;
+  failed: { error: string; at: string } | null;
+}
 export interface DataDirStatus {
   current: string;
   source: 'env' | 'config' | 'default' | 'override';
@@ -1002,6 +1061,9 @@ export function apiForProvider(provider?: AgentProvider) {
   health: () => req<{ ok: boolean; active: number; events: number; pausedUntil: string | null; pausedUntilByProvider: Record<AgentProvider, string | null>; switchToByProvider?: Partial<Record<AgentProvider, string | null>>; currentAccountByProvider?: Partial<Record<AgentProvider, string | null>>; restartNeeded: string[]; version: string; webBuild?: string | null; updateAvailable: boolean; updating: boolean }>('/api/health'),
   updateStatus: () => req<UpdateStatusView>('/api/update'),
   updateCheck: () => req<UpdateReportView>('/api/update/check', { method: 'POST' }),
+  moveStatus: (fresh = false) => req<MoveStatus>(`/api/move${fresh ? '?fresh=1' : ''}`),
+  moveStart: (id: string, opts: { now?: boolean; replace?: boolean } = {}) => req<{ started: true; channel: string; job: MoveJob }>('/api/move', { method: 'POST', body: JSON.stringify({ id, ...opts }) }),
+  moveNow: () => req<{ ok: true }>('/api/move/now', { method: 'POST' }),
   updateApply: (force = false, acknowledge = false) => req<{ started: true; channel: string }>('/api/update/apply', { method: 'POST', body: JSON.stringify({ force, acknowledge }) }),
   // the data folder (ADR-0082)
   dataDir: () => req<DataDirStatus>('/api/data-dir'),

@@ -15,8 +15,9 @@
 #            up to its newest release, builds Foundry, and runs it as a background service
 #   docker   in a container: installs Docker if needed, writes the compose files to the folder and starts it
 #
-# Switching an earlier source install to the app or the binary offers to move its goals (foundry migrate): the
-# checkout's service stops, its data folders are copied, and the checkout stays as the backup.
+# The app and the binary find an earlier Foundry on this computer (a checkout, a Docker container) and offer to move
+# its goals (foundry migrate, ADR-0107): it stops, its data is copied with its paths pointed here, and it stays as it
+# is, as the backup.
 #
 # Then it offers to sign in to the coding agents and GitHub, opens Foundry in the browser, and leaves a `foundry`
 # command behind: foundry start | stop | restart | status | logs | open | update | uninstall [--purge]
@@ -47,6 +48,9 @@
 #   --migrate-from DIR          the source install whose goals move here (else the one install.env names)
 #   --migrate-data PATH         the data folder it runs on, when not the checkout's own
 #   --migrate-stop PID          the Foundry to stop before its data is copied
+#
+# What the app runs once a person moved an earlier install into it from its page (ADR-0107):
+#   adopt --mode app|binary --bin PATH   that install becomes the one install.env names, with its foundry command
 #
 # Safe to run again: it finds the earlier install and updates it the same way.
 set -Eeuo pipefail
@@ -84,7 +88,7 @@ YES=0 START=1 OPEN=1 MODIFY_PATH=1 DRY=0 PURGE=0 WITH="${FOUNDRY_WITH:-}"
 
 main() {
   local cmd=install
-  case "${1:-}" in install|start|stop|restart|status|logs|open|update|uninstall) cmd="$1"; shift ;; esac
+  case "${1:-}" in install|start|stop|restart|status|logs|open|update|uninstall|adopt) cmd="$1"; shift ;; esac
   load_state
   PREV_MODE="$MODE" PREV_DIR="$DIR"
   parse_flags "$@"
@@ -94,6 +98,7 @@ main() {
   case "$cmd" in
     install) install ;;
     update) update ;;
+    adopt) adopt ;;
     *) [ -n "$MODE" ] || fail "Foundry is not installed yet: run the install first"; control "$cmd" ;;
   esac
 }
@@ -125,6 +130,7 @@ parse_flags() {
       --migrate-from) MIGRATE_FROM="$2"; shift 2 ;;
       --migrate-data) MIGRATE_DATA="$2"; shift 2 ;;
       --migrate-stop) MIGRATE_STOP="$2"; shift 2 ;;
+      --bin) BIN="$2"; shift 2 ;;
       --yes|-y) YES=1; shift ;;
       --no-start) START=0; shift ;;
       --no-open) OPEN=0; shift ;;
@@ -353,28 +359,54 @@ run_setup() {
   return 0
 }
 
-# an earlier source install's goals move to this one: its service stops, its data folders are copied, it stays as the backup
+# an earlier Foundry's goals move to this one (ADR-0107): the switch names it, else the compiled foundry finds it (a
+# checkout recorded or running, a Docker container), says what it found, and the person says yes. It stops, its data is
+# copied with its paths pointed here, and it stays as it is, as the backup
 migrate_source() {
-  local from="$MIGRATE_FROM"
-  [ -z "$from" ] && [ "$PREV_MODE" = source ] && from="$PREV_DIR"
-  [ -n "$from" ] && [ -f "$from/apps/cli/src/main.ts" ] || return 0
-  if [ "$DRY" = 1 ]; then plan "move the goals of the source install in $from (foundry migrate)"; return 0; fi
-  step "Your source install in $from"
-  # an array, empty or not: bash 3.2 with nounset refuses "${extra[@]}" when it is empty, hence the + form
-  local -a extra=()
-  [ -n "$MIGRATE_DATA" ] && extra+=(--data "$MIGRATE_DATA")
-  [ -n "$MIGRATE_STOP" ] && extra+=(--stop-pid "$MIGRATE_STOP")
-  [ -n "$PORT" ] && extra+=(--keep-port "$PORT")
-  if [ "$YES" = 1 ] || yesno "Move its goals, settings and history here? It is stopped; its folder stays as the backup." y; then
-    if ! "$BIN" migrate --from "$from" ${extra[@]+"${extra[@]}"} --yes; then
+  if [ "$DRY" = 1 ]; then plan "move the goals of an earlier Foundry on this computer, if there is one (foundry migrate)"; return 0; fi
+  if [ -n "$MIGRATE_FROM" ]; then
+    [ -f "$MIGRATE_FROM/apps/cli/src/main.ts" ] || return 0
+    step "Your source install in $MIGRATE_FROM"
+    # an array, empty or not: bash 3.2 with nounset refuses "${extra[@]}" when it is empty, hence the + form
+    local -a extra=()
+    [ -n "$MIGRATE_DATA" ] && extra+=(--data "$MIGRATE_DATA")
+    [ -n "$MIGRATE_STOP" ] && extra+=(--stop-pid "$MIGRATE_STOP")
+    [ -n "$PORT" ] && extra+=(--keep-port "$PORT")
+    if ! "$BIN" migrate --from "$MIGRATE_FROM" ${extra[@]+"${extra[@]}"} --yes --no-adopt </dev/null; then
       # a switch whose data did not move does not start the new install: the old one is back, or says how to start it
       [ -n "$MIGRATE_STOP" ] && fail "the goals did not move, so the new install is not started; see the lines above"
-      warn "the goals did not move; try again later with: foundry migrate --from $from"
+      warn "the goals did not move; try again later with: foundry migrate --from $MIGRATE_FROM"
     fi
+    return 0
+  fi
+  # 2.36's steps for a container (--no-start) move it themselves
+  local -a scope=()
+  [ "$START" = 0 ] && scope+=(--no-docker)
+  # 0: one earlier Foundry with goals, 3: none, 4: several (the person chooses in Foundry or with foundry migrate --from)
+  local found=0
+  "$BIN" migrate --offer --dry-run ${scope[@]+"${scope[@]}"} </dev/null || found=$?
+  [ "$found" = 0 ] || return 0
+  if [ "$YES" = 1 ] || yesno "Move its goals here? It stops and stays as it is, as the backup." y; then
+    "$BIN" migrate --offer --yes --no-adopt ${scope[@]+"${scope[@]}"} </dev/null || warn "the goals did not move; try again later with: foundry migrate"
   else
-    note "left as it is; later: foundry migrate --from $from"
+    note "left as it is; later: foundry migrate, or Bring your goals over in Foundry"
   fi
   return 0
+}
+
+# ---------- adopt (ADR-0107): an app or binary the goals moved into becomes the recorded install ----------
+# The move runs the release's own copy of this script: install.env and the foundry command then name the install the
+# goals are in now, not the checkout or the container they left.
+adopt() {
+  case "$MODE" in app|binary) ;; *) fail "adopt takes --mode app or --mode binary" ;; esac
+  [ -n "$BIN" ] && [ -x "$BIN" ] || fail "adopt needs --bin, the foundry of that install"
+  if [ "$MODE" = app ]; then
+    APP="${BIN%/Contents/MacOS/foundry-engine}"
+    SERVICE=app
+  fi
+  save_state
+  install_command
+  ok "the foundry command and $STATE now name the $MODE ($BIN)"
 }
 
 app_dir() { if [ -n "$APP_DIR" ]; then echo "$APP_DIR"; elif [ -w /Applications ]; then echo /Applications; else echo "$HOME/Applications"; fi; }
@@ -846,8 +878,14 @@ xml() { printf '%s' "$1" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
 # systemd expands %-specifiers in unit values
 unit_value() { printf '%s' "$1" | sed 's/%/%%/g'; }
 
-# the launch profile: the first chosen agent, in the order Claude Code, Codex, Antigravity
-provider() { if uses codex && ! uses claude; then echo codex; elif [ "$AGENT" = agy ]; then echo agy; else echo claude; fi; }
+# the launch profile: the one a move kept, for the goals were made with that coding agent (ADR-0107), else the first chosen
+# agent, in the order Claude Code, Codex, Antigravity
+provider() {
+  local kept
+  kept="$({ sed -n 's/.*"provider": *"\([a-z]*\)".*/\1/p' "${FOUNDRY_HOME:-$HOME/.foundry}/config.json" 2>/dev/null | head -1; } || true)"
+  case "$kept" in claude|codex|agy) echo "$kept"; return 0 ;; esac
+  if uses codex && ! uses claude; then echo codex; elif [ "$AGENT" = agy ]; then echo agy; else echo claude; fi
+}
 
 start_service() {
   if [ "$DRY" = 1 ]; then plan "run Foundry as a background service on port ${PORT:-4111} and open it"; return; fi

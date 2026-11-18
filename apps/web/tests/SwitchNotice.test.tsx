@@ -24,13 +24,16 @@ test('before 3.0 a checkout reads what the switch does, the risks and the way ba
 });
 
 test('a container gets the steps for its host, no button', () => {
-  const steps = ['curl -fsSL https://x/install.sh | bash -s -- --mode binary --no-start', 'foundry start'];
+  const steps = ['curl -fsSL https://x/install.sh | bash'];
   const h = renderToStaticMarkup(<SwitchNotice sw={{ ...sw, install: 'binary', from: 'docker' }} steps={steps} canSwitch={false} force={false} onForce={none} err={null} onSwitch={none} onClose={none} />);
   expect(h).toContain('ships only as the foundry binary');
   expect(h).toContain('This Docker install gets no updates');
   expect(h).toContain('Nothing in a container can install on its host');
-  expect(h).toContain('foundry start');
+  expect(h).toContain('curl -fsSL https://x/install.sh | bash');
+  // one command: the installer finds this container and offers the move (ADR-0107)
+  expect(h).toContain('finds this container and offers to move its goals');
+  expect(h).toContain('download the app from the releases page and open it');
   expect(h).not.toContain('I understand');
   expect(h).not.toContain('not notarized');
-  expect(h).toContain('The Docker volumes stay as they are');
+  expect(h).toContain('The container and its volumes stay as they are');
 });

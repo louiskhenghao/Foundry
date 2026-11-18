@@ -25,6 +25,7 @@ import { PROVIDER_STYLE } from '../components/ProviderMark.tsx';
 import { UpdateDialog } from '../components/UpdateDialog.tsx';
 import { AccessCard } from './settings/AccessCard.tsx';
 import { DataDirNoticeBanner, DataFolder, RestartNowButton } from './settings/DataFolder.tsx';
+import { MoveCard } from '../components/MoveCard.tsx';
 import { DeployServers } from './settings/DeployServers.tsx';
 import { PlaceCard, type PlaceStatus, TokenLinks, ToolNote } from './settings/PlaceCard.tsx';
 import { FlyctlRow, SignInPanel } from './settings/SignIn.tsx';
@@ -954,6 +955,10 @@ export function SettingsPage() {
           {/* the data folder (ADR-0082) is not a Setting: Settings live inside it */}
           <div id="data-folder" className="mb-4">
             <DataFolder />
+          </div>
+          {/* an earlier Foundry on this computer, moved here (ADR-0107) */}
+          <div id="move" className="mb-4">
+            <MoveCard variant="settings" />
           </div>
           {grid(
             <>

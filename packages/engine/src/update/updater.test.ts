@@ -51,7 +51,7 @@ describe('the switch to 3.0 (ADR-0106)', () => {
   const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = require('node:fs') as typeof import('node:fs');
   const { tmpdir } = require('node:os') as typeof import('node:os');
   const { join } = require('node:path') as typeof import('node:path');
-  const { UpdateManager, dockerSwitchSteps, majorJump, majorOf, switchEnv } = require('./updater.ts') as typeof import('./updater.ts');
+  const { INSTALLER_URL, UpdateManager, dockerSwitchSteps, majorJump, majorOf, switchEnv } = require('./updater.ts') as typeof import('./updater.ts');
 
   test('a new major is a jump; a minor or a patch is not', () => {
     expect(majorOf('2.35.0')).toBe(2);
@@ -68,13 +68,8 @@ describe('the switch to 3.0 (ADR-0106)', () => {
     expect(env).toEqual({ PATH: '/usr/bin', HOME: '/Users/me', FOUNDRY_HOME: '/Users/me/.foundry', FOUNDRY_PROVIDER: 'codex' });
   });
 
-  test("a container's steps run on its host: install without starting, copy the volume, repath, start", () => {
-    const steps = dockerSwitchSteps('binary');
-    expect(steps[0]).toContain('--mode binary --no-start');
-    expect(steps.some((s) => s.includes("docker run --rm --volumes-from foundry") && s.includes('.local/share/foundry/data'))).toBe(true);
-    expect(steps).toContain('foundry repath /repos "$HOME/Projects"');
-    expect(steps.at(-1)).toBe('foundry start');
-    expect(dockerSwitchSteps('app').join('\n')).toContain('Library/Application Support/Foundry/data');
+  test("a container's way to 3.0 is one command on its host: the installer finds the container and moves it (ADR-0107)", () => {
+    expect(dockerSwitchSteps()).toEqual([`curl -fsSL ${INSTALLER_URL} | bash`]);
   });
 
   /** an UpdateManager over a checkout at 2.35.0, whose version source offers 3.0.0 */
@@ -112,7 +107,7 @@ describe('the switch to 3.0 (ADR-0106)', () => {
       const cap = updater.capability();
       expect(cap).toMatchObject({ mode: 'docker', canSelfUpdate: false, method: null });
       expect(cap.switch?.from).toBe('docker');
-      expect(cap.guided).toEqual(dockerSwitchSteps('app'));
+      expect(cap.guided).toEqual(dockerSwitchSteps());
     } finally {
       done();
     }

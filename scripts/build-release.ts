@@ -126,8 +126,10 @@ for (const t of targets) {
   cpSync(stage, join(pkg, 'resources'), { recursive: true });
   const tarball = join(dist, `foundry-${version}-${t}.tar.gz`);
   rmSync(tarball, { force: true });
-  // COPYFILE_DISABLE: no ._ files for macOS extended attributes in the archive
-  await run(['tar', '-czf', tarball, '-C', dir, `foundry-${version}`], { env: { COPYFILE_DISABLE: '1' } });
+  // COPYFILE_DISABLE: no ._ files for macOS extended attributes; --no-xattrs/--no-mac-metadata: no pax headers for
+  // them either, which GNU tar on Linux warns about once per file while the installer unpacks
+  const quiet = process.platform === 'darwin' ? ['--no-xattrs', '--no-mac-metadata'] : ['--no-xattrs'];
+  await run(['tar', ...quiet, '-czf', tarball, '-C', dir, `foundry-${version}`], { env: { COPYFILE_DISABLE: '1' } });
   sums.push(`${await sha256(tarball)}  foundry-${version}-${t}.tar.gz`);
   console.log(`✔ ${t}: ${mb(statSync(tarball).size)} tarball, executable ${mb(statSync(join(pkg, 'foundry')).size)}`);
 }

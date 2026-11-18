@@ -191,22 +191,26 @@ page reconnects by itself. The checkout and its `data/` stay as they were, with 
 went: they are the backup. Watch it in `~/.foundry/switch.log`. To go back, quit the new Foundry and start the
 checkout again.
 
-**From Docker.** Nothing in the container can install on the host, so the dialog lists these steps; run them on the
-host. On Linux (on a Mac, `--mode app` and `~/Library/Application Support/Foundry/data`):
+**From Docker.** Nothing in the container can install on the host, so the dialog shows one command to run on the
+computer Docker runs on:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash -s -- --mode binary --no-start
-docker stop foundry
-mkdir -p ~/.local/share/foundry/data
-docker run --rm --volumes-from foundry -v ~/.local/share/foundry/data:/out alpine sh -c 'cp -a /app/data/. /out/'
-foundry repath /app/data ~/.local/share/foundry/data
-foundry repath /repos ~/Projects        # your projects folder, as FOUNDRY_REPOS named it
-foundry start
+curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash
 ```
 
-With Codex goals, copy `/app/data-codex` to `~/.local/share/foundry/data-codex` the same way and repath it. The sign-ins
-are your computer's own: sign in to each coding agent on the Setup page. The Docker volumes stay as they were: to go
-back, `foundry stop` and `docker start foundry`.
+It installs 3.0 (the app on a Mac, the binary on Linux), finds the container and offers to move its goals
+([ADR-0107](../develop/adr/0107-a-move-from-an-earlier-install-takes-one-click.md)). The goals at work are paused, the
+container and its watchtower stop and Docker does not start them again, and the data in its volumes is copied with
+`/app/data` and each bind mount (`/repos`…) pointed at this computer's folders. On a Mac, downloading the app and
+opening it offers the same move. The sign-ins are your computer's own: sign in to each coding agent on the Setup page.
+The container and its volumes stay as they were: to go back, quit the new Foundry and start the container again
+(`docker update --restart=unless-stopped foundry && docker start foundry`).
+
+The 2.36.0 dialog lists six commands instead (install with `--no-start`, copy the volume, `foundry repath`, start).
+They still work: an installer run with `--no-start` leaves the container to them.
+
+**Without waiting for 3.0.** A source or Docker install can move at any time: install the app (or the binary), open it
+and press **Bring your goals over** ([Moving an earlier install](./install.md#moving-an-earlier-install)).
 
 ## Self-update
 

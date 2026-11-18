@@ -372,6 +372,7 @@ Access 打开后，每个人做的事都记在自己名下：goal 页面会写�
 ![Settings 的 Engine (install)：正在使用的数据文件夹，输入并测试过的另一个文件夹，以及 Save & restart](images/settings-data-folder.png)
 
 - **Data folder**：这个 Foundry 保存一切的地方 —— goal 及其历史、Settings、访问令牌、编码智能体添加的账户、模板、主题、Memory 的记录。仓库和进度文件夹不在里面。要换到另一个文件夹（更大的硬盘，或另一套 goal）：输入路径或 **Browse…**，按 **Test**，看检查结果 —— 文件夹必须是空的，或是同一编码智能体的 Foundry 数据文件夹；可写；硬盘有空间；且不是更新版本的 Foundry 写过的。空文件夹可以**从零开始**，或**复制当前数据**过去（在 Foundry 停下期间复制；文件夹很大时要几分钟）；Foundry 数据文件夹则原样打开。**Save & restart…** 会让你确认会变化的内容，然后 Foundry 在另一个文件夹上重启，页面自动刷新。有 goal 在跑时会被拒绝：先暂停它。离开的文件夹不会被删除；之前用过的文件夹列在 **Before** 下，可以换回去。选择记在 `~/.foundry/config.json` 里，每个启动配置一个；设了 `FOUNDRY_DATA_DIR` 或在 Docker 镜像里时，这里只显示文件夹，不能改。启动时如果选定的文件夹不在（硬盘没挂载），Foundry 会在默认文件夹上启动并提示：**Keep this folder** 把它定为选择，**Dismiss** 则等硬盘回来。
+- **Move from another Foundry**（app 和 binary 才有）：这台电脑上以前的 Foundry（从源码或在 Docker 里运行的）、它的 goal，以及 **Move N goals here** 按钮。和 Goals 页面上的 **Bring your goals over** 是同一个搬迁（见[把你的 goal 搬过来](./your-first-goal.zh.md#把你的-goal-搬过来)）。这个 Foundry 已经有自己的 goal 时，它们会被放到一边作为备份，不会合并，你要先勾选确认。
 - **Port**（4111）和 **Host**（127.0.0.1）：在哪里访问 Foundry。除非你设置了远程访问，否则保持 127.0.0.1。需要重启。
 - **claude binary** 和 **Claude Code home**：Claude Code 及其 skill 所在的位置。留空会自动找到。需要重启。
 - **Codex binary** 和 **Codex home**：Codex 程序和原生账户／配置目录。留空使用 PATH 及 `CODEX_HOME` 或 `~/.codex`。需要重启。启动配置保持固定，每个 goal 的编码智能体在 New goal 选择。

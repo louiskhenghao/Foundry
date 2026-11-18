@@ -46,6 +46,9 @@ offers to sign in to the coding agents and GitHub, and opens the app. Either way
   `SHA256SUMS`, swaps `Foundry.app`, and starts the new one. The old app is kept in the data folder's
   `updates/previous/`.
 
+On a computer with an earlier Foundry, the app offers to bring its goals over the first time it opens: see
+[Moving an earlier install](#moving-an-earlier-install).
+
 The **Setup** page installs what is missing with one click: git (Apple's command line tools), uv, the coding agents'
 CLIs, graphify, the GitHub CLI and Node.js, with Homebrew when you have it and into `~/.local` when you do not, never
 asking for a password. Its last row links the `foundry` command into `~/.local/bin`, for `foundry ask`, `foundry usage`
@@ -75,19 +78,39 @@ foundry setup --agent claude,codex --with "markitdown chromium"
 foundry setup --dry-run        # says what it would install
 ```
 
-## Moving a source install
+## Moving an earlier install
 
-A source install moves to the app or the binary with its goals, settings and history: run the installer in the new
-mode (it offers the move), or `foundry migrate` from the new install. It stops the checkout's service, copies each data
-folder (`data/`, `data-codex/`…) to the new install's data folder, makes the paths the copy wrote about itself point
-into it, and leaves the original with a `MOVED.md` as the backup. A data folder you chose in Settings stays where it is:
-the new install opens it there. The checkout is not touched; delete it once the app shows your goals.
+The app and the binary bring the goals of an earlier Foundry on the same computer with them: a checkout run from source,
+or a Docker container ([ADR-0107](../develop/adr/0107-a-move-from-an-earlier-install-takes-one-click.md)). Open the
+app: while it has no goals of its own, the **Goals** page shows **Bring your goals over**, with the Foundry it found,
+its goals and one button. **Settings → Engine (install)** keeps the same move for later, and the installer offers it
+before the new install starts. A move:
+
+1. pauses the goals at work in the old Foundry and waits until nothing runs there (**Move now** does not wait: the
+   steps in flight start again here);
+2. stops it the way it runs: a launchd agent or systemd unit is turned off, a process started by hand gets SIGTERM, a
+   container stops and Docker does not start it again;
+3. copies each data folder beside this install's own, as an APFS clone or a reflink where the disk has them (instant,
+   and no room taken), and points the paths it wrote at where they live now, a container's `/app/data` and mounts
+   included;
+4. keeps the settings it read from its `.env`, its service or a compose `.env`;
+5. checks the copy against the original, then puts it in place of this install's folder, which is kept as
+   `<folder>.before-move-<time>`;
+6. links each goal worktree to its repository again, resumes the goals it paused, and takes over the old install's
+   port, so bookmarks and the CLI keep working. The `foundry` command and `~/.config/foundry/install.env` name the new
+   install from then on.
+
+Nothing of the old install is deleted: its folder, or its container and volumes, is the backup, with a `MOVED.md` that
+says how to go back. A Foundry does not open a folder that moved, so a checkout started again by habit says so instead of
+running the same goals beside the app; deleting the `MOVED.md` is the way back. A move that fails before the copy is in
+place starts the old one again and changes nothing here.
 
 ```bash
-foundry migrate --dry-run      # what it would move, and where
-foundry migrate                # asks, then moves (--from <checkout> when the installer did not set it up)
+foundry migrate --dry-run      # what it finds, and what a move would do
+foundry migrate                # asks, then moves (--from <checkout> or --from docker:<container> picks one)
 ```
 
+A data folder you chose in Settings stays where it is: the new install opens it there once the old one has stopped.
 Only one Foundry opens a data folder at a time: a second one is refused with the process that has it.
 
 ---

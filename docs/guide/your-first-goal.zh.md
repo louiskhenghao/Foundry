@@ -41,6 +41,18 @@ Codex 的预算选项只有时间、尝试次数和并发限制，没有美元�
 
 Foundry 运行时，从 Applications 文件夹或 Spotlight 再打开一次 app，就会打开页面。
 
+### 把你的 goal 搬过来
+
+以前在这台电脑上从源码或在 Docker 里跑过 Foundry？app 会找到它。在 app 还没有自己的 goal 时，**Goals** 页面会显示
+**Bring your goals over**：那个 Foundry 在哪里、它有哪些 goal，还有一个按钮 **Move N goals here**。找到不止一个时，选要搬哪一个。
+
+搬迁会先暂停那边正在工作的 goal 并等它们停下，再停止那个 Foundry，然后把所有东西复制过来：goal、历史、设置、附件和 worktree。每一步你都能看到。
+之后 Foundry 在你的 goal 上重新启动，用的是旧 Foundry 的地址，页面会跟着过去。**Move now** 不等正在工作的 goal：它们正在做的那一步会在这边重新开始。
+用 Codex 或 Antigravity 做的 goal 会带上那个 coding agent 的启动配置（launch profile）：从此 app 就用它启动，和旧 Foundry 一样。
+
+旧的 Foundry 原样保留，作为备份：它的文件夹（或它的 Docker 容器）里会有一个 `MOVED.md`，写着怎么回去。搬到一半停下的话，什么都不会改变，旧的 Foundry
+会重新运行。**Settings → Engine (install)** 里随时都能再做同样的搬迁。
+
 ### 检查 Setup 页面
 
 打开顶栏右侧的 ⚙ 菜单，选 **Setup**（⚙ 上有红点，表示还缺东西）。Foundry 会检查它在这台电脑上需要的东西，每一项显示一行绿色或红色：

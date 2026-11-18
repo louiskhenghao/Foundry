@@ -109,6 +109,16 @@ export function DataDirNoticeBanner() {
             <b className="font-bold">The switch did not take:</b> <span className="mono">{n.from}</span> could not be opened ({n.error}). Foundry is back on <span className="mono">{n.to}</span>.
           </span>
         )}
+        {n.kind === 'in-use' && (
+          <span>
+            <b className="font-bold">Another Foundry has the data folder chosen here open:</b> <span className="mono">{n.chosen}</span> ({n.holder}). This one is on <span className="mono">{status.current}</span> meanwhile. Move from that Foundry below, and this one opens the chosen folder.
+          </span>
+        )}
+        {n.kind === 'move-failed' && (
+          <span>
+            <b className="font-bold">The moved goals could not be opened:</b> {n.error}. Foundry is back on <span className="mono">{status.current}</span>, and the Foundry they came from runs again as it was.
+          </span>
+        )}
         {n.kind === 'switch-failed' && (
           <span>
             <b className="font-bold">The switch to <span className="mono">{n.to}</span> failed:</b> {n.error}. Foundry is still on <span className="mono">{status.current}</span>.

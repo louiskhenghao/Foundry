@@ -188,6 +188,27 @@ describe('the test a folder passes before a switch', () => {
 });
 
 describe('the copy a switch makes', () => {
+  test('a path is rewritten where a path starts: never inside a longer path or a URL (ADR-0107)', () => {
+    const dir = tmp();
+    try {
+      const now = new Date().toISOString();
+      const store = new EventStore(openDatabase(join(dir, 'engine.db')));
+      store.append({ type: 'goal.created', goalId: 'g_1', payload: { goal: goalRecord('g_1', 'g', 'running') } });
+      store.append({ type: 'attempt.started', goalId: 'g_1', payload: { attempt: { id: 'a_1', goalId: 'g_1', taskId: 't_1', index: 1, kind: 'work', sessionId: 's', model: null, state: 'running', costUsd: 0, numTurns: 0, resultSubtype: null, baseRef: null, endRef: null, pid: 7, cwd: '/repos/app/tasks/t_1', transcriptPath: 'https://api.github.com/repos/o/n', startedAt: now, endedAt: null } as never } });
+      store.close();
+      writeFileSync(join(dir, 'preview-env.json'), JSON.stringify({ a: '/repos/app', b: 'https://api.github.com/repos/o/n', c: '/home/me/repos/z', d: 'ran in /repos/app/src', e: 'file:///repos/app' }));
+
+      expect(rewriteDataDirPaths(dir, '/repos', '/Users/me/Projects')).toEqual({ events: 1, files: 1 });
+      const copy = new EventStore(openDatabase(join(dir, 'engine.db')));
+      expect(getAttempt(copy.db, 'a_1')?.cwd).toBe('/Users/me/Projects/app/tasks/t_1');
+      expect(getAttempt(copy.db, 'a_1')?.transcriptPath).toBe('https://api.github.com/repos/o/n');
+      copy.close();
+      expect(JSON.parse(readFileSync(join(dir, 'preview-env.json'), 'utf8'))).toEqual({ a: '/Users/me/Projects/app', b: 'https://api.github.com/repos/o/n', c: '/home/me/repos/z', d: 'ran in /Users/me/Projects/app/src', e: 'file:///Users/me/Projects/app' });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('a clone holds the same events, and the paths that pointed into the old folder point into the copy; the old folder is untouched', async () => {
     const dir = tmp();
     try {

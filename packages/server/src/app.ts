@@ -7,7 +7,8 @@ import { CodexEffort, Brief, EscalationAnswer, isHistory, listFollowUps, getAtte
 import { AttachmentError, BrowseError, DECK_PACK_OPTIONS, DESIGN_PACK_OPTIONS, DIAGRAM_PACK_OPTIONS, FIGURE_PACK_OPTIONS, IMAGE_PACK_OPTIONS, VIDEO_PACK_OPTIONS, DraftRequest, ReviseAnswer, InstallError, abortResolution, canResolve, describeResolution, finishResolution, resolveFile, startResolution, takeSide, unresolveFile, OpenError, SettingsError, attachmentAbsPath, markdownAbsPath, stagedMarkdownAbsPath, fetchBase, pullFastForward, startRef, detectOpenTargets, linkAttachment, openFile, openPath, stageFile, TrashError, UninstallRefused, UpdateBusy, budgetStatus, defaultAllowedRoots, exec, gitDiff, goalWorkspacePath, resolveWorkspacePath, screenshotsDir, listArtifacts, EnvConflictError, PreviewError, classifyFeedback, GhLogin, initRepo, inspectRepo, listDirs, makeDir, pickFolder, wellKnownRoots, startStyleSample, StyleSampleError, estimateCutSessions, measuredRates, goalTimeline, SubjectError, addSubject, addSubjectPicture, likenessRunsFor, removeSubject, removeSubjectPicture, startSubjectSearch, subjectPicturePath, subjectSearchesFor, updateSubject, FollowUpError, IssueError, ScheduleError, detectTelegramChatId, MCP_PREFIX, SERVER_NAME, TransferError, PortError, listPorts, releasePort, ImportChoices, applyIncoming, discardIncoming, engineTransferHost, exportTransfer, inspectIncoming, mapRepo, reattachGoal, receiveTransfer, unlockIncomingSecrets, type Engine, type OpenTargetId, AccessError, type Person } from '@foundry/engine';
 import type { Task } from '@foundry/core';
 import { LEARNINGS_EVERYWHERE, LearningKind, listDelegatedGoals, listRepoLearnings, DeployProvider } from '@foundry/core';
-import { delegationNeedsHuman, readHomeConfig, writeHomeConfig } from '@foundry/engine';
+import { MoveError, Mover, adoptInstall, defaultDataDir, delegationNeedsHuman, readHomeConfig, writeHomeConfig } from '@foundry/engine';
+import { installRoot } from '@foundry/engine/install-root';
 import { AdjustError, ConversationError, EditorError, motionFilms } from '@foundry/engine';
 import { SEEK_LISTENER, filmFileType, filmPage } from './film-page.ts';
 import { Attachment, BudgetPreset, DeliveryPolicy, DesignPack, DocType, FigurePack, GoalIssue, GoalMode, GoalNature, VideoPack, GoalRecipe, GoalWorkflow, NotificationSettings, PreviewPlace, ScheduleCadence, SettingsPatch } from '@foundry/core';
@@ -346,6 +347,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
 
   app.post('/api/goals', async (c) => {
+    // a move swaps this install's folder for the one it brings (ADR-0107): a goal made meanwhile would be set aside with it
+    if (mover.job && mover.job.state !== 'failed') throw new HttpError(409, { error: 'a move from an earlier Foundry is under way: its goals arrive here in a moment, then make new ones' });
     const body = CreateGoalBody.parse(await c.req.json());
     // a goal from a Template (ADR-0079): its words rendered here when only the values came, its settings where the request said nothing
     const goal = await engine.createGoal({ ...goalFromTemplate(engine, body), by: c.get('person')?.name ?? null });
@@ -1908,6 +1911,41 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
   });
   // ---- templates (ADR-0079): the built-in ones and the files in the data folder's templates/ ----
   registerTemplateRoutes(app, engine);
+  // ---------- the move (ADR-0107): an earlier install's goals brought into this one, with one click ----------
+  const mover = new Mover({
+    kind: installRoot().kind,
+    dataDir: () => engine.config.dataDir,
+    targetFor: (p) => defaultDataDir(engine.config.rootDir, p),
+    provider: () => engine.config.provider,
+    goals: () => listGoals(db).length,
+    port: () => engine.config.port,
+    restart: (r) => engine.restart.request(r),
+    log: engine.config.log,
+    failed: () => (engine.dataDirNotice?.kind === 'move-failed' ? { error: engine.dataDirNotice.error, at: engine.dataDirNotice.at } : null),
+    adopt: (log) => {
+      const kind = installRoot().kind;
+      return kind === 'checkout' ? Promise.resolve(false) : adoptInstall({ root: engine.config.rootDir, kind, execPath: process.execPath, log });
+    },
+  });
+  app.get('/api/move', async (c) => c.json(await mover.status({ fresh: c.req.query('fresh') === '1' })));
+  app.post('/api/move', async (c) => {
+    const { id, now, replace, from, data } = z.object({ id: z.string().min(1), now: z.boolean().optional(), replace: z.boolean().optional(), from: z.string().optional(), data: z.string().nullable().optional() }).parse(await c.req.json());
+    refuseWithoutLoop();
+    refuseWhileAtWork();
+    try {
+      const job = mover.start({ id, now, replace, from, data, onLine: stream('move') });
+      return c.json({ started: true, channel: 'move', job }, 202);
+    } catch (err) {
+      if (err instanceof MoveError) throw new HttpError(409, { error: err.message });
+      throw err;
+    }
+  });
+  // stop waiting for the goals at work in the old Foundry: their steps in flight start again here
+  app.post('/api/move/now', (c) => {
+    mover.moveNow();
+    return c.json({ ok: true });
+  });
+
   // ---------- Learnings (ADR-0040): what Foundry knows about each project folder ----------
   // ---- schedules (ADR-0054): goals that run on their own ----
   const scheduleError = (e: unknown) => {

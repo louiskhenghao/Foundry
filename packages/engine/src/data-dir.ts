@@ -4,7 +4,7 @@
  * ~/.foundry/config.json, then the checkout's data/ (data-<provider>/) — and so are the checks a folder passes before
  * Foundry switches to it, the copy a switch may make, and the gate the serve loop waits at for a restart.
  */
-import { EventStore, knownMigrationIds, openDatabase, type AgentProvider } from '@foundry/core';
+import { AgentProvider, EventStore, knownMigrationIds, openDatabase } from '@foundry/core';
 import { Database } from 'bun:sqlite';
 import { accessSync, constants, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, statfsSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -29,6 +29,8 @@ export const HomeConfig = z
     recent: z.array(z.string()).default([]),
     /** the port a release install (the app, a tarball) serves on when nothing names one (ADR-0105) */
     port: z.number().int().min(1).max(65535).optional(),
+    /** the launch profile a release install starts with when FOUNDRY_PROVIDER names none: the one its goals were moved into (ADR-0107) */
+    provider: AgentProvider.optional(),
   })
   .passthrough();
 export type HomeConfig = z.infer<typeof HomeConfig>;
@@ -49,6 +51,24 @@ export function readHomeConfig(home: string, log?: (m: string) => void): HomeCon
 export function writeHomeConfig(home: string, config: HomeConfig): void {
   mkdirSync(home, { recursive: true });
   writeFileSync(join(home, HOME_CONFIG_FILE), JSON.stringify(config, null, 2) + '\n');
+}
+
+/**
+ * The launch profile a start opens (ADR-0107): FOUNDRY_PROVIDER, else for a release install the one its goals were moved
+ * into, kept in ~/.foundry/config.json, else Claude Code's. A checkout never reads the kept one: it shares ~/.foundry with
+ * the app, and a dev server does not follow a move the app made.
+ */
+export function launchProfile(o: { env?: NodeJS.ProcessEnv; home: string | null; kind: InstallKind; log?: (m: string) => void }): AgentProvider {
+  const named = AgentProvider.safeParse((o.env ?? process.env).FOUNDRY_PROVIDER);
+  if (named.success) return named.data;
+  if (o.kind !== 'checkout' && o.home) return readHomeConfig(o.home, o.log).provider ?? 'claude';
+  return 'claude';
+}
+
+/** the launch profile a release install opens from now on: a move brought goals made with that coding agent (ADR-0107) */
+export function keepProvider(home: string, provider: AgentProvider, log?: (m: string) => void): void {
+  const config = readHomeConfig(home, log);
+  if (config.provider !== provider) writeHomeConfig(home, { ...config, provider });
 }
 
 const RECENT_MAX = 8;
@@ -306,22 +326,38 @@ const REWRITE_SKIP = new Set(['transcripts', 'claude-home', 'codex-home', 'accou
 const REWRITE_MAX_BYTES = 4 * 1024 * 1024;
 
 /**
+ * `from` where a path starts and ends: no path character just before it (so `/repos` is not found in `/home/me/repos` or
+ * in `https://api.github.com/repos/…`), and a slash, a quote, a space or the end just after (so `/data` is not `/data-codex`).
+ */
+function pathAt(from: string): RegExp {
+  const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<![A-Za-z0-9._~%+\\-])${escaped}(?=[/"'\\s,;:)\\]}]|$)`, 'g');
+}
+
+/**
  * A copy of a data folder keeps the paths the original wrote about itself (transcripts, check output): in the copy they
  * are made to point into the copy — in the event log (the read models are rebuilt from it) and in the JSON files beside
  * it. Paths outside the data folder (repositories, progress folders) are shared by both and stay.
  */
 export function rewriteDataDirPaths(dir: string, from: string, to: string): { events: number; files: number } {
-  const forms: [string, string][] = [
-    [from + '/', to + '/'],
-    [`"${from}"`, `"${to}"`],
-  ];
+  const re = pathAt(from);
+  const swap = (text: string) => text.replace(re, () => to);
   let events = 0;
   const dbFile = join(dir, 'engine.db');
   if (existsSync(dbFile)) {
     const db = openDatabase(dbFile);
     try {
-      const r = db.run('UPDATE events SET payload = replace(replace(payload, ?1, ?2), ?3, ?4) WHERE instr(payload, ?5) > 0', [forms[0]![0], forms[0]![1], forms[1]![0], forms[1]![1], from]);
-      events = r.changes;
+      const rows = db.query('SELECT seq, payload FROM events WHERE instr(payload, ?1) > 0').all(from) as { seq: number; payload: string }[];
+      const update = db.prepare('UPDATE events SET payload = ?1 WHERE seq = ?2');
+      db.transaction(() => {
+        for (const r of rows) {
+          const out = swap(r.payload);
+          if (out !== r.payload) {
+            update.run(out, r.seq);
+            events++;
+          }
+        }
+      })();
       if (events) new EventStore(db).replay();
     } finally {
       db.close();
@@ -347,8 +383,7 @@ export function rewriteDataDirPaths(dir: string, from: string, to: string): { ev
         if (statSync(p).size > REWRITE_MAX_BYTES) continue;
         const text = readFileSync(p, 'utf8');
         if (!text.includes(from)) continue;
-        let out = text;
-        for (const [a, b] of forms) out = out.split(a).join(b);
+        const out = swap(text);
         if (out !== text) {
           writeFileSync(p, out);
           files++;
@@ -375,7 +410,15 @@ export async function prepareDataDir(from: string, to: string, mode: DataDirMode
 
 // ---------- the gate a serve loop waits at ----------
 
-export type RestartRequest = { kind: 'restart'; why: string } | { kind: 'data-dir'; to: string; mode: DataDirMode } | { kind: 'exit' };
+export type RestartRequest =
+  | { kind: 'restart'; why: string }
+  | { kind: 'data-dir'; to: string; mode: DataDirMode }
+  /**
+   * a move's copies, staged beside this install's folders, swapped in while the engine is stopped (ADR-0107); `port`: the
+   * old one's, taken over; `profile`: the launch profile to start with, when the goals were made with another coding agent
+   */
+  | { kind: 'move'; staged: { provider: AgentProvider; staging: string; target: string }[]; port: number | null; profile?: AgentProvider | null }
+  | { kind: 'exit' };
 
 /** what the serve loop leaves for the engine that comes after a switch, for the Settings page to show */
 export type DataDirNotice =
@@ -384,7 +427,11 @@ export type DataDirNotice =
   /** the copy or the choice could not be made: still on the folder before */
   | { kind: 'switch-failed'; to: string; error: string; at: string }
   /** the folder chosen in Settings is not there (a disk not mounted?): the default is open instead */
-  | { kind: 'missing'; chosen: string; at: string };
+  | { kind: 'missing'; chosen: string; at: string }
+  /** another Foundry has the folder chosen in Settings open: the default is open until that one stops (ADR-0107) */
+  | { kind: 'in-use'; chosen: string; holder: string; at: string }
+  /** a move's copy could not be opened: this install is back on its own folder, the copy kept beside it */
+  | { kind: 'move-failed'; error: string; at: string };
 
 /** A restart request waits here for the serve loop (ADR-0082); without a loop attached it has no taker. */
 export class RestartGate {

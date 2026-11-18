@@ -52,10 +52,14 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
   setup [--agent claude,codex,agy] [--with "markitdown chromium ffmpeg"] [--dry-run]
                                           install what this computer lacks: git, uv, the coding agents' CLIs, graphify (required),
                                           the GitHub CLI and Node.js (recommended) and the tools named with --with
-  migrate [--from <checkout>] [--data <folder>] [--yes] [--dry-run]
-                                          move a source install's goals into this app or release install: stops the checkout's
-                                          service, copies its data folders, leaves the originals as the backup; --data names the
-                                          folder it ran on when that was not the checkout's own (FOUNDRY_DATA_DIR)
+  migrate [--from <checkout>|docker:<container>] [--dry-run] [--yes] [--now] [--replace]
+                                          move an earlier Foundry's goals into this app or release install (ADR-0107): without
+                                          --from it finds one (a checkout recorded or running, a Foundry container) and asks
+                                          which when several have goals. The goals at work there are paused first (--now: do
+                                          not wait), it stops, its data is copied with its paths pointed here, and it stays as
+                                          the backup; this install's Foundry, when it runs, makes the move itself. --replace
+                                          sets this install's own goals aside; --data names the folder a checkout ran on
+                                          (FOUNDRY_DATA_DIR) when that was not its own
   repath <from> <to>                      rewrite a path in this install's history, Foundry stopped: a container's /app/data or
                                           /repos becomes the folder it is on this computer
   link                                    put this foundry on the terminal's PATH (~/.local/bin/foundry)

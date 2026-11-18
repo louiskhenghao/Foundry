@@ -274,6 +274,11 @@ final class App: NSObject, NSApplicationDelegate, NSMenuDelegate {
   // MARK: the status the menu shows
 
   func refresh() {
+    // the engine writes app.json each time it listens: after a move it may listen on the old install's port (ADR-0107)
+    if let pid = engine?.processIdentifier, let data = try? Data(contentsOf: stateFile), let now = try? JSONDecoder().decode(EngineState.self, from: data), now.pid == pid, now.url != state?.url {
+      log("engine listens on \(now.url) now (data: \(now.dataDir))")
+      state = now
+    }
     guard let s = state, let url = URL(string: "\(s.url)/api/app/status") else { return }
     var req = URLRequest(url: url)
     req.timeoutInterval = 4
