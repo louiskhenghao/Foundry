@@ -201,7 +201,10 @@ app goes to the Trash; `--purge` also deletes Foundry's data after asking; the t
 or the binary, every other command goes to Foundry's own CLI: `foundry ask`, `foundry usage`, `foundry doctor`,
 `foundry status <goal>`. Running the one line again does the same as `foundry update`. Its choices are kept in
 `~/.config/foundry/install.env`; to add a coding agent later, run the line again with all the agents you want, for
-example `… | bash -s -- --agent claude,agy`.
+example `… | bash -s -- --agent claude,agy`. The command runs a copy of the installer kept in
+`~/.local/share/foundry/install.sh`; the app and the binary put their own release's copy there each time they start, so
+an update from the page or the menu bar brings the command's start, stop and status with it (a source install's copy
+changes only with `foundry update`).
 
 ### By hand
 

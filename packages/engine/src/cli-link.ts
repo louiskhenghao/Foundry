@@ -4,7 +4,7 @@
  * stop, logs, update…) and hands everything else to the same binary; a script of the installer's is left as it is.
  * Never /usr/local/bin: nothing here asks for a password.
  */
-import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, join, resolve } from 'node:path';
 
 /** the line the installer's `foundry` script carries */
@@ -71,3 +71,25 @@ export function pathHint(shell = process.env.SHELL ?? ''): { file: string; line:
 }
 
 export const cliLinkExists = (home: string) => existsSync(join(home, '.local', 'bin', 'foundry'));
+
+/**
+ * The installer's `foundry` command runs `foundry start | stop | status…` from a copy of install.sh it keeps in
+ * ~/.local/share/foundry. Only the installer wrote that copy, so an update from the page or the menu bar left the command
+ * on the installer of the first install. An app or binary start puts its own release's copy there instead, when the
+ * install the installer recorded is this kind: a source install's copy, or the binary's beside the app, is another's.
+ */
+export function refreshKeptInstaller(opts: { root: string; kind: 'app' | 'binary'; home: string; env?: NodeJS.ProcessEnv }): 'updated' | 'same' | 'skipped' {
+  const env = opts.env ?? process.env;
+  const kept = join(env.XDG_DATA_HOME || join(opts.home, '.local', 'share'), 'foundry', 'install.sh');
+  const state = join(env.XDG_CONFIG_HOME || join(opts.home, '.config'), 'foundry', 'install.env');
+  const ours = join(opts.root, 'install.sh');
+  if (!existsSync(kept) || !existsSync(ours) || !existsSync(state)) return 'skipped';
+  const mode = /^MODE=['"]?([a-z]+)/m.exec(readFileSync(state, 'utf8'))?.[1];
+  if (mode !== opts.kind) return 'skipped';
+  const text = readFileSync(ours, 'utf8');
+  if (readFileSync(kept, 'utf8') === text) return 'same';
+  // whole or not at all: the command may run it while this writes
+  writeFileSync(`${kept}.new`, text);
+  renameSync(`${kept}.new`, kept);
+  return 'updated';
+}

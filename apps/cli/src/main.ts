@@ -152,7 +152,7 @@ const scoped = (path: string) => provider ? `${path}${path.includes('?') ? '&' :
 const providerApi = (path: string, init?: RequestInit) => api(scoped(path), init);
 switch (cmd) {
   case 'serve': {
-    const { adoptInstall, adoptLocalBin, choosePort, defaultDataDir, foundryHome, keepPort, openedByOther, recoverInterruptedMoves, watchParentPipe, writeAppState } = await import('@foundry/engine');
+    const { adoptInstall, adoptLocalBin, choosePort, defaultDataDir, foundryHome, keepPort, openedByOther, recoverInterruptedMoves, refreshKeptInstaller, watchParentPipe, writeAppState } = await import('@foundry/engine');
     const { serveLoop } = await import('@foundry/server');
     // under the menu bar app (ADR-0105): it reads where the engine listens from ~/.foundry/app.json
     const shell = !!process.env.FOUNDRY_APP_SHELL;
@@ -165,6 +165,12 @@ switch (cmd) {
       else keepPort(foundryHome(), Number(process.env.FOUNDRY_PORT));
       // a move cut off before its copy ran here (ADR-0107): the Foundry it came from starts again as it was
       await recoverInterruptedMoves(AGENT_PROVIDERS.map((p) => defaultDataDir(ROOT, p)), { log: (m) => console.log(m) });
+      // the installer's foundry command (start, stop, status…) runs this release's installer, however it was updated
+      try {
+        if (refreshKeptInstaller({ root: ROOT, kind: INSTALL.kind, home: homedir() }) === 'updated') console.log("[install] the foundry command now runs this release's installer");
+      } catch (e) {
+        console.log(`[install] the foundry command keeps its installer: ${(e as Error).message}`);
+      }
     }
     // the engine and the server start again in this process when Settings asks: a restart, or another data folder (ADR-0082)
     const loop = serveLoop({
