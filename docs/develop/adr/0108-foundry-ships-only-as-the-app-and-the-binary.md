@@ -42,7 +42,7 @@ modes with their own tool recipes, the updater's Docker mode, and code that only
   ships (the npm packages and the Bun runtime compiled into foundry) and, apart, the tools `foundry setup` installs from
   their own releases. A test keeps the second list equal to what setup installs.
 - **Memory connects to a server the person runs.** The compose profile that ran a Hindsight server beside the container
-  is gone with the compose file; Memory connects to one (ADR-0072) until Foundry runs one itself.
+  is gone with the compose file; Memory connects to one (ADR-0072) until Foundry runs one itself (ADR-0109).
 
 ## Consequences
 

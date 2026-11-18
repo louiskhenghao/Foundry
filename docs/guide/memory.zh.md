@@ -2,21 +2,27 @@
 
 > [English](./memory.md) · 中文
 
-[Learnings](./learnings.zh.md) 是 Foundry 按项目文件夹保留的那三十行。**Memory**（记忆）是它的长篇版：你自己运行的一台 [Hindsight](https://github.com/vectorize-io/hindsight) 服务器把一个文件夹里的 goal 做过什么、决定过什么、被驳回过什么、写过什么全部记下来，在后台整理归纳，并在 goal 的每个阶段开始前先回答一句——在这个仓库里，以前的工作对这个任务、这个计划、这次审查有什么可说的。你自己在同一个仓库里开的 Claude Code 或 Codex 会话共用同一个 bank。它是可选的：没有设好服务器之前，这里什么都不会发生。
+[Learnings](./learnings.zh.md) 是 Foundry 按项目文件夹保留的那三十行。**Memory**（记忆）是它的长篇版：一台 [Hindsight](https://github.com/vectorize-io/hindsight) 服务器——Foundry 在这台电脑上替你运行的，或者你自己运行的——把一个文件夹里的 goal 做过什么、决定过什么、被驳回过什么、写过什么全部记下来，在后台整理归纳，并在 goal 的每个阶段开始前先回答一句——在这个仓库里，以前的工作对这个任务、这个计划、这次审查有什么可说的。你自己在同一个仓库里开的 Claude Code 或 Codex 会话共用同一个 bank。它是可选的：你打开它之前，这里什么都不会发生。
 
 ## 它需要什么
 
-Hindsight 是开源的（MIT）。它作为一个独立进程运行，自带内嵌数据库，所以不用再装别的东西；但它需要一个自己的 LLM 来从收到的内容里抽取事实：OpenAI、Anthropic、Gemini、Groq 或其他提供商的 key，或者一个订阅登录。要给它留 1.5–2 GB 内存，第一次启动时还会下载大约 215 MB 的模型。它的 LLM 费用由你承担，不记在 Foundry 的账本里；Foundry 自己不会为 Memory 调用任何模型。
+Hindsight 是开源的（MIT）。它作为一个独立进程运行，自带内嵌数据库，并且需要一个自己的 LLM 来从收到的内容里抽取事实：一个订阅登录，或者 OpenAI、Anthropic、Gemini、Groq 或其他提供商的 key。要给它留 1.5–2 GB 内存，第一次启动时还会下载大约 215 MB 的模型。它的 LLM 费用由你承担，不记在 Foundry 的账本里；Foundry 自己不会为 Memory 调用任何模型。
 
-**用你已有的登录。** 在这台电脑上运行的服务器可以不用 key，直接用 Foundry 的 goal 本来就在用的 Claude Code 或 Codex 登录。`HINDSIGHT_API_LLM_PROVIDER=claude-code` 会为每次抽取和回答启动一次你的 `claude`（安装服务器时带上这个 provider 的附加包：`uv tool install --with claude-agent-sdk hindsight-api`，或 `pip install hindsight-api claude-agent-sdk`）；`HINDSIGHT_API_LLM_PROVIDER=openai-codex` 从 `CODEX_HOME` 读取一个 Codex 登录——给它一个独立的目录，`CODEX_HOME=~/.hindsight/codex codex login`，这样服务器和你的终端就不会去刷新同一个 token。Hindsight 的文档把这两种方式都标为仅供个人使用。由此有两件事。这些调用计入你套餐的用量：一个文件夹第一次使用时会抽取它最近的 300 条提交，每条一次调用，在乎的话把卡片上的 **Seed a new folder from** 调低。而且一次回答要一分多钟而不是几秒：把卡片上的 **Wait for an answer** 调到 90–120 秒，或者让各阶段改拿记忆本身（见下文）。
+**用你已有的登录。** 在这台电脑上运行的服务器可以不用 key，直接用 Foundry 的 goal 本来就在用的 Claude Code 或 Codex 登录——Foundry 运行的那台服务器总是这样做。Hindsight 的文档把这两种方式都标为仅供个人使用。由此有两件事。这些调用计入你套餐的用量：一个文件夹第一次使用时会抽取它最近的 300 条提交，每条一次调用，在乎的话把卡片上的 **Seed a new folder from** 调低。而且一次回答要一分多钟而不是几秒：Foundry 运行服务器时，卡片上的 **Wait for an answer** 会设为 120 秒；你自己运行、用登录的服务器，把它调到 90–120 秒，或者让各阶段改拿记忆本身（见下文）。
 
 ## 设置
 
-1. **启动一台服务器。** Foundry 不会替你运行它：自己启动 Hindsight，在这台电脑上，或者在你能连到的另一台机器上。用 Docker 的话，Hindsight 的完整镜像自带数据库和模型（3.7–9 GB），下面那张卡片上有可以直接复制的命令。或者用 Python：`pip install hindsight-api`，然后带着同样的 `HINDSIGHT_API_LLM_*` 变量运行 `hindsight-api`。服务器监听 8888 端口，它的控制台在 9999。2.x 的 Docker 安装可以在 Foundry 旁边启动 Hindsight（它的 `memory` profile）；搬到 app 或 binary 之后，那台服务器照旧在 Docker 里运行，卡片在 `http://127.0.0.1:8888` 就能连到它。
-2. **打开 Extensions → MCP servers**，找到 **Memory · Hindsight** 卡片。填入地址（服务器在这台电脑上时是 `http://127.0.0.1:8888`），如果服务器要求的话再填 bearer token，按 **Test**，再按 **Save**。卡片随后显示 **connected** 和服务器的版本。**Write each attempt's transcript to the bank** 默认开着；**Wait for an answer**（20 秒）和 **Seed a new folder from**（300 条提交）见下文。
-3. **连接编码智能体。** **Connect Claude Code**（或者在 Codex 标签页上 **Connect Codex**）把这台服务器写进该编码智能体自己的配置并允许在 goal 里使用：worker 于是可以在干活中途自己去问记忆，并被告知它所在文件夹的 bank 是哪个。无论连不连，Foundry 都会在每个阶段开始前替它问一次。Antigravity 不从 Foundry 接收 MCP 服务器：它的 goal 只以文字形式拿到 Memory 回忆起的内容。对 Codex，Foundry 把 token 作为 `HINDSIGHT_API_TOKEN` 交给它的会话；你自己的会话要在 shell 里自行 export。
+打开 **Extensions → MCP servers**，找到 **Memory · Hindsight** 卡片。它提供两种方式：**Foundry runs it** 和 **A server you run**。
 
-卡片上的 **Turn off** 停掉一切；已有的 Learnings 不受影响。**Settings → Skills** 里有指向这里的链接。
+**Foundry runs it（Foundry 替你运行）。** 按 **Run Hindsight here**。第一次时，Foundry 用 uv 把 Hindsight 装进它在数据文件夹里保管的一个 Python 环境（`python/hindsight`，约 2 GB：Hindsight 用基于 PyTorch 的本地模型来读内容；**Setup** 会安装 uv）。然后它只在这台电脑上（`127.0.0.1`）启动服务器，端口是 8888 或下一个空闲端口，之后一直沿用这个端口。服务器随 Foundry 启动和停止，Foundry 被强行杀掉时它也会自己停下。它的 LLM 是你的 Claude Code 登录；如果只登录了 Codex，卡片会请你 **把服务器登录到 Codex**（按钮 **Sign the server in to Codex**），在 OpenAI 的页面上输入一个代码——这是它自己的登录，因为 Codex 的 token 只能刷新一次，服务器不能拿走 CLI 的那份。卡片会一路跟着显示：**installing**、**starting**（第一次启动会下载模型）、**running**，或者 **stopped** 加上原因和它日志的最后几行，以及 **Try again**。它的记忆由 Hindsight 内嵌的 Postgres 保存在 `~/.pg0/instances/foundry-…`，在数据文件夹之外，名字属于这个数据文件夹：同一台电脑上的两个 Foundry 安装永远不会共用它，数据文件夹在这台电脑上搬家后也还在。卡片上的 **Where it keeps things** 显示这两个文件夹。在 Linux 上 Foundry 安装 PyTorch 的 CPU 版；Intel Mac 没有可装的 PyTorch，请用别处的服务器。
+
+**A server you run（你自己运行的服务器）。** 自己启动 Hindsight，在这台电脑上，或者在你能连到的另一台机器上。用 Docker 的话，Hindsight 的完整镜像自带数据库和模型（3.7–9 GB），卡片上有可以直接复制的命令。或者用 Python：`pip install hindsight-api`，然后带着同样的 `HINDSIGHT_API_LLM_*` 变量运行 `hindsight-api`。服务器监听 8888 端口，它的控制台在 9999。要用登录：`HINDSIGHT_API_LLM_PROVIDER=claude-code` 会为每次抽取和回答启动一次你的 `claude`（安装服务器时带上这个 provider 的附加包：`uv tool install --with claude-agent-sdk hindsight-api`，或 `pip install hindsight-api claude-agent-sdk`）；`HINDSIGHT_API_LLM_PROVIDER=openai-codex` 从 `CODEX_HOME` 读取一个 Codex 登录——给它一个独立的目录，`CODEX_HOME=~/.hindsight/codex codex login`，这样服务器和你的终端就不会去刷新同一个 token。2.x 的 Docker 安装可以在 Foundry 旁边启动 Hindsight（它的 `memory` profile）；搬到 app 或 binary 之后，那台服务器照旧在 Docker 里运行，卡片在 `http://127.0.0.1:8888` 就能连到它。在卡片上填入地址（服务器在这台电脑上时是 `http://127.0.0.1:8888`），如果服务器要求的话再填 bearer token，按 **Test**，再按 **Save**。卡片随后显示 **connected** 和服务器的版本。
+
+**Write each attempt's transcript to the bank** 默认开着；**Wait for an answer** 和 **Seed a new folder from**（300 条提交）见下文。
+
+**连接编码智能体。** **Connect Claude Code**（或者在 Codex 标签页上 **Connect Codex**）把这台服务器写进该编码智能体自己的配置并允许在 goal 里使用：worker 于是可以在干活中途自己去问记忆，并被告知它所在文件夹的 bank 是哪个。无论连不连，Foundry 都会在每个阶段开始前替它问一次。Antigravity 不从 Foundry 接收 MCP 服务器：它的 goal 只以文字形式拿到 Memory 回忆起的内容。对 Codex，Foundry 把 token 作为 `HINDSIGHT_API_TOKEN` 交给它的会话；你自己的会话要在 shell 里自行 export。
+
+卡片上的 **Turn off** 停掉一切——包括 Foundry 运行的那台服务器，它的安装和记忆都留着，等你再打开；删掉那两个文件夹就把它移除了。已有的 Learnings 不受影响。**Settings → Skills** 里有指向这里的链接。
 
 ## 记住了什么
 
@@ -47,4 +53,4 @@ Foundry 建的 bank 还会得到 Hindsight 自带集成所维护的五张 knowle
 
 ## 费用与隐私
 
-goal 做的一切都会发到你设置的那台服务器：默认在这台电脑上，只有你指向别处时才去别处。Hindsight 的云服务只是另一个地址，从来不是默认值。它的 LLM 为抽取和每一次回答付费；Foundry 自己不增加任何模型费用。[Transfer](./moving-to-a-new-computer.zh.md) 不搬记忆：存储是服务器的。
+goal 做的一切都会发到你设置的那台服务器：Foundry 运行它时就在这台电脑上（它只监听 `127.0.0.1`），只有你指向别处时才去别处。Hindsight 的云服务只是另一个地址，从来不是默认值。它的 LLM 为抽取和每一次回答付费；Foundry 自己不增加任何模型费用。[Transfer](./moving-to-a-new-computer.zh.md) 不搬记忆：存储是服务器的。
