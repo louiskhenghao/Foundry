@@ -21,17 +21,16 @@ Foundry 在你自己的电脑上运行，从网页驱动你的 Claude Code 或 C
 
 ## Codex 编码智能体
 
-现在也可使用 Codex CLI + ChatGPT 登录运行同一套 Foundry 流程：
+现在也可使用 Codex CLI + ChatGPT 登录运行同一套 Foundry 流程：安装器问编码智能体时勾选 Codex（或者传 `--agent codex`），然后登录。
 
 ```sh
-codex login
-bun install --frozen-lockfile && bun run web:build
-bun run serve:codex
+curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.sh | bash -s -- --agent codex
+codex login                   # 或者 Accounts → Sign in to Codex
 ```
 
 Codex 启动配置默认使用 `data-codex/`，Claude 启动配置默认使用 `data/`。两种实例都可以运行两种编码智能体：创建 goal 时选择 **Coding agent**（编码智能体）。数据目录属于整个实例，不按每个 goal 分开；账户、预设和 MCP 权限则保持独立。Codex 只支持 ChatGPT 登录，用量窗口按账户实际返回显示，包括只有 weekly limit 的账户。
 
-先安装支持 hooks 的 Codex CLI，再运行上述命令；Docker 构建固定使用 0.160.0。[完整安装、Docker 与能力限制](docs/operate/codex.md)。升级现有实例前，请阅读[备份与回退](docs/operate/updates-and-backup.md#upgrading-to-mixed-provider-goals)（英文）。
+Foundry 需要支持 hooks 的 Codex CLI：`foundry setup` 会装好，Setup 页会检查。[完整安装与能力限制](docs/operate/codex.md)。升级现有实例前，请阅读[备份与回退](docs/operate/updates-and-backup.md#upgrading-to-mixed-provider-goals)（英文）。
 
 
 ## 为什么用 Foundry
@@ -130,39 +129,30 @@ curl -fsSL https://raw.githubusercontent.com/louiskhenghao/Foundry/main/install.
 # 跳过编码智能体的提问：  … | bash -s -- --agent codex   （或 agy 即 Antigravity、claude,agy、all）
 ```
 
-它会先问你怎么运行 Foundry，以及要用哪些编码智能体：Claude Code、Codex 或 Antigravity（Docker 里没有 Antigravity）。
+它会问你要用哪些编码智能体：Claude Code、Codex 或 Antigravity；在 Mac 上还会问你要 app 还是 binary。
 **The app**（macOS）把 `Foundry.app` 放进 Applications：Foundry 在菜单栏里运行，登录电脑时自动启动。**The binary**（Linux）
 把最新发布的编译版 `foundry` 作为后台服务运行。两者都是发布本身，按发布的 `SHA256SUMS` 校验过，再由 `foundry setup`
-装好缺少的东西（git、uv、graphify、各编码智能体的 CLI、GitHub CLI、Node.js 和你勾选的可选工具）。下面两种方式仍然可用：
-**From source** 在你的电脑上运行：装好缺少的东西（git、Bun、uv、graphify、各编码智能体的 CLI、GitHub CLI、Node.js，
-以及你勾选的可选工具），已装的编码智能体 CLI 有新版本时会帮你更新，构建 Foundry，并把它装成后台服务，登录电脑时自动启动。**Docker**
-在容器里运行：需要时帮你装 Docker，共用你的项目文件夹（你同意的话，也共用电脑上的 Docker 来跑预览要用的数据库），然后启动。
-两种方式都会问你要不要登录，打开 <http://127.0.0.1:4111>，并留下一个 `foundry` 命令：
-`foundry status | logs | stop | start | update | uninstall`；用 app 或 binary 时，Foundry 自己的命令也走它（`foundry ask`、
-`foundry usage`……）。再跑一次这行命令，或者 `foundry update`，就能更新。
+装好缺少的东西（git、uv、graphify、各编码智能体的 CLI、GitHub CLI、Node.js 和你勾选的可选工具）。Foundry 3.0 不再有 Docker
+镜像，也不再从源码安装（[ADR-0108](docs/develop/adr/0108-foundry-ships-only-as-the-app-and-the-binary.md)，英文）：安装器在这台电脑上
+找到以前的安装时，会提出把它的 goal 搬过来（[步骤](docs/operate/install.md#moving-an-earlier-install)，英文）。它会问你要不要登录，
+打开 <http://127.0.0.1:4111>（或它选的端口），并留下一个 `foundry` 命令：`foundry status | logs | stop | start | update | uninstall`，
+Foundry 自己的命令也走它（`foundry ask`、`foundry usage`……）。再跑一次这行命令，或者 `foundry update`，就能更新。
 
 **下载 app**（macOS）：从 [releases](https://github.com/louiskhenghao/foundry-releases/releases) 下载
 `Foundry-<version>-mac-universal.dmg`，把 Foundry 拖进 Applications。它没有经过 Apple 公证，所以第一次打开时要去
 **System Settings → Privacy & Security → Open Anyway**（[步骤](docs/operate/install.md#the-app-macos)，英文）。它的 Setup 页会装好需要的工具。
 
-**手动从源码安装** —— 也就是一行安装做的事：需要 [Bun](https://bun.sh)、已登录的 [Claude Code](https://code.claude.com/docs/en/setup)
-（`claude` 在 PATH 上）和 [graphify](https://github.com/safishamsi/graphify)。使用 ChatGPT 登录请看 [Codex 安装说明](docs/operate/codex.md)：
-
-```bash
-git clone https://github.com/louiskhenghao/Foundry.git foundry && cd foundry
-bun install && bun run web:build
-bun run serve                 # 然后打开 http://127.0.0.1:4111
-```
+要修改 Foundry 本身、从 git checkout 运行它，见[开发文档](docs/develop/README.md#getting-a-working-tree)（英文）。
 
 打开 <http://127.0.0.1:4111>，按 **New goal**，选一个仓库，写下你想要的。[Setup](docs/guide/your-first-goal.zh.md#检查-setup-页面)
-页面会检查东西是否都装好了，缺什么可以一键安装。完整步骤、在 Docker 里登录 Claude、用手机远程访问：见 [安装](docs/operate/install.md)（英文）。
+页面会检查东西是否都装好了，缺什么可以一键安装。完整步骤和用手机远程访问：见 [安装](docs/operate/install.md)（英文）。
 
 ## 了解更多
 
 | 我想要…… | 去看 |
 |---|---|
 | **使用 Foundry** —— goal、访谈、Brief、Inbox、花费 | [用户指南](docs/guide/README.zh.md) |
-| **安装和运行** —— Docker、远程访问、通知、更新、所有设置 | [运维文档](docs/operate/)（英文） |
+| **安装和运行** —— app 和 binary、远程访问、通知、更新、所有设置 | [运维文档](docs/operate/)（英文） |
 | **修改代码** —— 架构、角色、测试、发布、设计决策 | [开发文档](docs/develop/) · [CONTRIBUTING](CONTRIBUTING.md)（英文） |
 
 Foundry 用到的词（Goal、Brief、Milestone、Model Preset……）在 [术语表](CONTEXT.md)（英文）里有定义。

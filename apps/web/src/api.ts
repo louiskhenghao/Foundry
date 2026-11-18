@@ -455,7 +455,7 @@ export interface DataDirStatus {
   version: string;
   /** another value once the engine has started again */
   startedAt: string;
-  readOnly: { reason: 'docker' | 'env'; detail: string } | null;
+  readOnly: { reason: 'env'; detail: string } | null;
   recent: string[];
   configFile: string | null;
   notice: DataDirNotice | null;
@@ -515,7 +515,6 @@ export interface PortRow {
 }
 export interface PortsView {
   rows: PortRow[];
-  inContainer: boolean;
   scannedAt: string;
   foundryPort: number;
   previewRange: { from: number; to: number };
@@ -659,14 +658,14 @@ export interface UpdateReportView {
 export interface SwitchView {
   to: string;
   install: 'app' | 'binary';
-  from: 'local' | 'docker';
+  from: 'local';
   dataDir: string;
   target: string;
   port: number;
   log: string;
 }
 export interface UpdateStatusView extends UpdateReportView {
-  capability: { mode: 'docker' | 'local' | 'app' | 'binary' | 'unknown'; canSelfUpdate: boolean; method: 'watchtower' | 'git' | 'release' | 'switch' | null; guided: string[]; switch: SwitchView | null };
+  capability: { mode: 'local' | 'app' | 'binary' | 'unknown'; canSelfUpdate: boolean; method: 'git' | 'release' | 'switch' | null; guided: string[]; switch: SwitchView | null };
   checking: boolean;
   applying: boolean;
 }

@@ -989,12 +989,8 @@ export class Engine {
   /** where this Foundry's data lives, and whether another folder may be chosen here */
   dataDirStatus(): DataDirStatus {
     const c = this.config;
-    const docker = !!process.env.FOUNDRY_DOCKER || existsSync('/.dockerenv');
-    const readOnly: DataDirStatus['readOnly'] = docker
-      ? { reason: 'docker', detail: 'In the Docker image the data folder is the volume mounted at /app/data (engine-data in docker-compose.yml; /app/data-codex for the Codex profile): change the mount there, not here.' }
-      : c.dataDirSource === 'env'
-        ? { reason: 'env', detail: 'FOUNDRY_DATA_DIR is set in the environment Foundry was started with, and it wins over a choice made here. Unset it to choose a folder here.' }
-        : null;
+    const readOnly: DataDirStatus['readOnly'] =
+      c.dataDirSource === 'env' ? { reason: 'env', detail: 'FOUNDRY_DATA_DIR is set in the environment Foundry was started with, and it wins over a choice made here. Unset it to choose a folder here.' } : null;
     const recent = c.foundryHome ? readHomeConfig(c.foundryHome, c.log).recent.filter((p) => p !== c.dataDir && existsSync(p)) : [];
     return {
       current: c.dataDir,

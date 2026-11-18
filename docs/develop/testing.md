@@ -173,4 +173,4 @@ A run writes `regress/results/<time>-<label>.json` and `.md` (not committed): pe
 
 ### Native plugin smoke check
 
-`bun scripts/verify-codex-plugins.ts [path-to-codex]` checks native list → install → refreshed state → remove using an isolated temporary home and a local fixture marketplace. It does not use personal credentials, network access or model inference, and cleans up its fixture. Run it with the installed host CLI and the Docker-pinned CLI. Use `--init` when running subprocess tests in Docker so detached child processes are reaped.
+`bun scripts/verify-codex-plugins.ts [path-to-codex]` checks native list → install → refreshed state → remove using an isolated temporary home and a local fixture marketplace. It does not use personal credentials, network access or model inference, and cleans up its fixture. Run it with the installed host CLI. Use `--init` when running subprocess tests in Docker so detached child processes are reaped.

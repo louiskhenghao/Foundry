@@ -11,25 +11,22 @@ Foundry can drive Claude Code, Codex CLI or the Antigravity CLI (`agy`, Google's
 | One Settings page and the same Coding agent selector | Skills installed in the shared `~/.agents/skills` and linked into each goal's workspace; plugins and MCP servers managed in agy itself |
 | One Usage page and Agents monitor | Token counts and the account's weekly quota per group of models (no USD cost) |
 
-## From source
+## Set it up
 
-The [one-line installer](install.md#one-line) sets it up: tick **Antigravity** in its coding-agent checklist, or pass
-`--agent agy` (`--agent claude,agy` keeps Claude Code as well). It installs `agy`, or updates one older than its newest
-release, and offers to open `agy` to sign in. By hand:
-
-Install Bun and git, then the Antigravity CLI (1.1.15 or newer: print mode with stream-json input) and sign in once from a terminal, which opens the browser:
+The [installer](install.md#the-installer) sets it up: tick **Antigravity** in its coding-agent checklist, or pass
+`--agent agy` (`--agent claude,agy` keeps Claude Code as well). It installs `agy` when it is missing and offers to open
+`agy` to sign in. On a computer that has Foundry already, `foundry setup --agent agy` installs it. By hand, install the
+Antigravity CLI (1.1.15 or newer: print mode with stream-json input) and sign in once from a terminal, which opens the
+browser:
 
 ```sh
 curl -fsSL https://antigravity.google/cli/install.sh | bash   # or: brew install --cask antigravity-cli
 agy                                                            # sign in, then /quit
-bun install --frozen-lockfile
-bun run web:build
-bun run serve:agy
 ```
 
 Open <http://127.0.0.1:4111>. Setup checks **Antigravity CLI** and **Antigravity sign-in**; the Accounts page shows the account the CLI is signed in with and says to run `agy` in a terminal when it is not. Foundry drives neither the sign-in nor the sign-out (`/logout` inside agy). A `GEMINI_API_KEY` works the way the CLI documents it: `modelProvider: gemini` in `~/.gemini/antigravity-cli/settings.json` and the key in the environment Foundry starts with.
 
-`bun run dev:agy` starts the development watcher. The equivalent production command is `FOUNDRY_PROVIDER=agy bun run serve`. The Antigravity launch profile defaults to `data-agy/`; set `FOUNDRY_DATA_DIR` for another place. Existing goals keep their backend.
+The binary's service starts with the Antigravity launch profile when Antigravity is the only coding agent you chose (`--agent agy`); the app starts with Claude Code's. The Antigravity launch profile defaults to `data-agy/`; set `FOUNDRY_DATA_DIR` for another place. Existing goals keep their backend.
 
 ## Models and configuration
 

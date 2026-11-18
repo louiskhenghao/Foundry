@@ -1,6 +1,6 @@
 # ADR-0010: Self-update: Docker Hub as version source, watchtower as the docker updater
 
-**Status:** accepted · 2026-08-28
+**Status:** accepted · 2026-08-28 · amended by ADR-0104 · watchtower superseded by [ADR-0108](0108-foundry-ships-only-as-the-app-and-the-binary.md): 3.0 has no image
 
 ## Context
 

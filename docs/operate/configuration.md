@@ -139,7 +139,7 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | Setting | Default | Environment variable | What it does |
 |---|---|---|---|
 | `preview.portFrom` | `4200` | `FOUNDRY_PREVIEW_PORT_FROM` | First port handed to goal previews; an app keeps its usual port (3000 for Next) while that is free. |
-| `preview.portTo` | `4299` | `FOUNDRY_PREVIEW_PORT_TO` | Last port handed to goal previews (Docker: publish the range). |
+| `preview.portTo` | `4299` | `FOUNDRY_PREVIEW_PORT_TO` | Last port handed to goal previews. |
 | `preview.idleMinutes` | `60` | `FOUNDRY_PREVIEW_IDLE_MIN` | A preview nobody opened for this long is stopped (never while a goal waits for your look). |
 | `checks.selfCheck` | `false` | `FOUNDRY_SELF_CHECK` | New goals open their preview in headless Chromium after each task, screenshot it and fail on console or network errors. |
 
@@ -202,7 +202,6 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 
 | Variable | What it does |
 |---|---|
-| `FOUNDRY_REPOS` | Docker compose only: host folder mounted at /repos. |
 | `FOUNDRY_SUPERVISED` | Set to 1 under launchd / systemd so a self-update exits and lets the supervisor restart Foundry. |
 | `FOUNDRY_UPDATE_CHECK` | off = no daily release check. |
 | `FOUNDRY_RELEASES_URL` | The GitHub Releases API address the update check reads (default: the public foundry-releases repository). |
@@ -210,10 +209,4 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `FOUNDRY_APP_SHELL` | Set to 1 by the macOS menu bar app (ADR-0105): the engine writes where it listens to ~/.foundry/app.json, stops when the app does, and a self-update hands the downloaded release to the app to install. |
 | `FOUNDRY_LOGIN_ITEM` | off = the macOS app does not make itself a login item on its first launch. |
 | `FOUNDRY_ALLOWED_HOSTS` | More names Foundry answers to, comma-separated (a tunnel or proxy domain); * = any. IP addresses, localhost, names without a dot or ending in .local, *.ts.net and the Link base URL's host always work; other names are refused against DNS rebinding. |
-| `FOUNDRY_WATCHTOWER_URL / FOUNDRY_WATCHTOWER_TOKEN` | Docker: the watchtower sidecar that applies one-click updates. |
-| `FOUNDRY_HOST_REPOS` | Docker: the projects folder shared at the same path as on the host; the folder picker starts there (set by the installer). |
-| `FOUNDRY_HOST_DOCKER / FOUNDRY_CONTAINER` | Docker: the host's Docker socket is shared, so preview services start there in this container's network (container name, default foundry). Set by the installer (ADR-0024). |
-| `FOUNDRY_SKIP_SETUP` | Docker: skip installing the graphify skill into a fresh Claude home on first start. |
-| `COMPOSE_PROFILES` | Docker compose only: `memory` starts the Hindsight service beside Foundry for Memory (ADR-0072); `install.sh --with hindsight` writes it to .env with HINDSIGHT_API_URL=http://hindsight:8888. |
-| `HINDSIGHT_API_LLM_PROVIDER / HINDSIGHT_API_LLM_API_KEY / HINDSIGHT_API_LLM_MODEL` | Docker compose only, in hindsight.env beside the compose file (mode 600): the LLM the Hindsight service extracts and answers with; the installer asks for them. |
 | `CLAUDE_CONFIG_DIR` | Alternative to FOUNDRY_CLAUDE_HOME. |

@@ -13,28 +13,28 @@ Foundry can drive Claude Code, Codex CLI or the [Antigravity CLI](antigravity.md
 
 Signing into Claude does not sign into Codex. Setup/Accounts can keep both connected; changing a native login changes the account used by that CLI home outside Foundry too. Existing goals keep their backend. Switching **Coding agent** in a page changes the page’s scope; New goal uses it to choose the backend for the new goal.
 
-## From source
+## Set it up
 
-Install Bun and git, then install a recent Codex CLI with `SessionStart` and `PreToolUse` hooks (the Docker build pins 0.160.0):
+Tick **Codex** in the coding-agent checklist of the [installer](install.md#the-installer), or pass `--agent codex`
+(`--agent claude,codex` keeps Claude Code as well). On a computer that has Foundry already, **Setup → Codex** or
+`foundry setup --agent codex` installs the Codex CLI and its skills. Foundry needs a recent Codex CLI with
+`SessionStart` and `PreToolUse` hooks; Setup checks them.
 
 ```sh
-npm install -g @openai/codex
-codex login
-bun install --frozen-lockfile
-bun run web:build
-bun run serve:codex
+foundry setup --agent codex
+codex login                     # or Accounts → Sign in to Codex
 ```
 
 Open <http://127.0.0.1:4111>. Setup checks **Codex CLI** and **Codex login**; the account menu signs in using ChatGPT device authorization. Enter the printed device code on the linked OpenAI page. API-key login is not used for Codex inference.
 
-`bun run dev:codex` starts the development watcher. The equivalent production command is `FOUNDRY_PROVIDER=codex bun run serve`.
-
-The Codex launch profile defaults to `data-codex/`; the Claude launch profile uses `data/`. All goals in an instance share its selected directory. To choose another location, set `FOUNDRY_DATA_DIR`. Foundry records the backend owning each data directory and refuses to open it through the other backend, preventing incompatible session resumes. Both providers can now run within one instance. Existing separate data directories are not merged automatically. If you keep separate instances, use distinct `FOUNDRY_PORT` values and preview port ranges.
+The app starts with the Claude launch profile, or with Codex's once goals made with Codex were moved into it ([Moving an earlier install](install.md#moving-an-earlier-install)); `FOUNDRY_PROVIDER` still names one outright. The binary's service starts with the first coding agent you chose at install, so `--agent codex` alone gives it the Codex launch profile. The Codex launch profile defaults to `data-codex/`; the Claude launch profile uses `data/`. All goals in an instance share its selected directory. To choose another location, set `FOUNDRY_DATA_DIR`. Foundry records the backend owning each data directory and refuses to open it through the other backend, preventing incompatible session resumes. Both providers can now run within one instance. Existing separate data directories are not merged automatically. If you keep separate instances, use distinct `FOUNDRY_PORT` values and preview port ranges, for example for a second one started from a terminal:
 
 ```sh
-FOUNDRY_PROVIDER=codex FOUNDRY_PORT=4112 FOUNDRY_PREVIEW_PORT_FROM=4300 FOUNDRY_PREVIEW_PORT_TO=4399 bun run serve
-FOUNDRY_PROVIDER=codex FOUNDRY_PORT=4112 bun run cli auth status
+FOUNDRY_PROVIDER=codex FOUNDRY_PORT=4112 FOUNDRY_PREVIEW_PORT_FROM=4300 FOUNDRY_PREVIEW_PORT_TO=4399 foundry serve
+FOUNDRY_PROVIDER=codex FOUNDRY_PORT=4112 foundry auth status
 ```
+
+On Linux, Codex's sandbox needs the kernel's support, and the container's when the binary runs in one: a sandbox initialization failure is reported rather than retried with unrestricted access.
 
 ## Models and configuration
 
@@ -69,7 +69,7 @@ Saved settings override the corresponding environment defaults. Configured binar
 
 **Accounts → Refresh status** rechecks both native accounts from the top of the page while retaining the cards. The top-bar **Usage** link is shared; its tooltip keeps Claude activity and Codex limits separate. Codex meters show the percentage **remaining**, with the blue bar representing that amount. Missing windows and percentages stay unknown.
 
-**Agents** lists recent Foundry and external sessions from both backends, with **All agents**, **Claude Code** and **Codex** filters and a search field. Native Codex history requires CLI 0.158 or newer. The version handshake accepts both official originator names and Foundry's exact client name used in ordinary terminals. After upgrading this fix, restart a source-run server that previously reported an old-CLI warning despite having a newer CLI. External process status remains unknown; opening a session only reads its history.
+**Agents** lists recent Foundry and external sessions from both backends, with **All agents**, **Claude Code** and **Codex** filters and a search field. Native Codex history requires CLI 0.158 or newer. The version handshake accepts both official originator names and Foundry's exact client name used in ordinary terminals. After upgrading this fix, restart a server that previously reported an old-CLI warning despite having a newer CLI. External process status remains unknown; opening a session only reads its history.
 
 ## Skill catalog compatibility
 
@@ -79,21 +79,7 @@ The [compatibility table](../guide/settings.md#skill-compatibility) describes us
 
 A Codex goal on the pstack workflow suite finds the suite's skills linked into its workspace as `.agents/skills/pstack-<skill>` (git-excluded, from Foundry's copy of the pinned plugin); the prompt names them `pstack-tdd`, `pstack-deslop` and so on. The Matt Pocock bundle contains eight current skills. Upstream removed resolving-merge-conflicts; the built-in Merger role retains conflict-resolution instructions without that external dependency. Existing personal/shared copies are not automatically deleted or rewritten. Update managed native variants or explicitly replace an old skill-creator copy in Extensions; shared-directory copies must be managed at their source. A found skill is not proof that all optional executables, image tools, credentials or child-agent capabilities are available.
 
-## Docker
-
-Build this revision locally; the already-published image may not contain Codex support yet:
-
-```sh
-docker build -t foundry-codex .
-docker run --rm --init -it -v foundry-codex-home:/home/node/.codex foundry-codex codex login --device-auth
-docker run --rm --init -p 127.0.0.1:4111:4111 \
-  -e FOUNDRY_PROVIDER=codex \
-  -v foundry-codex-home:/home/node/.codex \
-  -v foundry-codex-data:/app/data-codex \
-  -v "$HOME/code:/repos" foundry-codex
-```
-
-For Compose, set its `image` to the locally built tag and run with `FOUNDRY_PROVIDER=codex`. The compose file persists both backends' homes and data separately. Container hosts must support Codex's sandbox; a sandbox initialization failure is reported rather than retried with unrestricted access.
+## Upgrades and references
 
 For upgrades and rollback, use [the backup guide](updates-and-backup.md). [The validation record](../develop/codex-validation.md) distinguishes automated and native checks from remaining live-integration checks.
 

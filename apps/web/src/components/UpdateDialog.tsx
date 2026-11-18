@@ -47,14 +47,12 @@ export function UpdatePill() {
 
 /** what a one-click update does, by how this Foundry is installed */
 const HOW: Record<string, string> = {
-  docker: 'The watchtower sidecar pulls the new image and restarts this container; the page reconnects by itself.',
   local: 'Runs git pull, installs and rebuilds, then restarts the server; any failure rolls back and changes nothing.',
   app: 'Downloads the release and checks it, then the menu bar app swaps the application and starts it again.',
   binary: 'Downloads the release and checks it, switches the install folder to it, then restarts.',
 };
 /** why this install cannot update itself, above the commands that do it by hand */
 const GUIDED: Record<string, string> = {
-  docker: 'This container has no watchtower sidecar, so it cannot replace itself — run these on the host (the newest docker-compose.yml adds the sidecar for one-click updates):',
   local: 'This install cannot update itself — run these in the Foundry directory, then restart:',
   app: 'This Foundry was started without its menu bar app, which is what swaps the application — download the release and replace Foundry.app by hand:',
   binary: 'This install is not in a release folder Foundry can switch — download the release and replace the install by hand:',
@@ -209,7 +207,7 @@ export function SwitchNotice({ sw, steps, canSwitch, force, onForce, err, onSwit
       <div className="rounded-md border border-you/60 p-3 space-y-1">
         <p className="text-sm font-bold text-ink">Foundry {sw.to} ships only as {what}.</p>
         <p className="text-xs text-ink-soft">
-          This {sw.from === 'docker' ? 'Docker' : 'source'} install gets no updates from {sw.to} on. Switching keeps every goal, setting, transcript and attachment.
+          This source install gets no updates from {sw.to} on. Switching keeps every goal, setting, transcript and attachment.
         </p>
       </div>
       <div className="space-y-1">
@@ -217,11 +215,7 @@ export function SwitchNotice({ sw, steps, canSwitch, force, onForce, err, onSwit
         <ul className={list}>
           <li>Installs Foundry {sw.to} {sw.install === 'app' ? 'as Foundry.app in Applications, run from the menu bar' : 'in ~/.local/share/foundry, run as a service'}.</li>
           <li>
-            {sw.from === 'docker' ? (
-              <>Stops this container, then copies its data folder <span className={mono}>{sw.dataDir}</span> to <span className={mono}>{sw.target}</span>, with the paths it wrote pointed at this computer. The container stays as it is, and Docker does not start it again: it is the backup.</>
-            ) : (
-              <>Stops this Foundry, then copies its data folder <span className={mono}>{sw.dataDir}</span> to <span className={mono}>{sw.target}</span>. The original stays as it is: it is the backup.</>
-            )}
+            Stops this Foundry, then copies its data folder <span className={mono}>{sw.dataDir}</span> to <span className={mono}>{sw.target}</span>. The original stays as it is: it is the backup.
           </li>
           <li>Starts the new Foundry on port {sw.port}, the address this page has. The page reconnects by itself.</li>
           <li>Your repositories, their branches and the goals' progress folders are not touched.</li>
@@ -242,19 +236,13 @@ export function SwitchNotice({ sw, steps, canSwitch, force, onForce, err, onSwit
         <p className="text-xs font-bold text-ink">The way back</p>
         <ul className={list}>
           <li>
-            {sw.from === 'docker'
-              ? 'The container and its volumes stay as they are. To go back, quit the new Foundry and start the container again: the MOVED.md in its data folder says how.'
-              : 'This checkout and its data stay as they were. To go back, quit the new Foundry and start this one again.'}
+            This checkout and its data stay as they were. To go back, quit the new Foundry, delete the MOVED.md in its data folder, and start this one again.
           </li>
         </ul>
       </div>
-      {sw.from === 'docker' || !canSwitch ? (
+      {!canSwitch ? (
         <div className="space-y-2">
-          <p className="text-xs text-ink-faint">
-            {sw.from === 'docker'
-              ? `Nothing in a container can install on its host. On the computer Docker runs on, run this: it installs Foundry ${sw.to} (the app on a Mac, the binary on Linux), finds this container and offers to move its goals. On a Mac you can instead download the app from the releases page and open it: it offers the same move.`
-              : 'This Foundry cannot switch by itself here. In a terminal:'}
-          </p>
+          <p className="text-xs text-ink-faint">This Foundry cannot switch by itself here. In a terminal:</p>
           <div className="rounded-md border border-line bg-sunken p-3 space-y-1">
             {steps.map((cmd) => (
               <div key={cmd} className="flex items-center gap-2 text-[12px] mono text-ink [overflow-wrap:anywhere]">

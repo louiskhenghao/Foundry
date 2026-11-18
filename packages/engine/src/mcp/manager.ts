@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import type { DoctorCheck } from '../skills/types.ts';
 import { spawnStreaming } from '../skills/updaters.ts';
@@ -50,7 +50,7 @@ export class McpManager {
   /** `claude mcp login`: connectors get their claude.ai link; other HTTP servers their OAuth sign-in */
   readonly login: McpLogin;
   constructor(private o: McpManagerOptions) {
-    this.login = new McpLogin({ claudeBin: () => this.claude(), headless: () => !!process.env.FOUNDRY_DOCKER || existsSync('/.dockerenv'), spawn: o.loginSpawn, log: o.log });
+    this.login = new McpLogin({ claudeBin: () => this.claude(), headless: () => process.platform === 'linux' && !process.env.DISPLAY && !process.env.WAYLAND_DISPLAY, spawn: o.loginSpawn, log: o.log });
   }
 
   /**

@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This page is for the person who runs Foundry: native accounts, Docker problems, engine log lines, restarts and media-tool keys.
+This page is for the person who runs Foundry: native accounts, engine log lines, restarts and media-tool keys.
 What the messages on a goal mean for the person running it (task states, Inbox notices) is in
 [docs/guide/when-foundry-needs-you.md](../guide/when-foundry-needs-you.md); costs are in
 [docs/guide/costs-and-usage.md](../guide/costs-and-usage.md).
@@ -8,8 +8,9 @@ What the messages on a goal mean for the person running it (task states, Inbox n
 Where to look:
 
 - **Setup** page, or `doctor` on the command line: is the machine ready?
-- **Server output**: the terminal running `bun run serve`, `docker logs foundry`, or your service log. Lines in
-  brackets, such as `[settings] …` or `[update] …`, only appear here.
+- **Server output**: `foundry logs`, **Show Log** in the app's menu (`~/Library/Logs/Foundry/app.log`), or the
+  binary's service log (`journalctl --user -u foundry`). Lines in brackets, such as `[settings] …` or `[update] …`,
+  only appear here.
 - **Engine notes**: short messages the engine records in its event log. Notes about a goal appear in that goal's
   timeline.
 - `GET /api/health`: is the engine busy, paused or waiting for a restart?
@@ -29,9 +30,8 @@ Update Foundry and restart when idle. On an older version, an idle restart is al
 ## Doctor checks
 
 ```bash
-bun run cli doctor --provider codex                   # use claude for Claude Code
-bun run cli doctor                                    # local install; without the server it skips the markitdown, Models and Notifications checks
-docker exec foundry bun apps/cli/src/main.ts doctor   # Docker
+foundry doctor                       # without the server it skips the markitdown, Models and Notifications checks
+foundry doctor --provider codex      # or claude, or agy
 ```
 
 `✘` is an error and makes `doctor` exit with 1. `⚠` is optional. The **Setup** page shows the same list with fix
@@ -41,41 +41,23 @@ buttons.
 |---|---|---|
 | Claude Code CLI | `claude` is on the `PATH` (or at **Settings → Engine (install) → claude binary**) and runs | `npm install -g @anthropic-ai/claude-code` |
 | Claude login | Claude Code is signed in | **Sign in** on the Setup page, or `claude auth login` |
-| Codex CLI | selected executable supports native execution and required hooks | install/update `@openai/codex`, or use the pinned Docker build |
+| Codex CLI | selected executable supports native execution and required hooks | install or update `@openai/codex` (**Install** on the Setup page) |
 | Codex login | the configured native home is signed in with ChatGPT | **Sign in** for Codex on Setup, or `codex login`; API-key inference is unsupported |
 | git | `git` is on the `PATH` | install git (`xcode-select --install` on macOS) |
 | REA native engines (optional) | with the `rea` MCP server installed: Hopper, Ghidra (`GHIDRA_INSTALL_DIR`) or IDA was found, so native apps and binaries can be analysed; websites, JavaScript/Electron, .NET and Android packages need none | install one of them; Ghidra is free |
-| Bun runtime | `bun` is on the `PATH` | `curl -fsSL https://bun.sh/install \| bash` |
+| Bun runtime | the Bun Foundry runs on, compiled into the app and the binary | nothing: it passes there |
+| uv | uv is installed (graphify and markitdown install with it) | **Install** on the Setup page, or `foundry setup` |
 | Required: graphify | the graphify CLI is installed | **Install** on the Setup page, or `uv tool install --python 3.12 graphifyy && graphify install --platform claude` |
 | `<skill> backend` (⚠) | an installed image skill has the API key it needs | see [Image-generation keys](#image-generation-keys) |
 | GitHub CLI (optional) (⚠) | `gh` is installed and logged in to github.com | **Sign in** on the Setup page, or `gh auth login --web`; only needed for push / PR / auto-merge delivery |
 | markitdown (optional) (⚠) | the document converter is installed | **Install markitdown** on the Setup page, or `uv tool install --python 3.12 'markitdown[all]'` |
 | Models (presets in use) (⚠) | every model named in the presets in use has resolved on this machine and did not fail last time | test the model in **Settings → Models & limits**, or pick another |
 | Notifications (optional) (⚠) | Telegram or Discord is configured | [notifications.md](./notifications.md) |
+| foundry in the terminal (optional) (⚠) | the `foundry` command is in `~/.local/bin` and your shell finds it | **Install** on the Setup page, or `foundry link`; add the line it shows to your shell's settings |
 | Stale skill copies (⚠) | no loose copy in `~/.claude/skills` hides a newer plugin skill of the same name | **Trash N stale copies** on the Setup page (goes to the skills trash, restorable) |
 | Skill updates (⚠) | installed skill sources are up to date | open the **Extensions** page (Skills tab) |
 | Skills directory writable | Foundry can write to the selected backend’s user skill directory | fix the folder's permissions |
 | settings.json (⚠) | Claude Code's `settings.json` parses and its hook commands exist | fix the file; a missing hook command makes every session log hook errors |
-
----
-
-## Common Docker problems
-
-| What you see | Why | Fix |
-|---|---|---|
-| `no configuration file provided: not found` | `docker compose` ran in a folder without `docker-compose.yml` | fetch it from the image ([install.md](./install.md#with-docker-compose)), or use `docker run` |
-| `Not logged in · Please run /login` | `claude login` is not a command | `claude auth login`, with `-it` |
-| **Sign in** on the Setup page shows a link and asks for a code | normal in Docker: there is no browser in the container | Claude: paste its returned code into Foundry’s dialog. Codex: enter the displayed device code on the linked OpenAI page |
-| *not a git repository* under **New goal → Repository** | you typed a host path | type the container path, for example `/repos/acme-app` |
-| `Permission denied` in the repository, or worktrees fail (Linux) | your files are not owned by uid 1000 | use the `--user "$(id -u):$(id -g)"` recipe ([install.md](./install.md#5-linux-if-your-user-id-is-not-1000)) |
-| `port is already allocated` | something else uses 4111 on the host | publish another host port, for example `-p 127.0.0.1:4112:4111`, and open that |
-| Setup: *markitdown not installed* | image older than 0.2.1; since then markitdown is in the image (the in-container install cannot write to the root-owned tool folders) | `docker pull imlouiskhenghao/foundry:latest` and re-create the container |
-| `git worktree list` in your repository shows worktrees that do not exist on the host | worktrees were registered with container paths | `git worktree prune` in that repository |
-| The update dialog shows commands instead of an **Update** button | no sidecar: the container was started with `docker run`, is not named `foundry`, or lacks `FOUNDRY_WATCHTOWER_URL` / `FOUNDRY_WATCHTOWER_TOKEN` | run the commands shown, or switch to the shipped compose file ([updates-and-backup.md](./updates-and-backup.md#self-update)) |
-| A preview link does not open from the host (`Empty reply from server`, connection reset) | the preview port range is not published, or published under other host port numbers, or the image is 0.4.1 or older (its previews listened only inside the container) | publish `127.0.0.1:4200-4299:4200-4299`, same numbers both sides ([install.md](./install.md#6-previews-from-the-host)); pull the newest image. For a Brief run command, make its server listen on `0.0.0.0` |
-| The self-check stops working after an update | Chromium was downloaded into the container's own file system, and the update re-created the container | keep `/home/node/.cache/ms-playwright` in a volume (the shipped compose file does), then **Settings → Preview & self-check → Install Chromium** once more |
-| *Chromium could not start … error while loading shared libraries: libglib-2.0.so.0* | image 0.4.1 or older: it had no system libraries for Chromium, and they cannot be installed as the container's user | pull the newest image and re-create the container |
-| `gh` is logged out after an update | `/home/node/.config/gh` is not in a volume | log in again and add a volume for it ([install.md](./install.md#7-github-for-delivery-optional)) |
 
 ---
 
@@ -85,8 +67,8 @@ Choose **Coding agent → Codex** in Setup, Settings, Extensions or Usage before
 
 | What you see | What to do |
 |---|---|
-| Required hooks or hook canary unavailable | Update to a CLI supporting `SessionStart` and `PreToolUse` (Docker pins 0.160.0). Foundry deliberately refuses to start an unguarded session. |
-| Sandbox initialization fails in Docker | Check host/kernel sandbox support and container configuration. Foundry does not retry with unrestricted access. |
+| Required hooks or hook canary unavailable | Update to a CLI supporting `SessionStart` and `PreToolUse`. Foundry deliberately refuses to start an unguarded session. |
+| Sandbox initialization fails (Linux) | Check the kernel's sandbox support, and the container's configuration when the binary runs inside one. Foundry does not retry with unrestricted access. |
 | API-key login detected / ChatGPT sign-in required | Sign in through Setup’s Codex account or `codex login`. Media-tool keys in Settings do not authenticate Codex inference. |
 | Only a weekly quota appears | This is supported. Foundry shows windows the native account actually returns; a missing five-hour window is not an error. |
 | Quota or plugin inventory unavailable | Verify the configured binary/home and native sign-in, then Refresh. Unknown data is not an empty inventory or unlimited usage. |
@@ -109,17 +91,16 @@ See [Codex setup and limits](codex.md) and [mixed-provider upgrades](updates-and
 | delivery failed: *engine restarted during delivery — run Deliver again (every step is idempotent)* | The engine stopped in the middle of a delivery. | Press **Deliver** again. Next time, check `busy.delivering` before restarting. |
 | *"X" was ready but had not started; you asked Foundry to start it now* | **Start now** was pressed on a ready task nothing held back. | Nothing. If it keeps happening, report it with the engine log. |
 | attempt concluded *stuck; stopped by you* (or *— resumes next*) | **Stop and retry** concluded work that had no live session, the way a restart would: a started session resumes, an attempt that never had one is given back. | Nothing. Earlier versions could hang here when a check's dev server kept its output open; checks, installs and timed git commands now run in their own process group and are killed whole on a timeout. |
-| `[update] watchtower accepted the trigger but this container was never replaced` | A Docker self-update was requested, but the container was still running five minutes later. Foundry takes work again. | Check the `foundry-watchtower` logs (`docker logs foundry-watchtower`). |
 
 ### Settings and models
 
 | Line or note | Meaning | What to do |
 |---|---|---|
 | `[settings] ignoring env value for <key>: …` or `ignoring file value …` | An environment variable or a saved value is invalid. The next layer (variable, then default) is used instead. | Fix the variable or the value. Valid values: [configuration.md](./configuration.md). |
-| `[settings] FOUNDRY_MODEL_STRONG is set but no longer does anything: models come from presets (Settings → Models & limits)` (also `FOUNDRY_MODEL_WORKER`, `FOUNDRY_GOAL_REVIEWER`) | The old model tiers are gone. Only the housekeeping model (`FOUNDRY_MODEL_CHEAP`) is still read. | Remove the variable, for example from an old `docker-compose.yml`. Choose models in **Settings → Models & limits**. |
+| `[settings] FOUNDRY_MODEL_STRONG is set but no longer does anything: models come from presets (Settings → Models & limits)` (also `FOUNDRY_MODEL_WORKER`, `FOUNDRY_GOAL_REVIEWER`) | The old model tiers are gone. Only the housekeeping model (`FOUNDRY_MODEL_CHEAP`) is still read. | Remove the variable from the environment Foundry starts with. Choose models in **Settings → Models & limits**. |
 | *Models now come from presets: Code = Production, Docs & research = Balanced, Media = Balanced …* | One-time move of an older install's saved model tiers to presets. The note lists the old tiers. | Pick other presets in **Settings → Models & limits** if you prefer. |
 | *model X is unavailable (…); … sessions of this goal now use Y* | A model alias or id did not resolve (deprecated, retired, typo). The session re-ran with the next model in **Fallbacks**. | Check the model in **Settings → Models & limits**. |
-| `[claude-code:unrecognized_model] {"model":"claude-fable-5-2",…}` in a live log | Your Claude Code is older than the model (Fable 5.2 needs 2.1.321, Fable 5.1 needs 2.1.259). The request still goes through. | Update Claude Code: `npm install -g @anthropic-ai/claude-code`. In Docker, pull the newest image. |
+| `[claude-code:unrecognized_model] {"model":"claude-fable-5-2",…}` in a live log | Your Claude Code is older than the model (Fable 5.2 needs 2.1.321, Fable 5.1 needs 2.1.259). The request still goes through. | Update Claude Code: `npm install -g @anthropic-ai/claude-code`. |
 | `[models] sync: N id(s) in the Claude Code binary; fable → …, opus → …` | Foundry read the model ids your Claude Code knows and resolved the family aliases. Runs on demand and when the Claude Code version changes. | Nothing. |
 
 ### Usage limits
@@ -213,15 +194,10 @@ If you restart by hand:
    continuation, but replaying the segment consumes additional account usage. A merge session, or a session that had not started yet,
    is orphaned and costs a fresh attempt. A delivery is marked failed and must be started again.
 
-3. **Stop the right process.** Local install:
-
-   ```bash
-   pgrep -f "^bun apps/cli/src/main.ts serve"
-   ```
-
-   Never use `lsof -ti :4111 | head -1`: that can be your browser. Under launchd or systemd, restart through the
-   service manager instead (`launchctl kickstart -k gui/$(id -u)/com.foundry.serve`, `systemctl --user restart foundry`).
-   In Docker: `docker restart foundry`.
+3. **Restart it the way it runs.** `foundry restart` restarts the app or the binary's service. Without that command,
+   choose **Quit Foundry** in the app's menu and open the app again; the binary's service restarts with
+   `systemctl --user restart foundry` (Linux) or `launchctl kickstart -k gui/$(id -u)/dev.foundry.server` (macOS).
+   Never stop the process found by its port (`lsof -ti :4111 | head -1`): that can be your browser.
 
 ### Checking the event log with `replay`
 
@@ -229,18 +205,12 @@ Foundry's event log is the source of truth; the tables the UI reads are rebuilt 
 from the log and compares them with what was there before. Run it with the engine stopped:
 
 ```bash
-# local install
-bun apps/cli/src/main.ts replay --verify
-
-# Docker (Compose or docker run): stop the container, then run a one-off container on the same volumes
-docker stop foundry
-docker run --rm --init --volumes-from foundry <same-image-tag-as-foundry> bun apps/cli/src/main.ts replay --verify
-docker start foundry
+foundry stop                 # or Quit Foundry in the app's menu
+foundry replay --verify
+foundry start                # or open the app again
 ```
 
-Use the same `FOUNDRY_PROVIDER` and `FOUNDRY_DATA_DIR` as the server for both commands; `--volumes-from` does not copy environment variables. Never use an older image to replay mixed-provider data.
-
-With the uid ≠ 1000 recipe, add the same `--user` and `-e HOME` flags to the one-off container.
+Use the same `FOUNDRY_PROVIDER` and `FOUNDRY_DATA_DIR` as the server: the binary's service sets `FOUNDRY_PROVIDER` to the first coding agent chosen at install, and a terminal does not have it. Never use an older release to replay mixed-provider data.
 
 It prints `replayed N events; read models identical ✔`. When they differ, it prints `DIFFER ✘`, lists the tables and
 (with `--verify`) exits with 1. Either way the rebuilt tables are kept.
@@ -261,8 +231,8 @@ Claude uses its native login and Codex uses ChatGPT login only. Image/media skil
 
 Set the key in **Settings → Tools & keys** (*OpenAI-compatible API key*, *OpenAI-compatible base URL*,
 *Gemini API key*, *Kimi (Moonshot) API key*). It is stored in `settings.json` in the configured data directory and applies to the next session,
-without a restart. A local install can also put it in `.env` at the root of the Foundry checkout (git-ignored; Bun
-loads it when the engine starts). In Docker, use the Settings page or `-e`.
+without a restart. `OPENAI_API_KEY` or `GEMINI_API_KEY` in the environment Foundry starts with works too; a key saved
+in Settings wins.
 
 Every session inherits the key, so every session can see it.
 

@@ -1,7 +1,9 @@
 /**
- * The open-source credits: what ships in the Docker image (read from bun.lock, node_modules and the Dockerfile) and the
- * projects behind the Extensions catalog. scripts/gen-credits.ts writes them to the Open source credits page's data and
- * to THIRD-PARTY-NOTICES.txt; apps/web/tests/credits.test.ts fails when either is out of date.
+ * The open-source credits: what Foundry's release ships (the npm packages, read from bun.lock and node_modules, and the
+ * runtime compiled into foundry), what foundry setup installs beside it (scripts/credits/tools.ts), and the projects behind
+ * the Extensions catalog (ADR-0108: there is no Docker image any more). scripts/gen-credits.ts writes them to the Open
+ * source credits page's data and to THIRD-PARTY-NOTICES.txt; apps/web/tests/credits.test.ts fails when either is out of
+ * date.
  */
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -65,50 +67,6 @@ export function productionPackages(lock: Lock): string[] {
   return [...ids].sort();
 }
 
-/**
- * What the Dockerfile installs, as keys: `image:<name>` (a base image or a COPY --from), `npm:<package>` (npm install -g),
- * `uv:<package>` and `python:<version>` (uv tool install), `apt:<package>` (apt-get install).
- */
-export function dockerfileInstalls(dockerfile: string): string[] {
-  const lines = dockerfile
-    .split('\n')
-    .filter((l) => !l.trimStart().startsWith('#'))
-    .join('\n')
-    .replace(/\\\n/g, ' ')
-    .split('\n');
-  const stages = new Set<string>();
-  const keys = new Set<string>();
-  const image = (ref: string) => !stages.has(ref) && keys.add(`image:${ref.replace(/:.*$/, '')}`);
-  for (const line of lines) {
-    const from = line.match(/^FROM\s+(?:--platform=\S+\s+)?(\S+)(?:\s+AS\s+(\S+))?/i);
-    if (from) {
-      image(from[1]!);
-      if (from[2]) stages.add(from[2]);
-      continue;
-    }
-    for (const m of line.matchAll(/--from=(\S+)/g)) image(m[1]!);
-    if (!/^RUN\s/i.test(line)) continue;
-    for (const command of line.replace(/^RUN\s+/i, '').split(/&&|\|\||;/)) {
-      const words = command.trim().split(/\s+/).map((w) => w.replace(/^['"]|['"]$/g, ''));
-      const [tool, sub, sub2] = words;
-      if (tool === 'npm' && (sub === 'install' || sub === 'i') && words.includes('-g')) {
-        // a version after the name: bun@1.4.3, @openai/codex@0.160.0
-        for (const spec of words.slice(2).filter((w) => !w.startsWith('-'))) keys.add(`npm:${spec.replace(/(.)@.*$/, '$1')}`);
-      } else if (tool === 'uv' && sub === 'tool' && sub2 === 'install') {
-        for (let i = 3; i < words.length; i++) {
-          if (words[i] === '--python') keys.add(`python:${words[++i]}`);
-          else if (!words[i]!.startsWith('-')) keys.add(`uv:${words[i]!.replace(/[[=<>~!].*$/, '')}`);
-        }
-      } else if (tool === 'apt-get' && sub === 'install') {
-        for (const pkg of words.slice(2).filter((w) => !w.startsWith('-'))) keys.add(`apt:${pkg}`);
-      }
-    }
-  }
-  return [...keys].sort();
-}
-
-const dockerfileArg = (dockerfile: string, name: string) => dockerfile.match(new RegExp(`^ARG ${name}=(\\S+)`, 'm'))?.[1];
-const dockerfileImageTag = (dockerfile: string, image: string) => dockerfile.match(new RegExp(`^FROM\\s+${image}:(\\S+)`, 'm'))?.[1];
 
 type SkillsCatalog = { suites: { id: string; repo: string; ref?: string }[]; entries: { id: string; homepage?: string; source: { type: string; repo?: string; ref?: string; suite?: string; marketplace?: string; docs?: string } }[] };
 type McpCatalog = { entries: { id: string; homepage?: string }[] };
@@ -201,7 +159,7 @@ export function collectCredits(root = ROOT): Credits {
     const files = readdirSync(dir).sort();
     const licenseFiles = files.filter((f) => LICENSE_FILE.test(f));
     const byHand = licenseFiles.length ? undefined : LICENSE_BY_HAND[pj.name];
-    if (!licenseFiles.length && !byHand) throw new Error(`${id} ships no license file: copy its repository's into scripts/credits/licenses and name it in LICENSE_BY_HAND before it goes into the image`);
+    if (!licenseFiles.length && !byHand) throw new Error(`${id} ships no license file: copy its repository's into scripts/credits/licenses and name it in LICENSE_BY_HAND before it goes into the release`);
     const text = clean(byHand ? read(root, `scripts/credits/licenses/${byHand}`) : licenseFiles.map((f) => readFileSync(join(dir, f), 'utf8')).join('\n\n'));
     const noticeFile = files.find((f) => NOTICE_FILE.test(f));
     const notice = noticeFile ? clean(readFileSync(join(dir, noticeFile), 'utf8')) : undefined;
@@ -209,13 +167,9 @@ export function collectCredits(root = ROOT): Credits {
     return { name: pj.name, version: pj.version, license, url: repoUrl(pj), copyright: copyrightOf(text, notice), text: keep(text), ...(notice && { notice: keep(notice) }) };
   });
 
-  const dockerfile = read(root, 'Dockerfile');
   const licenseText = (file: string) => keep(clean(read(root, `scripts/credits/licenses/${file}`)));
   const tools = TOOLS.map((t): ToolCredit => {
-    const v = t.version;
-    const version = v == null ? null : typeof v === 'string' ? v : 'arg' in v ? dockerfileArg(dockerfile, v.arg) : dockerfileImageTag(dockerfile, v.image)?.match(/^[\d.]+/)?.[0];
-    if (version === undefined) throw new Error(`the Dockerfile no longer gives ${t.name}'s version (scripts/credits/tools.ts)`);
-    return { id: t.id, name: t.name, version, license: t.license, url: t.url, copyright: t.copyright, ...(t.text && { text: licenseText(t.text) }), ...(t.notice && { notice: licenseText(t.notice) }), ...(t.note && { note: t.note }) };
+    return { id: t.id, name: t.name, version: t.version ?? null, license: t.license, url: t.url, copyright: t.copyright, ships: t.ships, ...(t.text && { text: licenseText(t.text) }), ...(t.notice && { notice: licenseText(t.notice) }), ...(t.note && { note: t.note }) };
   });
 
   const catalog: CatalogCredit[] = [];
@@ -242,11 +196,13 @@ export function renderNotices(c: Credits): string {
     [`${light}\n${title}\n${url}\n${light}`, note, text && c.texts[text], notice && `NOTICE\n\n${c.texts[notice]}`].filter(Boolean).join('\n\n').replace(/\n+$/, '') + '\n';
   return [
     'THIRD-PARTY SOFTWARE NOTICES',
-    "Foundry's Docker image includes the open-source software below, each with its version, its license and the copyright\nnotices and license text it asks to be passed on. Foundry shows the same list on its Open source credits page\n(Settings → About & updates).",
-    `Generated by scripts/gen-credits.ts from bun.lock and the Dockerfile; do not edit by hand.`,
-    `${heavy}\nTOOLS IN THE DOCKER IMAGE\n${heavy}`,
-    ...c.tools.map((t) => entry(`${t.name}${t.version ? ` ${t.version}` : ''} — ${t.license}`, t.url, t.note, t.text, t.notice)),
+    "Foundry's release includes the open-source software below, each with its version, its license and the copyright\nnotices and license text it asks to be passed on. The tools foundry setup installs beside it, each from its own\nproject's release, follow. Foundry shows the same list on its Open source credits page (Settings → About & updates).",
+    `Generated by scripts/gen-credits.ts from bun.lock and scripts/credits/tools.ts; do not edit by hand.`,
+    `${heavy}\nTHE RUNTIME IN THE RELEASE\n${heavy}`,
+    ...c.tools.filter((t) => t.ships === 'release').map((t) => entry(`${t.name}${t.version ? ` ${t.version}` : ''} — ${t.license}`, t.url, t.note, t.text, t.notice)),
     `${heavy}\nNPM PACKAGES\n${heavy}`,
     ...c.packages.map((p) => entry(`${p.name} ${p.version} — ${p.license}`, p.url, undefined, p.text, p.notice)),
+    `${heavy}\nTOOLS FOUNDRY SETUP INSTALLS (each from its own project's release)\n${heavy}`,
+    ...c.tools.filter((t) => t.ships === 'setup').map((t) => entry(`${t.name}${t.version ? ` ${t.version}` : ''} — ${t.license}`, t.url, t.note, t.text, t.notice)),
   ].join('\n\n');
 }

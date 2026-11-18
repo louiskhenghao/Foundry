@@ -1,23 +1,24 @@
 # Operating Foundry
 
 This track is for the person who installs Foundry, keeps it running, configures it, updates it and fixes it when
-something goes wrong. You work with terminals, Docker and config files, but you do not change Foundry's code.
+something goes wrong. You work with terminals and config files, but you do not change Foundry's code.
 
 Foundry is a local orchestrator. It drives the Claude Code, Codex and Antigravity CLIs on one machine to plan and deliver goals in your
-repositories. The web UI runs on `http://127.0.0.1:4111`. You can run it from source with Bun, or in Docker
-(image `imlouiskhenghao/foundry`). These pages describe this source revision; what each published release contains is in the [changelog](https://github.com/louiskhenghao/foundry-releases/blob/main/CHANGELOG.md).
+repositories. The web UI runs on `http://127.0.0.1:4111`. Foundry runs as the macOS app or the Linux binary, from
+its releases on GitHub; there is no Docker image and no install from source any more
+([ADR-0108](../develop/adr/0108-foundry-ships-only-as-the-app-and-the-binary.md)). These pages describe this source revision; what each published release contains is in the [changelog](https://github.com/louiskhenghao/foundry-releases/blob/main/CHANGELOG.md).
 
 ## Pages
 
 | Page | What it covers |
 |---|---|
-| [install.md](./install.md) | Requirements, installing locally or with Docker, signing in to each backend, mounting repositories, first-run checks. |
+| [install.md](./install.md) | The app and the binary, the installer and `foundry setup`, moving an earlier install, requirements, first-run checks. |
 | [codex.md](./codex.md) | ChatGPT-only sign-in, independent model presets, native extensions, quota windows and capability limits. |
 | [antigravity.md](./antigravity.md) | The Antigravity CLI (`agy`) as a third coding agent: terminal sign-in, one model and effort per goal, hooks-based guard, tokens not dollars, what is not verified. |
 | [updates-and-backup.md](./updates-and-backup.md) | Where Foundry keeps its data, backup and restore, self-update, release channel. |
 | [remote-access.md](./remote-access.md) | Using Foundry from your phone or laptop over Tailscale, and keeping the machine running while you are away. |
 | [notifications.md](./notifications.md) | Setting up Telegram and Discord messages. |
-| [troubleshooting.md](./troubleshooting.md) | Doctor checks, common Docker problems, engine log lines, restarting safely, image-generation keys. |
+| [troubleshooting.md](./troubleshooting.md) | Doctor checks, engine log lines, restarting safely, image-generation keys. |
 | [configuration.md](./configuration.md) | Every setting and the environment variable that seeds it (generated from the code). |
 | [cli.md](./cli.md) | Every `foundry` CLI command (generated from the code). |
 

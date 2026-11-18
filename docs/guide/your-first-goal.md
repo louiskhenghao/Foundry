@@ -64,7 +64,7 @@ Open the ⚙ menu at the right of the top bar and choose **Setup** (a red dot on
 | **Claude Code CLI** / **Codex CLI** | The selected coding agent’s program. | Press **Install**: Claude Code's own installer, or Codex through Homebrew, npm or its release download; no npm needed. Or copy the command shown. |
 | **Claude login** / **Codex login** | The selected coding agent’s account. | Press **Sign in**. |
 | **git** | Keeps every version of your files. | On a Mac, press **Install**: Apple's command line tools open their own installer; finish it and press **Re-run**. On Linux, copy the command shown. |
-| **Bun runtime** | What Foundry itself runs on. | Built into the app and the release download. From source, copy the command shown. |
+| **Bun runtime** | What Foundry itself runs on. | Built into the app and the release download: it is never red there. |
 | **uv** | Installs graphify and markitdown. | Press **Install**. |
 | **Required: …** | Skills Foundry's sessions need. | Press **Install**. |
 | **GitHub CLI (optional)** | Only needed if Foundry should open pull requests for you. | Can stay yellow. When it is not installed, **Install** adds it. When it says *not logged in*, **Sign in** opens a window with a one-time code: copy it, open GitHub's page, paste it and approve. |

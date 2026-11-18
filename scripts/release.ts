@@ -1,8 +1,8 @@
 /**
- * One-command release (ADR-0010, ADR-0104): bump the product version, tag, publish the changelog to the public releases
- * repo, build the release files (the executables with their resources, per platform) into a draft GitHub Release there,
- * push the multi-arch image to Docker Hub, then publish the GitHub Release — which is the moment deployed instances can
- * see the new version (they read GitHub Releases).
+ * One-command release (ADR-0010, ADR-0104, ADR-0108): bump the product version, tag, publish the changelog to the public
+ * releases repo, build the release files (the executables with their resources, per platform) into a draft GitHub Release
+ * there, then publish it — which is the moment deployed instances can see the new version (they read GitHub Releases).
+ * There is no image any more (ADR-0108): 2.36.0 was the last one on Docker Hub.
  *
  *   bun run release patch|minor|major|x.y.z [--notes "..."] [--dry-run]
  *
@@ -14,7 +14,6 @@ import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'no
 import { join, resolve } from 'node:path';
 
 const ROOT = resolve(import.meta.dir, '..');
-const IMAGE = 'imlouiskhenghao/foundry';
 const RELEASES_REPO = 'louiskhenghao/foundry-releases';
 const RELEASES_DIR = join(ROOT, 'data', 'releases-repo');
 
@@ -46,7 +45,6 @@ if ((await git(['rev-parse', '--abbrev-ref', 'HEAD'])).out !== 'main') fail('rel
 await git(['fetch', 'origin', 'main']);
 const behind = Number((await git(['rev-list', '--count', 'HEAD..origin/main'])).out || '0');
 if (behind > 0) fail(`main is ${behind} commit${behind === 1 ? '' : 's'} behind origin/main — merge first (git pull --no-rebase origin main), then release`);
-if ((await run(['docker', 'buildx', 'version'], { canFail: true })).code !== 0) fail('docker buildx is required for the multi-arch image');
 
 // ---------- version ----------
 const pkgPath = join(ROOT, 'package.json');
@@ -57,7 +55,7 @@ const cur = String(pkg.version);
 if (bumpArg === 'patch' || bumpArg === 'minor' || bumpArg === 'major') {
   const headTag = await run(['git', 'describe', '--tags', '--exact-match', 'HEAD'], { canFail: true });
   const onOrigin = (await run(['git', 'merge-base', '--is-ancestor', 'HEAD', 'origin/main'], { canFail: true })).code === 0;
-  if (headTag.code === 0 && headTag.out === `v${cur}` && !onOrigin) fail(`the last release v${cur} is not on origin/main yet — finish it first: bun run release ${cur} (or git push origin main --tags when its image is already published), then bump`);
+  if (headTag.code === 0 && headTag.out === `v${cur}` && !onOrigin) fail(`the last release v${cur} is not on origin/main yet — finish it first: bun run release ${cur} (or git push origin main --tags when its GitHub Release is already published), then bump`);
 }
 const m = cur.match(/^(\d+)\.(\d+)\.(\d+)$/);
 if (!m) fail(`current version ${cur} is not stable semver`);
@@ -68,7 +66,7 @@ const next =
   : /^\d+\.\d+\.\d+$/.test(bumpArg) ? bumpArg
   : fail(`bad bump: ${bumpArg}`);
 
-// ---------- resume: `bun run release <x.y.z>` where the bump + tag already happened (an earlier run failed at the image push) ----------
+// ---------- resume: `bun run release <x.y.z>` where the bump + tag already happened (an earlier run failed at the build or the upload) ----------
 const tagExists = (await run(['git', 'rev-parse', '-q', '--verify', `refs/tags/v${next}`], { canFail: true })).code === 0;
 const resume = next === cur && tagExists;
 if (next === cur && !tagExists) fail(`already at ${cur} and no v${cur} tag — nothing to bump; pass patch|minor|major or a higher version`);
@@ -95,7 +93,7 @@ if (!resume) {
   await git(['tag', `v${next}`]);
 }
 
-// ---------- changelog to the public releases repo (before the image: notes ready when the version appears) ----------
+// ---------- changelog to the public releases repo (before the build: notes ready when the version appears) ----------
 if (!existsSync(RELEASES_DIR)) {
   const exists = (await run(['gh', 'repo', 'view', RELEASES_REPO], { canFail: true })).code === 0;
   if (!exists) await run(['gh', 'repo', 'create', RELEASES_REPO, '--public', '--description', 'Foundry release notes — read by deployed instances']);
@@ -132,9 +130,6 @@ const releaseExists = (await run(['gh', 'release', 'view', `v${next}`, '--repo',
 if (releaseExists) await run(['gh', 'release', 'upload', `v${next}`, '--repo', RELEASES_REPO, '--clobber', ...assets]);
 else await run(['gh', 'release', 'create', `v${next}`, '--repo', RELEASES_REPO, '--draft', '--title', `v${next}`, '--notes-file', notesFile, ...assets]);
 rmSync(notesFile, { force: true });
-
-// ---------- the versioned multi-arch image on Docker Hub (until the image is retired) ----------
-await run(['docker', 'buildx', 'build', '--platform', 'linux/amd64,linux/arm64', '-t', `${IMAGE}:${next}`, '-t', `${IMAGE}:latest`, '--push', '.']);
 
 // ---------- the release becomes real: the GitHub Release is published, and instances find it on their next check ----------
 await run(['gh', 'release', 'edit', `v${next}`, '--repo', RELEASES_REPO, '--draft=false']);
