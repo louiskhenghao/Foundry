@@ -11,8 +11,8 @@ export type Tool = {
   url: string;
   license: string;
   copyright: string | null;
-  /** release: in Foundry's own release files · setup: installed by foundry setup, from its own project's release */
-  ships: 'release' | 'setup';
+  /** release: in Foundry's own release files · setup: installed by foundry setup, from its own project's release · memory: installed when Memory runs its own server (ADR-0109) */
+  ships: 'release' | 'setup' | 'memory';
   /** the version, where one is fixed */
   version?: string;
   /** file names in ./licenses */
@@ -111,6 +111,18 @@ export const TOOLS: Tool[] = [
     copyright: null,
     ships: 'setup',
     note: "Optional (foundry setup --with ffmpeg), from Homebrew or the system's packages, whose build decides whether it is LGPL-2.1+ or GPL-2+. Foundry runs it to render and measure video (the motion-studio engine, the likeness review's frames, the reviewers' ffprobe checks).",
+  },
+  // installed only when Memory runs its own server (ADR-0109), at the version memory/server.ts pins (credits.test.ts)
+  {
+    id: 'hindsight',
+    name: 'Hindsight',
+    url: 'https://github.com/vectorize-io/hindsight',
+    license: 'MIT',
+    copyright: 'Copyright (c) 2025 Vectorize AI, Inc.',
+    ships: 'memory',
+    version: '1.1.0',
+    text: 'hindsight-client.txt',
+    note: "Installed only when Memory runs its own server (Run Hindsight here on the Hindsight card), from PyPI into a Python environment in the data folder, with the Python packages it depends on (PyTorch among them), each with its own license file beside it, and the Claude Agent SDK, which carries Claude Code (proprietary, under Anthropic's terms).",
   },
 ];
 
