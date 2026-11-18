@@ -318,7 +318,9 @@ export const ChecksSettings = z.object({
  * asks it before it starts. Set up on the Extensions page (MCP servers); nothing here runs while `url` is empty.
  */
 export const MemorySettings = z.object({
-  /** address of the Hindsight server (http://127.0.0.1:8888 when it runs here); null = Memory off */
+  /** Foundry runs a Hindsight server on this computer (ADR-0109): installs it the first time, starts and stops it with the engine; Memory then uses it, and `url` is not used */
+  run: z.boolean().default(false),
+  /** address of a Hindsight server the person runs (http://127.0.0.1:8888 when it runs here); null = Memory off, unless Foundry runs one (`run`) */
   url: z.string().url().nullable().default(null),
   /** its bearer token when the server asks for one; kept by the engine, which calls the server itself */
   token: z.string().min(1).nullable().default(null),

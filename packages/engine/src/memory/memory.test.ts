@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { defaultConfig } from '../config.ts';
@@ -179,6 +179,59 @@ describe('Memory', () => {
     // a folder left out keeps the person's words to itself as well
     engine.memory.setFolder(repo, false);
     expect(await engine.memory.reflectPerson('again?', { repoPath: repo, goalId: 'g1' })).toBeNull();
+  });
+
+  test('with memory.run, Memory uses the server Foundry runs once it answers, hands sessions no token, and follows the setting both ways (ADR-0109)', async () => {
+    const { engine, repo, fake, bank } = await setup();
+    const spawned: { env: Record<string, string>; kill: string[] }[] = [];
+    engine.memoryDeps.server = {
+      uv: () => '/usr/local/bin/uv',
+      run: async (argv) => {
+        if (argv[1] === 'venv') {
+          mkdirSync(join(argv[4]!, 'bin'), { recursive: true });
+          writeFileSync(join(argv[4]!, 'bin', 'python'), '');
+        }
+        return { code: 0, tail: '' };
+      },
+      llm: async () => 'claude-code',
+      spawn: (_argv, opts) => {
+        let exit!: (c: number | null) => void;
+        const me = { env: opts.env, kill: [] as string[] };
+        spawned.push(me);
+        return { pid: 99_999_001, exited: new Promise<number | null>((r) => (exit = r)), kill: (s) => (me.kill.push(s), exit(0)) };
+      },
+      answers: async () => '1.1.0',
+      portFree: async () => true,
+      commandOf: async () => '',
+      pollMs: 5,
+      stopGraceMs: 50,
+    };
+    // a server of the person's was set before: Foundry's own takes over, and its token is not handed to sessions
+    engine.updateSettings({ memory: { url: 'http://127.0.0.1:1/', token: 'tok-secret-123456', run: true } });
+    expect(engine.memory.enabled()).toBe(true);
+    // the engine has not started: nothing runs yet
+    expect(spawned).toEqual([]);
+    expect(engine.memory.connection()).toBeNull();
+    engine.memory.startServer();
+    await waitFor(() => engine.memory.server.view().phase === 'running');
+    expect(engine.memory.connection()).toEqual({ url: 'http://127.0.0.1:8888', token: null });
+    expect(engine.sessionEnvExtra()[TOKEN_ENV]).toBeUndefined();
+    expect(spawned[0]!.env.HINDSIGHT_API_HOST).toBe('127.0.0.1');
+    expect(await engine.memory.bankFor(repo)).toBe(bank);
+    await engine.memory.retain({ content: 'the tests run with bun test', context: 'a fact', tags: [] }, { repoPath: repo, goalId: null, source: 'record' });
+    expect(fake.docs.get(bank)?.map((d) => d.content)).toContain('the tests run with bun test');
+    expect(await engine.memory.status()).toMatchObject({ run: true, configured: true, url: 'http://127.0.0.1:8888', reachable: true, server: { phase: 'running', port: 8888, llm: 'claude-code' } });
+    // off: the server stops, and the person's server is the one used again
+    engine.updateSettings({ memory: { run: false } });
+    await waitFor(() => engine.memory.server.view().phase === 'off');
+    expect(spawned[0]!.kill).toEqual(['SIGTERM']);
+    expect(engine.memory.connection()).toEqual({ url: 'http://127.0.0.1:1', token: 'tok-secret-123456' });
+    // on again, then the engine stops: the server stops with it
+    engine.updateSettings({ memory: { run: true } });
+    await waitFor(() => engine.memory.server.view().phase === 'running');
+    await engine.memory.stopServer();
+    expect(spawned[1]!.kill).toEqual(['SIGTERM']);
+    expect(engine.memory.server.view().phase).toBe('off');
   });
 
   test('a folder that is not a repository has no memory even with a server set', async () => {

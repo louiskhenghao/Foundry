@@ -3,11 +3,13 @@
  * stages ask it before they start. Everything here is optional and bounded: with no server address nothing happens,
  * a server that does not answer costs a stage its timeout and nothing else, a write that fails is a record on the goal
  * and is not retried. The bank is named as Hindsight's own coding-agent integration names it, so the person's own
- * sessions in the repository and Foundry's goals share one memory.
+ * sessions in the repository and Foundry's goals share one memory. The server is the person's, or one Foundry runs
+ * itself on this computer (`memory.run`, ADR-0109: ./server.ts).
  */
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { LEARNINGS_EVERYWHERE, SECRET_SETTINGS, getAttempt, listSecrets, getEscalation, getGoal, getTask, isHistory, listEscalations, listTasks, renderDecisions, type AgentProvider, type Brief, type EngineEvent, type MemorySettings } from '@foundry/core';
+import { claudeConfigEnv } from '../config.ts';
 import type { Engine } from '../engine.ts';
 import { goalRecord } from '../learnings.ts';
 import { PreviewEnvStore, redactor } from '../preview/env.ts';
@@ -17,6 +19,7 @@ import { compactTranscript } from './compact.ts';
 import { pagesFor } from './pages.ts';
 import { answerDocument, briefRevisionDocument, decisionsDocument, feedbackDocument, goalRecordDocument, learningsDocument, personNotebookDocument, replanDocument, reviewDocument, secondOpinionDocument, transcriptDocument } from './record.ts';
 import { recentCommits, seedDocument } from './seed.ts';
+import { HindsightServer, type ServerDeps } from './server.ts';
 import type { MemoryAnswer, MemoryBackend, MemoryConnection, MemoryDocument, MemoryFolderStatus, MemoryGoalView, MemoryRecall, MemorySource, MemoryStage, MemoryStatus } from './types.ts';
 
 /** a goal that ended one of these ways has a record worth keeping (a cancelled one teaches nothing, ADR-0040) */
@@ -50,6 +53,8 @@ export interface MemoryDeps {
   reflectTimeoutMs?: number;
   recallTimeoutMs?: number;
   retainTimeoutMs?: number;
+  /** the server Foundry runs: fake processes, ports and answers */
+  server?: Partial<ServerDeps>;
 }
 
 export interface MemoryWhere {
@@ -84,7 +89,8 @@ const SECRET_ENV = /(KEY|TOKEN|SECRET|PASSWORD)/;
 
 /** the token Codex sessions read (ADR-0072): only while Memory is on and the server asks for one */
 export function memorySessionEnv(s: MemorySettings): Record<string, string> {
-  return s.url && s.token ? { [TOKEN_ENV]: s.token } : {};
+  // the server Foundry runs asks for no token
+  return !s.run && s.url && s.token ? { [TOKEN_ENV]: s.token } : {};
 }
 
 export class Memory {
@@ -103,21 +109,64 @@ export class Memory {
   settings(): MemorySettings {
     return this.engine.settings.values().memory;
   }
-  /** a server address is set */
+  /** Foundry runs the server, or a server address is set */
   enabled(): boolean {
-    return !!this.settings().url;
+    const s = this.settings();
+    return s.run || !!s.url;
   }
+  /** the server to call: the one Foundry runs once it answers, else the address set */
   connection(): MemoryConnection | null {
     const s = this.settings();
+    if (s.run) {
+      const url = this.server.url();
+      return url ? { url, token: null } : null;
+    }
     return s.url ? { url: s.url.replace(/\/+$/, ''), token: s.token } : null;
+  }
+
+  private ownServer: HindsightServer | null = null;
+  /** the server Foundry runs (ADR-0109), made when first asked for (tests set engine.memoryDeps before) */
+  get server(): HindsightServer {
+    if (!this.ownServer) {
+      const engine = this.engine;
+      const claude = () => engine.accounts.claude.status().catch(() => null);
+      const codex = () => engine.accounts.codex.status().catch(() => null);
+      this.ownServer = new HindsightServer({
+        dataDir: engine.config.dataDir,
+        log: engine.config.log,
+        // Claude Code's sign-in when there is one; Codex's only where Claude Code is not signed in
+        llm: async () => ((await claude())?.loggedIn ? 'claude-code' : (await codex())?.loggedIn ? 'openai-codex' : null),
+        claudeEnv: () => ({ ...claudeConfigEnv(engine.config.claudeHome) }),
+        codexBin: () => engine.config.codexBin ?? Bun.which('codex'),
+        ...engine.memoryDeps.server,
+      });
+      // the address came or went: the next call connects anew, and every bank is made ready again
+      this.ownServer.onUrl(() => this.reset());
+    }
+    return this.ownServer;
+  }
+  /** the engine runs: the server follows the setting from now on */
+  private serving = false;
+  startServer(): void {
+    this.serving = true;
+    this.server.sync(this.settings().run);
+  }
+  /** the engine stops: so does the server (bounded) */
+  async stopServer(): Promise<void> {
+    this.serving = false;
+    if (this.ownServer) await this.ownServer.stop();
   }
   /** the folder is left out (Settings → memory.excludedFolders, switched on the Learnings page) */
   excluded(repoPath: string): boolean {
     const p = resolve(repoPath);
     return this.settings().excludedFolders.some((f) => resolve(f) === p);
   }
-  /** the settings changed: the next call connects anew, and every bank is made ready again */
+  /** the settings changed: the next call connects anew, and every bank is made ready again; the server follows `run` */
   reconfigure(): void {
+    this.reset();
+    if (this.serving) this.server.sync(this.settings().run);
+  }
+  private reset(): void {
     this.backend = null;
     this.ready.clear();
     this.readyPerson = null;
@@ -501,7 +550,10 @@ export class Memory {
       }
     }
     return {
+      run: s.run,
+      server: this.server.view(),
       configured: !!conn,
+      ownUrl: s.url ? s.url.replace(/\/+$/, '') : null,
       url: conn?.url ?? null,
       tokenSet: !!conn?.token,
       reachable,
@@ -549,7 +601,7 @@ export class Memory {
    */
   installMcp(provider: AgentProvider, say: (line: string) => void = () => {}): Promise<{ ok: boolean; error: string | null }> {
     const conn = this.connection();
-    if (!conn) return Promise.resolve({ ok: false, error: 'set the server address first' });
+    if (!conn) return Promise.resolve({ ok: false, error: this.settings().run ? 'the server Foundry runs is not answering yet' : 'set the server address first' });
     if (provider === 'agy') return Promise.resolve({ ok: false, error: 'Antigravity keeps its MCP servers itself: add it with agy mcp add' });
     const url = `${conn.url}/mcp/`;
     const config = provider === 'claude' ? { type: 'http' as const, url, ...(conn.token ? { headers: { Authorization: `Bearer ${conn.token}` } } : {}) } : { type: 'http' as const, url, ...(conn.token ? { bearerTokenEnvVar: TOKEN_ENV } : {}) };

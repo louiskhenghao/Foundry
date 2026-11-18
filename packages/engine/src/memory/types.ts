@@ -90,9 +90,45 @@ export interface MemoryGoalView {
 export type MemorySource = 'record' | 'learnings' | 'brief' | 'review' | 'plan' | 'transcript' | 'git' | 'person';
 
 /** the Hindsight card and the Settings line: is Memory set up, and does the server answer */
+/** where the server Foundry runs stands (ADR-0109) */
+export type MemoryServerPhase = 'off' | 'installing' | 'starting' | 'running' | 'sign-in' | 'failed';
+/** the provider the server's own LLM calls go through: a coding agent's sign-in, no key */
+export type MemoryServerLlm = 'claude-code' | 'openai-codex';
+/** the server's own Codex sign-in while it is made: the page to open and the code to enter there */
+export interface MemorySignIn {
+  url: string | null;
+  deviceCode: string | null;
+  done: boolean;
+  ok: boolean | null;
+  error: string | null;
+}
+/** what the Hindsight card shows of the server Foundry runs */
+export interface MemoryServerView {
+  phase: MemoryServerPhase;
+  /** http://127.0.0.1:<port> while it runs */
+  url: string | null;
+  port: number | null;
+  llm: MemoryServerLlm | null;
+  /** the Hindsight version installed; null = not installed yet */
+  installed: string | null;
+  /** where the Python environment is, and the database (null until its first start names it) */
+  venv: string;
+  database: string | null;
+  error: string | null;
+  /** the last lines of the install, or of the server's log */
+  lines: string[];
+  signIn: MemorySignIn | null;
+}
+
 export interface MemoryStatus {
-  /** a server address is set */
+  /** Foundry runs the server itself (Settings memory.run, ADR-0109) */
+  run: boolean;
+  /** the server Foundry runs, whatever `run` says (its install stays when Memory moves to another server) */
+  server: MemoryServerView;
+  /** a server to use: an address set, or the server Foundry runs answering */
   configured: boolean;
+  /** the address of a server the person runs, as saved: kept while Foundry runs its own (`url` is the one in use) */
+  ownUrl: string | null;
   url: string | null;
   tokenSet: boolean;
   /** null = not asked (no address) */
