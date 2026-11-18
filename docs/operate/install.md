@@ -192,7 +192,9 @@ launch profile. From source it:
 | `--no-modify-path` | | | leave the shell's configuration alone |
 | `--dry-run` | | | say what would happen, change nothing |
 
-The `foundry` command: `foundry status`, `start`, `stop`, `restart`, `logs`, `open`, `update` (the newest installer,
+The `foundry` command: `foundry status`, `start`, `stop` (the service, and a Foundry still answering on the install's
+port that no service started, such as a checkout run by hand; anything else there is named and left alone, and the stop
+fails), `restart`, `logs`, `open`, `update` (the newest installer,
 run the same way as last time: the app and the binary download the newest release; source pulls, rebuilds and
 restarts; Docker pulls the image and recreates the container) and `uninstall` (removes the service and the command; the
 app goes to the Trash; `--purge` also deletes Foundry's data after asking; the tools it installed stay). With the app
