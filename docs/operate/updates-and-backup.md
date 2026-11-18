@@ -222,7 +222,7 @@ Before a manual restart, check that nothing is running. See
   `foundry-<version>-linux-arm64.tar.gz`) and `SHA256SUMS`.
 - **Pinning.** To stay on one version, install it with `--version X.Y.Z` and do not press **Update**: Foundry never
   updates by itself.
-- **No image.** The Docker Hub image `imlouiskhenghao/foundry` ends at 2.36.0, where `latest` stays
+- **No image.** The Docker Hub image `imlouiskhenghao/foundry` ends at 2.36.1, where `latest` stays
   ([ADR-0108](../develop/adr/0108-foundry-ships-only-as-the-app-and-the-binary.md)).
 - **Changelog.** <https://raw.githubusercontent.com/louiskhenghao/foundry-releases/main/CHANGELOG.md>
   (repository `louiskhenghao/foundry-releases`). The update dialog shows the sections newer than your version.

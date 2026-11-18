@@ -16,7 +16,7 @@ modes with their own tool recipes, the updater's Docker mode, and code that only
 
 - **No image.** The Dockerfile, docker-compose.yml, docker-entrypoint.sh, docker-google-chrome.sh and .dockerignore are
   deleted, and `bun run release` no longer needs buildx or pushes to Docker Hub. The tags there stay as they are:
-  2.36.0 is the last image, and `latest` stays on it.
+  2.36.1 is the last image, and `latest` stays on it.
 - **The installer installs the app or the binary.** `install.sh --mode app|binary`, the app on a Mac and the binary on
   Linux by default. Its source and Docker modes, their tool recipes and `--dir`, `--repos`, `--ref` and
   `--with hindsight` are gone; `--mode source|docker` is refused with what to run instead. An install it finds recorded

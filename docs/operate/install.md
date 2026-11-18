@@ -13,7 +13,7 @@ Foundry drives Claude Code, Codex or the Antigravity CLI against git repositorie
 
 The app and the binary are the release itself, compiled: no Bun, no checkout, no build. They serve the web UI on
 `http://127.0.0.1:4111`, or the next free port, which they keep. There is no Docker image and no install from source
-any more: 2.36.0 was the last image
+any more: 2.36.1 was the last image
 ([ADR-0108](../develop/adr/0108-foundry-ships-only-as-the-app-and-the-binary.md)). An earlier install brings its goals
 over with one click ([Moving an earlier install](#moving-an-earlier-install)). A git checkout is for working on Foundry
 itself: see [Developing Foundry](../develop/README.md#getting-a-working-tree).

@@ -5,7 +5,7 @@ A **Release** is one stable semver shared by every package: the `version` in the
 - its **GitHub Releases**, the version source: one release per version, carrying the release files — `Foundry-<version>-mac-universal.dmg` and `.zip` (the macOS app, [ADR-0105](adr/0105-the-foundry-app-and-the-release-installs.md)), `foundry-<version>-darwin-universal.tar.gz`, `foundry-<version>-linux-x64.tar.gz`, `foundry-<version>-linux-arm64.tar.gz` (each a compiled `foundry` with its `resources/` folder) and `SHA256SUMS`
 - its `CHANGELOG.md`, the notes, which instances read without authentication because the main repo may be private
 
-There is no image any more: Docker Hub's **`imlouiskhenghao/foundry`** ends at 2.36.0, where `latest` stays, and the release needs no Docker ([ADR-0108](adr/0108-foundry-ships-only-as-the-app-and-the-binary.md)).
+There is no image any more: Docker Hub's **`imlouiskhenghao/foundry`** ends at 2.36.1, where `latest` stays, and the release needs no Docker ([ADR-0108](adr/0108-foundry-ships-only-as-the-app-and-the-binary.md)).
 
 One command does the whole thing. It lives in `scripts/release.ts`:
 
