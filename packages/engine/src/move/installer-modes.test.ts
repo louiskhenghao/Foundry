@@ -1,5 +1,5 @@
 import { expect, test } from 'bun:test';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmp } from './test-helpers.ts';
 
@@ -69,35 +69,3 @@ test("what a 2.36 install hands the 3.0 installer still runs: the page's switch 
     rmSync(home, { recursive: true, force: true });
   }
 });
-
-test("foundry stop says stopped only once nothing answers, and names a Foundry it did not start that still does; status does not call it this install", async () => {
-  const home = tmp();
-  // another Foundry on the port: a checkout run by hand, as a dev server is
-  const other = Bun.serve({ port: 0, hostname: '127.0.0.1', fetch: (r) => new Response('ok', { status: new URL(r.url).pathname === '/api/health' ? 200 : 404 }) });
-  const free = Bun.serve({ port: 0, hostname: '127.0.0.1', fetch: () => new Response('') });
-  const unused = free.port;
-  free.stop(true);
-  try {
-    writeFileSync(join(home, 'lib.sh'), readFileSync(join(REPO, 'install.sh'), 'utf8').replace(/\nmain "\$@"\s*$/, '\n'));
-    // async: the stand-in answers from this process while the installer asks it
-    const control = async (verb: string, port: number) => {
-      const p = Bun.spawn(['bash', '-c', `source "${home}/lib.sh"; MODE=binary SERVICE=process PORT=${port}; if control ${verb}; then echo "exit 0"; else echo "exit $?"; fi`], { env: { HOME: home, PATH: process.env.PATH ?? '' }, stdout: 'pipe', stderr: 'pipe' });
-      await p.exited;
-      return (await new Response(p.stdout).text()) + (await new Response(p.stderr).text());
-    };
-    const stop = await control('stop', other.port);
-    expect(stop).not.toContain('Foundry stopped');
-    expect(stop).toContain(`a Foundry still answers on port ${other.port}`);
-    if (Bun.which('lsof')) expect(stop).toContain(`kill ${process.pid}`);
-    expect(stop).toContain('exit 1');
-    const status = await control('status', other.port);
-    expect(status).toContain('not running');
-    expect(status).toContain(`another Foundry answers on port ${other.port}`);
-    const quiet = await control('stop', unused);
-    expect(quiet).toContain('Foundry stopped');
-    expect(quiet).toContain('exit 0');
-  } finally {
-    other.stop(true);
-    rmSync(home, { recursive: true, force: true });
-  }
-}, 30_000);

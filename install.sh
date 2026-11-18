@@ -778,14 +778,10 @@ control() {
     start)
       if [ "$MODE" = app ]; then start_app
       else pick_port; start_service; save_state; fi ;;
-    stop)
-      if [ "$MODE" = app ]; then quit_app
-      elif [ "$SERVICE" = launchd ]; then launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
-      elif [ "$SERVICE" = systemd ]; then systemctl --user stop foundry.service
-      else process_stop; fi
-      stop_report ;;
-    # a Foundry this install did not start still answering does not keep this one from starting again
-    restart) control stop || true; control start ;;
+    # a stop that leaves something answering fails, without the trap's line: stop_rest has said what is left
+    stop) stop_service; stop_rest || exit 1 ;;
+    # a Foundry that would not stop does not keep this one from starting again
+    restart) stop_service; stop_rest || true; control start ;;
     status)
       # the app's port only while the app runs: otherwise whatever answers on 4111 is not this install
       if [ "$MODE" = app ]; then if app_running; then PORT="$(app_port)"; else printf 'Foundry (app) in %s: \033[33mnot running\033[0m (foundry start, or open Foundry.app)\n' "$APP"; return 0; fi; fi
@@ -795,7 +791,7 @@ control() {
       else
         local pid
         pid="$(listener_pid "${PORT:-4111}")"
-        printf '\033[33mnot running\033[0m; another Foundry answers on port %s%s, not this install\n' "${PORT:-4111}" "${pid:+ (pid $pid)}"
+        printf '\033[33mnot running\033[0m; another Foundry answers on port %s%s, not this install (foundry stop stops it)\n' "${PORT:-4111}" "${pid:+ (pid $pid)}"
       fi ;;
     logs)
       if [ "$MODE" = app ]; then tail -n 200 -f "$HOME/Library/Logs/Foundry/app.log"
@@ -806,8 +802,19 @@ control() {
   esac
 }
 
-# the process listening on a port (empty without lsof)
-listener_pid() { { lsof -nP -t -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | head -1; } || true; }
+# this install's own service, however it runs
+stop_service() {
+  if [ "$MODE" = app ]; then quit_app
+  elif [ "$SERVICE" = launchd ]; then launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+  elif [ "$SERVICE" = systemd ]; then systemctl --user stop foundry.service
+  else process_stop; fi
+}
+
+# the process listening on a port: lsof, else ss (a Linux without lsof); empty when neither tells
+listener_pid() { { { lsof -nP -t -iTCP:"$1" -sTCP:LISTEN 2>/dev/null || ss -Hltnp "sport = :$1" 2>/dev/null | sed -n 's/.*pid=\([0-9]*\).*/\1/p'; } | head -1; } || true; }
+proc_command() { { ps -o command= -p "$1" 2>/dev/null || tr '\0' ' ' <"/proc/$1/cmdline" 2>/dev/null; } || true; }
+# a Foundry server: the compiled foundry, the app's engine, or a checkout's bun (bun --watch apps/cli/src/main.ts serve)
+foundry_serve() { printf '%s' "$1" | grep -qE '((^|/)foundry(-engine)?|apps/cli/src/main\.ts) serve( |$)'; }
 
 # this install's own Foundry answers: the app, its service, the process it started, or a compiled foundry started by hand
 # on its port (a checkout's bun is not this install)
@@ -820,19 +827,28 @@ this_running() {
   [ -f "$SHARE_DIR/foundry.pid" ] && kill -0 "$(cat "$SHARE_DIR/foundry.pid")" 2>/dev/null && return 0
   local pid
   pid="$(listener_pid "${PORT:-4111}")"
-  [ -n "$pid" ] && ps -o command= -p "$pid" 2>/dev/null | grep -qE '(^|/)foundry(-engine)? serve'
+  [ -n "$pid" ] && proc_command "$pid" | grep -qE '(^|/)foundry(-engine)? serve'
 }
 
-# what a stop left: "stopped" once nothing answers on this install's port. A Foundry that still answers was started some
-# other way (a checkout run by hand, an older install): it is named, with how to stop it, and the stop fails
-stop_report() {
+# what the service's stop left on this install's port. A Foundry still answering there was started some other way (a
+# checkout run by hand, an older install): it is stopped as a service would be, with SIGTERM and its own shutdown.
+# Whatever else answers is only named, and the stop fails; "Foundry stopped" only once nothing answers
+stop_rest() {
   local port pid cmd="" i
   port="$([ "$MODE" = app ] && app_port || true)"
   port="${port:-${PORT:-4111}}"
   for i in 1 2 3 4 5; do healthy "$port" || { ok "Foundry stopped"; return 0; }; sleep 1; done
   pid="$(listener_pid "$port")"
-  [ -n "$pid" ] && cmd="$(ps -o command= -p "$pid" 2>/dev/null | cut -c1-100)"
-  warn "this install's Foundry is stopped, but a Foundry still answers on port $port${pid:+ (pid $pid: $cmd)}, started some other way: stop it where it runs (Ctrl-C in its terminal)${pid:+, or: kill $pid}"
+  # the whole command is matched (a checkout's path can be long); a shorter one is shown
+  [ -n "$pid" ] && cmd="$(proc_command "$pid")"
+  if [ -n "$pid" ] && foundry_serve "$cmd" && kill "$pid" 2>/dev/null; then
+    note "a Foundry this install did not start answered on port $port (pid $pid: ${cmd:0:120}): stopping it"
+    # its shutdown ends the goals' sessions and waits for what is writing (bounded, well under a minute)
+    for i in $(seq 1 60); do kill -0 "$pid" 2>/dev/null || { ok "Foundry stopped"; return 0; }; sleep 1; done
+    warn "the Foundry on port $port (pid $pid) is still shutting down after 60 seconds; see its terminal or log"
+    return 1
+  fi
+  warn "something still answers on port $port${pid:+ (pid $pid: ${cmd:0:120})}, and it is not a Foundry this command can stop: stop it where it runs${pid:+, or: kill $pid}"
   return 1
 }
 
@@ -857,7 +873,7 @@ uninstall() {
     local data="$HOME/Library/Application Support/Foundry"
     if [ "$PURGE" = 1 ] && [ -d "$data" ] && yesno "Delete $data, with Foundry's data (goal history, settings)? Your repositories are not touched." n; then rm -rf "$data"; fi
   else
-    control stop >/dev/null 2>&1 || true
+    stop_service >/dev/null 2>&1 || true
     rm -f "$HOME/Library/LaunchAgents/$LABEL.plist"
     if [ "$SERVICE" = systemd ]; then systemctl --user disable foundry.service >/dev/null 2>&1 || true; rm -f "${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user/foundry.service"; systemctl --user daemon-reload || true; fi
     rm -rf "${SHARE_DIR:?}/releases"
