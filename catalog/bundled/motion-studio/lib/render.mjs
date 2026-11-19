@@ -9,11 +9,13 @@
 //                              [--seam]               no encoding: how far the last frame is from the first (a loop check)
 //
 // Playwright comes from the repository when it has it, else from the Foundry that runs the goal (FOUNDRY_PLAYWRIGHT).
+// "Has it" is looked for on disk: under Bun a bare import('playwright') never fails (Bun installs the newest release on
+// the fly), and that release wants a browser nobody downloaded.
 import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const args = process.argv.slice(2);
 const film = args.find((a) => !a.startsWith('--'));
@@ -36,14 +38,19 @@ const hashOnly = flag('hash');
 const seamOnly = flag('seam');
 if (!out && !hashOnly && !seamOnly) { console.error('--out <mp4> is required (or --hash / --seam)'); process.exit(2); }
 
-async function loadPlaywright() {
-  try {
-    return await import('playwright');
-  } catch {
-    const base = process.env.FOUNDRY_PLAYWRIGHT;
-    if (!base) throw new Error('playwright is not installed here and FOUNDRY_PLAYWRIGHT is not set: run `npm i -D playwright` in this repository, or run inside Foundry');
-    return await import(pathToFileURL(join(base, 'index.mjs')).href).catch(() => import(pathToFileURL(join(base, 'index.js')).href));
+/** a node_modules/playwright where import('playwright') would look for one: beside this script or above it */
+function repositoryHasPlaywright() {
+  for (let d = dirname(fileURLToPath(import.meta.url)); ; d = dirname(d)) {
+    if (existsSync(join(d, 'node_modules', 'playwright', 'package.json'))) return true;
+    if (dirname(d) === d) return false;
   }
+}
+
+async function loadPlaywright() {
+  if (repositoryHasPlaywright()) return await import('playwright');
+  const base = process.env.FOUNDRY_PLAYWRIGHT;
+  if (!base) throw new Error('playwright is not installed here and FOUNDRY_PLAYWRIGHT is not set: run `npm i -D playwright` in this repository, or run inside Foundry');
+  return await import(pathToFileURL(join(base, 'index.mjs')).href).catch(() => import(pathToFileURL(join(base, 'index.js')).href));
 }
 
 const { chromium } = await loadPlaywright();
