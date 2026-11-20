@@ -556,6 +556,16 @@ export function SettingsPage() {
             <div className="text-sm font-bold text-ink mb-3">Limits — what one session may spend before the engine stops it</div>
             {grid(
               <>
+                <Setting path="sessions.limitScale">
+                  <Select value={String(draft.sessions.limitScale ?? 'auto')} onChange={(e) => set('sessions.limitScale', e.target.value === 'auto' ? 'auto' : Number(e.target.value))}>
+                    <option value="auto">Auto — by the goal's preset and effort</option>
+                    {['1', '1.5', '2', '3'].map((x) => (
+                      <option key={x} value={x}>
+                        ×{x} for every goal
+                      </option>
+                    ))}
+                  </Select>
+                </Setting>
                 <Setting path="sessions.attemptMaxCostUsd">
                   {num('sessions.attemptMaxCostUsd', { min: 0.5, max: 500, step: 0.5 })}
                 </Setting>
