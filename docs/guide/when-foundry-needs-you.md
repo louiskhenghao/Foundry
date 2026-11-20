@@ -44,7 +44,9 @@ Rarely, a merge attempt's commit cannot be taken back after its checks failed (o
 
 Everything was built, but the reviewer found acceptance checks that the combined result does not meet, even after its own fix round.
 
-- **Retry with hint** turns the reviewer's findings into fix tasks (your hint goes with them), runs them, then reviews again.
+The card says which review this is and, for Claude Code goals, what the goal has spent so far and what the last fix round and its review cost: about what one more round costs. When the checks that fail are not the ones that failed last time, the card says so in yellow. Each round then finds new gaps rather than fixing the same ones, and another round seldom settles it: accept the result, or name in the hint exactly what is left.
+
+- **Retry with hint** turns the reviewer's findings into fix tasks (your hint goes with them), runs them, then reviews again. After a fix round the button says what that round cost, **Another fix round (~$80)**.
 - **Accept as-is (finish goal)** finishes the goal with those checks waived. The documents chosen on the Brief are still written, before the goal is delivered.
 - **Abort goal** stops the goal; it ends as failed.
 
