@@ -50,14 +50,18 @@ const isPlanner = (spec: RunSpec) => !!spec.label?.startsWith('planner ');
 
 class ScriptedRunner implements ClaudeRunner {
   calls: RunSpec[] = [];
-  constructor(private respond: (spec: RunSpec, index: number) => unknown, private plannerFailure: boolean | string = false) {}
+  private plannerCalls = 0;
+  /** `plannerFailure`: every planner call fails with it, or, as a function, the nth planner call's failure (false: it answers) */
+  constructor(private respond: (spec: RunSpec, index: number) => unknown, private plannerFailure: boolean | string | ((n: number) => string | false) = false) {}
   active() { return 0; }
   async run(spec: RunSpec): Promise<RunHandle> {
     this.calls.push(spec);
     const structuredOutput = this.respond(spec, this.calls.length);
-    const failed = this.plannerFailure && spec.label?.startsWith('planner ');
+    const planner = !!spec.label?.startsWith('planner ');
+    const failure = planner && typeof this.plannerFailure === 'function' ? this.plannerFailure(++this.plannerCalls) : this.plannerFailure;
+    const failed = failure && planner;
     const result: RunResult = {
-      sessionId: `s${this.calls.length}`, subtype: failed ? (typeof this.plannerFailure === 'string' ? this.plannerFailure : 'error') : 'success', isError: !!failed,
+      sessionId: `s${this.calls.length}`, subtype: failed ? (typeof failure === 'string' ? failure : 'error') : 'success', isError: !!failed,
       costUsd: 0, costStatus: 'unavailable', numTurns: 1, durationMs: 1,
       usage: { input_tokens: 10, output_tokens: 20 }, modelUsage: null, permissionDenials: [],
       finalText: JSON.stringify(structuredOutput), structuredOutput, exitCode: failed ? 1 : 0, pid: null,
@@ -193,16 +197,52 @@ describe('Clarify writes the Brief, a planner session writes its plan', () => {
     expect(b.questions.some((q) => q.blocking && q.text.includes('planner could not split'))).toBe(true);
   });
 
-  test('a planner stopped by the engine (killed) or at its budget gets no further turn', async () => {
-    for (const subtype of ['killed_manual', 'error_max_budget_usd']) {
-      const runner = new ScriptedRunner((spec) => (isPlanner(spec) ? plan() : skeleton()), subtype);
-      const e = setup(runner);
+  test('a planner the person stopped gets no further turn, and the one-task-per-Area stand-in says what approving it costs', async () => {
+    const runner = new ScriptedRunner((spec) => (isPlanner(spec) ? plan() : skeleton()), 'killed_manual');
+    const e = setup(runner);
+    const goal = await e.createGoal({ prompt: 'Add a task', repoPath: repo, nature: 'code', interview: 'never' });
+    await waitFor(() => getGoal(e.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    expect(runner.calls.map((c) => c.label?.split(' ')[0])).toEqual(['clarify', 'planner']);
+    const b = getBrief(e.store.db, goal.id)!.brief;
+    expect(b.tasks.map((t) => t.title)).toEqual(['build Main']);
+    const q = b.questions.find((x) => x.blocking)!;
+    expect(q.text).toContain('one broad task');
+    expect(q.text).toContain('many fix tasks');
+    expect(q.text).toContain('Draft on each Area');
+  });
+
+  test('a planner cut short at its budget, idle or time limit gets one closing turn in its session, and its plan is the Brief\'s', async () => {
+    for (const subtype of ['error_max_budget_usd', 'killed_idle', 'killed_timeout']) {
+      const runner = new ScriptedRunner((spec) => (isPlanner(spec) ? plan('Closing plan') : skeleton()), (n) => (n === 1 ? subtype : false));
+      const e = setup(runner, { provider: 'claude' });
       const goal = await e.createGoal({ prompt: 'Add a task', repoPath: repo, nature: 'code', interview: 'never' });
       await waitFor(() => getGoal(e.store.db, goal.id)!.state === 'awaiting_brief_approval');
-      expect(runner.calls.map((c) => c.label?.split(' ')[0])).toEqual(['clarify', 'planner']);
+      expect(runner.calls.map((c) => c.label?.split(' ')[0])).toEqual(['clarify', 'planner', 'planner']);
+      const [, first, closing] = runner.calls as [RunSpec, RunSpec, RunSpec];
+      // a real repository's plan has room to read: $10, not the $4 that cut two planners off mid-read
+      expect([first.maxTurns, first.maxBudgetUsd]).toEqual([45, 10]);
+      // the closing turn reads no more: what the session read is there, the plan is asked for with tight limits
+      expect(closing.resumeSessionId).toBe('s2');
+      expect([closing.maxTurns, closing.maxBudgetUsd]).toEqual([4, 3]);
+      expect(closing.prompt).toContain('Your time for reading the repository is up');
+      const b = getBrief(e.store.db, goal.id)!.brief;
+      expect(b.tasks.map((t) => t.title)).toEqual(['Closing plan']);
+      expect(b.questions.some((q) => q.blocking)).toBe(false);
+      const notes = e.store.listByGoal(goal.id).filter((ev) => ev.type === 'engine.note').map((ev) => (ev.payload as { message: string }).message);
+      expect(notes.some((m) => m.startsWith('the planner was cut short'))).toBe(true);
+      expect(e.store.listByGoal(goal.id).filter((ev) => ev.type === 'goal.cost_added').map((ev) => (ev.payload as { source: string }).source)).toEqual(['clarify', 'planner', 'planner']);
       await e.stop();
       engine = undefined;
     }
+  });
+
+  test('a closing turn that comes back without a usable plan gets no more turns at its limit; the stand-in follows', async () => {
+    const runner = new ScriptedRunner((spec) => (isPlanner(spec) ? plan() : skeleton()), (n) => (n === 1 ? 'error_max_budget_usd' : n === 2 ? 'error_max_budget_usd' : false));
+    const e = setup(runner, { provider: 'claude' });
+    const goal = await e.createGoal({ prompt: 'Add a task', repoPath: repo, nature: 'code', interview: 'never' });
+    await waitFor(() => getGoal(e.store.db, goal.id)!.state === 'awaiting_brief_approval');
+    expect(runner.calls.map((c) => c.label?.split(' ')[0])).toEqual(['clarify', 'planner', 'planner']);
+    expect(getBrief(e.store.db, goal.id)!.brief.tasks.map((t) => t.title)).toEqual(['build Main']);
   });
 
   test('a one-shot answer that misses a skeleton field is asked for that field, not for tasks', async () => {

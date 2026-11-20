@@ -88,7 +88,22 @@ export function isEmptyRepo(ws: string): boolean {
 export const CLARIFY_MAX_TURNS = 90;
 export const CLARIFY_MAX_BUDGET_USD = 6;
 const PLANNER_MAX_TURNS = 45;
-const PLANNER_MAX_BUDGET_USD = 4;
+/**
+ * A real repository's plan on Fable reads for 10–16 turns: $4 cut two such planners off mid-read (2026-11-19, $4.52 and
+ * $5.27 spent), and the one-task-per-Area stand-in that followed cost far more in review fixes than the plan would have.
+ */
+const PLANNER_MAX_BUDGET_USD = 10;
+/** the closing turn of a planner cut short: the plan from what it read, without reading more */
+const PLANNER_FINISH = { maxTurns: 4, maxBudgetUsd: 3 } as const;
+const PLANNER_FINISH_MESSAGE =
+  'Your time for reading the repository is up. From what you have read so far, output ONLY the plan JSON now, without opening more files: {"tasks": [...], "checks": [...], "costEstimateUsd": n, "timeEstimateMin": n}. Every Area gets at least one task; where you could not read enough, say so in that task\'s spec rather than leaving the Area out.';
+
+/** a planner turn resumed in its session; a closing turn brings tighter limits of its own */
+interface PlannerResume {
+  sessionId: string;
+  message: string;
+  limits?: { maxTurns: number; maxBudgetUsd: number };
+}
 
 /** Everything one Clarify session needs; the interview's later rounds resume the session and rebuild this only to recover a lost one. */
 interface ClarifyContext {
@@ -107,7 +122,7 @@ interface ClarifyContext {
   /** engine-made questions (dirty repo …) that ride into the Brief */
   extraQuestions: Brief['questions'];
   run: (p: string, resume?: string) => Promise<RunHandle>;
-  planner: { model: string; run: (skeleton: BriefSkeleton, resume?: { sessionId: string; message: string }) => Promise<RunHandle> };
+  planner: { model: string; run: (skeleton: BriefSkeleton, resume?: PlannerResume) => Promise<RunHandle> };
 }
 
 async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContext> {
@@ -212,14 +227,14 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
   const plannerModel = modelFor(config, classifiedGoal, 'planner');
   const planner = {
     model: plannerModel.model,
-    run: (skeleton: BriefSkeleton, resume?: { sessionId: string; message: string }) =>
+    run: (skeleton: BriefSkeleton, resume?: PlannerResume) =>
       engine.runner.run({
         prompt: resume ? resume.message : buildPlannerPrompt({ ...goal, nature, videoPack: engine.videoPackOf(goal) as Goal['videoPack'] }, skeleton, { overview, attachments: renderAttachments(goal, config.dataDir), decisions, interview: goal.interview, emptyRepo: isEmptyRepo(ws), imageGen: engine.imageGenAvailable(), previous, plannerHint, delegation: goal.delegation.allow, diagram, deck, serverDeploy: deployServers(engine).length > 0 }),
         cwd: ws,
         model: plannerModel.model,
         meta: metaFor(goal.id, plannerModel),
-        maxTurns: PLANNER_MAX_TURNS,
-        maxBudgetUsd: PLANNER_MAX_BUDGET_USD,
+        maxTurns: resume?.limits?.maxTurns ?? PLANNER_MAX_TURNS,
+        maxBudgetUsd: resume?.limits?.maxBudgetUsd ?? PLANNER_MAX_BUDGET_USD,
         permissionMode: 'dontAsk',
         allowedTools: READONLY_TOOLS,
         disallowedTools: READONLY_DISALLOWED,
@@ -242,13 +257,22 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
 }
 
 /**
+ * A planner the engine cut short while it read: at its budget, or past its idle or time limit. What it read is in its
+ * session, so one closing turn there asks for the plan. One the person stopped (killed_manual) gets none.
+ */
+export function cutShort(r: RunResult): boolean {
+  return r.subtype === 'error_max_budget_usd' || r.subtype === 'killed_idle' || r.subtype === 'killed_timeout';
+}
+
+/**
  * The planner session: the task plan for every Area of the Clarifier's Brief, with task-level checks and the estimate,
- * written once (the Clarifier never re-types it). An Area left without tasks gets one repair turn in the same session.
- * null when no usable plan came back.
+ * written once (the Clarifier never re-types it). One cut short gets a closing turn that writes the plan from what it
+ * read; one that ended without a usable plan gets a repair turn; an Area left without tasks gets one repair turn too,
+ * all in the same session. null when no usable plan came back.
  */
 async function planTasks(engine: Engine, goal: Goal, ctx: ClarifyContext, skeleton: BriefSkeleton): Promise<PlanOutput | null> {
   const { store } = engine;
-  const run = async (resume?: { sessionId: string; message: string }): Promise<{ plan: PlanOutput | null; result: RunResult }> => {
+  const run = async (resume?: PlannerResume): Promise<{ plan: PlanOutput | null; result: RunResult }> => {
     const { handle, untrack } = await startSession(engine, goal, 'planning', () => ctx.planner.run(skeleton, resume));
     try {
       for await (const ev of handle.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: `clarify-${goal.id}`, event: ev, ts: new Date().toISOString() });
@@ -262,7 +286,11 @@ async function planTasks(engine: Engine, goal: Goal, ctx: ClarifyContext, skelet
     }
   };
   let { plan, result } = await run();
-  if (!plan && result.sessionId && repairable(result)) ({ plan, result } = await run({ sessionId: result.sessionId, message: 'No usable plan came back (it ended early or did not match the required JSON schema). Output ONLY the plan JSON now: {"tasks": [...], "checks": [...], "costEstimateUsd": n, "timeEstimateMin": n}.' }));
+  if (!plan && result.sessionId && cutShort(result) && !gone(engine, goal.id)) {
+    store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'info', message: `the planner was cut short (${result.errorMessage ?? result.subtype}); one closing turn asks it for the plan from what it read` } });
+    ({ plan, result } = await run({ sessionId: result.sessionId, message: PLANNER_FINISH_MESSAGE, limits: PLANNER_FINISH }));
+  }
+  if (!plan && result.sessionId && repairable(result)) ({ plan, result } = await run({ sessionId: result.sessionId, message: 'No usable plan came back (it ended early or did not match the required JSON schema). Output ONLY the plan JSON now: {"tasks": [...], "checks": [...], "costEstimateUsd": n, "timeEstimateMin": n}.', limits: PLANNER_FINISH }));
   if (!plan) {
     store.append({ type: 'engine.note', goalId: goal.id, payload: { level: 'warn', message: `the planner returned no usable plan (${result.errorMessage ?? result.subtype})` } });
     return null;
@@ -322,7 +350,7 @@ export function fillPlan(goal: Goal, current: Brief, skeleton: BriefSkeleton, pl
   const used = new Set(current.checks.filter((c) => c.taskKey === null).map((c) => c.key));
   const taskChecks = merged.checks.filter((c) => c.taskKey !== null).map((c) => ({ ...c, key: claim(used, c.key) }));
   const brief: Brief = { ...current, tasks: merged.tasks, checks: [...current.checks.filter((c) => c.taskKey === null), ...taskChecks], costEstimateUsd: merged.costEstimateUsd, timeEstimateMin: merged.timeEstimateMin };
-  if (!plan) brief.questions = [...brief.questions, { id: newId('q'), text: 'The planner could not split this goal into tasks, so each Area is one task for now. Draft tasks for an Area on this page, or edit them, then answer "ok" here.', answer: null, blocking: true, areaKey: null, options: [], kind: 'text', applied: false }];
+  if (!plan) brief.questions = [...brief.questions, { id: newId('q'), text: 'The planner could not split this goal into tasks, so each Area is one broad task for now, with no milestones and no estimate. Approved like this, a task that broad tends to come back from review with many fix tasks. Use Draft on each Area to plan its tasks, or edit them, then answer "ok" here.', answer: null, blocking: true, areaKey: null, options: [], kind: 'text', applied: false }];
   return brief;
 }
 
