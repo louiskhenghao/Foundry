@@ -223,12 +223,13 @@ function TaskNode({ t, areaChip, selected, linked, dim, onSelect, className, sty
             <span className="truncate">{t.plain.label ?? 'unassigned'}</span>
           </span>
         ) : (
-          <span className="flex items-center gap-2 min-w-0">
+          // the state never gives way: what is beside it is cut short instead
+          <span className="flex items-center gap-2 shrink-0">
             <i aria-hidden="true" className={cn('block h-3 w-3 shrink-0 rounded-[3px]', markFill[mark!])} />
             <Badge state={t.state} />
           </span>
         )}
-        <span className="text-[11px] text-ink-faint mono whitespace-nowrap">
+        <span className="min-w-0 truncate text-[11px] text-ink-faint mono whitespace-nowrap">
           {t.plain ? t.id : `${t.attempts}/${t.maxAttempts}`}
           {!t.plain && t.totalCost != null && (
             <span className="ml-1.5 font-semibold text-ink-soft" title={t.unmeasured ? `cost of this task so far, all attempts — ${t.unmeasured} session${t.unmeasured === 1 ? '' : 's'} ended before a cost was reported: unknown, not $0, and missing here` : 'cost of this task so far, all attempts'}>
@@ -236,13 +237,14 @@ function TaskNode({ t, areaChip, selected, linked, dim, onSelect, className, sty
               {t.unmeasured ? <span className="font-bold text-ink">+?</span> : null}
             </span>
           )}
-          {t.origin !== 'brief' && <span className="ml-1.5 text-ink-faint">{t.origin}</span>}
         </span>
       </div>
       <div className={cn('mt-2 text-[14px] leading-snug', waiting && !t.plain ? 'font-semibold text-ink-soft' : 'font-bold text-ink')}>{t.title}</div>
       <div className="mt-1.5 flex items-center gap-x-1.5 gap-y-1 flex-wrap">
         <TaskTags kind={t.kind} scenario={t.scenario} area={t.plain ? null : t.area} areaChip={areaChip} difficulty={t.difficulty} />
         {t.model && <span className="mono text-[11px] text-ink-faint whitespace-nowrap" title="The model the latest attempt ran on (the difficulty picks it from the preset)">{t.model}</span>}
+        {/* where a task not planned in the Brief came from (a review's fix, a merge…), with the tags, not beside the state */}
+        {t.origin !== 'brief' && <span className="mono text-[11px] text-ink-faint whitespace-nowrap" title="Where this task came from: it was not planned in the Brief">{t.origin}</span>}
         {t.worktreePath && t.state !== 'done' && <span className="text-[11px] text-ink-faint whitespace-nowrap">own worktree</span>}
         {!t.parallelizable && !t.plain && !['done', 'skipped', 'failed'].includes(t.state) && (
           <span className="rounded-sm px-1.5 py-px text-[11px] font-semibold leading-tight text-ink-soft ring-1 ring-inset ring-line-strong whitespace-nowrap" title="Marked not parallelizable in the Brief: it starts only when no other task of the goal is running. A wait, not a dependency, so no line leads to it.">
