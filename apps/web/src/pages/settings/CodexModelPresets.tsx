@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { api, type ModelRecordView } from '../../api.ts';
 import { CodexModelSelect } from '../../components/CodexModelSelect.tsx';
 import { Button, ConfirmDialog, Field, Select, ago, cn } from '../../ui.tsx';
-import { FieldGroup, GoalTypePresets, NatureTabs, PresetChips, PresetDetails, RoleRow, SectionTitle, SyncRow } from './PresetParts.tsx';
+import { CliUpdateNote, FieldGroup, GoalTypePresets, NatureTabs, PresetChips, PresetDetails, RoleRow, SectionTitle, SyncRow } from './PresetParts.tsx';
 
 const EFFORTS: CodexEffort[] = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
 const PICKS = { code: 'codexPresetCode', docs: 'codexPresetDocs', media: 'codexPresetMedia' } as const;
@@ -108,6 +108,7 @@ export function CodexModelPresetsSection({ draft, setFields }: { draft: Settings
       help="Codex goals capture their preset, role models and reasoning effort when they are created. Sync reads the local CLI catalog without running inference; Test runs one short session and uses account quota."
       message={message}
     />
+    <CliUpdateNote provider="codex" onUpdated={() => void load()} />
 
     <GoalTypePresets
       picks={picks}
