@@ -14,9 +14,28 @@ export function Select({ className, children, ...props }: SelectHTMLAttributes<H
 }
 
 /**
+ * A popup the person scrolls away from closes, as a native menu does: a wheel turned or a finger moved anywhere but over
+ * the popup (`inside` says what counts, its trigger included). Scrolling inside the popup keeps it open, and a scroll the
+ * page makes by itself (a live log following its end) is no gesture, so it closes nothing.
+ */
+export function useCloseOnScrollAway(open: boolean, inside: (n: EventTarget | null) => boolean, close: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: Event) => !inside(e.target) && close();
+    document.addEventListener('wheel', away, { passive: true });
+    document.addEventListener('touchmove', away, { passive: true });
+    return () => {
+      document.removeEventListener('wheel', away);
+      document.removeEventListener('touchmove', away);
+    };
+  }, [open]);
+}
+
+/**
  * Dropdown shell: `trigger` renders the button, `children` the panel (a function receives `close`).
- * Closes on outside click and Escape. Panels are right-aligned by default, then kept inside the window: shifted
- * sideways when the aligned edge would push them off screen, opened upwards when there is no room below. They render
+ * Closes on outside click, on a scroll outside it and on Escape. Panels are right-aligned by default, then kept inside
+ * the window: shifted sideways when the aligned edge would push them off screen, opened upwards when there is no room
+ * below; a scroll inside them or a page moving under them keeps them open and in place. They render
  * on <body>, so a panel or card that clips its overflow never cuts them off; Tab still moves from the trigger into the
  * panel and out of it back to the trigger, as if the panel sat right after it.
  */
@@ -80,6 +99,7 @@ export function Menu({ trigger, children, width = 'w-56', align = 'right', class
       window.removeEventListener('scroll', onMove, true);
     };
   }, [open]);
+  useCloseOnScrollAway(open, (n) => !!n && (ref.current?.contains(n as Node) || panel.current?.contains(n as Node)) === true, () => setOpen(false));
   const close = () => setOpen(false);
   return (
     <div ref={ref} className={cn('relative', className)}>

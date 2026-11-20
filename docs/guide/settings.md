@@ -388,7 +388,7 @@ Shows the version you run and how it is installed. **Check now** asks whether a 
 
 The update dialog:
 
-- **Update**: new sessions stop, running ones finish, then Foundry updates and restarts. The page reloads by itself, and so does any other Foundry page left open, on this computer or a phone, within a minute of the new version starting. A page with an edit not yet saved (a Brief, a new goal, a folder's learnings) shows a banner instead, and reloads once you save or press **Reload**. A download that fails, or does not match the release's checksum, changes nothing. Going back to an older version does not roll the database back: back up before upgrading to mixed-provider data, and restore that matching backup if you must run an older binary.
+- **Update**: new sessions stop, running ones finish, then Foundry updates and restarts. The page reloads by itself, and so does any other Foundry page left open, on this computer or a phone, within a minute of the new version starting. A page with an edit not yet saved (a Brief, a new goal, a folder's learnings) shows a banner instead, and reloads once you save or press **Refresh page**. A download that fails, or does not match the release's checksum, changes nothing. Going back to an older version does not roll the database back: back up before upgrading to mixed-provider data, and restore that matching backup if you must run an older binary.
 - **Update immediately without waiting — interrupts running agents**: tick only if you cannot wait.
 - **Not now** closes it.
 - If this install cannot update itself, the dialog shows the commands to run instead.
