@@ -306,18 +306,20 @@ export function SettingsPage() {
   };
   const num = (path: Leaf, props: { min?: number; max?: number; step?: number } = {}) => <Input type="number" {...props} value={String(get(draft, path) ?? '')} onChange={(e) => set(path, e.target.value === '' ? get(view.values, path) : Number(e.target.value))} />;
   const text = (path: Leaf, placeholder?: string, nullable = false) => <Input value={(get(draft, path) as string | null) ?? ''} placeholder={placeholder} onChange={(e) => set(path, nullable && e.target.value === '' ? null : e.target.value)} />;
-  const model = (path: Leaf) => {
-    const v = get(draft, path) as string;
+  // `inherit`: the setting may be left empty, and this says what it then uses (the empty choice saves null)
+  const model = (path: Leaf, inherit?: string) => {
+    const v = (get(draft, path) as string | null) ?? '';
     const options: { id: string; label: string }[] = known?.length
       ? known.map((m) => ({ id: m.name, label: `${m.label ?? m.name}${m.note ? ` — ${m.note}` : ''}${m.resolvedId ? ` (→ ${m.resolvedId})` : ''}${m.lastFailAt && (!m.lastOkAt || m.lastFailAt > m.lastOkAt) ? ' ⚠ last failed' : ''}` }))
       : SEED_MODELS;
-    const custom = !options.some((m) => m.id === v);
+    const custom = !(inherit !== undefined && v === '') && !options.some((m) => m.id === v);
     const rec = known?.find((m) => m.name === v);
     const warn = rec?.lastFailAt && (!rec.lastOkAt || rec.lastFailAt > rec.lastOkAt) ? `last failed: ${rec.lastError ?? 'model unavailable'}` : rec && !rec.seed && !rec.resolvedId && !rec.lastOkAt ? 'never seen resolving on this machine — Test it' : null;
     return (
       <div className="space-y-1">
         <div className="flex gap-1">
-          <Select value={custom ? 'custom' : v} onChange={(e) => set(path, e.target.value === 'custom' ? '' : e.target.value)}>
+          <Select value={custom ? 'custom' : v} onChange={(e) => set(path, e.target.value === 'custom' ? '' : e.target.value === '' && inherit !== undefined ? null : e.target.value)}>
+            {inherit !== undefined && <option value="">{inherit}</option>}
             {options.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.label}
@@ -529,7 +531,7 @@ export function SettingsPage() {
             <CodexModelPresetsSection draft={draft} setFields={(patch) => setDraft((previous) => previous ? { ...previous, models: { ...previous.models, ...patch } } : previous)} />
           </div>
           <div id="models-agy" data-provider="agy" role="region" aria-label="Antigravity models" hidden={modelProvider !== 'agy'}>
-            <AgyModelsSection model={String(get(draft, 'models.agyModel') ?? 'agy-default')} effort={String(get(draft, 'models.agyEffort') ?? 'high')} onModel={(value) => set('models.agyModel', value)} onEffort={(value) => set('models.agyEffort', value)} />
+            <AgyModelsSection model={String(get(draft, 'models.agyModel') ?? 'agy-default')} effort={String(get(draft, 'models.agyEffort') ?? 'high')} writer={(get(draft, 'models.agyWriter') as string | null) ?? null} onModel={(value) => set('models.agyModel', value)} onEffort={(value) => set('models.agyEffort', value)} onWriter={(value) => set('models.agyWriter', value)} />
             <p className="mt-2 text-[11px] text-ink-faint">Antigravity reports tokens, not dollars: goals on it keep time, attempt and concurrency limits, never a USD budget. No presets, no fallback order: an unknown model fails the session outright.</p>
           </div>
           <div id="models-claude" data-provider="claude" role="region" aria-label="Claude Code models" hidden={modelProvider !== 'claude'}>
@@ -541,6 +543,9 @@ export function SettingsPage() {
             <>
               <Setting path="models.cheap">
                 {model('models.cheap')}
+              </Setting>
+              <Setting path="models.writer">
+                {model('models.writer', 'Housekeeping model (the Explainer\'s with the repository read)')}
               </Setting>
               <Setting path="models.fallbacks">
                 {list('models.fallbacks', 'opus, sonnet, haiku')}

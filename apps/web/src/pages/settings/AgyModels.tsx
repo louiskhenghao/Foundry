@@ -6,7 +6,7 @@ import { CliUpdateNote, SyncRow } from './PresetParts.tsx';
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
 /** Antigravity's one model and effort for every role, picked from what `agy models` lists (Sync models runs no model). */
-export function AgyModelsSection({ model, effort, onModel, onEffort }: { model: string; effort: string; onModel: (value: string) => void; onEffort: (value: string) => void }) {
+export function AgyModelsSection({ model, effort, writer = null, onModel, onEffort, onWriter }: { model: string; effort: string; /** the Write with AI model; null = the Antigravity model */ writer?: string | null; onModel: (value: string) => void; onEffort: (value: string) => void; onWriter?: (value: string | null) => void }) {
   const [known, setKnown] = useState<ModelRecordView[] | null>(null);
   const [sync, setSync] = useState<{ at: string | null; found: number } | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -48,6 +48,15 @@ export function AgyModelsSection({ model, effort, onModel, onEffort }: { model: 
         <Field label="Reasoning effort" help="The Antigravity reasoning effort of every role.">
           <Select aria-label="Antigravity reasoning effort" value={effort} onChange={(e) => onEffort(e.target.value)}>{EFFORTS.map((e) => <option key={e} value={e}>{e}</option>)}</Select>
         </Field>
+        {onWriter && (
+          <Field label="Write with AI" help="The model Write it with AI and Fill in with AI run on, on the New goal form and Templates. The first choice keeps the Antigravity model above." setting="models.agyWriter">
+            <Select aria-label="Write with AI model" value={writer ?? ''} onChange={(e) => onWriter(e.target.value || null)}>
+              <option value="">Same as the Antigravity model</option>
+              {writer && !models.some((m) => m.name === writer) && <option value={writer}>{writer}</option>}
+              {models.map((m) => <option key={m.name} value={m.name}>{m.label ? `${m.label} · ${m.name}` : m.name}</option>)}
+            </Select>
+          </Field>
+        )}
       </div>
     </div>
   );

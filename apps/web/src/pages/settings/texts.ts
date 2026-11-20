@@ -34,6 +34,9 @@ export const SETTING_TEXT = {
   'delivery.defaultRemote': { label: 'Remote' },
   // Models & limits
   'models.cheap': { label: 'Housekeeping model', help: 'One-turn engine chores: classifying a goal, summarising logs, the rate-limit probe. Cents per goal.' },
+  'models.writer': { label: 'Write with AI', help: 'The model Write it with AI and Fill in with AI run on, on the New goal form and Templates. Empty keeps the housekeeping model, or the Explainer\'s when the repository is read. A stronger model writes better descriptions for a few cents more.' },
+  'models.codexWriter': { label: 'Write with AI (Codex)', help: 'The Codex model Write it with AI and Fill in with AI run on. Empty keeps the preset\'s Housekeeping row, or its Explainer row when the repository is read.' },
+  'models.agyWriter': { label: 'Write with AI (Antigravity)', help: 'The Antigravity model Write it with AI and Fill in with AI run on. Empty keeps the Antigravity model.' },
   'models.fallbacks': { label: 'Fallbacks (in order)', help: 'When a session\'s model is unavailable (deprecated alias, retired id, typo) the engine re-runs it with the next of these and remembers the replacement for that goal; only when all fail does it ask you.' },
   'models.escalateLastAttempt': { label: 'Last attempt on the Complex-task model', help: 'When a task has 2 or more attempts, its last one — and every retry you grant from the Inbox — runs on the Complex-task model of its preset before the task comes back to you. The timeline says when it happens.' },
   'sessions.attemptMaxCostUsd': { label: 'Claude cost cap per session (USD)', help: 'The real guard: a worker session stops at this spend (also bounded by the goal\'s remaining budget).' },

@@ -169,6 +169,9 @@ export function CodexModelPresetsSection({ draft, setFields }: { draft: Settings
           </Field>
           {testStatus({ model: 'codex-default', effort: null })}
         </div>
+        <Field label="Write with AI" help="The model Write it with AI and Fill in with AI run on, on the New goal form and Templates. The first choice keeps the preset's Housekeeping row, or its Explainer row when the repository is read." setting="models.codexWriter">
+          <CodexModelSelect known={known} value={draft.models.codexWriter ?? 'codex-default'} onChange={(v) => setFields({ codexWriter: v === 'codex-default' ? null : v })} label="Write with AI model" defaultLabel="Housekeeping row (Explainer with the repository)" />
+        </Field>
         <FieldGroup label="Fallbacks (in order)" help="Used only when a model is unavailable. Authentication, quota and other failures are reported without switching accounts. Each new goal keeps this order.">
           <div className="space-y-2">
             {fallbacks.length === 0 && <p className="text-xs text-ink-faint">No fallback configured. An unavailable model pauses the goal for your decision.</p>}
