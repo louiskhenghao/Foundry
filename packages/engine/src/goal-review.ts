@@ -1,7 +1,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Check, CheckResult, Goal } from '@foundry/core';
-import { jsonSchemaFor, IdPrefix, chosenStyle, designReferences, getBrief, getGoal, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions } from '@foundry/core';
+import type { Check, CheckResult, EngineEvent, Goal } from '@foundry/core';
+import { jsonSchemaFor, IdPrefix, chosenStyle, designReferences, getBrief, getGoal, listCheckResultsByGoal, listChecks, listTasks, newId, renderDecisions, reportsDollars } from '@foundry/core';
 import { z } from 'zod';
 import { renderStyle, styleApplies } from './attempt-prompt.ts';
 import { FIGURE_REVIEW_GOAL } from './figure.ts';
@@ -126,6 +126,9 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
   }
 
   store.append({ type: 'review.goal.finished', goalId: goal.id, payload: { passed: false, overDelivered: false, mustResults, stretchResults, fixTaskIds: [], notes: review?.notes ?? '' } });
+  // where the goal stands, for the person deciding on one more round: the rounds, the spend, how the failures moved
+  const rounds = reviewRounds(store.listByGoalOfTypes(goal.id, ['review.goal.finished', 'goal.cost_added']), (id) => checks.find((c) => c.id === id)?.name ?? id);
+  const standing = reviewError ? '' : standingText(rounds, getGoal(store.db, goal.id)?.costUsd ?? goal.costUsd, reportsDollars(goal.provider));
   raiseEscalation(engine, {
     goal,
     trigger: 'retries_exhausted',
@@ -137,11 +140,41 @@ export async function runGoalReview(engine: Engine, goal: Goal): Promise<void> {
       : `Goal review failed after ${goal.fixCycles} fix cycle(s). Failing Must checks: ${mustResults
           .filter((r) => r.status !== 'pass')
           .map((r) => checks.find((c) => c.id === r.checkId)?.name)
-          .join(', ')}${review ? `\n\n${review.notes}` : ''}`,
+          .join(', ')}${review ? `\n\n${review.notes}` : ''}${standing}`,
     // the findings ride on the escalation: a human "Retry with hint" turns them into fix tasks instead of re-rolling the review
-    payload: { kind: 'goal-review', fixTasks: fixSpecs, failing },
+    payload: { kind: 'goal-review', fixTasks: fixSpecs, failing, rounds: rounds.rounds, lastRoundUsd: reportsDollars(goal.provider) ? rounds.lastRoundUsd : null, newlyFailing: rounds.newlyFailing, nowPassing: rounds.nowPassing },
     blockGoal: true,
   });
+}
+
+/**
+ * How a goal's reviews went, read after a failed one: how many ran, what the last fix round cost (everything booked since
+ * the review before, this review included; Conversation answers left out, as from the budget), and how the failing Must
+ * checks moved since that review. Failures that change round after round mean the reviewer finds new gaps each time.
+ */
+export function reviewRounds(events: EngineEvent[], checkName: (checkId: string) => string): { rounds: number; lastRoundUsd: number | null; newlyFailing: string[]; nowPassing: string[] } {
+  const reviews = events.map((e, i) => ({ e, i })).filter(({ e }) => e.type === 'review.goal.finished');
+  const failing = (e: EngineEvent) => [...new Set(((e.payload as { mustResults?: CheckResult[] }).mustResults ?? []).filter((r) => r.status !== 'pass').map((r) => checkName(r.checkId)))];
+  const cur = reviews.at(-1);
+  const prev = reviews.at(-2);
+  if (!cur || !prev) return { rounds: reviews.length, lastRoundUsd: null, newlyFailing: [], nowPassing: [] };
+  // the review's own cost is booked before its verdict, so the round is everything between the two verdicts
+  const spent = events
+    .slice(prev.i + 1, cur.i + 1)
+    .filter((e) => e.type === 'goal.cost_added' && (e.payload as { source?: string }).source !== 'conversation')
+    .reduce((sum, e) => sum + ((e.payload as { costUsd?: number }).costUsd ?? 0), 0);
+  const before = failing(prev.e);
+  const now = failing(cur.e);
+  return { rounds: reviews.length, lastRoundUsd: Math.round(spent * 100) / 100, newlyFailing: now.filter((n) => !before.includes(n)), nowPassing: before.filter((n) => !now.includes(n)) };
+}
+
+/** the lines the escalation adds for the person deciding on another fix round */
+export function standingText(r: ReturnType<typeof reviewRounds>, spentUsd: number, dollars: boolean): string {
+  const usd = (n: number) => `$${n.toFixed(2)}`;
+  const money = dollars ? ` The goal has spent ${usd(spentUsd)} so far${r.lastRoundUsd != null ? `; the last fix round and this review cost ${usd(r.lastRoundUsd)}, about what another round costs` : ''}.` : '';
+  const head = `\n\nReview ${r.rounds} of this goal.${money}`;
+  if (!r.newlyFailing.length) return head;
+  return `${head} The failing checks moved since the last review: newly failing ${r.newlyFailing.join(', ')}${r.nowPassing.length ? `; now passing ${r.nowPassing.join(', ')}` : ''}. Each round finds new gaps rather than the same ones, so another fix round is unlikely to settle it: accept as-is, or retry with a hint that names exactly what is left.`;
 }
 
 async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, checks: Check[], objective: CheckResult[]) {
