@@ -614,15 +614,11 @@ export function SettingsPage() {
             {modelProvider === 'claude' && <Toggle path="workflow.leanSessions" />}
             <Toggle path="workflow.autoskills" />
             <p className="text-[11px] text-ink-faint">
-              Memory — a Hindsight server that remembers what each folder’s goals did and taught — is set up on the{' '}
-              <Link to="/skills?provider=claude#mcp" className="underline hover:text-ink">
-                Extensions page, MCP servers tab
-              </Link>
-              ; each folder’s switch is on the{' '}
-              <Link to="/learnings" className="underline hover:text-ink">
+              Memory — a Hindsight server that remembers what each folder’s goals did and taught — is set up at the top of the{' '}
+              <Link to="/learnings#memory" className="underline hover:text-ink">
                 Learnings page
               </Link>
-              .
+              , above each folder’s switch.
             </p>
             {packBlock('workflow.designPack')}
             {packBlock('workflow.imagePack', 'image')}

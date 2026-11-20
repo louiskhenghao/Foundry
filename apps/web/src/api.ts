@@ -1043,7 +1043,7 @@ export function apiForProvider(provider?: AgentProvider) {
   mcpLoginSubmit: (url: string) => req<McpLoginSession>('/api/mcp/login/code', { method: 'POST', body: JSON.stringify({ url }) }),
   mcpLoginCancel: () => req<{ ok: boolean }>('/api/mcp/login/cancel', { method: 'POST' }),
   mcpRemove: (name: string, opId?: string) => req<{ ok: boolean; error: string | null; op: SkillOp }>('/api/mcp/remove', { method: 'POST', body: JSON.stringify({ name, opId }) }),
-  // Memory (ADR-0072): the Hindsight card on the MCP tab, and a folder's switch on the Learnings page
+  // Memory (ADR-0072): the Hindsight card and each folder's switch, both on the Learnings page
   memoryStatus: () => req<MemoryStatus>('/api/memory'),
   memoryTest: (url: string, token?: string | null) => req<{ ok: boolean; version: string | null; error: string | null }>('/api/memory/test', { method: 'POST', body: JSON.stringify({ url, token }) }),
   memorySave: (body: { run?: boolean; url?: string | null; token?: string | null; retainTranscripts?: boolean; reflectSec?: number; seedCommits?: number }) => req<MemoryStatus>('/api/memory', { method: 'PUT', body: JSON.stringify(body) }),

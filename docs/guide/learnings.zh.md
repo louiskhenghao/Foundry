@@ -4,7 +4,7 @@
 
 每个 goal 都会让 Foundry 对你的项目多知道一点：测试需要哪条命令、页面放在哪里、哪个错误白白花掉了两次尝试、你喜欢事情怎么做。Foundry 按项目文件夹把这些 **Learnings** 记下来，交给这个文件夹里之后的每个 goal，同一个教训不用付两次钱。
 
-![Learnings 页面：一个项目文件夹，里面是它的 goal 教会的事，还有一条是用户自己写的](images/learnings.png)
+![Learnings 页面：最上面是收起的 Memory 一行，下面是一个项目文件夹，里面是它的 goal 教会的事，还有一条是用户自己写的](images/learnings.png)
 
 ## 它们从哪里来
 
@@ -32,7 +32,7 @@ goal 的 **Activity** 会写明改了什么，例如 *Learnings for this folder:
 
 ## 这个文件夹的 Memory
 
-Learnings 是那三十行。设好了 Hindsight 服务器之后（见 [Memory](./memory.zh.md)），Learnings 页面上每个文件夹的卡片还会显示它的 bank（`coding-agent::<folder>`）和一个 **Memory** 开关：关掉后，这个文件夹的 goal 既不读也不写 bank。记事本里的内容也会写进 bank，替换上一次写的记事本，所以你在这里写的一条 Learning 是纠正错误记忆最可靠的办法。
+Learnings 是那三十行；[Memory](./memory.zh.md) 是长篇版，就在这个页面上设置。第一行 **Memory** 点开是 Hindsight 卡片：让 Foundry 替你运行一台服务器，或者填入你自己那台的地址；折叠时，它显示服务器的状态。每个文件夹的卡片还会显示它的 bank（`coding-agent::<folder>`）和一个 **Memory** 开关：关掉后，这个文件夹的 goal 既不读也不写 bank。开关旁边写着 **(no server set)**，意思是在上面设好服务器之前什么都不读也不写。记事本里的内容也会写进 bank，替换上一次写的记事本，所以你在这里写的一条 Learning 是纠正错误记忆最可靠的办法。
 
 ## 查看和编辑
 

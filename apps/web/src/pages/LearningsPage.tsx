@@ -12,6 +12,7 @@ import { BOARD_ROW, Board, Button, EmptyState, Field, Input, Loading, Modal, Pag
 import { categorySquare } from './agents/marks.ts';
 import { BOARD_PANEL, shortCwd } from './agents/rows.tsx';
 import { HelpLink } from './HelpPage.tsx';
+import { MemorySection } from './MemorySection.tsx';
 
 const KINDS: LearningKind[] = ['build', 'test', 'run', 'structure', 'convention', 'preference', 'pitfall'];
 /**
@@ -61,7 +62,8 @@ async function saveChange(repoPath: string, change: LearningChange): Promise<Lea
  * Learnings (ADR-0040): what Foundry learned about each project folder from its finished goals, and what the person
  * added. Every new goal in a folder is given its notebook. Laid out like Agents and Extensions: the filters on top (each
  * kind with its count), one card per folder; a learning is added, changed or removed one at a time, in a window.
- * `?repo=` shows one folder, and opens the window to add one when it has none yet.
+ * `?repo=` shows one folder, and opens the window to add one when it has none yet. Memory (ADR-0072), the long version
+ * of the notebooks, is set up at the head of the page, above them.
  */
 export function LearningsPage() {
   const [params] = useSearchParams();
@@ -71,6 +73,8 @@ export function LearningsPage() {
   const [kind, setKind] = useState<LearningKind | 'all'>('all');
   const [query, setQuery] = useState('');
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed);
+  // a server set for Memory, as the section above has it once read: each folder's line follows it without asking again
+  const [memoryOn, setMemoryOn] = useState<boolean | null>(null);
   // the first load at once; a live change refetches after a short quiet, so a burst of events asks once
   useEffect(() => {
     const t = setTimeout(() => api.learnings().then((r) => setRepos(r.repos)).catch(() => setRepos([])), repos === null ? 0 : 150);
@@ -133,6 +137,8 @@ export function LearningsPage() {
         }
       />
 
+      <MemorySection onStatus={(s) => setMemoryOn(s.run || !!s.ownUrl)} />
+
       <div className="flex items-center gap-2 flex-wrap">
         {(['all', ...KINDS] as const).map((k) => (
           <button key={k} type="button" onClick={() => setKind(k)} className={cn(chipClass(kind === k), 'inline-flex items-center gap-1.5')}>
@@ -162,7 +168,7 @@ export function LearningsPage() {
         {everywhere && (!filtering || visible(everywhere).length > 0) && (
           <div className={BOARD_PANEL}>
             <ul>
-              <FolderCard repo={everywhere} rows={visible(everywhere)} filtering={filtering} open={filtering || !collapsed[LEARNINGS_EVERYWHERE]} onToggle={() => toggle(everywhere)} startAdding={false} onSaved={saved} everywhere />
+              <FolderCard repo={everywhere} rows={visible(everywhere)} filtering={filtering} open={filtering || !collapsed[LEARNINGS_EVERYWHERE]} onToggle={() => toggle(everywhere)} startAdding={false} onSaved={saved} memoryOn={memoryOn} everywhere />
             </ul>
           </div>
         )}
@@ -179,7 +185,7 @@ export function LearningsPage() {
         ) : (
           <Board id="project-folders" icon={<Folder size={14} aria-hidden="true" />} title="Project folders" count={cards.length}>
             {cards.map((r) => (
-              <FolderCard key={r.repoPath} repo={r} rows={visible(r)} filtering={filtering} open={isOpen(r)} onToggle={() => toggle(r)} startAdding={!!only && r.learnings.length === 0} onSaved={saved} />
+              <FolderCard key={r.repoPath} repo={r} rows={visible(r)} filtering={filtering} open={isOpen(r)} onToggle={() => toggle(r)} startAdding={!!only && r.learnings.length === 0} onSaved={saved} memoryOn={memoryOn} />
             ))}
           </Board>
         )}
@@ -197,7 +203,7 @@ function KindBadge({ kind }: { kind: LearningKind }) {
  * One project folder (or the notebook for every folder) as a row of its board: fold, name, how many learnings and Add,
  * the folder under it; open, its learnings are listed under it, indented, each changed on its own.
  */
-function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSaved, everywhere = false }: { repo: RepoLearnings; rows: Learning[]; filtering: boolean; open: boolean; onToggle: () => void; startAdding: boolean; onSaved: (repoPath: string, learnings: Learning[]) => void; everywhere?: boolean }) {
+function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSaved, memoryOn, everywhere = false }: { repo: RepoLearnings; rows: Learning[]; filtering: boolean; open: boolean; onToggle: () => void; startAdding: boolean; onSaved: (repoPath: string, learnings: Learning[]) => void; memoryOn: boolean | null; everywhere?: boolean }) {
   // the learning the window is open on (null: a new one); no window when unset
   const [editing, setEditing] = useState<{ learning: Learning | null } | null>(startAdding ? { learning: null } : null);
   const n = repo.learnings.length;
@@ -231,7 +237,7 @@ function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSave
             <span className="mono">{n}</span> learning{n === 1 ? '' : 's'}
           </span>
         </div>
-        <MemoryLine repoPath={repo.repoPath} everywhere={everywhere} />
+        <MemoryLine repoPath={repo.repoPath} everywhere={everywhere} serverOn={memoryOn} />
       </div>
       {open && (
         <div id={panel} className="border-t border-line bg-sunken/60">
@@ -255,8 +261,10 @@ function FolderCard({ repo, rows, filtering, open, onToggle, startAdding, onSave
  * Memory (ADR-0072) under a folder: the Hindsight bank its goals share with the person's own sessions there, and the
  * switch that leaves the folder out or takes it back in. Nothing for a folder that is no git repository. Under the
  * everywhere notebook: the person's own bank, which every folder's goals write their decisions and answers to.
+ * `serverOn`: whether a server is set, as the Memory section at the head of the page last read it (null until then), so
+ * a server set up or turned off there shows here at once.
  */
-export function MemoryLine({ repoPath, everywhere = false, initial = null }: { repoPath: string; everywhere?: boolean; initial?: MemoryFolderStatus | null }) {
+export function MemoryLine({ repoPath, everywhere = false, initial = null, serverOn = null }: { repoPath: string; everywhere?: boolean; initial?: MemoryFolderStatus | null; serverOn?: boolean | null }) {
   const [mem, setMem] = useState<MemoryFolderStatus | null>(initial);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -264,6 +272,7 @@ export function MemoryLine({ repoPath, everywhere = false, initial = null }: { r
     api.memoryFolder(repoPath).then(setMem).catch(() => setMem(null));
   }, [repoPath]);
   if (!mem) return null;
+  const enabled = serverOn === null ? mem.enabled : serverOn && !mem.excluded && mem.bank !== null;
   const toggle = async (on: boolean) => {
     setBusy(true);
     try {
@@ -279,7 +288,7 @@ export function MemoryLine({ repoPath, everywhere = false, initial = null }: { r
         <span className="mono truncate" title="your own Hindsight bank: what you decided, answered and asked for, from every folder's goals">
           {mem.bank}
         </span>
-        <span className="truncate">{mem.enabled ? 'your decisions and answers from every folder' : 'your decisions and answers from every folder (no server set)'}</span>
+        <span className="truncate">{enabled ? 'your decisions and answers from every folder' : 'your decisions and answers from every folder (no server set)'}</span>
       </div>
     );
   }
@@ -294,9 +303,9 @@ export function MemoryLine({ repoPath, everywhere = false, initial = null }: { r
             {mem.bank}
           </span>
           {/* above the fold button, which covers the row */}
-          <label className="relative z-10 flex items-center gap-1.5 font-semibold text-ink-soft cursor-pointer shrink-0" title={mem.excluded ? 'Left out: its goals neither read nor write the bank' : 'Its goals read and write the bank while a Hindsight server is set up (Extensions → MCP servers)'}>
+          <label className="relative z-10 flex items-center gap-1.5 font-semibold text-ink-soft cursor-pointer shrink-0" title={mem.excluded ? 'Left out: its goals neither read nor write the bank' : 'Its goals read and write the bank while a Hindsight server is set up (Memory, at the top of this page)'}>
             <input type="checkbox" checked={!mem.excluded} disabled={busy} onChange={(e) => void toggle(e.target.checked)} /> Memory
-            {!mem.excluded && !mem.enabled && <span className="font-normal">(no server set)</span>}
+            {!mem.excluded && !enabled && <span className="font-normal">(no server set)</span>}
           </label>
         </>
       )}

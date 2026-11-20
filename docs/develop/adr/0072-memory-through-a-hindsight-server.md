@@ -2,6 +2,8 @@
 
 **Status:** accepted · 2026-10-23 · builds on ADR-0016, ADR-0040, ADR-0050 and ADR-0064 · amended by ADR-0109 (Foundry runs the server on this computer)
 
+> Amended 2026-11-20: the Hindsight card moved from Extensions → MCP servers to a Memory section at the top of the Learnings page, above each folder's switch, and connects every coding agent from there; the MCP servers tab keeps a row that links to it. Where it is shown changed, not what it does.
+
 ## Context
 
 A folder's Learnings (ADR-0040) are a notebook of thirty lines. They are written once, when a goal ends, by a session

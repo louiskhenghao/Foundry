@@ -12,7 +12,7 @@ Hindsight 是开源的（MIT）。它作为一个独立进程运行，自带内�
 
 ## 设置
 
-打开 **Extensions → MCP servers**，找到 **Memory · Hindsight** 卡片。它提供两种方式：**Foundry runs it** 和 **A server you run**。
+打开 **⚙ → Learnings**。页面上的第一行就是 **Memory**，在它所记住的那些文件夹上方：点开它就是 Hindsight 卡片（折叠时，这一行会显示服务器的状态——**off**、**running**、**connected**、**not reachable**）。卡片提供两种方式：**Foundry runs it** 和 **A server you run**。**Extensions → MCP servers** 里也有一行链接到这里，因为这台服务器也是会话连接的 MCP 服务器之一。
 
 **Foundry runs it（Foundry 替你运行）。** 按 **Run Hindsight here**。第一次时，Foundry 用 uv 把 Hindsight 装进它在数据文件夹里保管的一个 Python 环境（`python/hindsight`，约 2 GB：Hindsight 用基于 PyTorch 的本地模型来读内容；**Setup** 会安装 uv）。然后它只在这台电脑上（`127.0.0.1`）启动服务器，端口是 8888 或下一个空闲端口，之后一直沿用这个端口。服务器随 Foundry 启动和停止，Foundry 被强行杀掉时它也会自己停下。它的 LLM 是你的 Claude Code 登录；如果只登录了 Codex，卡片会请你 **把服务器登录到 Codex**（按钮 **Sign the server in to Codex**），在 OpenAI 的页面上输入一个代码——这是它自己的登录，因为 Codex 的 token 只能刷新一次，服务器不能拿走 CLI 的那份。卡片会一路跟着显示：**installing**、**starting**（第一次启动会下载模型）、**running**，或者 **stopped** 加上原因和它日志的最后几行，以及 **Try again**。它的记忆由 Hindsight 内嵌的 Postgres 保存在 `~/.pg0/instances/foundry-…`，在数据文件夹之外，名字属于这个数据文件夹：同一台电脑上的两个 Foundry 安装永远不会共用它，数据文件夹在这台电脑上搬家后也还在。卡片上的 **Where it keeps things** 显示这两个文件夹。在 Linux 上 Foundry 安装 PyTorch 的 CPU 版；Intel Mac 没有可装的 PyTorch，请用别处的服务器。
 
@@ -20,7 +20,7 @@ Hindsight 是开源的（MIT）。它作为一个独立进程运行，自带内�
 
 **Write each attempt's transcript to the bank** 默认开着；**Wait for an answer** 和 **Seed a new folder from**（300 条提交）见下文。
 
-**连接编码智能体。** **Connect Claude Code**（或者在 Codex 标签页上 **Connect Codex**）把这台服务器写进该编码智能体自己的配置并允许在 goal 里使用：worker 于是可以在干活中途自己去问记忆，并被告知它所在文件夹的 bank 是哪个。无论连不连，Foundry 都会在每个阶段开始前替它问一次。Antigravity 不从 Foundry 接收 MCP 服务器：它的 goal 只以文字形式拿到 Memory 回忆起的内容。对 Codex，Foundry 把 token 作为 `HINDSIGHT_API_TOKEN` 交给它的会话；你自己的会话要在 shell 里自行 export。
+**连接编码智能体。** 卡片上 **Connect the coding agents** 下面，**Connect Claude Code** 和 **Connect Codex**（装了 Codex 时才有）把这台服务器写进该编码智能体自己的配置并允许在 goal 里使用：worker 于是可以在干活中途自己去问记忆，并被告知它所在文件夹的 bank 是哪个。无论连不连，Foundry 都会在每个阶段开始前替它问一次。Antigravity 不从 Foundry 接收 MCP 服务器：它的 goal 只以文字形式拿到 Memory 回忆起的内容。对 Codex，Foundry 把 token 作为 `HINDSIGHT_API_TOKEN` 交给它的会话；你自己的会话要在 shell 里自行 export。
 
 卡片上的 **Turn off** 停掉一切——包括 Foundry 运行的那台服务器，它的安装和记忆都留着，等你再打开；删掉那两个文件夹就把它移除了。已有的 Learnings 不受影响。**Settings → Skills** 里有指向这里的链接。
 
@@ -44,7 +44,7 @@ Foundry 建的 bank 还会得到 Hindsight 自带集成所维护的五张 knowle
 ## 看到它
 
 - goal 页面在基本信息下面写着 **Memory: 3/4 recalled · wrote back 6**（或者服务器没有回应）。Overview 标签页上的 **Remembered** 展开后能看到每个阶段被告知了什么——bank 的原话，回答没有及时到达的那些标着 **the memories themselves**——以及这个 goal 写回了多少份文档。**Activity** 列出每一次询问和写入。
-- **Learnings** 页面上每个文件夹的卡片显示它的 bank（`coding-agent::<folder>`）和一个 **Memory** 开关：关掉后，这个文件夹的 goal 既不读也不写 bank。**Yours, everywhere** 卡片上显示的是你自己的 bank `foundry::person`。
+- 在 **Learnings** 页面上，最上面的 **Memory** 一行显示服务器的状态，它下面每个文件夹的卡片显示它的 bank（`coding-agent::<folder>`）和一个 **Memory** 开关：关掉后，这个文件夹的 goal 既不读也不写 bank。**Yours, everywhere** 卡片上显示的是你自己的 bank `foundry::person`。
 - Hindsight 自己的控制台（服务器的 9999 端口）能看到各个 bank、里面的记忆，以及整理归纳的结果。
 
 ## 一个仓库一个 bank
