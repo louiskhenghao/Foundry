@@ -6,8 +6,9 @@
  * already there is left as it is; what only the person can install is said with the command to run.
  */
 import type { AgentProvider } from '@foundry/core';
+import { realpathSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
-import { agentCliInstall } from '../agent-cli.ts';
+import { agentCliInstall, agentCliUpdate, cliVersion, newestAgentCli, olderVersion } from '../agent-cli.ts';
 import { MARKITDOWN_INSTALL } from '../convert/markitdown.ts';
 import { spawnStreaming } from '../skills/updaters.ts';
 import { defaultToolEnv, toolRecipe, type ToolEnv, type ToolId } from './installers.ts';
@@ -34,6 +35,12 @@ export interface SetupOptions {
   installChromium?: () => Promise<boolean>;
   /** the Node.js major on PATH (0 when there is none) */
   nodeMajor?: () => Promise<number>;
+  /**
+   * A coding agent's CLI that is already here is brought up to its newest release: what its binary's --version says,
+   * and the newest release (null: not looked up). A real run asks both; a test without them updates nothing.
+   */
+  cliVersionOf?: (bin: string) => Promise<string | null>;
+  newestCli?: (provider: AgentProvider) => Promise<string | null>;
 }
 
 const AGENT_BIN: Record<AgentProvider, string> = { claude: 'claude', codex: 'codex', agy: 'agy' };
@@ -80,9 +87,33 @@ export async function runSetup(opts: SetupOptions): Promise<{ ok: boolean; steps
   say('Required');
   await tool('git', true);
   await tool('uv', true);
+  const versionOf = opts.cliVersionOf ?? (real ? binVersion : null);
+  const newestOf = opts.newestCli ?? (real ? (p: AgentProvider) => newestAgentCli(p) : null);
+  /** a coding agent's CLI that was already here, brought up to its newest release by the updater that fits its install */
+  const bringUp = async (a: AgentProvider, bin: string) => {
+    if (!versionOf || !newestOf) return;
+    const name = `${AGENT_LABEL[a]} update`;
+    const [version, newest] = await Promise.all([versionOf(bin), newestOf(a).catch(() => null)]);
+    // up to date, or nothing to compare: the line above says enough
+    if (!version || !newest || !olderVersion(version, newest)) return;
+    let real = bin;
+    try {
+      real = realpathSync(bin);
+    } catch {}
+    const { command } = agentCliUpdate(a, bin, real, env.home, env.which, env.platform as NodeJS.Platform, env.arch);
+    if (opts.dryRun) return done({ name, status: 'planned', detail: `${version} → ${newest}: would run ${command}`, required: false });
+    say(`  → updating ${AGENT_LABEL[a]} ${version} → ${newest}`);
+    const code = await run(command);
+    const now = await versionOf(bin);
+    if (code !== 0) return done({ name, status: 'failed', detail: `stays ${version} (exit ${code}); by hand: ${command}`, required: false });
+    done({ name, status: now && now !== version ? 'installed' : 'ok', detail: now && now !== version ? `${version} → ${now}` : `still ${version}: its updater had nothing newer for this install`, required: false });
+  };
   for (const a of opts.agents) {
     const install = agentCliInstall(a, env.which, env.platform as NodeJS.Platform, env.arch);
     await ensure(AGENT_LABEL[a], AGENT_BIN[a], install?.command ?? null, a === 'claude' ? 'curl -fsSL https://claude.ai/install.sh | bash' : a === 'codex' ? 'npm install -g @openai/codex' : 'curl -fsSL https://antigravity.google/cli/install.sh | bash', true);
+    // only one that was here before: one just installed is the newest already
+    const at = env.which(AGENT_BIN[a]);
+    if (at && steps.at(-1)?.status === 'ok') await bringUp(a, at);
   }
   // Python 3.12: uv's newest Python may be one tree-sitter has no wheel for, which then needs a compiler
   await ensure('graphify', 'graphify', env.which('uv') || opts.dryRun ? 'uv tool install --python 3.12 graphifyy' : null, 'uv tool install --python 3.12 graphifyy (uv first: https://docs.astral.sh/uv/)', true);
@@ -116,6 +147,17 @@ export async function runSetup(opts: SetupOptions): Promise<{ ok: boolean; steps
   }
   const ok = steps.filter((s) => s.required).every((s) => s.status === 'ok' || s.status === 'installed' || s.status === 'planned');
   return { ok, steps };
+}
+
+/** the x.y.z a CLI's --version prints; null when it does not run */
+async function binVersion(bin: string): Promise<string | null> {
+  try {
+    const p = Bun.spawn([bin, '--version'], { stdout: 'pipe', stderr: 'ignore' });
+    const out = await new Response(p.stdout).text();
+    return (await p.exited) === 0 ? cliVersion(out) : null;
+  } catch {
+    return null;
+  }
 }
 
 async function nodeMajor(env: ToolEnv): Promise<number> {
