@@ -183,6 +183,16 @@ Codex goals retain these settings after creation; later preset edits and deletio
 
 For **Auto** goals, **Default · By goal type** captures the configured defaults for Code, Docs & research and Media. The role preview initially shows Code; classification switches to the captured table for the inferred type. An explicitly selected preset stays selected regardless of classification.
 
+### Session limits
+
+Every session of a goal has a dollar cap of its own, so one runaway session cannot spend the goal's budget: an attempt $10 (Settings → **Models & limits**), a goal review at least $6, the planner $10, a merge $2, a task review $0.80. A stronger model or a longer-thinking effort costs more for the same work, and a session stopped at its cap shows up as a retry, a cut-short plan or a review without a verdict. **Session limits** (Claude Code goals only, as only Claude Code reports dollars) multiplies every one of those caps for this goal:
+
+- **Default** follows Settings → Models & limits → **Session limits**, and the button says what that comes to here.
+- **Auto** follows the preset: **Max** ×3, **Production** ×2, **Balanced** and **Economy** ×1 (a preset of your own counts as the one it was made from), and ×1.5 more at **xhigh** or **max** effort. Production at xhigh is ×3: an attempt may spend up to $30.
+- **×1**, **×1.5**, **×2**, **×3** set the multiplier yourself.
+
+A cap never goes past what the goal has left of its own [budget](#budget). The goal keeps its choice; changing Settings later does not move goals already made. From a terminal: `foundry goal create … --session-limits auto|<0.5–5>`.
+
 ### Workflow suite
 
 The selector appears only in Expert view. **pstack** is available once the Setup page has installed it (the card **Workflow suite — pstack** installs Foundry's own copy of one pinned release, without the plugin's hooks; Claude loads it per session, Codex gets its skills linked into the goal's workspace). Until then the option is greyed out; a pstack selection inherited from a folder or Follow-up is kept, with installation guidance and the engine's existing fallback rules. **Powered by** picks whose skills the roles follow for this goal: **mattpocock** (the initial Settings default: Matt Pocock's suite — tests first for features, diagnose first for bugs, code review at the end), **pstack** (pstack's suite, with Matt Pocock's skills where pstack has none) or **plain** (no rules: sessions only hear which skills are installed). The choice is fixed when the goal is created; a goal-page Follow-up starts from the chosen earlier goal's choice, and a delegated goal takes its main goal's. Simple view uses the same suite inheritance as Expert view, with Settings as the fallback. For an older goal with no saved suite, the inherited suite comes from current Settings. The goal page and the Brief show it as a **Powered by** chip.

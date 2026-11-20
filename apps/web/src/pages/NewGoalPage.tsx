@@ -1,4 +1,4 @@
-import { AGENT_PROVIDERS, KNOWN_EFFORTS, PROVIDER_LABEL, reportsDollars } from '@foundry/core/browser';
+import { AGENT_PROVIDERS, HIGH_EFFORT_SESSION_SCALE, KNOWN_EFFORTS, PRESET_SESSION_SCALE, PROVIDER_LABEL, reportsDollars, type SessionLimits } from '@foundry/core/browser';
 import { ProviderSelector } from '../components/ProviderSelector.tsx';
 import type { Attachment, TemplateEntry, TemplateLang, WorkflowProfile } from '@foundry/core/browser';
 import { ARTIFACT_NATURES, BUDGET_PRESETS, MEDIA_NATURES, designReferences, renderTemplate, unreadableDesignLinks } from '@foundry/core/browser';
@@ -245,7 +245,10 @@ export function NewGoalPage() {
   useEffect(() => { if (provider === 'agy' && !agyKnown) void api.models('agy').then((r) => setAgyKnown(r.models)).catch(() => setAgyKnown([])); }, [provider]);
   const [modelPreset, setModelPreset] = useState('');
   const [codexPreset, setCodexPreset] = useState('');
-  const [presetInfo, setPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string> } | null>(null);
+  const [presetInfo, setPresetInfo] = useState<{ ids: { id: string; label: string; basedOn?: string | null }[]; picks: Record<ModelNature, string> } | null>(null);
+  // how far this goal's sessions may go past their dollar caps: '' = the Settings default, 'auto' or a multiplier
+  const [sessionLimits, setSessionLimits] = useState('');
+  const [limitDefault, setLimitDefault] = useState<SessionLimits>('auto');
   const [codexPresetInfo, setCodexPresetInfo] = useState<{ ids: { id: string; label: string }[]; picks: Record<ModelNature, string>; presets: Record<string, CodexModelPreset> } | null>(null);
   useEffect(() => localStorage.setItem(NATURE_KEY, nature), [nature]);
   // the cad tile says when text-to-cad is missing for this coding agent (a cad goal waits for it before Clarify)
@@ -409,12 +412,13 @@ export function NewGoalPage() {
         setAgyDefault(v.values.models.agyModel);
         if (!changed.current.has('provider')) setProvider(v.values.engine.provider);
         const presets = effectivePresets((v.values.models.presets ?? {}) as Record<string, ModelPreset>);
-        setPresetInfo({ ids: Object.entries(presets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.presetCode, docs: v.values.models.presetDocs, media: v.values.models.presetMedia } });
+        setPresetInfo({ ids: Object.entries(presets).map(([id, p]) => ({ id, label: p.label, basedOn: p.basedOn })), picks: { code: v.values.models.presetCode, docs: v.values.models.presetDocs, media: v.values.models.presetMedia } });
         const codexPresets = effectiveCodexPresets((v.values.models.codexPresets ?? {}) as Record<string, CodexModelPreset>);
         setCodexPresetInfo({ ids: Object.entries(codexPresets).map(([id, p]) => ({ id, label: p.label })), picks: { code: v.values.models.codexPresetCode, docs: v.values.models.codexPresetDocs, media: v.values.models.codexPresetMedia }, presets: codexPresets });
         const d = v.values;
         setBetaMotionStudio(!!d.beta?.motionStudio);
         if (!changed.current.has('effort')) setEffort(d.workflow.effort ?? '');
+        setLimitDefault(d.sessions?.limitScale ?? 'auto');
         if (!changed.current.has('interviewDepth')) setInterviewDepth(String(d.workflow.interviewDepth ?? { never: 0, auto: 3, always: 4 }[d.workflow.interview]));
         if (!changed.current.has('mode')) setModeState(d.workflow.defaultMode);
         changeWorkflow({ type: 'settings', values: { profile: d.workflow.profile ?? 'mattpocock', tdd: d.workflow.tdd, ponytail: d.workflow.ponytail ?? 'on' } });
@@ -684,6 +688,8 @@ export function NewGoalPage() {
         interviewDepth: Number(interviewDepth),
         effort: effort || (provider === 'codex' ? null : undefined),
         modelPreset: (provider === 'codex' ? codexPreset : provider === 'agy' ? '' : modelPreset) || undefined,
+        // Claude only: the other coding agents report no dollars
+        sessionLimits: provider === 'claude' && sessionLimits ? (sessionLimits === 'auto' ? 'auto' : Number(sessionLimits)) : undefined,
         follows: follow ? { goalId: follow.draft.previous.id, startFrom: follow.startFrom, attachments: follow.attachments, style: follow.style, carry: follow.carry.length ? follow.carry : undefined } : undefined,
         delegation: { allow: delegate, autoApprove: delegate && delegateAuto },
         companions: companions.map((p) => p.trim()).filter(Boolean).map((p) => ({ repoPath: p })),
@@ -710,6 +716,10 @@ export function NewGoalPage() {
 
   // the preset Settings picks for this goal type, named on the Default button
   const defaultPick = activePresetInfo?.picks[natureKey(nature)];
+  // what auto session limits come to for this goal, as the engine works it out (sessionScale): its preset, then its effort
+  const presetForScale = presetInfo?.ids.find((p) => p.id === (modelPreset || presetInfo.picks[natureKey(nature)]));
+  // null until Settings is read, so the button does not show ×1 for a moment
+  const autoScale = !presetInfo ? null : (PRESET_SESSION_SCALE[presetForScale?.id ?? ''] ?? PRESET_SESSION_SCALE[presetForScale?.basedOn ?? ''] ?? 1) * (effort === 'xhigh' || effort === 'max' ? HIGH_EFFORT_SESSION_SCALE : 1);
   const defaultPreset = provider === 'codex' && nature === 'auto' ? 'By goal type' : defaultPick ? (activePresetInfo!.ids.find((p) => p.id === defaultPick)?.label ?? defaultPick) : null;
   /** a branch's name for the menu, cut short where it would not fit beside its section */
   const short = (s: string) => (s.length > 12 ? `${s.slice(0, 11)}…` : s);
@@ -977,6 +987,21 @@ export function NewGoalPage() {
                 )}
               </div>
             </div>
+            {provider === 'claude' && (
+              <div className="mt-3 flex items-center gap-2.5 flex-wrap">
+                <span className="text-xs font-semibold text-ink-soft">Session limits<HelpLink to="your-first-goal#session-limits" className="ml-1.5" /></span>
+                <ButtonGroup
+                  label="Session limits"
+                  value={sessionLimits}
+                  onChange={(value) => { changed.current.add('sessionLimits'); setSessionLimits(value); }}
+                  options={[
+                    { id: '', label: `Default · ${limitDefault === 'auto' ? `auto${autoScale ? ` ×${autoScale}` : ''}` : `×${limitDefault}`}`, title: 'Settings → Models & limits → Session limits' },
+                    ...(limitDefault === 'auto' ? [] : [{ id: 'auto', label: `Auto${autoScale ? ` · ×${autoScale}` : ''}`, title: 'By the preset (Max ×3, Production ×2, Balanced and Economy ×1), ×1.5 more at xhigh or max effort' }]),
+                    ...['1', '1.5', '2', '3'].map((x) => ({ id: x, label: `×${x}`, title: `Every session may spend ${x} times its own cap, within the goal's budget` })),
+                  ]}
+                />
+              </div>
+            )}
             {missingPreset && <p role="alert" className="mt-3 text-xs text-bad-ink">The earlier goal’s preset “{selectedPreset}” is no longer available. Choose a preset for this new goal.</p>}
             {provider === 'codex' && <div className="mt-4 space-y-3 rounded-lg border border-line bg-sunken p-3">
               <p className="text-xs text-ink-soft">This goal captures its Codex preset and fallback order when created. An explicit effort above overrides every role; Default uses each role’s preset.</p>

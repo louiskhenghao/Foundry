@@ -14,6 +14,7 @@ import { commitStaged, git, gitOk, headRef, removeWorktree } from './git/git.ts'
 import { boundarySettings } from './guards/boundary.ts';
 import { docsWorkspacePath, goalWorkspacePath } from './workspace.ts';
 import { metaFor, modelFor } from './models/roles.ts';
+import { sessionCap } from './session-limits.ts';
 
 export const DOCS_MAX_BUDGET_USD = 3;
 
@@ -64,7 +65,7 @@ export async function runDocsGeneration(engine: Engine, goalIn: Goal, opts: { re
       model: modelFor(config, goal, 'documenter').model,
       meta: metaFor(goal.id, modelFor(config, goal, 'documenter')),
       maxTurns: 50,
-      maxBudgetUsd: DOCS_MAX_BUDGET_USD,
+      maxBudgetUsd: sessionCap(engine.config, goal, DOCS_MAX_BUDGET_USD),
       permissionMode: 'dontAsk',
       ...engine.workerToolPolicy(goal),
       appendSystemPromptFile: engine.roles.path('documenter'),

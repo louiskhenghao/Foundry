@@ -11,6 +11,7 @@ import { READONLY_DISALLOWED, boundarySettings } from './guards/boundary.ts';
 import { landTaskArtifacts, overlayTaskExports, recoverOverlays, type Landing } from './goal-artifacts.ts';
 import { goalWorkspacePath } from './workspace.ts';
 import { stuckIn, takeBack, type StuckCommit } from './take-back.ts';
+import { sessionCap } from './session-limits.ts';
 
 const MERGE_ATTEMPT_BUDGET = 2;
 
@@ -249,7 +250,7 @@ async function runMergeAttempt(engine: Engine, goal: Goal, task: Task, files: st
     model: modelFor(engine.config, goal, 'merger').model,
     meta: metaFor(goal.id, modelFor(engine.config, goal, 'merger')),
     maxTurns: 50,
-    maxBudgetUsd: 2,
+    maxBudgetUsd: sessionCap(engine.config, goal, 2),
     permissionMode: 'dontAsk',
     ...engine.workerToolPolicy(goal),
     appendSystemPromptFile: engine.roles.path('merger'),

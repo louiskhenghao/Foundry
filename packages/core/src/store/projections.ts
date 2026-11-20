@@ -834,6 +834,7 @@ function normalizeGoal(g: Goal): Goal {
   g.delegatedFrom ??= null;
   g.conversationCostUsd ??= 0;
   g.videoPack ??= null;
+  g.sessionLimits ??= 'auto';
   if (g.budgets) g.budgets.attemptTimeoutMin ??= null;
   g.figurePack ??= null;
   g.designPack ??= null;

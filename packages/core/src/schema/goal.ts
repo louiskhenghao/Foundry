@@ -21,6 +21,17 @@ export const KNOWN_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 export const Effort = z.string().min(1);
 export type Effort = z.infer<typeof Effort>;
 
+/**
+ * How far a goal's sessions may go past their own dollar caps (an attempt's $10, a goal review's $6, a merge's $2…):
+ * `auto` follows the goal's model preset and effort (sessionScale in the engine), a number multiplies every cap.
+ */
+export const SessionLimits = z.union([z.literal('auto'), z.number().min(0.5).max(5)]);
+export type SessionLimits = z.infer<typeof SessionLimits>;
+/** what `auto` multiplies a Claude goal's session caps by, per built-in preset (a custom one counts as the preset it was made from) */
+export const PRESET_SESSION_SCALE: Record<string, number> = { max: 3, production: 2, balanced: 1, economy: 1 };
+/** the extra factor of an effort that thinks the longest */
+export const HIGH_EFFORT_SESSION_SCALE = 1.5;
+
 export const GoalState = z.enum([
   'draft',
   'clarifying',
@@ -481,6 +492,8 @@ export const Goal = z.object({
   codexModelOverride: z.string().trim().min(1).optional(),
   codexFallbacks: z.array(z.string().min(1)).optional(),
   modelPreset: z.string().nullable().default(null),
+  /** how far its sessions may go past their own dollar caps, captured at creation (default Settings → sessions.limitScale); unset = auto */
+  sessionLimits: SessionLimits.optional(),
   /** models found unavailable during this goal and what replaced them (from → to), applied to every later session */
   modelSubstitutions: z.record(z.string(), z.string()).default({}),
   workflow: GoalWorkflow.default(() => ({ tdd: 'required' as const })),

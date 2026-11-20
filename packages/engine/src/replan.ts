@@ -17,6 +17,7 @@ import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/
 import { memoryQuestion, memorySection } from './memory/prompt.ts';
 import { metaFor, modelFor } from './models/roles.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { capWithin, sessionCap } from './session-limits.ts';
 
 export const REPLAN_MAX_TURNS = 20;
 export const REPLAN_MAX_BUDGET_USD = 2;
@@ -99,7 +100,7 @@ export async function replanAfterLanding(engine: Engine, goal: Goal, landed: Tas
     model: model.model,
     meta: metaFor(goal.id, model),
     maxTurns: REPLAN_MAX_TURNS,
-    maxBudgetUsd: Math.max(0.1, Math.min(REPLAN_MAX_BUDGET_USD, b.remainingUsd ?? REPLAN_MAX_BUDGET_USD)),
+    maxBudgetUsd: capWithin(sessionCap(engine.config, goal, REPLAN_MAX_BUDGET_USD), b.remainingUsd, 0.1),
     permissionMode: 'dontAsk',
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,

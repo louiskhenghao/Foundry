@@ -1,5 +1,5 @@
 import type { AgentProvider } from '@foundry/core';
-import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type CodexModelPreset, type ModelNature, type ModelPreset } from '@foundry/core';
+import { DEFAULT_MCP_ALLOWED, DEFAULT_NATURE_PRESETS, Effort, type CodexModelPreset, type ModelNature, type ModelPreset, type SessionLimits } from '@foundry/core';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { foundryHome, launchProfile, resolveDataDir, type DataDirSource } from './data-dir.ts';
@@ -89,6 +89,8 @@ export interface EngineConfig {
   maxContinuations: number;
   /** Per-attempt cost cap passed as --max-budget-usd (also bounded by goal remaining budget). */
   attemptMaxCostUsd: number;
+  /** what a new goal's session caps follow (Settings → sessions.limitScale): auto = its preset and effort, a number multiplies them */
+  sessionLimits: SessionLimits;
   /** Extra ERE patterns for the boundary guard, '|'-separated. */
   extraBoundaryPatterns?: string;
   /** Sessions may open desktop apps and hand files to printers (Settings → Safety → Desktop apps & printers). */
@@ -259,6 +261,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     attemptMaxTurns: Number(process.env.FOUNDRY_ATTEMPT_MAX_TURNS ?? 150),
     // per-session cap; a strong model on a real task often needs $3–8, and a session killed mid-work wastes what it spent
     attemptMaxCostUsd: Number(process.env.FOUNDRY_ATTEMPT_MAX_COST ?? 10),
+    sessionLimits: 'auto',
     useGraphify: true,
     alwaysReviewTasks: true,
     maxFixCycles: 1,

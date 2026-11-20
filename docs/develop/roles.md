@@ -20,7 +20,7 @@ roles.text(name) // → file contents, including the Planner prompt
 
 **Adding a role:** add the name to `RoleName`, add `roles/<name>.md`, and load it with `engine.roles.path(...)` where the session is built. If the session's model should be configurable, add an action to `MODEL_ACTIONS` and `ACTION_INFO` in `core/src/schema/model-presets.ts` and a column to every shipped preset. Update `CODEX_MODEL_ACTIONS` / Codex preset tables as well when the role applies to that backend. If it should get skill hints, add it to `SkillRole` in `engine/src/skills/types.ts`.
 
-Dollar caps below apply only to Claude, whose native protocol reports cost. Codex reports tokens without USD cost; its session limits use wall time, idle time and tool-call count. The shared `maxTurns` setting bounds tool calls for Codex, not model turns. Native multi-agent creation and Skill-tool telemetry are unavailable there.
+Dollar caps below apply only to Claude, whose native protocol reports cost. They are the caps at ×1: every session of a goal has its cap multiplied by the goal's session limits (`sessionCap` in `session-limits.ts`; auto = Max ×3, Production ×2, Balanced and Economy ×1, ×1.5 more at xhigh or max effort; [ADR-0112](adr/0112-session-limits-follow-the-goal.md)), still within what the goal has left. Codex reports tokens without USD cost; its session limits use wall time, idle time and tool-call count. The shared `maxTurns` setting bounds tool calls for Codex, not model turns. Native multi-agent creation and Skill-tool telemetry are unavailable there.
 
 ## Role reference
 

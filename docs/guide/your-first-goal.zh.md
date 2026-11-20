@@ -181,6 +181,16 @@ Codex 任务创建后保留这些设置；以后编辑或删除预设不会改�
 
 **Auto** 类型的 **Default · By goal type** 会保存 Code、Docs & research 和 Media 的配置默认表。角色预览初始显示 Code；分类后使用对应类型的已保存表。明确选择一个预设时，分类不会改变所选预设。
 
+### Session limits
+
+goal 的每个会话都有自己的美元上限，这样一个失控的会话不会花光整个 goal 的预算：一次 attempt $10（Settings → **Models & limits**），goal review 至少 $6，planner $10，merge $2，task review $0.80。更强的模型或想得更久的 effort，做同样的事会更贵；一个会话被上限停下，表现出来就是重试、被截断的计划，或没有结论的 review。**Session limits**（只对 Claude Code 的 goal，因为只有 Claude Code 报告美元）把这个 goal 的所有这些上限乘上一个倍数：
+
+- **Default** 跟随 Settings → Models & limits → **Session limits**，按钮上会写出在这里等于多少。
+- **Auto** 跟随预设：**Max** ×3，**Production** ×2，**Balanced** 和 **Economy** ×1（你自己的预设按它所基于的那个算），effort 为 **xhigh** 或 **max** 时再 ×1.5。Production 加 xhigh 就是 ×3：一次 attempt 最多可花 $30。
+- **×1**、**×1.5**、**×2**、**×3** 由你自己定倍数。
+
+上限永远不会超过 goal 自己的[预算](#budget)还剩下的部分。goal 会保留它的选择；之后改 Settings 不会影响已经建好的 goal。在终端里：`foundry goal create … --session-limits auto|<0.5–5>`。
+
 ### Workflow suite
 
 选择器只在 Expert 视图里显示。**pstack** 要先在 Setup 页装好才可选（**Workflow suite — pstack** 这张卡片会安装 Foundry 自己保存的一个固定版本副本，不带插件的 hooks；Claude 每个会话加载它，Codex 则把它的技能链接进 goal 的工作区）。装好之前这个选项是灰的；从文件夹或 Follow-up 继承的 pstack 选择会保留，并显示安装提示；引擎仍使用现有的回退规则。**Powered by** 选这个 goal 的各角色遵循谁的技能：**mattpocock**（Settings 的初始默认值：Matt Pocock 的套件——功能先写测试，bug 先诊断，最后做 code review）、**pstack**（pstack 的套件，它没有的由 Matt Pocock 的技能补上）或 **plain**（没有规则：会话只知道装了哪些技能）。goal 创建时就定下来了；从 goal 页面打开的 Follow-up 从所选较早 goal 的选择开始，delegated goal 沿用主 goal 的。Simple 和 Expert 视图使用相同的套件继承规则，以 Settings 为回退值。较早的 goal 没有保存套件时，继承的套件使用当前 Settings 值。goal 页面和 Brief 上会显示一个 **Powered by** 标签。

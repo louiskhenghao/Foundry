@@ -13,6 +13,8 @@ export const help = `foundry — drive the host Claude Code or Codex CLI to deli
        [--models max|production|balanced|economy|<your preset>]   Selected agent model preset (default: Settings' preset for the goal type)
        [--nature auto|code|docs|research|image|video|figure|diagram|deck|cad] [--figure-pack colorfigures|iso-glow] [--design-pack ui-ux-pro-max|frontend-design|impeccable|bencium|garden|taste|none] [--pace thorough|fast]|iso-glow] [--pace thorough|fast] [--suite mattpocock|pstack|plain] [--interview auto|always|never]
        [--effort default|<level>] [--self-check]
+       [--session-limits auto|<0.5–5>]   how far each session may go past its own dollar cap (Claude Code; default: Settings,
+                                          auto = Max ×3, Production ×2, Balanced and Economy ×1, ×1.5 more at xhigh or max effort)
        [--delegate [--delegate-auto-approve]]   let the planner hand a step that is a project of its own to a Delegated goal
                                           (its own Clarify and plan, side by side within the goal's parallel limit); --delegate-auto-approve approves their Briefs for you
        [--also <path>]...                 companion folders this goal changes too: each gets its part as a delegated goal in that

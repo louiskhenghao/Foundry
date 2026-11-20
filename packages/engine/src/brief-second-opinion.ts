@@ -20,6 +20,7 @@ import type { Engine } from './engine.ts';
 import { engineApproves } from './schedules.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { metaFor, modelFor } from './models/roles.ts';
+import { capWithin, sessionCap } from './session-limits.ts';
 
 /**
  * The room of a goal review, not of a Revise: a plan is judged against the repository as it is, and a repository of a
@@ -121,7 +122,7 @@ export async function secondOpinion(engine: Engine, goalId: string, opts: { auto
     const n = store.listByGoal(goal.id, 5000).filter((e) => e.type === 'goal.cost_added' && (e.payload as { source?: string }).source === 'second-opinion').length + 1;
     const row = modelFor(config, goal, 'goalReviewer');
     const remaining = budgetStatus(goal).remainingUsd;
-    const cap = Math.max(SECOND_OPINION_MIN_BUDGET_USD, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining));
+    const cap = capWithin(sessionCap(engine.config, goal, config.attemptMaxCostUsd), remaining, SECOND_OPINION_MIN_BUDGET_USD);
     const base = {
       cwd: ws,
       model: row.model,
@@ -161,7 +162,7 @@ export async function secondOpinion(engine: Engine, goalId: string, opts: { auto
       // the session ran out (budget, turns, time) or answered off-schema before the Brief: resume it once with a small fresh budget and ask for the answer only
       const why = result.subtype === 'success' ? `Your previous answer did not match the required JSON schema (${parsed.error.issues.slice(0, 3).map((i) => i.path.join('.') + ': ' + i.message).join('; ')}). ` : 'Stop reading. ';
       nudged = true;
-      result = await exec({ ...base, prompt: why + NUDGE, resumeSessionId: result.sessionId, maxTurns: NUDGE_MAX_TURNS, maxBudgetUsd: NUDGE_MAX_BUDGET_USD, timeoutMs: NUDGE_TIMEOUT_MS, label: `second opinion (${goal.title}) (nudge)` });
+      result = await exec({ ...base, prompt: why + NUDGE, resumeSessionId: result.sessionId, maxTurns: NUDGE_MAX_TURNS, maxBudgetUsd: sessionCap(engine.config, goal, NUDGE_MAX_BUDGET_USD), timeoutMs: NUDGE_TIMEOUT_MS, label: `second opinion (${goal.title}) (nudge)` });
       parsed = parse(result);
     }
     if (!parsed.success) throw new Error(reasonOf(result, nudged));

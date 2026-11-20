@@ -106,8 +106,9 @@ describe('a second opinion on the Brief (ADR-0051)', () => {
     const [first, nudge] = secondOpinionCalls(runner);
     expect(nudge!.resumeSessionId).toBe(`s${runner.calls.indexOf(first!) + 1}`);
     expect(nudge!.maxTurns).toBe(3);
-    // the CLI checks a resumed session's budget against the session's whole cost: the engine raises the cap by what it already spent
-    expect(nudge!.maxBudgetUsd).toBe(2 + 0.5);
+    // the CLI checks a resumed session's budget against the session's whole cost: the engine raises the cap by what it already
+    // spent; the nudge's $2 is ×2, as a code goal on the shipped Production preset gets with auto session limits
+    expect(nudge!.maxBudgetUsd).toBe(2 * 2 + 0.5);
     expect(nudge!.prompt).toMatch(/^Stop reading\. Return the revised Brief now as JSON/);
     expect(nudge!.allowedTools).toEqual(first!.allowedTools);
     expect(nudge!.transcriptPath).toBe(first!.transcriptPath);

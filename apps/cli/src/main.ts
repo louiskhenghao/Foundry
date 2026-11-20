@@ -476,6 +476,7 @@ switch (cmd) {
       workflow: opt('--pace') || opt('--suite') ? { ...(opt('--pace') ? { pace: opt('--pace') } : {}), ...(opt('--suite') ? { profile: opt('--suite') } : {}) } : undefined,
       interview: opt('--interview'),
       effort: effort === 'default' ? null : effort,
+      ...(opt('--session-limits') ? { sessionLimits: opt('--session-limits') === 'auto' ? 'auto' : Number(opt('--session-limits')) } : {}),
       ...(has('--self-check') ? { selfCheck: true } : {}),
       // delegated goals: the planner may hand big steps to goals of their own; their Briefs approved by the engine on request
       ...(has('--delegate') || has('--delegate-auto-approve') ? { delegation: { allow: true, autoApprove: has('--delegate-auto-approve') } } : {}),

@@ -12,6 +12,7 @@ import { READONLY_DISALLOWED, READONLY_TOOLS, boundaryEnv, boundarySettings } fr
 import { metaFor, modelFor } from './models/roles.ts';
 import { SATISFIED } from './skills/catalog.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { capWithin, sessionCap } from './session-limits.ts';
 
 /** at most this many must-fix findings become fix tasks: an audit that finds more has found a repository, not a goal */
 export const AUDIT_MAX_FIX_TASKS = 8;
@@ -71,7 +72,7 @@ export async function runAudit(engine: Engine, goal: Goal): Promise<void> {
     // the room a goal review gets; a goal with nothing left to spend skips the audit rather than overrunning its budget
     const remaining = budgetStatus(goal).remainingUsd;
     if (remaining != null && remaining <= 0) return skip('the goal has no budget left for the audit');
-    const cap = Math.max(AUDIT_MIN_CAP_USD, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining));
+    const cap = capWithin(sessionCap(engine.config, goal, config.attemptMaxCostUsd), remaining, AUDIT_MIN_CAP_USD);
     const invoke = skill.entry.invoke ?? skill.installedInvoke ?? `/${skill.entry.name}`;
     const codex = (goal.provider ?? config.provider) !== 'claude'; // no Skill tool: the skill is read from its SKILL.md
     const touched = await touchedFiles(ws, goal.baseBranch);
