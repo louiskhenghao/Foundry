@@ -185,11 +185,15 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
     }
   };
   const kind = (e.payload as { kind?: string }).kind;
+  // a goal review out of fix cycles: what one more round costs, and whether its failures keep moving
+  const rounds = kind === 'goal-review' ? (e.payload as { lastRoundUsd?: number | null; newlyFailing?: string[] }) : null;
+  const roundUsd = rounds?.lastRoundUsd ?? null;
+  const moving = rounds?.newlyFailing ?? [];
   const open = e.state === 'open';
   const Icon = TRIGGER_ICON[e.trigger] ?? AlertTriangle;
   const plain = kind === 'merge' ? 'Two pieces of work changed the same files and the automatic merge could not combine them.' : kind === 'engine' ? 'The engine itself hit an error (not the model).' : kind === 'desktop' ? 'It wants to open a desktop app or hand a file to a printer on this computer (Settings → Safety → Desktop apps & printers is off) and needs your OK.' : (PLAIN[e.trigger] ?? '');
   const choices = actions.filter((a) => a !== 'resolve_manually' && a !== 'feedback');
-  const label = (a: EscalationAction) => (a === 'skip_task' && !e.taskId ? 'Accept as-is (finish goal)' : ACTION_LABEL[a]);
+  const label = (a: EscalationAction) => (a === 'skip_task' && !e.taskId ? 'Accept as-is (finish goal)' : a === 'retry_with_hint' && !e.taskId && roundUsd != null ? `Another fix round (~$${Math.max(1, Math.round(roundUsd))})` : ACTION_LABEL[a]);
   const variant = (a: EscalationAction) => (a === 'abort_goal' || a === 'deny' ? 'danger' : a === 'retry_with_hint' || a === 'approve' || a === 'raise_budget' || a === 'retry_delivery' || a === 'provide' ? 'primary' : 'default');
   const provider = e.provider ? PROVIDER_STYLE[e.provider] : null;
   /** the card's side padding: tighter inside the task view */
@@ -339,6 +343,12 @@ export function EscalationCard({ e, embedded }: { e: EscalationRow; embedded?: b
             <AttachmentInput items={given} onChange={setGiven} />
             <Textarea className="min-h-[60px] resize-y" rows={2} placeholder="A word with it: which file is which, where it is, or why there is none…" value={hint} onChange={(x) => setHint(x.target.value)} />
           </div>
+        )}
+        {/* failures that move from round to round: the reviewer finds new gaps each time, and one more round seldom settles it */}
+        {open && moving.length > 0 && (
+          <p role="note" className="text-xs font-semibold text-you-ink">
+            The failing checks changed since the last review ({moving.join(', ')} newly failing): each round finds new gaps, so another round is unlikely to settle it. Accept as-is, or name exactly what is left in the hint.
+          </p>
         )}
         {/* what the answer carries: a hint and its extra attempts, or the new limits */}
         {open && actions.includes('retry_with_hint') && (
