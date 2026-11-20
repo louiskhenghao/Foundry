@@ -43,9 +43,9 @@ export function BuildWatch({ connected }: { connected: boolean }) {
   if (!waiting) return null;
   return (
     <div role="status" className="fixed bottom-3 left-1/2 z-[70] flex w-[calc(100vw-1.5rem)] max-w-md -translate-x-1/2 items-center gap-3 rounded-lg border border-work/40 bg-panel px-3 py-2 text-xs text-ink shadow-xl">
-      <span className="min-w-0 flex-1">Foundry has a new version. Save what you are editing, then reload; it reloads by itself once nothing is unsaved.</span>
+      <span className="min-w-0 flex-1">Foundry has a new version. Save what you are editing, then refresh the page; it refreshes by itself once nothing is unsaved.</span>
       <Button size="sm" variant="primary" onClick={() => location.reload()}>
-        Reload
+        Refresh page
       </Button>
     </div>
   );

@@ -296,8 +296,8 @@ function AppMenu({ setupBad, connected }: { setupBad: boolean; connected: boolea
           <MenuItem icon={<HelpCircle size={13} />} hint="How to use Foundry" onClick={() => go(close, '/help')}>
             Help
           </MenuItem>
-          <MenuItem icon={<RefreshCw size={13} />} hint="Load the app again; the installed app has no reload button" onClick={() => location.reload()}>
-            Reload
+          <MenuItem icon={<RefreshCw size={13} />} hint="Load this page again; running goals carry on" onClick={() => location.reload()}>
+            Refresh page
           </MenuItem>
           {me?.enabled && me.person && (
             <MenuItem icon={<LogOut size={13} />} onClick={() => api.accessLogout().catch(() => {}).then(() => location.assign('/login'))} title="Forget this browser's token; sign in again with it or another">
