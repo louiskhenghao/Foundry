@@ -21,6 +21,7 @@ import { reviewDiffDir, screenshotsDir } from '../workspace.ts';
 import { resolveDiscipline } from '../skills/workflow.ts';
 import { skillMatches } from '../skills/usage.ts';
 import { renderSubjects, sessionDirs, subjectsAddDirs } from '../subjects.ts';
+import { sessionCap } from '../session-limits.ts';
 
 /**
  * Task-level lightweight review: cheap model, diff + spec only, blockers only.
@@ -220,7 +221,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
     meta: metaFor(goal.id, modelFor(engine.config, goal, 'taskReviewer')),
     // the cheap model sometimes spends its turns reading files; give it room, and nudge once below if it still returns no JSON
     maxTurns: 20,
-    maxBudgetUsd: 0.8,
+    maxBudgetUsd: sessionCap(engine.config, goal, 0.8),
     permissionMode: 'dontAsk',
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,
@@ -252,7 +253,7 @@ export async function reviewTaskDiff(engine: Engine, goal: Goal, task: Task, att
       model: modelFor(engine.config, goal, 'taskReviewer').model,
       meta: metaFor(goal.id, modelFor(engine.config, goal, 'taskReviewer')),
       maxTurns: 2,
-      maxBudgetUsd: 0.2,
+      maxBudgetUsd: sessionCap(engine.config, goal, 0.2),
       permissionMode: 'dontAsk',
       allowedTools: READONLY_TOOLS,
       disallowedTools: READONLY_DISALLOWED,

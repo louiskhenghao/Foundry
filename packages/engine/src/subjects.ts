@@ -14,6 +14,7 @@ import type { Engine } from './engine.ts';
 import { boundarySettings } from './guards/boundary.ts';
 import { metaFor, modelFor } from './models/roles.ts';
 import { goalWorkspacePath } from './workspace.ts';
+import { sessionCap } from './session-limits.ts';
 
 /** a session's answer as JSON when it wrote it as text */
 const tryJson = (s: string | null): unknown => {
@@ -204,7 +205,7 @@ async function search(engine: Engine, goalId: string, s: BriefSubject): Promise<
     model: role.model,
     meta: metaFor(goalId, role),
     maxTurns: 30,
-    maxBudgetUsd: SUBJECT_SEARCH_BUDGET_USD,
+    maxBudgetUsd: sessionCap(engine.config, goal, SUBJECT_SEARCH_BUDGET_USD),
     permissionMode: 'dontAsk',
     ...engine.workerToolPolicy(goal),
     addDirs: [folder],

@@ -30,6 +30,7 @@ import { memoryQuestion, memorySection } from './memory/prompt.ts';
 import { goalWorkspacePath, reviewDiffDir, screenshotsDir } from './workspace.ts';
 import { latestLikeness } from './likeness.ts';
 import { likenessLines, renderSubjects, sessionDirs, subjectsAddDirs } from './subjects.ts';
+import { capWithin, sessionCap } from './session-limits.ts';
 
 const GoalReviewOutput = z.object({
   mustVerdicts: z.array(z.object({ checkName: z.string(), pass: z.boolean(), reason: z.string() })),
@@ -199,7 +200,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   const remaining = budgetStatus(goal).remainingUsd;
   // floor of $6 even when the goal budget is exhausted: a review that cannot finish is pure waste, and the budget
   // overrun itself is escalated to the human separately
-  const cap = Math.max(6, remaining == null ? engine.config.attemptMaxCostUsd : Math.min(engine.config.attemptMaxCostUsd, remaining));
+  const cap = capWithin(sessionCap(engine.config, goal, engine.config.attemptMaxCostUsd), remaining, sessionCap(engine.config, goal, 6));
   const transcriptPath = join(engine.config.dataDir, 'transcripts', `goal-review-${goal.id}-${goal.fixCycles}.jsonl`);
   // the channel is the transcript's name: scoped to this goal and round, and the Live log finds it again after a refresh
   const channel = `goal-review-${goal.id}-${goal.fixCycles}`;
@@ -225,7 +226,7 @@ async function reviewGoal(engine: Engine, goal: Goal, cwd: string, d: string, ch
   let parsed = GoalReviewOutput.safeParse(r.structuredOutput ?? tryJson(r.finalText));
   if (!parsed.success && r.sessionId) {
     // the session ended (budget/turns) before the JSON: resume it with a small fresh budget and ask for the verdict only
-    const again = await engine.runner.run({ ...base, prompt: 'Stop exploring. Reply now with ONLY the JSON verdict matching the schema, judging from what you have already read. An unverified Must item keeps its verdict from "Previous review" when one is listed, otherwise it fails with a reason; unverified Stretch items pass.', maxTurns: 3, maxBudgetUsd: 2, resumeSessionId: r.sessionId, timeoutMs: 5 * 60_000, label: `goal review ${goal.title} (nudge)` });
+    const again = await engine.runner.run({ ...base, prompt: 'Stop exploring. Reply now with ONLY the JSON verdict matching the schema, judging from what you have already read. An unverified Must item keeps its verdict from "Previous review" when one is listed, otherwise it fails with a reason; unverified Stretch items pass.', maxTurns: 3, maxBudgetUsd: sessionCap(engine.config, goal, 2), resumeSessionId: r.sessionId, timeoutMs: 5 * 60_000, label: `goal review ${goal.title} (nudge)` });
     for await (const ev of again.events) engine.broadcast({ goalId: goal.id, taskId: null, attemptId: channel, event: ev, ts: new Date().toISOString() });
     const r2 = await again.result;
     engine.store.append({ type: 'goal.cost_added', goalId: goal.id, payload: { costUsd: r2.costUsd, source: 'goal-review' } });

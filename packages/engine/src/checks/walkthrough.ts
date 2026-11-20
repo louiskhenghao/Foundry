@@ -15,6 +15,7 @@ import { figureShots } from './figure.ts';
 import { diagramShots } from './diagram.ts';
 import { deckShots } from './deck.ts';
 import { loadPlaywright } from '../playwright-load.ts';
+import { sessionCap } from '../session-limits.ts';
 
 export const WALK_MAX_BUDGET_USD = 0.5;
 const VIEWPORT = { width: 1280, height: 800 };
@@ -622,7 +623,7 @@ async function planWalk(engine: Engine, goal: Goal, task: Task, app: AppRef, oth
     settings: boundarySettings(config.hooksDir),
     settingSources: config.settingSources,
     maxTurns: 3,
-    maxBudgetUsd: WALK_MAX_BUDGET_USD,
+    maxBudgetUsd: sessionCap(engine.config, goal, WALK_MAX_BUDGET_USD),
     timeoutMs: 3 * 60_000,
     transcriptPath: join(config.dataDir, 'transcripts', `walkthrough-${goal.id}-${Date.now()}.jsonl`),
     label: `milestone walkthrough ${goal.title}`,

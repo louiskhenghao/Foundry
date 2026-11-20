@@ -1,4 +1,4 @@
-import type { VideoPack } from '@foundry/core';
+import type { SessionLimits, VideoPack } from '@foundry/core';
 import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, PROVIDER_NAME, isPooled, listAccountRateLimits, listRateLimitState, reportsDollars, type PooledProvider, type RateLimitRow, type TaskState, assignMaterials } from '@foundry/core';
 import { AccountPool } from './accounts/pool.ts';
 import type { AccountUsage, AccountWindow, ClaudeUsage, CodexQuota, WindowSummary } from './usage/types.ts';
@@ -206,6 +206,8 @@ export interface CreateGoalInput {
   designPack?: DesignPack | null;
   /** model preset for this goal; default = the preset Settings picks for its nature */
   modelPreset?: string | null;
+  /** how far its sessions may go past their dollar caps: auto (its preset and effort) or a multiplier; default Settings */
+  sessionLimits?: SessionLimits;
   /** Skip Clarify: one task = the prompt, with these command checks. */
   autoBrief?: { mustChecks: string[]; stretchChecks?: string[] };
   /** Skip Clarify with a fully specified brief (tasks + checks). Approved immediately. */
@@ -2737,6 +2739,7 @@ export class Engine {
       effort: input.effort === undefined ? (motion && !this.config.effort ? 'xhigh' : this.config.effort) : input.effort,
       videoPack,
       modelPreset: presetId,
+      sessionLimits: input.sessionLimits ?? this.config.sessionLimits,
       ...(codexPreset ? { codexPreset, codexFallbacks: [...this.config.codexFallbacks], ...(input.codexModel?.trim() ? { codexModelOverride: input.codexModel.trim() } : {}) } : {}),
       modelSubstitutions: {},
       revise: null,

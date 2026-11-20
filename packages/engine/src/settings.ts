@@ -392,6 +392,7 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('sessions.attemptMaxTurns')) config.attemptMaxTurns = s.sessions.attemptMaxTurns;
   if (on('sessions.maxContinuations')) config.maxContinuations = s.sessions.maxContinuations;
   if (on('sessions.attemptMaxCostUsd')) config.attemptMaxCostUsd = s.sessions.attemptMaxCostUsd;
+  if (on('sessions.limitScale')) config.sessionLimits = s.sessions.limitScale;
   if (on('sessions.attemptTimeoutMin')) config.attemptTimeoutMs = s.sessions.attemptTimeoutMin * 60_000;
   if (on('workflow.profile')) config.workflowProfile = s.workflow.profile;
   if (on('workflow.suiteReleases')) config.suiteReleases = s.workflow.suiteReleases;

@@ -23,6 +23,7 @@ import { metaFor, modelFor } from './models/roles.ts';
 import { excludeFromGit } from './skills/autoskills.ts';
 import { goalWorkspacePath, screenshotsDir } from './workspace.ts';
 import { locatePlaywright } from './playwright-load.ts';
+import { capWithin, sessionCap } from './session-limits.ts';
 
 /** at most this many failed must checks become fix tasks: more is a result the person should look at whole */
 export const QA_MAX_FIX_TASKS = 6;
@@ -109,7 +110,7 @@ export async function runQa(engine: Engine, goal: Goal, deps: QaDeps = defaultQa
     if (!pwPath) return skip('Playwright is not installed with Foundry: the QA scripts have nothing to drive the browser with');
     const remaining = budgetStatus(goal).remainingUsd;
     if (remaining != null && remaining <= 0) return skip('the goal has no budget left for the browser QA');
-    const cap = Math.max(QA_MIN_CAP_USD, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining));
+    const cap = capWithin(sessionCap(engine.config, goal, config.attemptMaxCostUsd), remaining, QA_MIN_CAP_USD);
     const preview = await deps.startPreview(engine, goal);
     const apps = preview.apps.filter((a) => a.url && a.key !== CAD_VIEWER_KEY);
     if (!apps.length) return skip(`the preview did not start: ${preview.error ?? 'no app answered'}`);

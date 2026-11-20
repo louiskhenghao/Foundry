@@ -219,11 +219,12 @@ describe('Clarify writes the Brief, a planner session writes its plan', () => {
       await waitFor(() => getGoal(e.store.db, goal.id)!.state === 'awaiting_brief_approval');
       expect(runner.calls.map((c) => c.label?.split(' ')[0])).toEqual(['clarify', 'planner', 'planner']);
       const [, first, closing] = runner.calls as [RunSpec, RunSpec, RunSpec];
-      // a real repository's plan has room to read: $10, not the $4 that cut two planners off mid-read
-      expect([first.maxTurns, first.maxBudgetUsd]).toEqual([45, 10]);
+      // a real repository's plan has room to read: $10, not the $4 that cut two planners off mid-read; ×2 here, as a code
+      // goal on the shipped Production preset gets with auto session limits
+      expect([first.maxTurns, first.maxBudgetUsd]).toEqual([45, 20]);
       // the closing turn reads no more: what the session read is there, the plan is asked for with tight limits
       expect(closing.resumeSessionId).toBe('s2');
-      expect([closing.maxTurns, closing.maxBudgetUsd]).toEqual([4, 3]);
+      expect([closing.maxTurns, closing.maxBudgetUsd]).toEqual([4, 6]);
       expect(closing.prompt).toContain('Your time for reading the repository is up');
       const b = getBrief(e.store.db, goal.id)!.brief;
       expect(b.tasks.map((t) => t.title)).toEqual(['Closing plan']);

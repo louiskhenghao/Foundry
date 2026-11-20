@@ -23,6 +23,7 @@ import { FIGURE_PLAN, figureClarifySection, type FigureInfo } from './figure.ts'
 import { DIAGRAM_PLAN, diagramClarifySection, diagramTasksNote, type DiagramInfo } from './diagram.ts';
 import { DECK_PLAN, deckClarifySection, type DeckInfo } from './deck.ts';
 import { deployServers } from './deploy/deploy.ts';
+import { sessionCap } from './session-limits.ts';
 
 /** Files that do not make a repository "have code": a freshly initialised repo may carry any of these. */
 const EMPTY_REPO_IGNORE = new Set(['.git', '.claude', '.agents', '.DS_Store', 'graphify-out', 'CLAUDE.md', 'AGENTS.md', 'README.md', '.gitignore', '.gitattributes', 'LICENSE', 'docs']);
@@ -204,7 +205,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
       model: clarifierModel.model,
       meta: metaFor(goal.id, clarifierModel),
       maxTurns: CLARIFY_MAX_TURNS,
-      maxBudgetUsd: CLARIFY_MAX_BUDGET_USD,
+      maxBudgetUsd: sessionCap(engine.config, goal, CLARIFY_MAX_BUDGET_USD),
       permissionMode: 'dontAsk',
       allowedTools: READONLY_TOOLS,
       disallowedTools: READONLY_DISALLOWED,
@@ -234,7 +235,7 @@ async function prepareClarify(engine: Engine, goal: Goal): Promise<ClarifyContex
         model: plannerModel.model,
         meta: metaFor(goal.id, plannerModel),
         maxTurns: resume?.limits?.maxTurns ?? PLANNER_MAX_TURNS,
-        maxBudgetUsd: resume?.limits?.maxBudgetUsd ?? PLANNER_MAX_BUDGET_USD,
+        maxBudgetUsd: sessionCap(engine.config, goal, resume?.limits?.maxBudgetUsd ?? PLANNER_MAX_BUDGET_USD),
         permissionMode: 'dontAsk',
         allowedTools: READONLY_TOOLS,
         disallowedTools: READONLY_DISALLOWED,

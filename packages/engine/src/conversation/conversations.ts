@@ -21,6 +21,7 @@ import { conversationSoFar, openingPrompt, turnPrompt } from './prompt.ts';
 import { applyProposal } from './proposals.ts';
 import { describeEvents, goalSummary, writeGoalRecords, writeQuestionFiles } from './records.ts';
 import { conversationWorkspacePath, prepareConversationWorkspace, removeConversationWorkspace } from './workspace.ts';
+import { sessionCap } from '../session-limits.ts';
 
 /** one answer's room: enough to read a few dozen files and a transcript or two, wider than a Suggestion, narrower than a second opinion */
 export const CONVERSATION_MAX_TURNS = 50;
@@ -264,7 +265,7 @@ export class Conversations {
           model: row.model,
           meta: metaFor(goal.id, row),
           maxTurns: CONVERSATION_MAX_TURNS,
-          maxBudgetUsd: CONVERSATION_MAX_BUDGET_USD,
+          maxBudgetUsd: sessionCap(this.engine.config, goal, CONVERSATION_MAX_BUDGET_USD),
           permissionMode: 'dontAsk',
           allowedTools: [...READONLY_TOOLS, ...policy.allowed.filter((p) => p.startsWith('mcp__'))],
           disallowedTools: [...READONLY_DISALLOWED, ...(policy.denied ?? [])],

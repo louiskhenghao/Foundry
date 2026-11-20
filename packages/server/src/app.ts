@@ -1,4 +1,4 @@
-import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, POOLED_PROVIDERS, isPooled, type PooledProvider, findConversationAttachment } from '@foundry/core';
+import { AGENT_PROVIDERS, AgentProvider, NATIVE_ACCOUNT, POOLED_PROVIDERS, SessionLimits, isPooled, type PooledProvider, findConversationAttachment } from '@foundry/core';
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
@@ -82,6 +82,8 @@ const CreateGoalBody = z.object({
   /** a level the goal's coding agent takes (engine.effortLevels, ADR-0085); the engine refuses another */
   effort: z.string().min(1).nullable().optional(),
   modelPreset: z.string().min(1).nullable().optional(),
+  /** how far the goal's sessions may go past their dollar caps: auto (its preset and effort) or a multiplier */
+  sessionLimits: SessionLimits.optional(),
   /** create the goal as a Follow-up of an earlier finished goal of the same repository */
   follows: z.object({ goalId: z.string().min(1), startFrom: z.enum(['base', 'previous']).optional(), attachments: z.boolean().optional(), style: z.boolean().optional(), /** the earlier goal's unfinished tasks to carry over as planned, skipping Clarify (ADR-0081) */ carry: z.array(z.string().min(1)).optional() }).optional(),
   /** may the planner delegate steps to goals of their own, and are their Briefs approved without the human (both off by default) */

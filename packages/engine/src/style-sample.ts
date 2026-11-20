@@ -13,6 +13,7 @@ import { boundarySettings } from './guards/boundary.ts';
 import { excludeFromGit } from './skills/autoskills.ts';
 import { ARTIFACTS_DIR, SAMPLES_DIR, goalWorkspacePath } from './workspace.ts';
 import { metaFor, modelFor } from './models/roles.ts';
+import { sessionCap } from './session-limits.ts';
 
 /** soft cap per proposal: keeps a stuck regenerate loop from burning money */
 export const STYLE_SAMPLE_MAX = 8;
@@ -73,7 +74,7 @@ async function generate(engine: Engine, goalId: string, opt: BriefStyleOption, f
     model: modelFor(config, goal, 'styleSample').model,
     meta: metaFor(goalId, modelFor(config, goal, 'styleSample')),
     maxTurns: 15,
-    maxBudgetUsd: STYLE_SAMPLE_BUDGET_USD,
+    maxBudgetUsd: sessionCap(engine.config, goal, STYLE_SAMPLE_BUDGET_USD),
     permissionMode: 'dontAsk',
     ...engine.workerToolPolicy(goal),
     settings: boundarySettings(config.hooksDir),

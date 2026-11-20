@@ -15,6 +15,7 @@ import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/
 import { metaFor, modelFor } from './models/roles.ts';
 import { subjectsDir } from './subjects.ts';
 import { goalWorkspacePath, screenshotsDir } from './workspace.ts';
+import { sessionCap } from './session-limits.ts';
 
 export const LIKENESS_BUDGET_USD = 0.8;
 /** the recording's pictures one review looks at, at most */
@@ -98,7 +99,7 @@ export async function reviewLikeness(engine: Engine, goalIn: Goal, task: Task, e
       model: role.model,
       meta: metaFor(goalIn.id, role),
       maxTurns: 20,
-      maxBudgetUsd: LIKENESS_BUDGET_USD,
+      maxBudgetUsd: sessionCap(engine.config, goalIn, LIKENESS_BUDGET_USD),
       permissionMode: 'dontAsk',
       allowedTools: READONLY_TOOLS,
       disallowedTools: READONLY_DISALLOWED,

@@ -8,6 +8,7 @@ import type { Engine } from './engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
 import { goalWorkspacePath } from './workspace.ts';
 import { metaFor, modelFor } from './models/roles.ts';
+import { sessionCap } from './session-limits.ts';
 
 export const SUGGEST_MAX_BUDGET_USD = 1;
 
@@ -84,7 +85,7 @@ export async function runSuggest(engine: Engine, escalationId: string): Promise<
     model: modelFor(engine.config, goal, 'suggest').model,
     meta: metaFor(goal.id, modelFor(engine.config, goal, 'suggest')),
     maxTurns: 20,
-    maxBudgetUsd: SUGGEST_MAX_BUDGET_USD,
+    maxBudgetUsd: sessionCap(engine.config, goal, SUGGEST_MAX_BUDGET_USD),
     permissionMode: 'dontAsk',
     allowedTools: READONLY_TOOLS,
     disallowedTools: READONLY_DISALLOWED,

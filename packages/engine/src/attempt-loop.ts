@@ -31,6 +31,7 @@ import { commitAll, headRef, numstat, resetHard } from './git/git.ts';
 import { boundarySettings } from './guards/boundary.ts';
 import { isBoundaryCommand } from './guards/patterns.ts';
 import { renderSubjects, sessionDirs, subjectsAddDirs } from './subjects.ts';
+import { capWithin, sessionCap } from './session-limits.ts';
 
 export interface AttemptOutcome {
   attempt: Attempt;
@@ -254,7 +255,7 @@ export async function runAttempt(engine: Engine, goal: Goal, task: Task, cwd: st
       meta: metaFor(goal.id, routed),
       fallbackModel: model === 'opus' ? 'sonnet' : undefined,
       maxTurns: config.attemptMaxTurns,
-      maxBudgetUsd: Math.max(0.05, remaining == null ? config.attemptMaxCostUsd : Math.min(config.attemptMaxCostUsd, remaining)),
+      maxBudgetUsd: capWithin(sessionCap(engine.config, goal, config.attemptMaxCostUsd), remaining, 0.05),
       permissionMode: 'dontAsk',
       ...engine.workerToolPolicy(goal),
       appendSystemPromptFile: engine.roles.path('worker'),

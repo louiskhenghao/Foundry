@@ -11,6 +11,7 @@ import { tryJson } from './checks/reviewer.ts';
 import { INTERVIEW_NOTE_MAX, materializeCheck, natureScenario, isLostSession, normalizeQuestions, repairable, roundAnswers } from './clarify.ts';
 import type { Engine } from './engine.ts';
 import { READONLY_DISALLOWED, READONLY_TOOLS, boundarySettings } from './guards/boundary.ts';
+import { sessionCap } from './session-limits.ts';
 
 export const DRAFT_MAX_TURNS = 25;
 export const DRAFT_MAX_BUDGET_USD = 2;
@@ -162,7 +163,7 @@ async function draftSession(engine: Engine, goal: Goal, brief: Brief, req: Draft
       model: modelFor(config, goal, 'clarifier').model,
       meta: metaFor(goal.id, modelFor(config, goal, 'clarifier')),
       maxTurns: req.mode === 'revise' ? REVISE_MAX_TURNS : DRAFT_MAX_TURNS,
-      maxBudgetUsd: req.mode === 'revise' ? REVISE_MAX_BUDGET_USD : DRAFT_MAX_BUDGET_USD,
+      maxBudgetUsd: sessionCap(engine.config, goal, req.mode === 'revise' ? REVISE_MAX_BUDGET_USD : DRAFT_MAX_BUDGET_USD),
       permissionMode: 'dontAsk',
       allowedTools: READONLY_TOOLS,
       disallowedTools: READONLY_DISALLOWED,

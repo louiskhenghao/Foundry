@@ -11,6 +11,7 @@ import { READONLY_DISALLOWED, READONLY_TOOLS, boundaryEnv, boundarySettings } fr
 import { metaFor, modelFor } from './models/roles.ts';
 import { REA_PREFIX, REFERENCE_RULES, REPORT_NOTE, renderReferences } from './references.ts';
 import { SATISFIED } from './skills/catalog.ts';
+import { sessionCap } from './session-limits.ts';
 
 const Output = z.object({
   summary: z.string().describe('Two or three sentences: what the reference does for the feature studied, and the one thing that matters most for building it.'),
@@ -134,7 +135,7 @@ export async function runInvestigation(engine: Engine, goal: Goal): Promise<void
         untrack();
       }
     };
-    const cap = config.investigationMaxCostUsd;
+    const cap = sessionCap(engine.config, goal, config.investigationMaxCostUsd);
     let r = await run({ ...base, prompt, maxTurns: 60, maxBudgetUsd: cap, timeoutMs: config.investigationMaxMinutes * 60_000, label: `investigate ${goal.title}` });
     let parsed = Output.safeParse(r.structuredOutput ?? tryJson(r.finalText));
     if (!parsed.success && r.sessionId && !engine.isStopped) {
