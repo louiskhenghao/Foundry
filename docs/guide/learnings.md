@@ -32,7 +32,7 @@ Each folder's Learnings are also written into the repository as a project skill,
 
 ## Memory for this folder
 
-Learnings are the thirty lines. With a Hindsight server set up ([Memory](./memory.md)), each folder's card on the Learnings page also shows its bank (`coding-agent::<folder>`) and a **Memory** switch: off, that folder's goals neither read nor write the bank. Whatever is in the notebook is written into the bank too, in place of the notebook written before, so a Learning you write here is the surest way to correct a wrong memory.
+Learnings are the thirty lines; [Memory](./memory.md) is the long version, and it is set up on this page. **Memory**, the first row, unfolds the Hindsight card, where Foundry runs a server for you or you give the address of your own; folded, it says where the server stands. Each folder's card also shows its bank (`coding-agent::<folder>`) and a **Memory** switch: off, that folder's goals neither read nor write the bank. **(no server set)** beside the switch means nothing is read or written until a server is set up above. Whatever is in the notebook is written into the bank too, in place of the notebook written before, so a Learning you write here is the surest way to correct a wrong memory.
 
 ## Seeing and editing them
 

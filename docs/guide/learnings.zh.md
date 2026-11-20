@@ -32,7 +32,7 @@ goal 的 **Activity** 会写明改了什么，例如 *Learnings for this folder:
 
 ## 这个文件夹的 Memory
 
-Learnings 是那三十行。设好了 Hindsight 服务器之后（见 [Memory](./memory.zh.md)），Learnings 页面上每个文件夹的卡片还会显示它的 bank（`coding-agent::<folder>`）和一个 **Memory** 开关：关掉后，这个文件夹的 goal 既不读也不写 bank。记事本里的内容也会写进 bank，替换上一次写的记事本，所以你在这里写的一条 Learning 是纠正错误记忆最可靠的办法。
+Learnings 是那三十行；[Memory](./memory.zh.md) 是长篇版，就在这个页面上设置。第一行 **Memory** 点开是 Hindsight 卡片：让 Foundry 替你运行一台服务器，或者填入你自己那台的地址；折叠时，它显示服务器的状态。每个文件夹的卡片还会显示它的 bank（`coding-agent::<folder>`）和一个 **Memory** 开关：关掉后，这个文件夹的 goal 既不读也不写 bank。开关旁边写着 **(no server set)**，意思是在上面设好服务器之前什么都不读也不写。记事本里的内容也会写进 bank，替换上一次写的记事本，所以你在这里写的一条 Learning 是纠正错误记忆最可靠的办法。
 
 ## 查看和编辑
 
