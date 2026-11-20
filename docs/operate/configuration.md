@@ -45,6 +45,9 @@ Every setting lives in **Settings** in the web UI and is saved to `data/settings
 | `models.agyModel` | `agy-default` | `FOUNDRY_AGY_MODEL` | The model every role of a new Antigravity goal runs on. agy-default follows the model the CLI itself is set to. |
 | `models.agyEffort` | `high` | — | The Antigravity reasoning effort of every role: low, medium, high, xhigh or max. |
 | `models.cheap` | `haiku` | `FOUNDRY_MODEL_CHEAP` | Housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe). |
+| `models.writer` | — | — | The Claude Code model Write it with AI and Fill in with AI run on. Empty = the housekeeping model, or the Explainer's when the repository is read. |
+| `models.codexWriter` | — | — | The Codex model Write it with AI and Fill in with AI run on. Empty = the preset's Housekeeping row, or its Explainer row when the repository is read. |
+| `models.agyWriter` | — | — | The Antigravity model Write it with AI and Fill in with AI run on. Empty = the Antigravity model. |
 | `models.fallbacks` | `opus, sonnet, haiku` | `FOUNDRY_MODEL_FALLBACKS` | Tried in order when a model is unavailable; the replacement is remembered for that goal. |
 | `models.presets` | — | — | Presets you edited or created (edit them in the Presets editor, not by hand). Built-ins you never touched are not stored. |
 | `models.presetCode` | `production` | — | Model preset for code goals and goals not yet classified. |

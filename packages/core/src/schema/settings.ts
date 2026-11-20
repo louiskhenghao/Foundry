@@ -47,6 +47,10 @@ export const ModelSettings = z.object({
   agyEffort: z.enum(['low', 'medium', 'high', 'xhigh', 'max']).default('high'),
   /** the housekeeping model: one-turn engine chores (classifying a goal, summarising logs, the rate-limit probe) */
   cheap: z.string().min(1).default('haiku'),
+  /** the model "Write it with AI" and "Fill in with AI" run on, per coding agent; null = the housekeeping model, or the Explainer's when the repository is read */
+  writer: z.string().trim().min(1).nullable().default(null),
+  codexWriter: z.string().trim().min(1).nullable().default(null),
+  agyWriter: z.string().trim().min(1).nullable().default(null),
   /** tried in order when a tier's model is unavailable (deprecated, unknown alias …) */
   fallbacks: z.array(z.string().min(1)).default(['opus', 'sonnet', 'haiku']),
   /** presets you edited or created (built-ins you never touched are not stored) */

@@ -299,7 +299,7 @@ export function useDraft() {
 }
 
 /** the words beside the AI buttons: what a draft costs and what it reads */
-const DRAFT_WORDS = 'One short call on the housekeeping model, a few cents. With the repository read: a few read-only turns in your checkout on the Explainer\'s model, up to a dollar and a few minutes.';
+const DRAFT_WORDS = 'One short call on the housekeeping model, a few cents. With the repository read: a few read-only turns in your checkout on the Explainer\'s model, up to a dollar and a few minutes. Settings → Models & limits → Write with AI runs both on a model of your choice.';
 
 /**
  * The AI draft's controls: the notes, the Fill in / Write button, the repository switch, the wait, and what came back as

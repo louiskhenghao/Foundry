@@ -119,18 +119,22 @@ export function draftPrompt(req: TemplateDraftRequest): string {
   ].join('\n\n');
 }
 
-/** the models a draft runs on for this coding agent and kind of goal: the housekeeping model, and the Explainer's row */
-export function draftModels(engine: Engine, provider: AgentProvider, nature: GoalNature): { housekeeping: string; explainer: string; effort?: CodexEffort } {
+/**
+ * The models a draft runs on for this coding agent and kind of goal: the housekeeping model, the Explainer's row, and
+ * `chosen`, the Write with AI model the person set for the agent in Settings (null: none), which then runs both kinds.
+ */
+export function draftModels(engine: Engine, provider: AgentProvider, nature: GoalNature): { housekeeping: string; explainer: string; chosen: string | null; effort?: CodexEffort } {
   const { config } = engine;
+  const chosen = config.writerModel[provider] ?? null;
   if (provider === 'codex') {
     const presets = effectiveCodexPresets(config.codexPresets);
     const key = natureKey(nature);
     const table = (presets[config.codexNaturePreset[key]] ?? Object.values(presets)[0]!).tables[key];
     const name = (m: string) => (m === 'codex-default' ? config.codexModel : m);
-    return { housekeeping: name(table.housekeeping.model), explainer: name(table.explainer.model), effort: table.explainer.effort ?? undefined };
+    return { housekeeping: name(table.housekeeping.model), explainer: name(table.explainer.model), chosen: chosen && name(chosen), effort: table.explainer.effort ?? undefined };
   }
-  if (provider === 'agy') return { housekeeping: config.agyModel, explainer: config.agyModel };
-  return { housekeeping: config.models.cheap, explainer: modelFor(config, { nature, modelPreset: null, provider: 'claude' }, 'explainer').model };
+  if (provider === 'agy') return { housekeeping: config.agyModel, explainer: config.agyModel, chosen };
+  return { housekeeping: config.models.cheap, explainer: modelFor(config, { nature, modelPreset: null, provider: 'claude' }, 'explainer').model, chosen };
 }
 
 /**
@@ -143,7 +147,7 @@ export async function runTemplateDraft(engine: Engine, req: TemplateDraftRequest
   if (req.notes.length > DRAFT_NOTES_MAX) throw new TemplateDraftError('the notes are longer than a draft needs: keep them under 20,000 characters');
   const repo = req.repoPath;
   const models = draftModels(engine, req.provider, req.nature);
-  const model = repo ? models.explainer : models.housekeeping;
+  const model = models.chosen ?? (repo ? models.explainer : models.housekeeping);
   const started = Date.now();
   const stamp = `${started.toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
   const handle = await engine.runner.run({
@@ -153,7 +157,8 @@ export async function runTemplateDraft(engine: Engine, req: TemplateDraftRequest
     ...(req.provider === 'codex' && models.effort ? { effort: models.effort } : {}),
     meta: { tier: 'template', provider: req.provider },
     maxTurns: repo ? DRAFT_REPO_MAX_TURNS : 1,
-    maxBudgetUsd: repo ? DRAFT_REPO_BUDGET_USD : DRAFT_FAST_BUDGET_USD,
+    // a model the person chose may cost far more than the housekeeping one for the same call: the repository read's cap
+    maxBudgetUsd: repo || models.chosen ? DRAFT_REPO_BUDGET_USD : DRAFT_FAST_BUDGET_USD,
     permissionMode: 'dontAsk',
     allowedTools: repo ? READONLY_TOOLS : [],
     ...(repo ? { disallowedTools: READONLY_DISALLOWED, settings: buildSettings([readOnlyShellHook(join(config.hooksDir, 'readonly-bash.ts'))]), settingSources: config.settingSources, readOnlyShell: true, idleTimeoutMs: 60_000 } : {}),

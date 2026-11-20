@@ -170,6 +170,10 @@ Every model choice in the preset editor offers:
 
 **Housekeeping model** (default Haiku), under **Other models**, does Foundry's own one-line chores: deciding what kind of goal it is, summarising logs, checking your usage limit. It costs cents per goal. The only model not set by a preset. **Test** runs one tiny session to confirm the model works and shows what it resolves to.
 
+### Write with AI model
+
+**Write with AI**, under **Other models**, is the model **Write it with AI** and **Fill in with AI** run on (the New goal form and Templates; see [Templates](./templates.md)). Left empty, they use the housekeeping model, or the Explainer's when they read the repository. Pick a stronger model for better-written descriptions: a call on it costs more, so the draft then gets up to a dollar instead of ten cents. The Codex panel has its own **Write with AI** under **Other models** (empty keeps the preset's Housekeeping row, or its Explainer row with the repository read), and the Antigravity panel one beside its model (empty keeps that model).
+
 ### Fallbacks
 
 **Fallbacks (in order)** (default `opus, sonnet, haiku`): when a model is unavailable (retired, mistyped, not in your plan), Foundry re-runs that session with the next one in this list and remembers the replacement for that goal. Only when all of them fail does it ask you. The goal's Overview shows a **Model fallback** card when this happened.
