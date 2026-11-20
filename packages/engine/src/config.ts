@@ -81,6 +81,8 @@ export interface EngineConfig {
   /** the diff size under which a goal is reviewed by the Task reviewer model without review skills */
   smallGoalLines: number;
   models: { strong: string; cheap: string; worker: string };
+  /** the model Write with AI runs on, per coding agent (Settings → Models); null = the housekeeping model, or the Explainer's when the repository is read */
+  writerModel: Record<AgentProvider, string | null>;
   /** tried in order when a session's model turns out to be unavailable (deprecated alias, retired id) */
   modelFallbacks: string[];
   attemptTimeoutMs: number;
@@ -251,6 +253,7 @@ export function defaultConfig(root: string, overrides: Partial<EngineConfig> = {
     escalateLastAttempt: true,
     smallGoalLines: Number(process.env.FOUNDRY_SMALL_GOAL_LINES ?? 400),
     models: { strong: 'opus', cheap: process.env.FOUNDRY_MODEL_CHEAP ?? 'haiku', worker: 'opus' },
+    writerModel: { claude: null, codex: null, agy: null },
     modelFallbacks: (process.env.FOUNDRY_MODEL_FALLBACKS ?? 'opus,sonnet,haiku').split(',').map((s) => s.trim()).filter(Boolean),
     // 45 minutes (ADR-0101): twenty cut workers a hundred turns deep mid-work, and every cut costs a fresh context
     attemptTimeoutMs: 45 * 60_000,

@@ -383,6 +383,9 @@ export function applySettingsToConfig(config: EngineConfig, s: Settings, only?: 
   if (on('workflow.effort')) config.effort = s.workflow.effort;
   if (on('reviews.smallGoalLines')) config.smallGoalLines = s.reviews.smallGoalLines;
   if (on('models.cheap')) config.models.cheap = s.models.cheap;
+  if (on('models.writer')) config.writerModel.claude = s.models.writer;
+  if (on('models.codexWriter')) config.writerModel.codex = s.models.codexWriter;
+  if (on('models.agyWriter')) config.writerModel.agy = s.models.agyWriter;
   if (on('models.fallbacks')) config.modelFallbacks = s.models.fallbacks;
   if (on('models.presets')) config.modelPresets = s.models.presets;
   if (on('models.presetCode')) config.naturePreset.code = s.models.presetCode;

@@ -137,6 +137,33 @@ test('with no template a description is written in the shape of the kind\'s buil
   }
 }, 30_000);
 
+test('a Write with AI model set in Settings runs both kinds of draft, per coding agent, with room for what it costs', async () => {
+  const home = mkdtempSync(join(tmpdir(), 'foundry-draft-writer-'));
+  const repo = await makeRepo();
+  const runner = new StubRunner(() => ({ structuredOutput: { values: { feature: 'search' } } }));
+  const { engine, send, settled } = start(home, runner);
+  engine.config.allowedRoots = [repo];
+  try {
+    engine.updateSettings({ models: { writer: 'sonnet', agyWriter: 'gemini-3-pro' } });
+    const fast = await settled((await (await send('POST', '/api/templates/draft', { provider: 'claude', notes: 'add search', template: { id: 'code-feature' } })).json()).id);
+    expect(fast.result.model).toBe('sonnet');
+    // a stronger model than the housekeeping one costs more for the same call: the repository read's cap, not $0.10
+    expect([runner.calls[0]!.model, runner.calls[0]!.maxTurns, runner.calls[0]!.maxBudgetUsd]).toEqual(['sonnet', 1, 1]);
+    await settled((await (await send('POST', '/api/templates/draft', { provider: 'claude', notes: 'add search', template: { id: 'code-feature' }, repoPath: repo })).json()).id);
+    expect(runner.calls[1]!.model).toBe('sonnet');
+    await settled((await (await send('POST', '/api/templates/draft', { provider: 'agy', notes: 'add search', template: { id: 'code-feature' } })).json()).id);
+    expect(runner.calls[2]!.model).toBe('gemini-3-pro');
+    // emptied again: the housekeeping model, with its own small cap
+    engine.updateSettings({ models: { writer: null } });
+    await settled((await (await send('POST', '/api/templates/draft', { provider: 'claude', notes: 'add search', template: { id: 'code-feature' } })).json()).id);
+    expect([runner.calls[3]!.model, runner.calls[3]!.maxBudgetUsd]).toEqual(['haiku', 0.1]);
+  } finally {
+    await engine.stop();
+    rmSync(home, { recursive: true, force: true });
+    rmSync(repo, { recursive: true, force: true });
+  }
+}, 30_000);
+
 test('reading the repository runs read-only in that checkout on the Explainer\'s row; a folder Foundry may not touch is refused; a draft can be stopped', async () => {
   const home = mkdtempSync(join(tmpdir(), 'foundry-draft-repo-'));
   const repo = await makeRepo();
