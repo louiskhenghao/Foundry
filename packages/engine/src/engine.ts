@@ -145,12 +145,12 @@ import { cadModelIn, recoverOverlays } from './goal-artifacts.ts';
 import type { ConcurrencyView, Learning, SettingsPatch, SettingsView, DeployProvider, DeployHostProvider, DeployReadiness, RecipeRun, ServerRecipe } from '@foundry/core';
 import { ACTION_INFO, BUILTIN_PRESETS, DEFAULT_NATURE_PRESETS, MODEL_ACTIONS, MODEL_NATURES, NATURE_LABEL, effectivePresets } from '@foundry/core';
 import { spawnStreaming } from './skills/updaters.ts';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { removeWorktree } from './git/git.ts';
 import { BaselineChecks } from './checks/baseline.ts';
 import { homedir } from 'node:os';
 import { relative, resolve } from 'node:path';
-import { adoptLocalBin, AGENT_CLI_IDS, agentCliInstall, type AgentCliId } from './agent-cli.ts';
+import { adoptLocalBin, AGENT_CLI_BIN, AGENT_CLI_IDS, AGENT_CLI_LABEL, AGENT_CLI_OF, agentCliInstall, agentCliUpdate, cliVersion, newestAgentCli, olderVersion, providerOfCli, type AgentCliId, type AgentCliStatus } from './agent-cli.ts';
 import { defaultToolEnv, isToolId, toolRecipe } from './tools/installers.ts';
 import { linkCli, pathHint } from './cli-link.ts';
 import { type FollowUpDraft, type FollowUpInput, copyAttachments, followUpDraft, linkFollowUp, prepareFollowUp } from './follow-up.ts';
@@ -416,6 +416,9 @@ export class Engine {
   readonly memory: Memory;
   /** test seam: a fake server behind Memory, and timeouts a test can wait for */
   memoryDeps: MemoryDeps = {};
+  /** the newest release of a coding agent's CLI, which Setup and Settings → Models compare the installed one with; a test run asks nobody */
+  newestCli: (provider: AgentProvider) => Promise<string | null> = process.env.NODE_ENV === 'test' ? async () => null : (p) => newestAgentCli(p);
+  private newestCliMemo = new Map<AgentProvider, { at: number; v: Promise<string | null>; failed: boolean }>();
   /** the Conversations on goals' pages (ADR-0073): the Explainer's answers, beside the goals' own work */
   readonly conversations: Conversations;
   /** goals whose Adjustment is being set up (ADR-0078): one at a time per goal */
@@ -2982,6 +2985,12 @@ export class Engine {
       onLine(r.onPath ? '■ foundry runs from a new terminal' : `■ ~/.local/bin is not on your shell's PATH: add \`${hint.line}\` to ${hint.file}, then open a new terminal`);
       return { ok: true, command: `ln -s ${r.target} ${r.path}`, exitCode: 0 };
     }
+    // a coding agent's CLI that is already here: brought up to its newest release (Setup's and Settings' Update)
+    if (AGENT_CLI_IDS.includes(id as AgentCliId)) {
+      const p = providerOfCli(id as AgentCliId);
+      const bin = this.agentBin(p);
+      if (bin && existsSync(bin)) return this.updateAgentCli(p, bin, onLine);
+    }
     // a coding agent's own CLI (Setup's Claude Code / Codex check), else a CLI tool from the skills catalog
     const agentCli = AGENT_CLI_IDS.includes(id as AgentCliId) ? agentCliInstall(id === 'codex-cli' ? 'codex' : id === 'antigravity-cli' ? 'agy' : 'claude') : null;
     if (AGENT_CLI_IDS.includes(id as AgentCliId) && !agentCli) throw new Error(`${id}: no installer available here (needs curl, Homebrew or npm) — see the linked setup docs`);
@@ -3001,6 +3010,71 @@ export class Engine {
     return { ok, command, exitCode: r.code };
   }
 
+  /** the coding agent's CLI this Foundry runs: the path Accounts set, else the one on PATH */
+  private agentBin(provider: AgentProvider): string | null {
+    const set = provider === 'claude' ? this.config.claudeBin : provider === 'codex' ? this.config.codexBin : this.config.agyBin;
+    return set ?? Bun.which(AGENT_CLI_BIN[provider]);
+  }
+  /** a CLI's newest release, asked at most once an hour; an ask nobody answered is asked again after five minutes */
+  private newestCliCached(provider: AgentProvider): Promise<string | null> {
+    const memo = this.newestCliMemo.get(provider);
+    if (memo && Date.now() - memo.at < (memo.failed ? 5 * 60_000 : 60 * 60_000)) return memo.v;
+    const entry = { at: Date.now(), v: this.newestCli(provider).catch(() => null), failed: false };
+    void entry.v.then((v) => (entry.failed = v === null));
+    this.newestCliMemo.set(provider, entry);
+    return entry.v;
+  }
+  private cliUpdateCommand(provider: AgentProvider, bin: string): { id: AgentCliId; command: string } {
+    let real = bin;
+    try {
+      real = realpathSync(bin);
+    } catch {}
+    return agentCliUpdate(provider, bin, real);
+  }
+  /** a coding agent's CLI as installed here, against its newest release: what Setup and Settings → Models show */
+  async agentCliStatus(provider: AgentProvider = this.config.provider): Promise<AgentCliStatus> {
+    const base = { provider, id: AGENT_CLI_OF[provider], label: AGENT_CLI_LABEL[provider] };
+    const bin = this.agentBin(provider);
+    if (!bin || !existsSync(bin)) return { ...base, installed: false, version: null, newest: null, outdated: false, command: null };
+    const [v, newest] = await Promise.all([exec([bin, '--version'], this.config.dataDir, { timeoutMs: 15_000 }).catch(() => null), this.newestCliCached(provider)]);
+    const version = v?.code === 0 ? cliVersion(v.stdout) : null;
+    const outdated = !!version && !!newest && olderVersion(version, newest);
+    return { ...base, installed: true, version, newest, outdated, command: outdated ? this.cliUpdateCommand(provider, bin).command : null };
+  }
+  /** Setup's line for the coding agent's CLI against its newest release; none while it is not installed (its own check says so) */
+  private async agentCliCheck(provider: AgentProvider): Promise<DoctorCheck | null> {
+    const s = await this.agentCliStatus(provider);
+    if (!s.installed || !s.version) return null;
+    const label = `${s.label} version`;
+    if (s.outdated) return { id: 'agent-cli-version', label, ok: false, severity: 'warn', detail: `${s.version} is installed and ${s.newest} is out: new models come with new releases, and Foundry syncs models after the update. Sessions already running keep the version they started with.`, fix: { command: s.command!, installId: s.id, action: 'update-tool' } };
+    return { id: 'agent-cli-version', label, ok: true, severity: 'warn', detail: s.newest ? `${s.version}, the newest release` : `${s.version} (the newest release could not be looked up)`, fix: null };
+  }
+  /**
+   * A coding agent's CLI brought up to its newest release with the updater that fits how it was installed, and the
+   * models synced when its version moved: a new release is how new models (Fable 5.2…) arrive.
+   */
+  private async updateAgentCli(provider: AgentProvider, bin: string, onLine: (l: string) => void): Promise<{ ok: boolean; command: string; exitCode: number | null }> {
+    const label = AGENT_CLI_LABEL[provider];
+    const version = async () => cliVersion((await exec([bin, '--version'], this.config.dataDir, { timeoutMs: 15_000 }).catch(() => null))?.stdout ?? '');
+    const before = await version();
+    const { command } = this.cliUpdateCommand(provider, bin);
+    onLine(`$ ${command}`);
+    const t0 = Date.now();
+    const r = await spawnStreaming(['sh', '-lc', command], this.config.dataDir, onLine, { timeoutMs: 10 * 60_000 });
+    const after = await version();
+    const ok = r.code === 0;
+    const moved = !!after && after !== before;
+    onLine(!ok ? `■ failed (exit ${r.code}); ${label} stays ${before ?? 'as it was'}` : moved ? `■ ${label} ${before ?? '?'} → ${after} in ${Math.round((Date.now() - t0) / 1000)}s` : `■ ${label} is still ${after ?? before ?? '?'}: its updater had nothing newer for this install`);
+    this.store.append({ type: 'engine.note', goalId: null, payload: { level: ok ? 'info' : 'warn', message: `${label} update: \`${command}\` exited ${r.code}${moved ? ` (${before} → ${after})` : ''}` } });
+    if (ok && moved) {
+      onLine('syncing models…');
+      await this.syncModels({ provider })
+        .then((s) => onLine(`■ models synced: ${s.found} found`))
+        .catch((err) => onLine(`■ model sync failed (${String(err?.message ?? err)}); Settings → Models → Sync models tries again`));
+    }
+    return { ok, command, exitCode: r.code };
+  }
+
   /** the doctor run under way for a coding agent: the app shell and the Setup banner ask at the same moment, and one run answers both */
   private doctoring = new Map<AgentProvider, ReturnType<SkillsManager['doctor']>>();
   /** Doctor report including engine-level optional tools. */
@@ -3012,6 +3086,8 @@ export class Engine {
     return run;
   }
   private async runDoctor(provider: AgentProvider) {
+    // asked first and awaited last: the newest release may take a network round trip
+    const cli = this.agentCliCheck(provider).catch(() => null);
     const available = this.markitdown.available();
     const cmd = this.markitdown.installCommand();
     const check = available
@@ -3029,7 +3105,7 @@ export class Engine {
     if (motion?.ok) this.wakeMotionStudioGoals();
     // the HyperFrames engine's tools (ADR-0087), while Settings' Video skills name it
     const hf = this.config.videoPack === HYPERFRAMES ? hyperframesCheck({ node: Bun.which('node'), nodeVersion: await this.nodeVersion(), ffmpeg: Bun.which('ffmpeg'), ffprobe: Bun.which('ffprobe'), platform: process.platform }) : null;
-    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(hf ? [hf] : []), ...(await this.figureToolsCheck()), ...(await this.diagramToolsCheck()), ...(await this.deckToolsCheck(provider)), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks())]);
+    return this.skillsForProvider(provider).doctor([check, this.modelsCheck(provider), notif, ...(rea ? [rea] : []), cad, ...(motion ? [motion] : []), ...(hf ? [hf] : []), ...(await this.figureToolsCheck()), ...(await this.diagramToolsCheck()), ...(await this.deckToolsCheck(provider)), ...(provider === 'agy' ? [] : await this.mcpFor(provider).doctorChecks()), ...[await cli].filter((c): c is DoctorCheck => !!c)]);
   }
 
   /**

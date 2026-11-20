@@ -177,7 +177,7 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
                         Sign in
                       </Button>
                     )}
-                    {c.fix.installId && c.fix.action === 'install-tool' && (
+                    {c.fix.installId && (c.fix.action === 'install-tool' || c.fix.action === 'update-tool') && (
                       <Button
                         size="sm"
                         variant="primary"
@@ -187,14 +187,14 @@ function SetupChecks({ provider }: { provider: AgentProvider }) {
                             setInstallLog(c.fix!.installId!);
                             await api.installTool(c.fix!.installId!);
                             await new Promise((r) => setTimeout(r, 1000));
-                            return `Installing ${c.fix!.installId} — output below; this check turns green when it finishes.`;
+                            return c.fix!.action === 'update-tool' ? `Updating ${c.fix!.installId} — output below; models are synced when the new version is in.` : `Installing ${c.fix!.installId} — output below; this check turns green when it finishes.`;
                           })
                         }
                       >
-                        {busy === c.fix.installId ? 'Starting…' : installLog === c.fix.installId ? 'Running…' : 'Install'}
+                        {busy === c.fix.installId ? 'Starting…' : installLog === c.fix.installId ? 'Running…' : c.fix.action === 'update-tool' ? 'Update' : 'Install'}
                       </Button>
                     )}
-                    {c.fix.installId && c.fix.action !== 'install-tool' && (
+                    {c.fix.installId && c.fix.action !== 'install-tool' && c.fix.action !== 'update-tool' && (
                       <Button size="sm" variant="primary" disabled={busy !== null} onClick={() => installOne(c.fix!.installId!)}>
                         {busy === c.fix.installId ? 'Installing…' : 'Install'}
                       </Button>

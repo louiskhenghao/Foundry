@@ -292,7 +292,7 @@ export const DoctorCheck = z.object({
   ok: z.boolean(),
   severity: z.enum(['error', 'warn']),
   detail: z.string(),
-  fix: z.object({ command: z.string().optional(), url: z.string().optional(), installId: z.string().optional(), action: z.enum(['trash-shadows', 'check-updates', 'install-markitdown', 'install-tool', 'install-pack', 'test-models']).optional(), names: z.array(z.string()).optional() }).nullable(),
+  fix: z.object({ command: z.string().optional(), url: z.string().optional(), installId: z.string().optional(), action: z.enum(['trash-shadows', 'check-updates', 'install-markitdown', 'install-tool', 'update-tool', 'install-pack', 'test-models']).optional(), names: z.array(z.string()).optional() }).nullable(),
 });
 export type DoctorCheck = z.infer<typeof DoctorCheck>;
 
