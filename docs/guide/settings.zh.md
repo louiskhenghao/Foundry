@@ -155,6 +155,8 @@ Foundry 自带四个预设：
 
 Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也会自己运行一次。更新 Claude Code 后想马上看到新模型，就自己按一下。
 
+同步只能找到你的 Claude Code 知道的模型，而新模型随新版本的 Claude Code 而来。有更新的版本时，**Sync models** 下方会多一行，写明你装的是哪个版本、最新的是哪个，并附 **Update Claude Code**：Foundry 按 Claude Code 当初的安装方式运行对应的更新命令（原生安装用 `claude install latest`，因为 `claude update` 跟随安装时的通道，而 `stable` 通道落后于带来新模型的版本），新版本装好后自动同步模型。Codex 和 Antigravity 也会为它们的 CLI 显示同样的一行。Setup 页面有同样的 **Update**，`foundry setup` 也会更新过旧的 CLI。
+
 ### 模型下拉菜单
 
 预设编辑器里每个模型选项都提供：

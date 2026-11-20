@@ -60,6 +60,7 @@ Foundry 运行时，从 Applications 文件夹或 Spotlight 再打开一次 app�
 | 检查项 | 是什么 | 如果是红色 |
 |---|---|---|
 | **Claude Code CLI** / **Codex CLI** | 当前所选编码智能体的程序。 | 按 **Install**：Claude Code 用它自己的安装器，Codex 用 Homebrew、npm 或官方下载，都不需要 npm。也可以复制显示的命令。 |
+| **Claude Code version** / **Codex CLI version** / **Antigravity CLI version** | 已安装的程序和它最新发布版本的对比。新模型随新版本而来：Fable 5.2 需要 Claude Code 2.1.321 或更新。 | 有更新的版本时显示黄色。按 **Update**：Foundry 按程序当初的安装方式运行对应的更新命令（Homebrew、npm、Claude Code 自己的安装器取 `latest` 版本、Codex 的官方下载），新版本装好后自动同步模型。已经在运行的会话继续用它启动时的版本。 |
 | **Claude login** / **Codex login** | 当前所选编码智能体的账户。 | 按 **Sign in**。 |
 | **git** | 保存你文件的每一个版本。 | 在 Mac 上按 **Install**：Apple 的命令行工具会打开它自己的安装程序，装完后按 **Re-run**。在 Linux 上复制显示的命令。 |
 | **Bun runtime** | Foundry 自己运行所需的环境。 | app 和发布包里已经自带，所以这一项不会是红的。 |

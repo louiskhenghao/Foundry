@@ -155,6 +155,8 @@ With **Coding agent → Antigravity** selected, the section holds the **Antigrav
 
 It also runs by itself when Foundry starts and notices that Claude Code was updated since the last sync. Press it yourself after updating Claude Code if you want to see new models right away.
 
+A sync only finds the models your Claude Code knows, and new models come with new Claude Code releases. When a newer release is out, a line under **Sync models** says which version you have and which is out, with **Update Claude Code**: Foundry runs the updater that fits how Claude Code was installed (on a native install, `claude install latest`, because `claude update` follows the install's channel and the `stable` channel trails the releases that bring new models) and syncs the models once the new version is in. Codex and Antigravity show the same line for their CLI. The Setup page has the same **Update**, and `foundry setup` updates an older CLI too.
+
 ### Model dropdowns
 
 Every model choice in the preset editor offers:
