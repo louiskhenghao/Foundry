@@ -170,6 +170,10 @@ Foundry 启动时，如果发现 Claude Code 自上次同步后更新过，也�
 
 **Housekeeping model**（默认 Haiku，在 **Other models** 下）做 Foundry 自己的一行小杂活：判断 goal 属于哪一类、总结日志、查看你的用量上限。每个 goal 只花几美分。它是唯一不由预设决定的模型。**Test** 运行一个很小的会话，确认模型可用，并显示它解析到哪个模型。
 
+### Write with AI model
+
+**Write with AI**（在 **Other models** 下）是 **Write it with AI** 和 **Fill in with AI** 使用的模型（New goal 表单和 Templates；见 [模版](./templates.zh.md)）。留空时，它们用 housekeeping 模型；读仓库时用 Explainer 的模型。想要写得更好的描述，就选一个更强的模型：调用它更贵，所以这时草稿的上限是一美元，而不是十美分。Codex 面板在 **Other models** 下也有自己的 **Write with AI**（留空则用预设的 Housekeeping 行，读仓库时用 Explainer 行），Antigravity 面板则放在它的模型旁边（留空则用那个模型）。
+
 ### Fallbacks
 
 **Fallbacks (in order)**（默认 `opus, sonnet, haiku`）：当某个模型不可用时（已下线、名字打错、不在你的套餐里），Foundry 会用这个列表里的下一个重跑那个会话，并在这个 goal 里记住这个替代。只有全部都失败时才会问你。发生这种情况时，goal 的 Overview 会显示 **Model fallback** 卡片。

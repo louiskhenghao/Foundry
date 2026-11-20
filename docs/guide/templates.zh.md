@@ -26,7 +26,7 @@ goal 记得自己的模版：goal 页面的事实栏里有 **template: …**。
 
 没选模版时，描述框下方的 **Write it with AI** 对整段描述做同样的事：把你写在框里的内容当作笔记，按模版的章法写出描述；表单还是 *Auto* 时顺便判断 goal 的种类。
 
-两者都是在 housekeeping 模型上的一次短调用，几分钱。勾上 **Also read the repository**（下方的仓库通过检查之后才能勾），草稿改为在你的 checkout 里用 Explainer 的模型跑几轮只读的回合，让文字能点出真实的文件和命令；这要一两分钟，最多一美元。费用显示在 **Usage** 页，记为 `template` 会话；它不属于任何 goal，不计入任何预算。
+两者都是在 housekeeping 模型上的一次短调用，几分钱（Settings → Models & limits → **Write with AI** 可以为每个编码智能体另选一个模型；见 [Write with AI model](./settings.zh.md#write-with-ai-model)）。勾上 **Also read the repository**（下方的仓库通过检查之后才能勾），草稿改为在你的 checkout 里用 Explainer 的模型跑几轮只读的回合，让文字能点出真实的文件和命令；这要一两分钟，最多一美元。费用显示在 **Usage** 页，记为 `template` 会话；它不属于任何 goal，不计入任何预算。
 
 ## 做自己的模版
 

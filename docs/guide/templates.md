@@ -26,7 +26,7 @@ Under the inputs, **Fill in with AI** takes your notes — a few lines in any wo
 
 With no template chosen, **Write it with AI** under the description box does the same for the whole description: it takes what you wrote in the box as notes and writes the description the way the templates shape one, deciding the kind of goal when the form still says *Auto*.
 
-Both are one short call on the housekeeping model, a few cents. Tick **Also read the repository**, once the repository below has passed its check, and the draft spends a few read-only turns in your checkout on the Explainer's model instead, so the words name real files and commands; that takes a minute or two and up to a dollar. The cost shows on the **Usage** page as `template` sessions; it belongs to no goal and counts against no budget.
+Both are one short call on the housekeeping model, a few cents (Settings → Models & limits → **Write with AI** picks another model for each coding agent; see [Write with AI model](./settings.md#write-with-ai-model)). Tick **Also read the repository**, once the repository below has passed its check, and the draft spends a few read-only turns in your checkout on the Explainer's model instead, so the words name real files and commands; that takes a minute or two and up to a dollar. The cost shows on the **Usage** page as `template` sessions; it belongs to no goal and counts against no budget.
 
 ## Making your own
 
