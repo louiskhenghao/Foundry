@@ -42,6 +42,8 @@ Meanwhile you can read and edit everything that is there, exactly as after the p
 
 When the plan lands, the tasks, their checks and the estimate fill in around what you changed; nothing you edited is overwritten. A task planned for an Area you deleted is dropped; an Area you added shows the usual "no tasks yet" question. **Approve & run**, **Re-run Clarify**, **Revise with answers** and the **Draft** buttons open only once the plan is in; until then the bar at the bottom says the planner is still at work.
 
+On a large repository the planner may read for a quarter of an hour. When it reaches its limit (its budget, or a long silence), it gets one short closing turn to write the plan from what it read. If no plan comes even then, each Area becomes one broad task, with no milestones and no estimate, and a blocking question says so. Approving such a Brief as it is usually costs far more later, because the goal review turns broad tasks into many fix tasks: use **Draft** on each Area to plan its tasks first, or **Re-run Clarify**.
+
 ## Understanding
 
 What Foundry understood, in its own words. Read this first: if it is wrong, everything after it is too.
