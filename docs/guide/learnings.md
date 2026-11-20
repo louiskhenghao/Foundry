@@ -4,7 +4,7 @@
 
 Every goal teaches Foundry something about your project: the command the tests need, where the pages live, the mistake that cost two attempts, the way you like things done. Foundry keeps these **Learnings** per project folder and gives them to every later goal in that folder, so it does not pay for the same lesson twice.
 
-![The Learnings page: a project folder with what its goals taught, and one learning written by the person](images/learnings.png)
+![The Learnings page: the folded Memory row at the top, then a project folder with what its goals taught, and one learning written by the person](images/learnings.png)
 
 ## Where they come from
 

@@ -4,7 +4,7 @@
 
 每个 goal 都会让 Foundry 对你的项目多知道一点：测试需要哪条命令、页面放在哪里、哪个错误白白花掉了两次尝试、你喜欢事情怎么做。Foundry 按项目文件夹把这些 **Learnings** 记下来，交给这个文件夹里之后的每个 goal，同一个教训不用付两次钱。
 
-![Learnings 页面：一个项目文件夹，里面是它的 goal 教会的事，还有一条是用户自己写的](images/learnings.png)
+![Learnings 页面：最上面是收起的 Memory 一行，下面是一个项目文件夹，里面是它的 goal 教会的事，还有一条是用户自己写的](images/learnings.png)
 
 ## 它们从哪里来
 
