@@ -141,8 +141,10 @@ export function App() {
       {/* min-h-0: without it this column grows to its content, the page scrolls instead of <main>, and every side
           panel that stays in view (Settings, Ports, the Brief…) scrolls away with the rest */}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      {/* the top bar is a band in the theme's band colours (theme-band): Wayfinding's is graphite in both modes */}
-      <header className={cn('theme-band relative flex items-center gap-2 md:gap-4 px-3 md:px-5 h-14 border-b border-band-line bg-band text-band-ink sticky top-0 z-20', side && 'xl:hidden')}>
+      {/* the top bar is a band in the theme's band colours (theme-band): Wayfinding's is graphite in both modes. z-[35]:
+          above the bars the pages keep in view (Settings' save bar z-20, a back bar z-30), which its menu hangs over on a
+          narrow screen; below the dialogs (z-40 and up) */}
+      <header className={cn('theme-band relative flex items-center gap-2 md:gap-4 px-3 md:px-5 h-14 border-b border-band-line bg-band text-band-ink sticky top-0 z-[35]', side && 'xl:hidden')}>
         <button className="lg:hidden p-1.5 -ml-1 rounded text-band-ink-soft hover:text-band-ink hover:bg-band-hover" aria-label="menu" onClick={() => setMenu(!menu)}>
           {menu ? <X size={18} /> : <Menu size={18} />}
         </button>
