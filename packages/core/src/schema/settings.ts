@@ -2,7 +2,7 @@ import { AgentProvider } from './provider.ts';
 import { CodexModelPreset } from './codex-presets.ts';
 import { DEFAULT_NATURE_PRESETS, ModelPreset } from './model-presets.ts';
 import { z } from 'zod';
-import { Discipline, FigurePack, GoalMode, PonytailSwitch, WorkflowProfile } from './goal.ts';
+import { Discipline, FigurePack, GoalMode, PonytailSwitch, SessionLimits, WorkflowProfile } from './goal.ts';
 import { DeliveryMode, DeliveryUnit } from './delivery.ts';
 import { DeckPack, DesignPack, DiagramPack, ImagePack, VideoPack } from './packs.ts';
 
@@ -64,6 +64,8 @@ export const SessionSettings = z.object({
   attemptMaxTurns: z.number().int().min(10).max(2000).default(150),
   attemptMaxCostUsd: z.number().min(0.5).max(500).default(10),
   attemptTimeoutMin: z.number().int().min(5).max(240).default(45),
+  /** how far a new goal's sessions may go past their dollar caps: auto follows its preset and effort, a number multiplies them */
+  limitScale: SessionLimits.default('auto'),
 });
 /** media-pipeline is the image packs' MCP server (claude-image-gen): allowed unless switched off */
 export const DEFAULT_MCP_ALLOWED = ['mcp__plugin_media-pipeline_media-pipeline'] as const;
