@@ -6,7 +6,7 @@ import { PortsPage } from './pages/PortsPage.tsx';
 import { SettingsPage } from './pages/SettingsPage.tsx';
 import { AgentsPage } from './pages/AgentsPage.tsx';
 import { useAgentsSummary } from './pages/agents/AgentsPill.tsx';
-import { Suspense, lazy, useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, type AccessMe, type UpdateStatusView } from './api.ts';
 import { AccountMenu } from './components/AccountMenu.tsx';
@@ -30,7 +30,7 @@ import { ReportsPage } from './pages/ReportsPage.tsx';
 import { UsagePage, UsagePill } from './pages/UsagePage.tsx';
 import { useLive } from './store.ts';
 import { setMode, useLayout, useTheme } from './theme.ts';
-import { Button, Menu as DropMenu, MenuItem, cn } from './ui.tsx';
+import { Button, Menu as DropMenu, MenuItem, cn, useCloseOnScrollAway } from './ui.tsx';
 
 // the credits carry ~270 KB of license texts: loaded when the page is opened, not with the app
 const CreditsPage = lazy(() => import('./pages/CreditsPage.tsx').then((m) => ({ default: m.CreditsPage })));
@@ -48,8 +48,17 @@ export function App() {
     api.escalations(true).then((l) => setOpen(l.length)).catch(() => {});
   }, [version]);
 
-  // close the mobile menu on navigation
+  // close the mobile menu on navigation, and when the person taps or scrolls anywhere but the top bar it hangs from
   useEffect(() => setMenu(false), [loc.pathname]);
+  const bar = useRef<HTMLElement>(null);
+  const onBar = (n: EventTarget | null) => !!n && !!bar.current?.contains(n as Node);
+  useEffect(() => {
+    if (!menu) return;
+    const away = (e: MouseEvent) => !onBar(e.target) && setMenu(false);
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [menu]);
+  useCloseOnScrollAway(menu, onBar, () => setMenu(false));
 
   // first run: environment incomplete and no goals yet → land on Setup. The goals are asked first: the doctor takes
   // a while, and the page's own list of goals is not to wait behind it
@@ -144,7 +153,7 @@ export function App() {
       {/* the top bar is a band in the theme's band colours (theme-band): Wayfinding's is graphite in both modes. z-[35]:
           above the bars the pages keep in view (Settings' save bar z-20, a back bar z-30), which its menu hangs over on a
           narrow screen; below the dialogs (z-40 and up) */}
-      <header className={cn('theme-band relative flex items-center gap-2 md:gap-4 px-3 md:px-5 h-14 border-b border-band-line bg-band text-band-ink sticky top-0 z-[35]', side && 'xl:hidden')}>
+      <header ref={bar} className={cn('theme-band relative flex items-center gap-2 md:gap-4 px-3 md:px-5 h-14 border-b border-band-line bg-band text-band-ink sticky top-0 z-[35]', side && 'xl:hidden')}>
         <button className="lg:hidden p-1.5 -ml-1 rounded text-band-ink-soft hover:text-band-ink hover:bg-band-hover" aria-label="menu" onClick={() => setMenu(!menu)}>
           {menu ? <X size={18} /> : <Menu size={18} />}
         </button>
