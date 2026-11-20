@@ -1788,6 +1788,8 @@ export function createApp(engine: Engine, opts: { webDist?: string } = {}) {
     const provider = authProvider(c);
     return c.json({ effortLevels: engine.effortLevels(provider), models: engine.listModels(provider), fallbacks: provider === 'claude' ? engine.config.modelFallbacks : provider === 'codex' ? engine.config.codexFallbacks : [], current: provider === 'claude' ? engine.config.models : provider === 'agy' ? { strong: engine.config.agyModel, cheap: engine.config.agyModel, worker: engine.config.agyModel } : { strong: engine.config.codexModel, cheap: engine.config.codexModel, worker: engine.config.codexModel }, sync: engine.providerModels[provider].syncState() });
   });
+  // the coding agent's CLI against its newest release: Settings → Models offers its Update (POST /api/tools/install runs it)
+  app.get('/api/agent-cli', async (c) => c.json(await engine.agentCliStatus(authProvider(c))));
   // model sync: ids from the Claude Code binary (free) + one tiny session per family alias (~$0.04)
   app.post('/api/models/sync', async (c) => c.json(await engine.syncModels({ provider: authProvider(c) })));
   app.post('/api/models/probe', async (c) => {

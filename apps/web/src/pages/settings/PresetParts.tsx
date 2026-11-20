@@ -1,6 +1,7 @@
-import { MODEL_NATURES, NATURE_LABEL, type ModelNature } from '@foundry/core/browser';
+import { MODEL_NATURES, NATURE_LABEL, type AgentProvider, type ModelNature } from '@foundry/core/browser';
 import { CodeXml, FileText, Image as ImageIcon, Plus, RefreshCw, RotateCcw, Trash2, type LucideIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { api, type AgentCliStatus } from '../../api.ts';
 import { Button, Field, Input, Select, chipClass, cn, code } from '../../ui.tsx';
 
 /**
@@ -44,6 +45,61 @@ export function SyncRow({ syncing, onSync, title, status, aside, help, message }
       {help && <p className="w-full text-[11px] text-ink-faint">{help}</p>}
       {/* how the last sync went, in its signal colour: failed red, models found green */}
       {message && <p role="status" className={cn('w-full text-[11px] font-semibold', /^(✘|Sync failed|Unable)/.test(message) ? 'text-bad-ink' : 'text-ok-ink')}>{message}</p>}
+    </div>
+  );
+}
+
+/**
+ * The coding agent's CLI against its newest release, under Sync models: new models come with new CLI releases, so an
+ * older CLI is said here with an Update, which runs the updater that fits its install; the engine syncs the models once
+ * the new version is in. Nothing shows while it is up to date or the newest release could not be looked up.
+ */
+export function CliUpdateNote({ provider, onUpdated, initial = null }: { provider: AgentProvider; onUpdated: () => void; /** what the page knows already (a test renders it) */ initial?: AgentCliStatus | null }) {
+  const [s, setS] = useState<AgentCliStatus | null>(initial);
+  const [running, setRunning] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    api.agentCli(provider).then((x) => alive.current && setS(x)).catch(() => {});
+    return () => void (alive.current = false);
+  }, [provider]);
+  const update = async () => {
+    if (!s) return;
+    setRunning(true);
+    setMessage(null);
+    try {
+      const { op } = await api.installTool(s.id);
+      let now = op;
+      while (now.status === 'running' && alive.current) {
+        await new Promise((r) => setTimeout(r, 2000));
+        now = await api.skillOp(op.id);
+      }
+      if (!alive.current) return;
+      const next = await api.agentCli(provider);
+      setS(next);
+      onUpdated();
+      setMessage(now.status !== 'ok' ? `✘ The update did not finish${now.summary ? `: ${now.summary}` : ''}. In a terminal: ${s.command}` : next.version !== s.version ? `${s.label} ${s.version} → ${next.version}; models synced.` : `${s.label} is still ${next.version}: its updater had nothing newer for this install.`);
+    } catch (e: any) {
+      if (alive.current) setMessage(`✘ ${e.message}`);
+    } finally {
+      if (alive.current) setRunning(false);
+    }
+  };
+  if (!s?.installed || (!s.outdated && !message)) return null;
+  return (
+    <div className="flex items-center gap-x-3 gap-y-1.5 flex-wrap rounded-md border border-work/40 bg-panel px-3 py-2 text-xs text-ink">
+      {s.outdated && (
+        <>
+          <span className="min-w-0 flex-1">
+            {s.label} <span className="mono font-semibold">{s.version}</span> is installed and <span className="mono font-semibold">{s.newest}</span> is out. New models come with new releases, so Sync models cannot find them until it is updated.
+          </span>
+          <Button size="sm" variant="primary" disabled={running} onClick={() => void update()} title={s.command ?? undefined}>
+            {running ? 'Updating…' : `Update ${s.label}`}
+          </Button>
+        </>
+      )}
+      {message && <p role="status" className={cn('w-full text-[11px] font-semibold', message.startsWith('✘') ? 'text-bad-ink' : 'text-ok-ink')}>{message}</p>}
     </div>
   );
 }

@@ -121,6 +121,18 @@ export interface SkillOp {
   summary: string | null;
 }
 
+/** A coding agent's CLI against its newest release (mirrors the engine's AgentCliStatus). */
+export interface AgentCliStatus {
+  provider: AgentProvider;
+  id: 'claude-code' | 'codex-cli' | 'antigravity-cli';
+  label: string;
+  installed: boolean;
+  version: string | null;
+  newest: string | null;
+  outdated: boolean;
+  command: string | null;
+}
+
 /** Manual merge resolution (mirrors engine's merge-resolve.ts). */
 export interface ResolveFile {
   path: string;
@@ -1051,6 +1063,7 @@ export function apiForProvider(provider?: AgentProvider) {
   doctor: () => req<DoctorReport>('/api/doctor'),
   packs: () => req<PacksView>('/api/skills/packs'),
   models: (provider: AgentProvider = 'claude') => req<{ models: ModelRecordView[]; fallbacks: string[]; current: { strong: string; cheap: string; worker: string }; sync: { at: string | null; cliVersion: string | null; found: number; effortLevels?: string[] } | null; /** the effort levels this coding agent takes (ADR-0085): the New goal form and Settings offer these */ effortLevels: string[] }>(`/api/models?provider=${provider}`),
+  agentCli: (provider: AgentProvider = 'claude') => req<AgentCliStatus>(`/api/agent-cli?provider=${provider}`),
   syncModels: (provider: AgentProvider = 'claude') => req<{ found: number; newest: string[]; resolved: Record<string, string | null>; cliVersion: string | null }>(`/api/models/sync?provider=${provider}`, { method: 'POST' }),
   probeModel: (name: string, provider: AgentProvider = 'claude', effort?: string) => req<{ ok: boolean; name: string; resolvedId: string | null; costUsd: number; costAvailable?: boolean; error: string | null }>(`/api/models/probe?provider=${provider}`, { method: 'POST', body: JSON.stringify({ name, effort }) }),
   installPack: (pack: string, option: string) => req<{ started: true; channel: string }>('/api/skills/install-pack', { method: 'POST', body: JSON.stringify({ pack, option }) }),

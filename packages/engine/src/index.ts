@@ -20,7 +20,7 @@ export * from './types.ts';
 export * from './budget.ts';
 export * from './delegation.ts';
 export * from './workspace.ts';
-export { adoptLocalBin, agentCliInstall } from './agent-cli.ts';
+export { adoptLocalBin, agentCliInstall, agentCliUpdate, cliVersion, newestAgentCli, olderVersion, type AgentCliStatus } from './agent-cli.ts';
 export { PreviewError, type PreviewAppStatus, type PreviewStatus } from './preview/manager.ts';
 export type { ServicesStatus } from './preview/services.ts';
 export { EnvConflictError, PreviewEnvStore } from './preview/env.ts';

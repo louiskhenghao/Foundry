@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, type ModelRecordView } from '../../api.ts';
 import { Field, Input, Select } from '../../ui.tsx';
-import { SyncRow } from './PresetParts.tsx';
+import { CliUpdateNote, SyncRow } from './PresetParts.tsx';
 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const;
 
@@ -30,6 +30,7 @@ export function AgyModelsSection({ model, effort, onModel, onEffort }: { model: 
   return (
     <div className="space-y-4">
       <SyncRow syncing={syncing} onSync={runSync} title="Lists the account's models with agy models; runs no model" status={sync?.at ? `${models.length} models known · last sync ${new Date(sync.at).toLocaleString()}` : 'not synced yet: only Antigravity default is known'} message={message} />
+      <CliUpdateNote provider="agy" onUpdated={() => void load()} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Antigravity model" help="Every role of a new Antigravity goal runs on this model. Antigravity default follows the model agy itself is set to.">
           <div className="min-w-0 space-y-1">

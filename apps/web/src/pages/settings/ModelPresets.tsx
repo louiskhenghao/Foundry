@@ -2,7 +2,7 @@ import { ACTION_INFO, BUILTIN_PRESETS, MODEL_ACTIONS, MODEL_NATURES, RARELY_USED
 import { useEffect, useState } from 'react';
 import { api, type ModelRecordView } from '../../api.ts';
 import { ConfirmDialog, Input, Select, ago, cn, focusFirst } from '../../ui.tsx';
-import { GoalTypePresets, NatureTabs, PresetChips, PresetDetails, RoleRow, SyncRow } from './PresetParts.tsx';
+import { CliUpdateNote, GoalTypePresets, NatureTabs, PresetChips, PresetDetails, RoleRow, SyncRow } from './PresetParts.tsx';
 
 const ALIASES = [
   { id: 'fable', label: 'Fable' },
@@ -143,6 +143,13 @@ export function ModelPresetsSection({ draft, set, known, reloadModels }: { draft
           </label>
         }
         message={syncMsg}
+      />
+      <CliUpdateNote
+        provider="claude"
+        onUpdated={() => {
+          reloadModels();
+          void api.models().then((m) => setSync(m.sync ?? null)).catch(() => {});
+        }}
       />
 
       <GoalTypePresets

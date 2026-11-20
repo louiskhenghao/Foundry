@@ -65,3 +65,47 @@ describe('foundry setup (ADR-0105)', () => {
     expect(real.ran).toEqual(['graphify install --platform codex >/dev/null 2>&1 || true']);
   });
 });
+
+describe('foundry setup brings a coding agent that was already here up to its newest release', () => {
+  const versions = (start: string, after: string | null) => {
+    let v = start;
+    return { of: async () => v, bump: () => after && (v = after) };
+  };
+  test('an older Claude Code is updated by the updater its install takes, and the new version is said', async () => {
+    const m = machine(['curl', 'git', 'uv', 'claude', 'graphify', 'gh']);
+    const cli = versions('2.1.312', '2.1.329');
+    const run = async (c: string) => {
+      const code = await m.run(c);
+      if (c.endsWith(' update') || c.includes('install latest')) cli.bump();
+      return code;
+    };
+    const r = await runSetup({ agents: ['claude'], env: m.env, run, say: () => {}, nodeMajor: async () => 22, cliVersionOf: cli.of, newestCli: async () => '2.1.329' });
+    expect(r.ok).toBe(true);
+    expect(r.steps.map((s) => [s.name, s.status])).toContainEqual(['Claude Code update', 'installed']);
+    expect(r.steps.find((s) => s.name === 'Claude Code update')!.detail).toBe('2.1.312 → 2.1.329');
+    expect(m.ran).toContain("'/bin/claude' update");
+  });
+  test('up to date, or no newest release to compare with: nothing runs and no line is added', async () => {
+    for (const newest of ['2.1.329', null]) {
+      const m = machine(['curl', 'git', 'uv', 'claude', 'graphify', 'gh']);
+      const r = await runSetup({ agents: ['claude'], env: m.env, run: m.run, say: () => {}, nodeMajor: async () => 22, cliVersionOf: async () => '2.1.329', newestCli: async () => newest });
+      expect(r.steps.some((s) => s.name === 'Claude Code update')).toBe(false);
+      expect(m.ran.some((c) => c.endsWith(' update') || c.includes('install latest'))).toBe(false);
+    }
+  });
+  test('a dry run says what it would run; a failed update keeps setup green and says how by hand', async () => {
+    const m = machine(['curl', 'git', 'uv', 'claude', 'graphify', 'gh']);
+    const dry = await runSetup({ agents: ['claude'], env: m.env, run: m.run, say: () => {}, dryRun: true, nodeMajor: async () => 22, cliVersionOf: async () => '2.1.312', newestCli: async () => '2.1.329' });
+    expect(dry.steps.find((s) => s.name === 'Claude Code update')).toMatchObject({ status: 'planned', detail: "2.1.312 → 2.1.329: would run '/bin/claude' update" });
+    const bad = machine(['curl', 'git', 'uv', 'claude', 'graphify', 'gh'], ["'/bin/claude' update"]);
+    const r = await runSetup({ agents: ['claude'], env: bad.env, run: bad.run, say: () => {}, nodeMajor: async () => 22, cliVersionOf: async () => '2.1.312', newestCli: async () => '2.1.329' });
+    expect(r.ok).toBe(true);
+    expect(r.steps.find((s) => s.name === 'Claude Code update')).toMatchObject({ status: 'failed', detail: "stays 2.1.312 (exit 1); by hand: '/bin/claude' update" });
+  });
+  test('a coding agent setup has just installed is not updated again', async () => {
+    const m = machine(['curl', 'git', 'uv', 'graphify', 'gh']);
+    const asked: string[] = [];
+    await runSetup({ agents: ['claude'], env: m.env, run: m.run, say: () => {}, nodeMajor: async () => 22, cliVersionOf: async (b) => (asked.push(b), '2.1.312'), newestCli: async () => '2.1.329' });
+    expect(asked).toEqual([]);
+  });
+});
